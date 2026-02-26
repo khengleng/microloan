@@ -1,6 +1,6 @@
 import { PrismaClient, Role, LoanStatus, InterestMethod } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { calculateRepaymentSchedule } from '@microloan/shared';
+import { calculateRepaymentSchedule } from '../../shared/src/formulas';
 
 const prisma = new PrismaClient();
 
@@ -71,12 +71,12 @@ async function main() {
             annualInterestRate,
             termMonths,
             startDate: new Date(),
-            interestMethod: InterestMethod.FLAT, // matching string from @microloan/shared with @prisma/client enum
+            interestMethod: InterestMethod.FLAT as any, // matching string from @microloan/shared with @prisma/client enum
         });
 
         if (scheduleItems.length > 0) {
             await prisma.repaymentSchedule.createMany({
-                data: scheduleItems.map(item => ({
+                data: scheduleItems.map((item: any) => ({
                     loanId: loan!.id, // we know it's not null here
                     installmentNumber: item.installmentNumber,
                     dueDate: item.dueDate,
