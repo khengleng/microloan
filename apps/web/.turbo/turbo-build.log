@@ -1,0 +1,31 @@
+
+> web@0.1.0 build /Users/mlh/mloan/microloan/apps/web
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 920.8ms
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/4) ...
+  Generating static pages using 11 workers (1/4) 
+  Generating static pages using 11 workers (2/4) 
+  Generating static pages using 11 workers (3/4) 
+✓ Generating static pages using 11 workers (4/4) in 141.6ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /[locale]
+├ ƒ /[locale]/dashboard
+└ ƒ /[locale]/login
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -1,0 +1,14 @@
+{
+    "Index": {
+        "title": "Welcome to MicroLend OS",
+        "login": "Login to your account"
+    },
+    "Nav": {
+        "dashboard": "Dashboard",
+        "borrowers": "Borrowers",
+        "loans": "Loans",
+        "repayments": "Repayments",
+        "reports": "Reports",
+        "logout": "Logout"
+    }
+}

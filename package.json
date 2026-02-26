@@ -1,0 +1,24 @@
+{
+    "name": "microloan",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint",
+        "typecheck": "turbo run typecheck",
+        "test": "pnpm run lint && pnpm run typecheck && pnpm --filter db run prisma:validate",
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "db:push": "pnpm --filter db db:push",
+        "db:seed": "pnpm --filter db db:seed"
+    },
+    "devDependencies": {
+        "prettier": "^3.2.5",
+        "turbo": "^1.13.0",
+        "typescript": "^5.4.5"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "packageManager": "pnpm@9.0.0"
+}

@@ -1,0 +1,4 @@
+
+> api@0.0.1 lint /Users/mlh/mloan/microloan/apps/api
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
