@@ -5,5 +5,6 @@ import { RepaymentsController } from './repayments.controller';
 @Module({
   providers: [RepaymentsService],
   controllers: [RepaymentsController],
+  exports: [RepaymentsService],
 })
-export class RepaymentsModule {}
+export class RepaymentsModule { }

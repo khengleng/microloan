@@ -5,5 +5,6 @@ import { BorrowersController } from './borrowers.controller';
 @Module({
   providers: [BorrowersService],
   controllers: [BorrowersController],
+  exports: [BorrowersService],
 })
-export class BorrowersModule {}
+export class BorrowersModule { }
