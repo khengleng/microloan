@@ -10,5 +10,62 @@
         "repayments": "Repayments",
         "reports": "Reports",
         "logout": "Logout"
+    },
+    "Borrowers": {
+        "title": "Borrowers",
+        "add_new": "Add New Borrower",
+        "name": "Name",
+        "phone": "Phone",
+        "id_number": "National ID",
+        "address": "Address",
+        "actions": "Actions",
+        "no_borrowers": "No borrowers found.",
+        "save": "Save",
+        "cancel": "Cancel",
+        "create_success": "Borrower created successfully."
+    },
+    "Loans": {
+        "title": "Loans",
+        "add_new": "Issue New Loan",
+        "borrower": "Borrower",
+        "principal": "Principal",
+        "interest_rate": "Interest Rate (%)",
+        "term": "Term (Months)",
+        "start_date": "Start Date",
+        "method": "Interest Method",
+        "status": "Status",
+        "actions": "Actions",
+        "no_loans": "No loans found.",
+        "flat": "Flat",
+        "reducing_balance": "Reducing Balance",
+        "create_success": "Loan issued successfully."
+    },
+    "LoanDetails": {
+        "title": "Loan Details",
+        "summary": "Summary",
+        "schedule": "Repayment Schedule",
+        "ledger": "Payment Ledger",
+        "installment": "Installment",
+        "due_date": "Due Date",
+        "principal": "Principal",
+        "interest": "Interest",
+        "total": "Total",
+        "balance": "Balance",
+        "status": "Status"
+    },
+    "Repayments": {
+        "title": "Repayments",
+        "add_new": "Post Repayment",
+        "loan": "Loan",
+        "amount": "Amount",
+        "date": "Date",
+        "no_repayments": "No repayments found.",
+        "success": "Repayment posted successfully."
+    },
+    "Reports": {
+        "title": "Reports",
+        "export_loan_book": "Export Loan Book (CSV)",
+        "export_repayments": "Export Repayments Ledger (CSV)",
+        "description": "Download your operational data for auditing and analysis."
     }
 }
