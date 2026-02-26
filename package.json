@@ -10,7 +10,8 @@
         "test": "pnpm run lint && pnpm run typecheck && pnpm --filter db run prisma:validate",
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
         "db:push": "pnpm --filter db db:push",
-        "db:seed": "pnpm --filter db db:seed"
+        "db:seed": "pnpm --filter db db:seed",
+        "start": "eval $START_COMMAND"
     },
     "devDependencies": {
         "prettier": "^3.2.5",
