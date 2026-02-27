@@ -16,7 +16,7 @@ exports.TenantsModule = TenantsModule;
 exports.TenantsModule = TenantsModule = __decorate([
     (0, common_1.Module)({
         providers: [tenants_service_1.TenantsService],
-        controllers: [tenants_controller_1.TenantsController]
+        controllers: [tenants_controller_1.TenantsController],
     })
 ], TenantsModule);
 //# sourceMappingURL=tenants.module.js.map

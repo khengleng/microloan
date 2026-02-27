@@ -27,9 +27,9 @@ let RepaymentsService = class RepaymentsService {
             include: {
                 schedules: {
                     where: { isPaid: false },
-                    orderBy: { installmentNumber: 'asc' }
-                }
-            }
+                    orderBy: { installmentNumber: 'asc' },
+                },
+            },
         });
         if (!loan)
             throw new common_1.NotFoundException('Loan not found');
@@ -49,7 +49,7 @@ let RepaymentsService = class RepaymentsService {
                 remainingAmount -= installmentTotal;
                 updates.push(this.prisma.repaymentSchedule.update({
                     where: { id: schedule.id },
-                    data: { isPaid: true }
+                    data: { isPaid: true },
                 }));
             }
             else {
@@ -64,20 +64,22 @@ let RepaymentsService = class RepaymentsService {
                     loanId: dto.loanId,
                     amount: dto.amount,
                     date: new Date(dto.date),
-                }
+                },
             }),
-            ...updates
+            ...updates,
         ]);
         await this.audit.logAction(tenantId, userId, 'CREATE', 'Repayment', repayment.id, dto);
         const unpaidCount = await this.prisma.repaymentSchedule.count({
-            where: { loanId: dto.loanId, isPaid: false }
+            where: { loanId: dto.loanId, isPaid: false },
         });
         if (unpaidCount === 0 && updates.length > 0) {
             await this.prisma.loan.update({
                 where: { id: dto.loanId },
-                data: { status: db_1.LoanStatus.CLOSED }
+                data: { status: db_1.LoanStatus.CLOSED },
             });
-            await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, { action: 'Auto-closed due to full repayment' });
+            await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {
+                action: 'Auto-closed due to full repayment',
+            });
         }
         return repayment;
     }
@@ -85,13 +87,14 @@ let RepaymentsService = class RepaymentsService {
         return this.prisma.repayment.findMany({
             where: loanId ? { tenantId, loanId } : { tenantId },
             include: { loan: { include: { borrower: true } } },
-            orderBy: { date: 'desc' }
+            orderBy: { date: 'desc' },
         });
     }
 };
 exports.RepaymentsService = RepaymentsService;
 exports.RepaymentsService = RepaymentsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        audit_service_1.AuditService])
 ], RepaymentsService);
 //# sourceMappingURL=repayments.service.js.map

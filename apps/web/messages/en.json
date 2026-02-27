@@ -3,6 +3,9 @@
         "title": "Welcome to MicroLend OS",
         "login": "Login to your account"
     },
+    "Dashboard": {
+        "title": "Dashboard Overview"
+    },
     "Nav": {
         "dashboard": "Dashboard",
         "borrowers": "Borrowers",

@@ -16,7 +16,8 @@ exports.RepaymentsModule = RepaymentsModule;
 exports.RepaymentsModule = RepaymentsModule = __decorate([
     (0, common_1.Module)({
         providers: [repayments_service_1.RepaymentsService],
-        controllers: [repayments_controller_1.RepaymentsController]
+        controllers: [repayments_controller_1.RepaymentsController],
+        exports: [repayments_service_1.RepaymentsService],
     })
 ], RepaymentsModule);
 //# sourceMappingURL=repayments.module.js.map

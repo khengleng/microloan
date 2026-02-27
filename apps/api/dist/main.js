@@ -13,5 +13,8 @@ async function bootstrap() {
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, transform: true }));
     await app.listen(process.env.PORT || 3001);
 }
-bootstrap();
+bootstrap().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});
 //# sourceMappingURL=main.js.map

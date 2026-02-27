@@ -16,7 +16,8 @@ exports.BorrowersModule = BorrowersModule;
 exports.BorrowersModule = BorrowersModule = __decorate([
     (0, common_1.Module)({
         providers: [borrowers_service_1.BorrowersService],
-        controllers: [borrowers_controller_1.BorrowersController]
+        controllers: [borrowers_controller_1.BorrowersController],
+        exports: [borrowers_service_1.BorrowersService],
     })
 ], BorrowersModule);
 //# sourceMappingURL=borrowers.module.js.map

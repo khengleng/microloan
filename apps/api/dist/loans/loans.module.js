@@ -16,7 +16,8 @@ exports.LoansModule = LoansModule;
 exports.LoansModule = LoansModule = __decorate([
     (0, common_1.Module)({
         providers: [loans_service_1.LoansService],
-        controllers: [loans_controller_1.LoansController]
+        controllers: [loans_controller_1.LoansController],
+        exports: [loans_service_1.LoansService],
     })
 ], LoansModule);
 //# sourceMappingURL=loans.module.js.map

@@ -23,7 +23,9 @@ let LoansService = class LoansService {
         this.audit = audit;
     }
     async create(tenantId, userId, dto) {
-        const borrower = await this.prisma.borrower.findUnique({ where: { id: dto.borrowerId, tenantId } });
+        const borrower = await this.prisma.borrower.findUnique({
+            where: { id: dto.borrowerId, tenantId },
+        });
         if (!borrower)
             throw new common_1.NotFoundException('Borrower not found');
         const params = {
@@ -45,11 +47,11 @@ let LoansService = class LoansService {
                     startDate: new Date(dto.startDate),
                     interestMethod: dto.interestMethod,
                     status: db_1.LoanStatus.DRAFT,
-                }
+                },
             });
             if (scheduleItems.length > 0) {
                 await tx.repaymentSchedule.createMany({
-                    data: scheduleItems.map(item => ({
+                    data: scheduleItems.map((item) => ({
                         loanId: createdLoan.id,
                         installmentNumber: item.installmentNumber,
                         dueDate: item.dueDate,
@@ -57,7 +59,7 @@ let LoansService = class LoansService {
                         interestAmount: item.interestAmount,
                         totalAmount: item.totalAmount,
                         outstandingPrincipal: item.outstandingPrincipal,
-                    }))
+                    })),
                 });
             }
             return createdLoan;
@@ -69,7 +71,7 @@ let LoansService = class LoansService {
         return this.prisma.loan.findMany({
             where: { tenantId },
             include: { borrower: true },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
         });
     }
     async findOne(tenantId, id) {
@@ -78,8 +80,8 @@ let LoansService = class LoansService {
             include: {
                 borrower: true,
                 schedules: { orderBy: { installmentNumber: 'asc' } },
-                repayments: { orderBy: { date: 'asc' } }
-            }
+                repayments: { orderBy: { date: 'asc' } },
+            },
         });
         if (!loan)
             throw new common_1.NotFoundException('Loan not found');
@@ -96,13 +98,17 @@ let LoansService = class LoansService {
             where: { id },
             data: { status: dto.status },
         });
-        await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, { old: loan.status, new: dto.status });
+        await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {
+            old: loan.status,
+            new: dto.status,
+        });
         return updated;
     }
 };
 exports.LoansService = LoansService;
 exports.LoansService = LoansService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService, audit_service_1.AuditService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        audit_service_1.AuditService])
 ], LoansService);
 //# sourceMappingURL=loans.service.js.map

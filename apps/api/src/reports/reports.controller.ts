@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
+import { PrismaService } from '../prisma/prisma.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('reports')
@@ -14,7 +15,59 @@ export class ReportsController {
     private readonly loansService: LoansService,
     private readonly borrowersService: BorrowersService,
     private readonly repaymentsService: RepaymentsService,
-  ) {}
+    private readonly prisma: PrismaService,
+  ) { }
+
+  @Get('dashboard')
+  async getDashboardStats(@CurrentUser() user: JwtPayload) {
+    const tenantId = user.tenantId;
+
+    const activeLoans = await this.prisma.loan.count({
+      where: { tenantId, status: 'DISBURSED' }
+    });
+
+    const totalBorrowers = await this.prisma.borrower.count({
+      where: { tenantId }
+    });
+
+    const currentDate = new Date();
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+
+    const repayments = await this.prisma.repayment.aggregate({
+      where: {
+        tenantId,
+        date: { gte: firstDayOfMonth }
+      },
+      _sum: { amount: true }
+    });
+
+    const outstanding = await this.prisma.repaymentSchedule.aggregate({
+      where: {
+        loan: { tenantId, status: 'DISBURSED' },
+        isPaid: false
+      },
+      _sum: { outstandingPrincipal: true }
+    });
+
+    const next7Days = new Date();
+    next7Days.setDate(next7Days.getDate() + 7);
+    const dueNext7 = await this.prisma.repaymentSchedule.aggregate({
+      where: {
+        loan: { tenantId, status: 'DISBURSED' },
+        isPaid: false,
+        dueDate: { gte: new Date(), lte: next7Days }
+      },
+      _sum: { totalAmount: true }
+    });
+
+    return {
+      activeLoans,
+      totalBorrowers,
+      repaymentsThisMonth: repayments._sum.amount || 0,
+      outstandingPrincipal: outstanding._sum.outstandingPrincipal || 0,
+      dueNext7Days: dueNext7._sum.totalAmount || 0
+    };
+  }
 
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {

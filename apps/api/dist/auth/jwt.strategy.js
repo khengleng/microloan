@@ -25,7 +25,12 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         if (!payload.tenantId) {
             throw new common_1.UnauthorizedException('Invalid token');
         }
-        return { id: payload.sub, email: payload.email, role: payload.role, tenantId: payload.tenantId };
+        return {
+            id: payload.sub,
+            email: payload.email,
+            role: payload.role,
+            tenantId: payload.tenantId,
+        };
     }
 };
 exports.JwtStrategy = JwtStrategy;

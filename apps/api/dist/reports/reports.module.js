@@ -18,7 +18,7 @@ exports.ReportsModule = ReportsModule;
 exports.ReportsModule = ReportsModule = __decorate([
     (0, common_1.Module)({
         imports: [loans_module_1.LoansModule, borrowers_module_1.BorrowersModule, repayments_module_1.RepaymentsModule],
-        controllers: [reports_controller_1.ReportsController]
+        controllers: [reports_controller_1.ReportsController],
     })
 ], ReportsModule);
 //# sourceMappingURL=reports.module.js.map

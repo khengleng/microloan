@@ -19,19 +19,66 @@ const borrowers_service_1 = require("../borrowers/borrowers.service");
 const repayments_service_1 = require("../repayments/repayments.service");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
+const prisma_service_1 = require("../prisma/prisma.service");
 let ReportsController = class ReportsController {
     loansService;
     borrowersService;
     repaymentsService;
-    constructor(loansService, borrowersService, repaymentsService) {
+    prisma;
+    constructor(loansService, borrowersService, repaymentsService, prisma) {
         this.loansService = loansService;
         this.borrowersService = borrowersService;
         this.repaymentsService = repaymentsService;
+        this.prisma = prisma;
+    }
+    async getDashboardStats(user) {
+        const tenantId = user.tenantId;
+        const activeLoans = await this.prisma.loan.count({
+            where: { tenantId, status: 'DISBURSED' }
+        });
+        const totalBorrowers = await this.prisma.borrower.count({
+            where: { tenantId }
+        });
+        const currentDate = new Date();
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const repayments = await this.prisma.repayment.aggregate({
+            where: {
+                tenantId,
+                date: { gte: firstDayOfMonth }
+            },
+            _sum: { amount: true }
+        });
+        const outstanding = await this.prisma.repaymentSchedule.aggregate({
+            where: {
+                loan: { tenantId, status: 'DISBURSED' },
+                isPaid: false
+            },
+            _sum: { outstandingPrincipal: true }
+        });
+        const next7Days = new Date();
+        next7Days.setDate(next7Days.getDate() + 7);
+        const dueNext7 = await this.prisma.repaymentSchedule.aggregate({
+            where: {
+                loan: { tenantId, status: 'DISBURSED' },
+                isPaid: false,
+                dueDate: { gte: new Date(), lte: next7Days }
+            },
+            _sum: { totalAmount: true }
+        });
+        return {
+            activeLoans,
+            totalBorrowers,
+            repaymentsThisMonth: repayments._sum.amount || 0,
+            outstandingPrincipal: outstanding._sum.outstandingPrincipal || 0,
+            dueNext7Days: dueNext7._sum.totalAmount || 0
+        };
     }
     async exportLoanBook(user, res) {
         const loans = await this.loansService.findAll(user.tenantId);
         const header = 'id,borrower,principal,interestRate,term,method,status,startDate\n';
-        const rows = loans.map(l => `${l.id},${l.borrower.firstName} ${l.borrower.lastName},${l.principal},${l.annualInterestRate},${l.termMonths},${l.interestMethod},${l.status},${new Date(l.startDate).toISOString()}`).join('\n');
+        const rows = loans
+            .map((l) => `${l.id},${l.borrower.firstName} ${l.borrower.lastName},${l.principal},${l.annualInterestRate},${l.termMonths},${l.interestMethod},${l.status},${new Date(l.startDate).toISOString()}`)
+            .join('\n');
         const csv = header + rows;
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename="loan_book.csv"');
@@ -40,7 +87,9 @@ let ReportsController = class ReportsController {
     async exportRepayments(user, res) {
         const repayments = await this.repaymentsService.findAll(user.tenantId);
         const header = 'id,loanId,borrower,amount,date\n';
-        const rows = repayments.map(r => `${r.id},${r.loanId},${r.loan.borrower.firstName} ${r.loan.borrower.lastName},${r.amount},${new Date(r.date).toISOString()}`).join('\n');
+        const rows = repayments
+            .map((r) => `${r.id},${r.loanId},${r.loan.borrower.firstName} ${r.loan.borrower.lastName},${r.amount},${new Date(r.date).toISOString()}`)
+            .join('\n');
         const csv = header + rows;
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', 'attachment; filename="repayments.csv"');
@@ -48,6 +97,13 @@ let ReportsController = class ReportsController {
     }
 };
 exports.ReportsController = ReportsController;
+__decorate([
+    (0, common_1.Get)('dashboard'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "getDashboardStats", null);
 __decorate([
     (0, common_1.Get)('loan-book'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -69,6 +125,7 @@ exports.ReportsController = ReportsController = __decorate([
     (0, common_1.Controller)('reports'),
     __metadata("design:paramtypes", [loans_service_1.LoansService,
         borrowers_service_1.BorrowersService,
-        repayments_service_1.RepaymentsService])
+        repayments_service_1.RepaymentsService,
+        prisma_service_1.PrismaService])
 ], ReportsController);
 //# sourceMappingURL=reports.controller.js.map
