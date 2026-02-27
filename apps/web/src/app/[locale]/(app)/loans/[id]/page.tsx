@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { RepaymentModal } from '@/components/RepaymentModal';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -47,27 +48,48 @@ export default function LoanDetailsPage() {
     const t = useTranslations('LoanDetails');
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    useEffect(() => {
+    const fetchLoan = useCallback(() => {
+        setLoading(true);
         api.get(`/loans/${id}`)
             .then(res => setLoan(res.data))
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
     }, [id]);
 
+    useEffect(() => {
+        fetchLoan();
+    }, [fetchLoan]);
+
     if (loading) return <div>Loading...</div>;
     if (!loan) return <div>Loan not found</div>;
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-4">
-                <Link href={`/${locale}/loans`}>
-                    <Button variant="ghost" size="icon">
-                        <ChevronLeft size={24} />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Link href={`/${locale}/loans`}>
+                        <Button variant="ghost" size="icon">
+                            <ChevronLeft size={24} />
+                        </Button>
+                    </Link>
+                    <h1 className="text-2xl font-bold">{t('title')} - {loan.borrower.firstName} {loan.borrower.lastName}</h1>
+                </div>
+                {loan.status === 'DISBURSED' && (
+                    <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
+                        <Plus size={16} />
+                        Make a Payment
                     </Button>
-                </Link>
-                <h1 className="text-2xl font-bold">{t('title')} - {loan.borrower.firstName} {loan.borrower.lastName}</h1>
+                )}
             </div>
+
+            <RepaymentModal
+                open={isModalOpen}
+                onOpenChange={setIsModalOpen}
+                onSuccess={fetchLoan}
+                defaultLoanId={loan.id}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-lg shadow space-y-4">
@@ -134,8 +156,8 @@ export default function LoanDetailsPage() {
                                 <tr key={rp.id}>
                                     <td className="py-2">{new Date(rp.date).toLocaleDateString()}</td>
                                     <td className="py-2 text-right font-medium">${rp.amount.toLocaleString()}</td>
-                                    <td className="py-2 text-right text-green-600">${rp.interestPaid.toLocaleString()}</td>
-                                    <td className="py-2 text-right text-blue-600">${rp.principalPaid.toLocaleString()}</td>
+                                    <td className="py-2 text-right text-green-600">${rp.interestPaid?.toLocaleString() || 0}</td>
+                                    <td className="py-2 text-right text-blue-600">${rp.principalPaid?.toLocaleString() || 0}</td>
                                 </tr>
                             ))
                         )}

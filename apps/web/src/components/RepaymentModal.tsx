@@ -13,6 +13,7 @@ interface RepaymentModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
+    defaultLoanId?: string;
 }
 
 interface Loan {
@@ -24,12 +25,12 @@ interface Loan {
     principal: number;
 }
 
-export function RepaymentModal({ open, onOpenChange, onSuccess }: RepaymentModalProps) {
+export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }: RepaymentModalProps) {
     const t = useTranslations('Repayments');
     const [loading, setLoading] = useState(false);
     const [loans, setLoans] = useState<Loan[]>([]);
     const [formData, setFormData] = useState({
-        loanId: '',
+        loanId: defaultLoanId || '',
         amount: '',
         date: new Date().toISOString().split('T')[0]
     });
@@ -37,8 +38,11 @@ export function RepaymentModal({ open, onOpenChange, onSuccess }: RepaymentModal
     useEffect(() => {
         if (open) {
             api.get('/loans').then(res => setLoans(res.data));
+            if (defaultLoanId) {
+                setFormData(prev => ({ ...prev, loanId: defaultLoanId }));
+            }
         }
-    }, [open]);
+    }, [open, defaultLoanId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
