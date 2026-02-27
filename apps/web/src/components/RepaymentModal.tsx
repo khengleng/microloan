@@ -37,7 +37,10 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
     useEffect(() => {
         if (open) {
-            api.get('/loans').then(res => setLoans(res.data));
+            api.get('/loans').then(res => {
+                const disbursedLoans = res.data.filter((l: any) => l.status === 'DISBURSED');
+                setLoans(disbursedLoans);
+            });
             if (defaultLoanId) {
                 setFormData(prev => ({ ...prev, loanId: defaultLoanId }));
             }
@@ -59,9 +62,10 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                 amount: '',
                 date: new Date().toISOString().split('T')[0]
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to post repayment', error);
-            alert('Failed to post repayment');
+            const msg = error.response?.data?.message || 'Failed to post repayment';
+            alert(Array.isArray(msg) ? msg[0] : msg);
         } finally {
             setLoading(false);
         }
