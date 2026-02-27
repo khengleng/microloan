@@ -21,8 +21,10 @@ export default function DashboardPage() {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
+        setIsMounted(true);
         const fetchData = async () => {
             try {
                 const [statsRes, cashflowRes] = await Promise.all([
@@ -80,42 +82,46 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Last 6 Months)</h3>
-                            <div className="h-64 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={chartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            formatter={(value: any) => [`$${value}`, undefined]}
-                                        />
-                                        <Legend />
-                                        <Line type="monotone" dataKey="disbursements" name="Disbursements" stroke="#4F46E5" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                                        <Line type="monotone" dataKey="collections" name="Collections" stroke="#10B981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
+                            <div className="h-64 w-full" style={{ minHeight: '256px' }}>
+                                {isMounted && (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                formatter={(value: any) => [`$${value}`, undefined]}
+                                            />
+                                            <Legend />
+                                            <Line type="monotone" dataKey="disbursements" name="Disbursements" stroke="#4F46E5" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                            <Line type="monotone" dataKey="collections" name="Collections" stroke="#10B981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
 
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume</h3>
-                            <div className="h-64 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            formatter={(value: any) => [`$${value}`, undefined]}
-                                            cursor={{ fill: '#F3F4F6' }}
-                                        />
-                                        <Legend />
-                                        <Bar dataKey="disbursements" name="Disbursements" fill="#4F46E5" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="collections" name="Collections" fill="#10B981" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="h-64 w-full" style={{ minHeight: '256px' }}>
+                                {isMounted && (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                formatter={(value: any) => [`$${value}`, undefined]}
+                                                cursor={{ fill: '#F3F4F6' }}
+                                            />
+                                            <Legend />
+                                            <Bar dataKey="disbursements" name="Disbursements" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="collections" name="Collections" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
                     </div>
