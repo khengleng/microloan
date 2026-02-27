@@ -6,4 +6,28 @@
 
 [33m[1m⚠[22m[39m The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 [37m[1m [22m[39m Creating an optimized production build ...
-[41m[30m ELIFECYCLE [39m[49m [31mCommand failed with exit code 130.[39m
+[32m[1m✓[22m[39m Compiled successfully in 1586.1ms
+[?25l[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[?25h[?25l[37m[1m [22m[39m Finished TypeScript in 1493.0ms  [36m.[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Finished TypeScript in 1493.0ms    [32m[1m✓[22m[39m Finished TypeScript in 1493.0ms 
+[?25l[37m[1m [22m[39m Collecting page data using 11 workers  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Collecting page data using 11 workers  [36m..[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Collecting page data using 11 workers in 249.2ms    [32m[1m✓[22m[39m Collecting page data using 11 workers in 249.2ms 
+[?25l[37m[1m [22m[39m Generating static pages using 11 workers (0/4)  [36m[    ][39m[2K[1G[1A[2K[1G[?25h[32m[1m✓[22m[39m Generating static pages using 11 workers (4/4) in 57.4ms
+[?25l[37m[1m [22m[39m Finalizing page optimization  [36m.[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Finalizing page optimization in 9.2ms    [32m[1m✓[22m[39m Finalizing page optimization in 9.2ms 
+
+[4mRoute (app)[24m
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /[locale]
+├ ƒ /[locale]/borrowers
+├ ƒ /[locale]/dashboard
+├ ƒ /[locale]/loans
+├ ƒ /[locale]/loans/[id]
+├ ƒ /[locale]/login
+├ ƒ /[locale]/repayments
+└ ƒ /[locale]/reports
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+[?25h
