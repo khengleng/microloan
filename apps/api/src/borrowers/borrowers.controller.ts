@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Put,
+  Delete,
   UseGuards,
 } from '@nestjs/common';
 import { BorrowersService } from './borrowers.service';
@@ -19,7 +20,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 @UseGuards(JwtAuthGuard)
 @Controller('borrowers')
 export class BorrowersController {
-  constructor(private readonly borrowersService: BorrowersService) {}
+  constructor(private readonly borrowersService: BorrowersService) { }
 
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateBorrowerDto) {
@@ -43,5 +44,10 @@ export class BorrowersController {
     @Body() dto: UpdateBorrowerDto,
   ) {
     return this.borrowersService.update(user.tenantId, user.sub, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.borrowersService.remove(user.tenantId, user.sub, id);
   }
 }

@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { ChevronLeft, Plus, CheckCircle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
 
 interface ScheduleItem {
@@ -16,6 +16,9 @@ interface ScheduleItem {
     interestAmount: number;
     totalAmount: number;
     outstandingPrincipal: number;
+    paidPrincipal: number;
+    paidInterest: number;
+    isPaid: boolean;
 }
 
 interface Repayment {
@@ -45,6 +48,7 @@ interface Loan {
 
 export default function LoanDetailsPage() {
     const { id, locale } = useParams();
+    const router = useRouter();
     const t = useTranslations('LoanDetails');
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
@@ -57,6 +61,28 @@ export default function LoanDetailsPage() {
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
     }, [id]);
+
+    const handleDisburse = async () => {
+        if (!confirm('Are you sure you want to disburse this loan? This will activate the repayment schedule.')) return;
+        try {
+            await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
+            fetchLoan();
+        } catch (error) {
+            console.error('Failed to disburse loan', error);
+            alert('Failed to disburse loan');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!confirm('Are you sure you want to delete this DRAFT loan? This action cannot be undone.')) return;
+        try {
+            await api.delete(`/loans/${id}`);
+            router.push(`/${locale}/loans`);
+        } catch (error) {
+            console.error('Failed to delete loan', error);
+            alert('Failed to delete loan');
+        }
+    };
 
     useEffect(() => {
         fetchLoan();
@@ -76,12 +102,26 @@ export default function LoanDetailsPage() {
                     </Link>
                     <h1 className="text-2xl font-bold">{t('title')} - {loan.borrower.firstName} {loan.borrower.lastName}</h1>
                 </div>
-                {loan.status === 'DISBURSED' && (
-                    <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                        <Plus size={16} />
-                        Make a Payment
-                    </Button>
-                )}
+                <div className="flex gap-2">
+                    {loan.status === 'DRAFT' && (
+                        <>
+                            <Button onClick={handleDelete} variant="destructive" className="flex items-center gap-2">
+                                <Trash2 size={16} />
+                                Delete Draft
+                            </Button>
+                            <Button onClick={handleDisburse} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+                                <CheckCircle size={16} />
+                                Disburse Loan
+                            </Button>
+                        </>
+                    )}
+                    {loan.status === 'DISBURSED' && (
+                        <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
+                            <Plus size={16} />
+                            Make a Payment
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <RepaymentModal
@@ -118,7 +158,7 @@ export default function LoanDetailsPage() {
                                 <th className="text-right py-2 font-medium text-gray-500">{t('principal')}</th>
                                 <th className="text-right py-2 font-medium text-gray-500">{t('interest')}</th>
                                 <th className="text-right py-2 font-medium text-gray-500">{t('total')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">{t('balance')}</th>
+                                <th className="text-right py-2 font-medium text-gray-500">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -126,10 +166,28 @@ export default function LoanDetailsPage() {
                                 <tr key={item.installmentNumber}>
                                     <td className="py-2">{item.installmentNumber}</td>
                                     <td className="py-2">{new Date(item.dueDate).toLocaleDateString()}</td>
-                                    <td className="py-2 text-right">${item.principalAmount.toLocaleString()}</td>
-                                    <td className="py-2 text-right">${item.interestAmount.toLocaleString()}</td>
+                                    <td className="py-2 text-right">
+                                        <div className="flex flex-col text-right">
+                                            <span>${item.principalAmount.toLocaleString()}</span>
+                                            {Number(item.paidPrincipal) > 0 && <span className="text-[10px] text-blue-600">Paid: ${item.paidPrincipal.toLocaleString()}</span>}
+                                        </div>
+                                    </td>
+                                    <td className="py-2 text-right">
+                                        <div className="flex flex-col text-right">
+                                            <span>${item.interestAmount.toLocaleString()}</span>
+                                            {Number(item.paidInterest) > 0 && <span className="text-[10px] text-green-600">Paid: ${item.paidInterest.toLocaleString()}</span>}
+                                        </div>
+                                    </td>
                                     <td className="py-2 text-right font-medium">${item.totalAmount.toLocaleString()}</td>
-                                    <td className="py-2 text-right text-gray-500">${item.outstandingPrincipal.toLocaleString()}</td>
+                                    <td className="py-2 text-right">
+                                        {item.isPaid ? (
+                                            <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px] font-bold">PAID</span>
+                                        ) : Number(item.paidPrincipal) + Number(item.paidInterest) > 0 ? (
+                                            <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">PARTIAL</span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 text-[10px] font-bold">DUE</span>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

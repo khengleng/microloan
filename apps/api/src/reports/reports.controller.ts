@@ -117,4 +117,62 @@ export class ReportsController {
     );
     res.send(csv);
   }
+
+  @Get('cashflow')
+  async getCashflow(@CurrentUser() user: JwtPayload) {
+    const tenantId = user.tenantId;
+    const months: any[] = [];
+    const now = new Date();
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        name: d.toLocaleString('default', { month: 'short' }),
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        disbursements: 0,
+        collections: 0,
+      });
+    }
+
+    const startDate = new Date(months[0].year, months[0].month, 1);
+
+    const loans = await this.prisma.loan.findMany({
+      where: {
+        tenantId,
+        startDate: { gte: startDate },
+        status: { in: ['DISBURSED', 'CLOSED'] },
+      },
+    });
+
+    const repayments = await this.prisma.repayment.findMany({
+      where: {
+        tenantId,
+        date: { gte: startDate },
+      },
+    });
+
+    months.forEach((m) => {
+      m.disbursements = loans
+        .filter(
+          (l) =>
+            l.startDate.getFullYear() === m.year &&
+            l.startDate.getMonth() === m.month,
+        )
+        .reduce((sum, l) => sum + Number(l.principal), 0);
+
+      m.collections = repayments
+        .filter(
+          (r) =>
+            r.date.getFullYear() === m.year && r.date.getMonth() === m.month,
+        )
+        .reduce((sum, r) => sum + Number(r.amount), 0);
+    });
+
+    return months.map(({ name, disbursements, collections }) => ({
+      name,
+      disbursements,
+      collections,
+    }));
+  }
 }

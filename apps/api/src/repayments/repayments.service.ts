@@ -13,7 +13,7 @@ export class RepaymentsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
-  ) {}
+  ) { }
 
   async postRepayment(tenantId: string, userId: string, dto: PostRepaymentDto) {
     const loan = await this.prisma.loan.findUnique({
@@ -41,33 +41,55 @@ export class RepaymentsService {
 
     // Allocate payment
     let remainingAmount = dto.amount;
+    let totalInterestPaid = 0;
+    let totalPrincipalPaid = 0;
     const updates: any[] = [];
 
-    // The MVP instructions:
-    // "pay due interest first, then principal"
-    // We iterate through unpaid schedules and allocate
+    // "pay due interest first, then principal" across schedules
     for (const schedule of loan.schedules) {
       if (remainingAmount <= 0) break;
 
-      // In MVP, we just mark the schedule paid if we fully cover it
-      // For simplicity, we assume we just mark the next full installment paid if remainingAmount >= its totalAmount
-      // If we do partial payments, we should ideally track paidInterest/paidPrincipal per schedule.
-      // But the spec says: "Auto-mark installments as paid". Let's do simple deterministic allocation.
+      const scheduleInterest = Number(schedule.interestAmount);
+      const schedulePrincipal = Number(schedule.principalAmount);
+      const alreadyPaidInterest = Number(schedule.paidInterest);
+      const alreadyPaidPrincipal = Number(schedule.paidPrincipal);
 
-      const installmentTotal = Number(schedule.totalAmount);
+      const dueInterest = Math.max(0, scheduleInterest - alreadyPaidInterest);
+      const duePrincipal = Math.max(0, schedulePrincipal - alreadyPaidPrincipal);
 
-      if (remainingAmount >= installmentTotal) {
-        remainingAmount -= installmentTotal;
+      let interestToPay = 0;
+      let principalToPay = 0;
+
+      // 1. Pay Interest
+      if (dueInterest > 0) {
+        interestToPay = Math.min(remainingAmount, dueInterest);
+        remainingAmount -= interestToPay;
+        totalInterestPaid += interestToPay;
+      }
+
+      // 2. Pay Principal
+      if (remainingAmount > 0 && duePrincipal > 0) {
+        principalToPay = Math.min(remainingAmount, duePrincipal);
+        remainingAmount -= principalToPay;
+        totalPrincipalPaid += principalToPay;
+      }
+
+      if (interestToPay > 0 || principalToPay > 0) {
+        const newPaidInterest = alreadyPaidInterest + interestToPay;
+        const newPaidPrincipal = alreadyPaidPrincipal + principalToPay;
+        const isPaid =
+          newPaidInterest + newPaidPrincipal >= Number(schedule.totalAmount);
+
         updates.push(
           this.prisma.repaymentSchedule.update({
             where: { id: schedule.id },
-            data: { isPaid: true },
+            data: {
+              paidInterest: newPaidInterest,
+              paidPrincipal: newPaidPrincipal,
+              isPaid,
+            },
           }),
         );
-      } else {
-        // Partial payment of an installment (not fully implemented in MVP, just consumed)
-        remainingAmount = 0;
-        break; // we didn't cover the whole installment
       }
     }
 
@@ -78,6 +100,8 @@ export class RepaymentsService {
           tenantId,
           loanId: dto.loanId,
           amount: dto.amount,
+          interestPaid: totalInterestPaid,
+          principalPaid: totalPrincipalPaid,
           date: new Date(dto.date),
         },
       }),
@@ -90,7 +114,11 @@ export class RepaymentsService {
       'CREATE',
       'Repayment',
       repayment.id,
-      dto,
+      {
+        ...dto,
+        allocatedInterest: totalInterestPaid,
+        allocatedPrincipal: totalPrincipalPaid,
+      },
     );
 
     // Check if all installments are paid, auto-close loan
@@ -98,7 +126,7 @@ export class RepaymentsService {
       where: { loanId: dto.loanId, isPaid: false },
     });
 
-    if (unpaidCount === 0 && updates.length > 0) {
+    if (unpaidCount === 0 && (updates.length > 0 || loan.schedules.length === 0)) {
       await this.prisma.loan.update({
         where: { id: dto.loanId },
         data: { status: LoanStatus.CLOSED },

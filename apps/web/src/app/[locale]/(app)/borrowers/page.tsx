@@ -21,6 +21,7 @@ export default function BorrowersPage() {
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
 
     const fetchBorrowers = async () => {
         setLoading(true);
@@ -34,6 +35,21 @@ export default function BorrowersPage() {
         }
     };
 
+    const handleEdit = (borrower: Borrower) => {
+        setSelectedBorrower(borrower);
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this borrower?')) return;
+        try {
+            await api.delete(`/borrowers/${id}`);
+            fetchBorrowers();
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Failed to delete borrower');
+        }
+    };
+
     useEffect(() => {
         fetchBorrowers();
     }, []);
@@ -42,7 +58,7 @@ export default function BorrowersPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">{t('title')}</h1>
-                <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
+                <Button onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }} className="flex items-center gap-2">
                     <Plus size={16} />
                     {t('add_new')}
                 </Button>
@@ -52,6 +68,7 @@ export default function BorrowersPage() {
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
                 onSuccess={fetchBorrowers}
+                borrower={selectedBorrower}
             />
 
             <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -82,7 +99,18 @@ export default function BorrowersPage() {
                                     <td className="px-6 py-4 whitespace-nowrap">{borrower.idNumber}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">{borrower.address}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <button className="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
+                                        <button
+                                            onClick={() => handleEdit(borrower)}
+                                            className="text-blue-600 hover:text-blue-900 mr-4 font-medium"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(borrower.id)}
+                                            className="text-red-600 hover:text-red-900 font-medium"
+                                        >
+                                            Delete
+                                        </button>
                                     </td>
                                 </tr>
                             ))

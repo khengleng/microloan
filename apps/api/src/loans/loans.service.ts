@@ -14,7 +14,7 @@ export class LoansService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
-  ) {}
+  ) { }
 
   async create(tenantId: string, userId: string, dto: CreateLoanDto) {
     // 1. Validate borrower
@@ -121,5 +121,17 @@ export class LoansService {
       new: dto.status,
     });
     return updated;
+  }
+
+  async remove(tenantId: string, userId: string, id: string) {
+    const loan = await this.prisma.loan.findUnique({ where: { id, tenantId } });
+    if (!loan) throw new NotFoundException('Loan not found');
+    if (loan.status !== LoanStatus.DRAFT) {
+      throw new BadRequestException('Only draft loans can be deleted');
+    }
+
+    await this.prisma.loan.delete({ where: { id } });
+    await this.audit.logAction(tenantId, userId, 'DELETE', 'Loan', id, loan);
+    return { success: true };
   }
 }

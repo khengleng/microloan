@@ -11,7 +11,7 @@ export class BorrowersService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
-  ) {}
+  ) { }
 
   async create(tenantId: string, userId: string, dto: CreateBorrowerDto) {
     const b = await this.prisma.borrower.create({ data: { tenantId, ...dto } });
@@ -60,5 +60,20 @@ export class BorrowersService {
       new: updated,
     });
     return updated;
+  }
+
+  async remove(tenantId: string, userId: string, id: string) {
+    const b = await this.prisma.borrower.findUnique({
+      where: { id, tenantId },
+      include: { _count: { select: { loans: true } } },
+    });
+    if (!b) throw new NotFoundException('Borrower not found');
+    if (b._count.loans > 0) {
+      throw new Error('Cannot delete borrower with associated loans');
+    }
+
+    await this.prisma.borrower.delete({ where: { id } });
+    await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, b);
+    return { success: true };
   }
 }

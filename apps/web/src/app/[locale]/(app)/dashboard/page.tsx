@@ -16,32 +16,28 @@ interface DashboardStats {
     dueNext7Days: number;
 }
 
-const MOCK_CHART_DATA = [
-    { name: 'Jan', disbursements: 4000, collections: 2400 },
-    { name: 'Feb', disbursements: 3000, collections: 1398 },
-    { name: 'Mar', disbursements: 2000, collections: 9800 },
-    { name: 'Apr', disbursements: 2780, collections: 3908 },
-    { name: 'May', disbursements: 1890, collections: 4800 },
-    { name: 'Jun', disbursements: 2390, collections: 3800 },
-];
-
 export default function DashboardPage() {
     const t = useTranslations('Dashboard');
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchData = async () => {
             try {
-                const res = await api.get('/reports/dashboard');
-                setStats(res.data);
+                const [statsRes, cashflowRes] = await Promise.all([
+                    api.get('/reports/dashboard'),
+                    api.get('/reports/cashflow')
+                ]);
+                setStats(statsRes.data);
+                setChartData(cashflowRes.data);
             } catch (err) {
-                console.error("Failed to load dashboard stats", err);
+                console.error("Failed to load dashboard data", err);
             } finally {
                 setLoading(false);
             }
         };
-        fetchStats();
+        fetchData();
     }, []);
 
     return (
@@ -83,10 +79,10 @@ export default function DashboardPage() {
                     {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Mock 6m)</h3>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Last 6 Months)</h3>
                             <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={MOCK_CHART_DATA}>
+                                    <LineChart data={chartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />
@@ -103,10 +99,10 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume (Mock)</h3>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume</h3>
                             <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={MOCK_CHART_DATA}>
+                                    <BarChart data={chartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} tickFormatter={(value) => `$${value}`} />

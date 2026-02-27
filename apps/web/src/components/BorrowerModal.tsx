@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,13 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
 
+interface Borrower {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    idNumber: string;
+    address: string;
+}
+
 interface BorrowerModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
+    borrower?: Borrower | null;
 }
 
-export function BorrowerModal({ open, onOpenChange, onSuccess }: BorrowerModalProps) {
+export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: BorrowerModalProps) {
     const t = useTranslations('Borrowers');
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -25,13 +33,16 @@ export function BorrowerModal({ open, onOpenChange, onSuccess }: BorrowerModalPr
         address: ''
     });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            await api.post('/borrowers', formData);
-            onSuccess();
-            onOpenChange(false);
+    useEffect(() => {
+        if (borrower) {
+            setFormData({
+                firstName: borrower.firstName || '',
+                lastName: borrower.lastName || '',
+                phone: borrower.phone || '',
+                idNumber: borrower.idNumber || '',
+                address: borrower.address || ''
+            });
+        } else {
             setFormData({
                 firstName: '',
                 lastName: '',
@@ -39,9 +50,23 @@ export function BorrowerModal({ open, onOpenChange, onSuccess }: BorrowerModalPr
                 idNumber: '',
                 address: ''
             });
+        }
+    }, [borrower, open]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            if (borrower) {
+                await api.put(`/borrowers/${borrower.id}`, formData);
+            } else {
+                await api.post('/borrowers', formData);
+            }
+            onSuccess();
+            onOpenChange(false);
         } catch (error) {
-            console.error('Failed to create borrower', error);
-            alert('Failed to create borrower');
+            console.error('Failed to save borrower', error);
+            alert('Failed to save borrower');
         } finally {
             setLoading(false);
         }
@@ -51,7 +76,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess }: BorrowerModalPr
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{t('add_new')}</DialogTitle>
+                    <DialogTitle>{borrower ? 'Edit Borrower' : t('add_new')}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">

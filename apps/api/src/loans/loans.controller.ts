@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Put,
+  Delete,
   UseGuards,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
@@ -16,7 +17,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 @UseGuards(JwtAuthGuard)
 @Controller('loans')
 export class LoansController {
-  constructor(private readonly loansService: LoansService) {}
+  constructor(private readonly loansService: LoansService) { }
 
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateLoanDto) {
@@ -40,5 +41,10 @@ export class LoansController {
     @Body() dto: ChangeLoanStatusDto,
   ) {
     return this.loansService.changeStatus(user.tenantId, user.sub, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.loansService.remove(user.tenantId, user.sub, id);
   }
 }
