@@ -6,8 +6,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: [
+      'https://web-production-6e20.up.railway.app',
+      'http://localhost:3000',
+      'http://localhost:8080'
+    ],
     credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type,Accept,Authorization',
   });
 
   app.setGlobalPrefix('v1');

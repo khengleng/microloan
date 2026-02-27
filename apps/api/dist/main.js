@@ -6,8 +6,14 @@ const common_1 = require("@nestjs/common");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.enableCors({
-        origin: process.env.CORS_ORIGIN || '*',
+        origin: [
+            'https://web-production-6e20.up.railway.app',
+            'http://localhost:3000',
+            'http://localhost:8080'
+        ],
         credentials: true,
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        allowedHeaders: 'Content-Type,Accept,Authorization',
     });
     app.setGlobalPrefix('v1');
     app.useGlobalPipes(new common_1.ValidationPipe({ whitelist: true, transform: true }));

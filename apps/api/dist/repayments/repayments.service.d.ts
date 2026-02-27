@@ -12,9 +12,9 @@ export declare class RepaymentsService {
         updatedAt: Date;
         date: Date;
         loanId: string;
-        amount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        principalPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        interestPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        amount: import("@prisma/client/runtime/library").Decimal;
+        principalPaid: import("@prisma/client/runtime/library").Decimal;
+        interestPaid: import("@prisma/client/runtime/library").Decimal;
     }>;
     findAll(tenantId: string, loanId?: string): Promise<({
         loan: {
@@ -35,8 +35,8 @@ export declare class RepaymentsService {
             createdAt: Date;
             updatedAt: Date;
             borrowerId: string;
-            principal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-            annualInterestRate: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            principal: import("@prisma/client/runtime/library").Decimal;
+            annualInterestRate: import("@prisma/client/runtime/library").Decimal;
             termMonths: number;
             startDate: Date;
             interestMethod: import("@microloan/db").$Enums.InterestMethod;
@@ -49,8 +49,8 @@ export declare class RepaymentsService {
         updatedAt: Date;
         date: Date;
         loanId: string;
-        amount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        principalPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        interestPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        amount: import("@prisma/client/runtime/library").Decimal;
+        principalPaid: import("@prisma/client/runtime/library").Decimal;
+        interestPaid: import("@prisma/client/runtime/library").Decimal;
     })[]>;
 }

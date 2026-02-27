@@ -13,9 +13,9 @@ export declare class ReportsController {
     getDashboardStats(user: JwtPayload): Promise<{
         activeLoans: number;
         totalBorrowers: number;
-        repaymentsThisMonth: number | import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        outstandingPrincipal: number | import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
-        dueNext7Days: number | import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        repaymentsThisMonth: number | import("@prisma/client/runtime/library").Decimal;
+        outstandingPrincipal: number | import("@prisma/client/runtime/library").Decimal;
+        dueNext7Days: number | import("@prisma/client/runtime/library").Decimal;
     }>;
     exportLoanBook(user: JwtPayload, res: Response): Promise<void>;
     exportRepayments(user: JwtPayload, res: Response): Promise<void>;

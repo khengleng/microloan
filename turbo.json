@@ -7,7 +7,6 @@
             ],
             "outputs": [
                 "dist/**",
-                "prisma/client/**",
                 ".next/**",
                 "!.next/cache/**"
             ]
