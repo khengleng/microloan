@@ -35,6 +35,9 @@ let LoansController = class LoansController {
     changeStatus(user, id, dto) {
         return this.loansService.changeStatus(user.tenantId, user.sub, id, dto);
     }
+    remove(user, id) {
+        return this.loansService.remove(user.tenantId, user.sub, id);
+    }
 };
 exports.LoansController = LoansController;
 __decorate([
@@ -69,6 +72,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, create_loan_dto_1.ChangeLoanStatusDto]),
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "changeStatus", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], LoansController.prototype, "remove", null);
 exports.LoansController = LoansController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('loans'),

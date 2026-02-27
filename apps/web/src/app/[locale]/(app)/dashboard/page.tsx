@@ -80,11 +80,11 @@ export default function DashboardPage() {
 
                     {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 min-h-[350px]">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Last 6 Months)</h3>
-                            <div className="h-64 w-full" style={{ minHeight: '256px' }}>
-                                {isMounted && (
-                                    <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-64 w-full relative" style={{ minHeight: '256px', minWidth: '0' }}>
+                                {isMounted && chartData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <LineChart data={chartData}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
@@ -98,15 +98,17 @@ export default function DashboardPage() {
                                             <Line type="monotone" dataKey="collections" name="Collections" stroke="#10B981" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                                         </LineChart>
                                     </ResponsiveContainer>
-                                )}
+                                ) : isMounted ? (
+                                    <div className="h-full w-full flex items-center justify-center text-gray-400">No data available</div>
+                                ) : null}
                             </div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 min-h-[350px]">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume</h3>
-                            <div className="h-64 w-full" style={{ minHeight: '256px' }}>
-                                {isMounted && (
-                                    <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-64 w-full relative" style={{ minHeight: '256px', minWidth: '0' }}>
+                                {isMounted && chartData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <BarChart data={chartData}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280' }} />
@@ -121,7 +123,9 @@ export default function DashboardPage() {
                                             <Bar dataKey="collections" name="Collections" fill="#10B981" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
-                                )}
+                                ) : isMounted ? (
+                                    <div className="h-full w-full flex items-center justify-center text-gray-400">No data available</div>
+                                ) : null}
                             </div>
                         </div>
                     </div>

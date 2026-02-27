@@ -11,8 +11,8 @@ export declare class LoansService {
         createdAt: Date;
         updatedAt: Date;
         borrowerId: string;
-        principal: import("@prisma/client/runtime/library").Decimal;
-        annualInterestRate: import("@prisma/client/runtime/library").Decimal;
+        principal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        annualInterestRate: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
         termMonths: number;
         startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
@@ -36,8 +36,8 @@ export declare class LoansService {
         createdAt: Date;
         updatedAt: Date;
         borrowerId: string;
-        principal: import("@prisma/client/runtime/library").Decimal;
-        annualInterestRate: import("@prisma/client/runtime/library").Decimal;
+        principal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        annualInterestRate: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
         termMonths: number;
         startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
@@ -62,10 +62,12 @@ export declare class LoansService {
             installmentNumber: number;
             loanId: string;
             dueDate: Date;
-            principalAmount: import("@prisma/client/runtime/library").Decimal;
-            interestAmount: import("@prisma/client/runtime/library").Decimal;
-            totalAmount: import("@prisma/client/runtime/library").Decimal;
-            outstandingPrincipal: import("@prisma/client/runtime/library").Decimal;
+            principalAmount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            interestAmount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            totalAmount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            outstandingPrincipal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            paidPrincipal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            paidInterest: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
             isPaid: boolean;
         }[];
         repayments: {
@@ -75,7 +77,9 @@ export declare class LoansService {
             updatedAt: Date;
             date: Date;
             loanId: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
+            amount: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            principalPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+            interestPaid: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
         }[];
     } & {
         id: string;
@@ -83,8 +87,8 @@ export declare class LoansService {
         createdAt: Date;
         updatedAt: Date;
         borrowerId: string;
-        principal: import("@prisma/client/runtime/library").Decimal;
-        annualInterestRate: import("@prisma/client/runtime/library").Decimal;
+        principal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        annualInterestRate: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
         termMonths: number;
         startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
@@ -96,11 +100,14 @@ export declare class LoansService {
         createdAt: Date;
         updatedAt: Date;
         borrowerId: string;
-        principal: import("@prisma/client/runtime/library").Decimal;
-        annualInterestRate: import("@prisma/client/runtime/library").Decimal;
+        principal: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
+        annualInterestRate: import("node_modules/@microloan/db/prisma/client/runtime/library").Decimal;
         termMonths: number;
         startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
         status: import("@microloan/db").$Enums.LoanStatus;
+    }>;
+    remove(tenantId: string, userId: string, id: string): Promise<{
+        success: boolean;
     }>;
 }

@@ -35,6 +35,9 @@ let BorrowersController = class BorrowersController {
     update(user, id, dto) {
         return this.borrowersService.update(user.tenantId, user.sub, id, dto);
     }
+    remove(user, id) {
+        return this.borrowersService.remove(user.tenantId, user.sub, id);
+    }
 };
 exports.BorrowersController = BorrowersController;
 __decorate([
@@ -69,6 +72,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, create_borrower_dto_1.UpdateBorrowerDto]),
     __metadata("design:returntype", void 0)
 ], BorrowersController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], BorrowersController.prototype, "remove", null);
 exports.BorrowersController = BorrowersController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('borrowers'),

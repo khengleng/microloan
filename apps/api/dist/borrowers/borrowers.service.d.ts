@@ -49,4 +49,7 @@ export declare class BorrowersService {
         address: string | null;
         idNumber: string | null;
     }>;
+    remove(tenantId: string, userId: string, id: string): Promise<{
+        success: boolean;
+    }>;
 }

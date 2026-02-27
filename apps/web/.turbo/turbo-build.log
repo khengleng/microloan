@@ -2,30 +2,8 @@
 > web@0.1.0 build /Users/mlh/mloan/microloan/apps/web
 > next build
 
-▲ Next.js 16.1.6 (Turbopack)
+[1m[38;2;173;127;168m▲ Next.js 16.1.6[39m[22m (Turbopack)
 
-⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
-  Creating an optimized production build ...
-✓ Compiled successfully in 920.8ms
-  Running TypeScript ...
-  Collecting page data using 11 workers ...
-  Generating static pages using 11 workers (0/4) ...
-  Generating static pages using 11 workers (1/4) 
-  Generating static pages using 11 workers (2/4) 
-  Generating static pages using 11 workers (3/4) 
-✓ Generating static pages using 11 workers (4/4) in 141.6ms
-  Finalizing page optimization ...
-
-Route (app)
-┌ ○ /
-├ ○ /_not-found
-├ ƒ /[locale]
-├ ƒ /[locale]/dashboard
-└ ƒ /[locale]/login
-
-
-ƒ Proxy (Middleware)
-
-○  (Static)   prerendered as static content
-ƒ  (Dynamic)  server-rendered on demand
-
+[33m[1m⚠[22m[39m The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[37m[1m [22m[39m Creating an optimized production build ...
+[41m[30m ELIFECYCLE [39m[49m [31mCommand failed with exit code 130.[39m

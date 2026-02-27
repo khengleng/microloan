@@ -48,4 +48,7 @@ export declare class BorrowersController {
         address: string | null;
         idNumber: string | null;
     }>;
+    remove(user: JwtPayload, id: string): Promise<{
+        success: boolean;
+    }>;
 }

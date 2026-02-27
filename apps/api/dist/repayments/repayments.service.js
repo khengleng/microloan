@@ -40,21 +40,42 @@ let RepaymentsService = class RepaymentsService {
             throw new common_1.BadRequestException('Repayment amount must be strictly greater than 0');
         }
         let remainingAmount = dto.amount;
+        let totalInterestPaid = 0;
+        let totalPrincipalPaid = 0;
         const updates = [];
         for (const schedule of loan.schedules) {
             if (remainingAmount <= 0)
                 break;
-            const installmentTotal = Number(schedule.totalAmount);
-            if (remainingAmount >= installmentTotal) {
-                remainingAmount -= installmentTotal;
+            const scheduleInterest = Number(schedule.interestAmount);
+            const schedulePrincipal = Number(schedule.principalAmount);
+            const alreadyPaidInterest = Number(schedule.paidInterest);
+            const alreadyPaidPrincipal = Number(schedule.paidPrincipal);
+            const dueInterest = Math.max(0, scheduleInterest - alreadyPaidInterest);
+            const duePrincipal = Math.max(0, schedulePrincipal - alreadyPaidPrincipal);
+            let interestToPay = 0;
+            let principalToPay = 0;
+            if (dueInterest > 0) {
+                interestToPay = Math.min(remainingAmount, dueInterest);
+                remainingAmount -= interestToPay;
+                totalInterestPaid += interestToPay;
+            }
+            if (remainingAmount > 0 && duePrincipal > 0) {
+                principalToPay = Math.min(remainingAmount, duePrincipal);
+                remainingAmount -= principalToPay;
+                totalPrincipalPaid += principalToPay;
+            }
+            if (interestToPay > 0 || principalToPay > 0) {
+                const newPaidInterest = alreadyPaidInterest + interestToPay;
+                const newPaidPrincipal = alreadyPaidPrincipal + principalToPay;
+                const isPaid = newPaidInterest + newPaidPrincipal >= Number(schedule.totalAmount);
                 updates.push(this.prisma.repaymentSchedule.update({
                     where: { id: schedule.id },
-                    data: { isPaid: true },
+                    data: {
+                        paidInterest: newPaidInterest,
+                        paidPrincipal: newPaidPrincipal,
+                        isPaid,
+                    },
                 }));
-            }
-            else {
-                remainingAmount = 0;
-                break;
             }
         }
         const [repayment] = await this.prisma.$transaction([
@@ -63,16 +84,22 @@ let RepaymentsService = class RepaymentsService {
                     tenantId,
                     loanId: dto.loanId,
                     amount: dto.amount,
+                    interestPaid: totalInterestPaid,
+                    principalPaid: totalPrincipalPaid,
                     date: new Date(dto.date),
                 },
             }),
             ...updates,
         ]);
-        await this.audit.logAction(tenantId, userId, 'CREATE', 'Repayment', repayment.id, dto);
+        await this.audit.logAction(tenantId, userId, 'CREATE', 'Repayment', repayment.id, {
+            ...dto,
+            allocatedInterest: totalInterestPaid,
+            allocatedPrincipal: totalPrincipalPaid,
+        });
         const unpaidCount = await this.prisma.repaymentSchedule.count({
             where: { loanId: dto.loanId, isPaid: false },
         });
-        if (unpaidCount === 0 && updates.length > 0) {
+        if (unpaidCount === 0 && (updates.length > 0 || loan.schedules.length === 0)) {
             await this.prisma.loan.update({
                 where: { id: dto.loanId },
                 data: { status: db_1.LoanStatus.CLOSED },

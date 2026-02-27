@@ -4,9 +4,9 @@
 
 [2mPrisma schema loaded from prisma/schema.prisma[22m
 
-✔ Generated [1mPrisma Client[22m (v5.22.0)[2m to ./../../node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client[22m in 40ms
+✔ Generated [1mPrisma Client[22m (v5.22.0)[2m to ./src/generated/client[22m in 48ms
 
 Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
 
-Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+Tip: Want real-time updates to your database without manual polling? Discover how with Pulse: https://pris.ly/tip-0-pulse
 

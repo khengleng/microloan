@@ -104,6 +104,17 @@ let LoansService = class LoansService {
         });
         return updated;
     }
+    async remove(tenantId, userId, id) {
+        const loan = await this.prisma.loan.findUnique({ where: { id, tenantId } });
+        if (!loan)
+            throw new common_1.NotFoundException('Loan not found');
+        if (loan.status !== db_1.LoanStatus.DRAFT) {
+            throw new common_1.BadRequestException('Only draft loans can be deleted');
+        }
+        await this.prisma.loan.delete({ where: { id } });
+        await this.audit.logAction(tenantId, userId, 'DELETE', 'Loan', id, loan);
+        return { success: true };
+    }
 };
 exports.LoansService = LoansService;
 exports.LoansService = LoansService = __decorate([
