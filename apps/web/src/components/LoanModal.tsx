@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +73,9 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{t('add_new')}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Create a new loan application.
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">

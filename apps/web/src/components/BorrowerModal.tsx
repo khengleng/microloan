@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,6 +77,9 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>{borrower ? 'Edit Borrower' : t('add_new')}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Enter the borrower's personal information here.
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">

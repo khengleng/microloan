@@ -18,16 +18,21 @@ let AuditService = class AuditService {
         this.prisma = prisma;
     }
     async logAction(tenantId, userId, action, entity, entityId, metadata) {
-        await this.prisma.auditLog.create({
-            data: {
-                tenantId,
-                userId,
-                action,
-                entity,
-                entityId,
-                metadata: metadata ? JSON.parse(JSON.stringify(metadata)) : null,
-            },
-        });
+        try {
+            await this.prisma.auditLog.create({
+                data: {
+                    tenantId,
+                    userId,
+                    action,
+                    entity,
+                    entityId,
+                    metadata: metadata ? JSON.parse(JSON.stringify(metadata, (_, v) => typeof v === 'bigint' ? v.toString() : v)) : null,
+                },
+            });
+        }
+        catch (err) {
+            console.error('Failed to log audit action', err);
+        }
     }
 };
 exports.AuditService = AuditService;
