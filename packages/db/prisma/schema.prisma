@@ -18,6 +18,7 @@ model Tenant {
   loans      Loan[]
   repayments Repayment[]
   auditLogs  AuditLog[]
+  documents  Document[]
 }
 
 enum Role {
@@ -83,6 +84,7 @@ model Loan {
 
   schedules  RepaymentSchedule[]
   repayments Repayment[]
+  documents  Document[]
 
   @@index([tenantId])
 }
@@ -128,5 +130,17 @@ model AuditLog {
   entity    String // Borrower, Loan, Repayment
   entityId  String
   metadata  Json? // Stores old/new values
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  loanId    String
+  loan      Loan     @relation(fields: [loanId], references: [id])
+  name      String
+  content   String   @db.Text // Base64 content or public URL
+  type      String   // e.g., "application/pdf", "image/png", or "url"
   createdAt DateTime @default(now())
 }

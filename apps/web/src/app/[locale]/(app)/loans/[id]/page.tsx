@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Plus, CheckCircle, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
@@ -29,6 +29,14 @@ interface Repayment {
     interestPaid: number;
 }
 
+interface Document {
+    id: string;
+    name: string;
+    content: string;
+    type: string;
+    createdAt: string;
+}
+
 interface Loan {
     id: string;
     borrower: {
@@ -44,6 +52,7 @@ interface Loan {
     status: string;
     schedules: ScheduleItem[];
     repayments: Repayment[];
+    documents: Document[];
 }
 
 export default function LoanDetailsPage() {
@@ -81,6 +90,49 @@ export default function LoanDetailsPage() {
         } catch (error) {
             console.error('Failed to delete loan', error);
             alert('Failed to delete loan');
+        }
+    };
+
+    const [uploadingDoc, setUploadingDoc] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert('File is too large. Limit is 5MB.');
+            return;
+        }
+
+        setUploadingDoc(true);
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64Content = reader.result as string;
+            try {
+                await api.post(`/loans/${id}/documents`, {
+                    name: file.name,
+                    content: base64Content,
+                    type: file.type || 'application/octet-stream',
+                });
+                fetchLoan();
+            } catch (error) {
+                console.error('Upload failed', error);
+                alert('Upload failed');
+            } finally {
+                setUploadingDoc(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleDeleteDoc = async (docId: string) => {
+        if (!confirm('Delete this document?')) return;
+        try {
+            await api.delete(`/loans/${id}/documents/${docId}`);
+            fetchLoan();
+        } catch (error) {
+            console.error('Delete failed', error);
+            alert('Delete failed');
         }
     };
 
@@ -195,32 +247,75 @@ export default function LoanDetailsPage() {
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
-                <h2 className="text-lg font-semibold border-b pb-2 mb-4">{t('ledger')}</h2>
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead>
-                        <tr>
-                            <th className="text-left py-2 font-medium text-gray-500">{t('due_date')}</th>
-                            <th className="text-right py-2 font-medium text-gray-500">Amount</th>
-                            <th className="text-right py-2 font-medium text-gray-500">Interest Paid</th>
-                            <th className="text-right py-2 font-medium text-gray-500">Principal Paid</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {loan.repayments.length === 0 ? (
-                            <tr><td colSpan={4} className="py-4 text-center text-gray-500">No repayments yet.</td></tr>
-                        ) : (
-                            loan.repayments.map((rp) => (
-                                <tr key={rp.id}>
-                                    <td className="py-2">{new Date(rp.date).toLocaleDateString()}</td>
-                                    <td className="py-2 text-right font-medium">${rp.amount.toLocaleString()}</td>
-                                    <td className="py-2 text-right text-green-600">${rp.interestPaid?.toLocaleString() || 0}</td>
-                                    <td className="py-2 text-right text-blue-600">${rp.principalPaid?.toLocaleString() || 0}</td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
+                    <h2 className="text-lg font-semibold border-b pb-2 mb-4">{t('ledger')}</h2>
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead>
+                            <tr>
+                                <th className="text-left py-2 font-medium text-gray-500">{t('due_date')}</th>
+                                <th className="text-right py-2 font-medium text-gray-500">Amount</th>
+                                <th className="text-right py-2 font-medium text-gray-500">Interest Paid</th>
+                                <th className="text-right py-2 font-medium text-gray-500">Principal Paid</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {loan.repayments.length === 0 ? (
+                                <tr><td colSpan={4} className="py-4 text-center text-gray-500">No repayments yet.</td></tr>
+                            ) : (
+                                loan.repayments.map((rp) => (
+                                    <tr key={rp.id}>
+                                        <td className="py-2">{new Date(rp.date).toLocaleDateString()}</td>
+                                        <td className="py-2 text-right font-medium">${rp.amount.toLocaleString()}</td>
+                                        <td className="py-2 text-right text-green-600">${rp.interestPaid?.toLocaleString() || 0}</td>
+                                        <td className="py-2 text-right text-blue-600">${rp.principalPaid?.toLocaleString() || 0}</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
+                    <div className="flex justify-between items-center border-b pb-2 mb-4">
+                        <h2 className="text-lg font-semibold">Documents</h2>
+                        <div className="relative">
+                            <input
+                                type="file"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                onChange={handleFileUpload}
+                                disabled={uploadingDoc}
+                            />
+                            <Button size="sm" variant="outline" disabled={uploadingDoc}>
+                                {uploadingDoc ? 'Uploading...' : 'Upload File'}
+                            </Button>
+                        </div>
+                    </div>
+                    {(!loan.documents || loan.documents.length === 0) ? (
+                        <div className="text-center py-4 text-gray-500">No documents attached.</div>
+                    ) : (
+                        <ul className="divide-y divide-gray-100">
+                            {loan.documents.map(doc => (
+                                <li key={doc.id} className="py-3 flex justify-between items-center">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <FileText size={20} className="text-gray-400 shrink-0" />
+                                        <span className="truncate text-sm font-medium">{doc.name}</span>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                        <a href={doc.content} download={doc.name}>
+                                            <Button size="icon" variant="ghost" className="text-blue-600 h-8 w-8">
+                                                <Download size={16} />
+                                            </Button>
+                                        </a>
+                                        <Button size="icon" variant="ghost" className="text-red-500 h-8 w-8" onClick={() => handleDeleteDoc(doc.id)}>
+                                            <Trash2 size={16} />
+                                        </Button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
             </div>
         </div>
     );

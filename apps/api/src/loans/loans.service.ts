@@ -91,6 +91,7 @@ export class LoansService {
         borrower: true,
         schedules: { orderBy: { installmentNumber: 'asc' } },
         repayments: { orderBy: { date: 'asc' } },
+        documents: { orderBy: { createdAt: 'desc' } },
       },
     });
     if (!loan) throw new NotFoundException('Loan not found');
@@ -132,6 +133,44 @@ export class LoansService {
 
     await this.prisma.loan.delete({ where: { id } });
     await this.audit.logAction(tenantId, userId, 'DELETE', 'Loan', id, loan);
+    return { success: true };
+  }
+
+  async addDocument(
+    tenantId: string,
+    userId: string,
+    loanId: string,
+    dto: { name: string; content: string; type: string },
+  ) {
+    const loan = await this.prisma.loan.findUnique({ where: { id: loanId, tenantId } });
+    if (!loan) throw new NotFoundException('Loan not found');
+
+    if (dto.content.length > 5 * 1024 * 1024) { // 5MB limit
+      throw new BadRequestException('File is too large. Limit is 5MB.');
+    }
+
+    const document = await this.prisma.document.create({
+      data: {
+        tenantId,
+        loanId,
+        name: dto.name,
+        content: dto.content,
+        type: dto.type,
+      },
+    });
+
+    await this.audit.logAction(tenantId, userId, 'CREATE', 'Document', document.id, { loanId, name: dto.name });
+    return document;
+  }
+
+  async removeDocument(tenantId: string, userId: string, loanId: string, documentId: string) {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId, tenantId, loanId },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+
+    await this.prisma.document.delete({ where: { id: documentId } });
+    await this.audit.logAction(tenantId, userId, 'DELETE', 'Document', documentId, { loanId, name: document.name });
     return { success: true };
   }
 }

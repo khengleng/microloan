@@ -624,3 +624,16 @@
 2026-02-27T09:28:56.668640Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
 2026-02-27T09:29:15.067992Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/web/src/components/RepaymentModal.tsx")}
 2026-02-27T09:29:15.068014Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("web"), path: AnchoredSystemPathBuf("apps/web") }}))
+2026-02-27T09:44:51.795009Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/db/prisma/schema.prisma")}
+2026-02-27T09:44:51.795024Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("@microloan/db"), path: AnchoredSystemPathBuf("packages/db") }}))
+2026-02-27T10:21:04.903982Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/api/package.json")}
+2026-02-27T10:21:04.904001Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
+2026-02-27T10:21:44.905520Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/api/src/loans/loans.service.ts")}
+2026-02-27T10:21:44.905528Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
+2026-02-27T10:24:27.004893Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("packages/db/dist/index.d.ts"), AnchoredSystemPathBuf("packages/db/dist/index.js")}
+2026-02-27T10:24:27.004906Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("@microloan/db"), path: AnchoredSystemPathBuf("packages/db") }}))
+2026-02-27T10:24:27.045931Z  WARN turborepo_lib::package_changes_watcher: hashes are the same, no need to rerun
+2026-02-27T10:24:39.697865Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/api/src/loans/loans.controller.ts")}
+2026-02-27T10:24:39.697873Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
+2026-02-27T10:25:50.992017Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/web/src/app/[locale]/(app)/loans/[id]/page.tsx")}
+2026-02-27T10:25:50.992040Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("web"), path: AnchoredSystemPathBuf("apps/web") }}))

@@ -47,4 +47,22 @@ export class LoansController {
   remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.loansService.remove(user.tenantId, user.sub, id);
   }
+
+  @Post(':id/documents')
+  addDocument(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: { name: string; content: string; type: string },
+  ) {
+    return this.loansService.addDocument(user.tenantId, user.sub, id, dto);
+  }
+
+  @Delete(':id/documents/:documentId')
+  removeDocument(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Param('documentId') documentId: string,
+  ) {
+    return this.loansService.removeDocument(user.tenantId, user.sub, id, documentId);
+  }
 }
