@@ -29,6 +29,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
     const t = useTranslations('Repayments');
     const [loading, setLoading] = useState(false);
     const [loans, setLoans] = useState<Loan[]>([]);
+    const [loanDetails, setLoanDetails] = useState<any>(null);
     const [formData, setFormData] = useState({
         loanId: defaultLoanId || '',
         amount: '',
@@ -46,6 +47,22 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
             }
         }
     }, [open, defaultLoanId]);
+
+    useEffect(() => {
+        if (formData.loanId) {
+            api.get(`/loans/${formData.loanId}`).then(res => {
+                const s = res.data.schedules || [];
+                const totalDue = s.reduce((acc: number, schedule: any) => {
+                    const dueInt = Math.max(0, Number(schedule.interestAmount) - Number(schedule.paidInterest));
+                    const duePrin = Math.max(0, Number(schedule.principalAmount) - Number(schedule.paidPrincipal));
+                    return acc + dueInt + duePrin;
+                }, 0);
+                setLoanDetails({ ...res.data, totalDue });
+            }).catch(console.error);
+        } else {
+            setLoanDetails(null);
+        }
+    }, [formData.loanId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -99,11 +116,12 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="amount">{t('amount')}</Label>
+                        <Label htmlFor="amount">{t('amount')} {loanDetails && <span className="text-gray-500 font-normal ml-1">(Max: ${loanDetails.totalDue.toFixed(2)})</span>}</Label>
                         <Input
                             id="amount"
                             type="number"
                             step="0.01"
+                            max={loanDetails ? loanDetails.totalDue.toFixed(2) : undefined}
                             value={formData.amount}
                             onChange={e => setFormData({ ...formData, amount: e.target.value })}
                             required

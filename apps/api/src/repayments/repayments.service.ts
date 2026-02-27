@@ -39,6 +39,18 @@ export class RepaymentsService {
       );
     }
 
+    const totalDue = loan.schedules.reduce((acc, schedule) => {
+      const dueInt = Math.max(0, Number(schedule.interestAmount) - Number(schedule.paidInterest));
+      const duePrin = Math.max(0, Number(schedule.principalAmount) - Number(schedule.paidPrincipal));
+      return acc + dueInt + duePrin;
+    }, 0);
+
+    if (dto.amount > totalDue + 0.01) {
+      throw new BadRequestException(
+        `Repayment amount cannot exceed the remaining balance of $${totalDue.toFixed(2)}`
+      );
+    }
+
     // Allocate payment
     let remainingAmount = dto.amount;
     let totalInterestPaid = 0;
