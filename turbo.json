@@ -1,6 +1,15 @@
 {
     "$schema": "https://turbo.build/schema.json",
     "pipeline": {
+        "@microloan/db#build": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": [
+                "dist/**"
+            ],
+            "cache": false
+        },
         "build": {
             "dependsOn": [
                 "^build"
