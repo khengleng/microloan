@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsString,
   IsDateString,
+  IsOptional,
 } from 'class-validator';
 import { InterestMethod } from '@microloan/shared';
 
@@ -32,6 +33,14 @@ export class CreateLoanDto {
   @IsEnum(InterestMethod)
   @IsNotEmpty()
   interestMethod: InterestMethod;
+
+  @IsString()
+  @IsOptional()
+  productId?: string;
+
+  @IsString()
+  @IsOptional()
+  creditRatingApplied?: string;
 }
 
 export class ChangeLoanStatusDto {

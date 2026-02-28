@@ -9,8 +9,10 @@ import { InterestMethod } from '@microloan/shared';
 
 const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for MicroLend. 
 Your goals:
-1. Collect info to originate loans: First Name, Last Name, Phone Number, Principal ($), Term (months).
-2. Help users check their pending loan balance and next due dates.
+1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
+2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
+3. Collect info to originate loans: First Name, Last Name, Phone Number, Principal ($), Term (months), and the chosen productId.
+4. Help users check their pending loan balance and next due dates using \`check_loan_balance\`.
 
 Have a natural conversation. You can ask for info or answer questions about their account.
 Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info. Interpret the JSON returned by check_loan_balance and explain it in a user-friendly way (e.g., if it's DRAFT status, explain it is pending approval; if DISBURSED, emphasize their next payment amount and date).
@@ -86,8 +88,9 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                                         phone: { type: 'string' },
                                         principal: { type: 'number', description: 'The total loan requested amount' },
                                         termMonths: { type: 'number', description: 'Duration of the loan in months' },
+                                        productId: { type: 'string', description: 'The ID of the loan product selected by the user' },
                                     },
-                                    required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths']
+                                    required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths', 'productId']
                                 }
                             }
                         },
@@ -96,6 +99,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             function: {
                                 name: 'check_loan_balance',
                                 description: 'Checks the user\'s current active loan balance and next payment due date.',
+                                parameters: {
+                                    type: 'object',
+                                    properties: {}
+                                }
+                            }
+                        },
+                        {
+                            type: 'function',
+                            function: {
+                                name: 'get_loan_products',
+                                description: 'Fetches the list of active loan products and their interest policies.',
                                 parameters: {
                                     type: 'object',
                                     properties: {}
@@ -117,6 +131,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             resultContent = 'Successfully originated loan';
                         } else if (toolCall.function.name === 'check_loan_balance') {
                             resultContent = await this.checkLoanBalance(chatId);
+                        } else if (toolCall.function.name === 'get_loan_products') {
+                            resultContent = await this.getLoanProducts();
                         }
 
                         this.conversations[chatId].push(choice.message as any);
@@ -183,27 +199,55 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                 telegramChatId: chatId.toString(),
             });
         } else if (!borrower.telegramChatId) {
-            // Update existing borrower with chat id
             borrower = await this.prisma.borrower.update({
                 where: { id: borrower.id },
                 data: { telegramChatId: chatId.toString() }
             });
         }
 
-        // Map phone to chatId so we can message them later
         if (args.phone) {
             this.phoneToChatId.set(args.phone.replace(/[^0-9+]/g, ''), chatId);
         }
+
+        // Validate Product and Policy
+        const product = await this.prisma.loanProduct.findUnique({
+            where: { id: args.productId },
+            include: { policies: true }
+        });
+
+        if (!product) throw new Error('Invalid loan product ID');
+
+        // Choose a default policy (or you could assign a default rating "GOOD")
+        // Just pick the first policy available for this product if no matching rating
+        let policy = product.policies.find(p => p.creditRating === 'GOOD') || product.policies[0];
+        if (!policy) throw new Error('Selected product has no valid interest policies.');
+
+        // Verify terms and limits
+        if (policy.minPrincipal && args.principal < Number(policy.minPrincipal)) throw new Error(`Principal too low. Minimum is $${policy.minPrincipal}`);
+        if (policy.maxPrincipal && args.principal > Number(policy.maxPrincipal)) throw new Error(`Principal too high. Maximum is $${policy.maxPrincipal}`);
+        if (policy.minTermMonths && args.termMonths < policy.minTermMonths) throw new Error(`Term too short. Minimum is ${policy.minTermMonths} months`);
+        if (policy.maxTermMonths && args.termMonths > policy.maxTermMonths) throw new Error(`Term too long. Maximum is ${policy.maxTermMonths} months`);
 
         // 2. Create Loan
         await this.loansService.create(tenantId, userId, {
             borrowerId: borrower.id,
             principal: args.principal,
-            annualInterestRate: 12, // assume 12%
+            annualInterestRate: Number(policy.interestRate),
             termMonths: args.termMonths,
             startDate: new Date().toISOString(),
-            interestMethod: InterestMethod.FLAT,
+            interestMethod: product.interestMethod as InterestMethod,
+            productId: product.id,
+            creditRatingApplied: policy.creditRating,
         });
+    }
+
+    async getLoanProducts(): Promise<string> {
+        const products = await this.prisma.loanProduct.findMany({
+            where: { isActive: true },
+            include: { policies: true }
+        });
+
+        return JSON.stringify(products);
     }
 
     async checkLoanBalance(chatId: number): Promise<string> {

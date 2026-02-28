@@ -13,12 +13,13 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  borrowers  Borrower[]
-  loans      Loan[]
-  repayments Repayment[]
-  auditLogs  AuditLog[]
-  documents  Document[]
+  users        User[]
+  borrowers    Borrower[]
+  loans        Loan[]
+  repayments   Repayment[]
+  auditLogs    AuditLog[]
+  documents    Document[]
+  loanProducts LoanProduct[]
 }
 
 enum Role {
@@ -68,12 +69,44 @@ enum InterestMethod {
   REDUCING_BALANCE
 }
 
+model LoanProduct {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  name           String           // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
+  description    String?
+  interestMethod InterestMethod
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  policies       LoanPolicy[]
+  loans          Loan[]
+}
+
+model LoanPolicy {
+  id             String       @id @default(uuid())
+  productId      String
+  product        LoanProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  creditRating   String       // e.g., "A", "B", "C", "EXCELLENT", "GOOD", "FAIR"
+  interestRate   Decimal      @db.Decimal(5, 2)
+  minTermMonths  Int?
+  maxTermMonths  Int?
+  minPrincipal   Decimal?     @db.Decimal(10, 2)
+  maxPrincipal   Decimal?     @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
 model Loan {
   id                 String         @id @default(uuid())
   tenantId           String
   tenant             Tenant         @relation(fields: [tenantId], references: [id])
   borrowerId         String
   borrower           Borrower       @relation(fields: [borrowerId], references: [id])
+  productId          String?
+  product            LoanProduct?   @relation(fields: [productId], references: [id])
+  creditRatingApplied String?
   status             LoanStatus     @default(DRAFT)
   principal          Decimal        @db.Decimal(10, 2)
   annualInterestRate Decimal        @db.Decimal(5, 2)

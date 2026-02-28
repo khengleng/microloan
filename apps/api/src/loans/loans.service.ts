@@ -48,7 +48,9 @@ export class LoansService {
           annualInterestRate: dto.annualInterestRate,
           termMonths: dto.termMonths,
           startDate: new Date(dto.startDate),
-          interestMethod: dto.interestMethod, // this is correct, types mapped properly
+          interestMethod: dto.interestMethod,
+          productId: dto.productId,
+          creditRatingApplied: dto.creditRatingApplied,
           status: LoanStatus.DRAFT,
         },
       });
@@ -93,7 +95,7 @@ export class LoansService {
     const loan = await this.prisma.loan.findUnique({
       where: { id, tenantId },
       include: {
-        borrower: true,
+        borrower: { include: { loans: true } },
         schedules: { orderBy: { installmentNumber: 'asc' } },
         repayments: { orderBy: { date: 'asc' } },
         documents: { orderBy: { createdAt: 'desc' } },

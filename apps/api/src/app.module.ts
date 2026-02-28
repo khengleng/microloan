@@ -12,6 +12,7 @@ import { RepaymentsModule } from './repayments/repayments.module';
 import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
 import { BotModule } from './bot/bot.module';
+import { LoanProductsModule } from './loan-products/loan-products.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { BotModule } from './bot/bot.module';
     AuditModule,
     ReportsModule,
     BotModule,
+    LoanProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

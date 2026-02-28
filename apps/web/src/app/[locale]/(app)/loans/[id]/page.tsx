@@ -43,6 +43,12 @@ interface Loan {
         firstName: string;
         lastName: string;
         phone: string;
+        loans: {
+            id: string;
+            status: string;
+            principal: number;
+            createdAt: string;
+        }[];
     };
     principal: number;
     annualInterestRate: number;
@@ -182,6 +188,29 @@ export default function LoanDetailsPage() {
                 onSuccess={fetchLoan}
                 defaultLoanId={loan.id}
             />
+
+            {loan.status === 'DRAFT' && loan.borrower.loans && loan.borrower.loans.length > 1 && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-lg">
+                    <div className="flex">
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-amber-800">Review Existing Loans</h3>
+                            <div className="mt-2 text-sm text-amber-700">
+                                <p>Before approving this loan, please notice that this borrower has existing loan records:</p>
+                                <ul className="list-disc pl-5 mt-1 space-y-1">
+                                    {loan.borrower.loans.filter(l => l.id !== loan.id).map(l => (
+                                        <li key={l.id}>
+                                            <Link href={`/${locale}/loans/${l.id}`} className="font-semibold underline">
+                                                Loan ${l.principal.toLocaleString()}
+                                            </Link>
+                                            {' '}- Status: <span className="font-bold">{l.status}</span> (Created {new Date(l.createdAt).toLocaleDateString()})
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-lg shadow space-y-4">
