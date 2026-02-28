@@ -7,6 +7,7 @@ export type JwtPayload = {
   email: string;
   role: string;
   tenantId: string;
+  tenantName?: string;
 };
 
 @Injectable()
@@ -29,6 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       role: payload.role,
       tenantId: payload.tenantId,
+      tenantName: payload.tenantName,
     };
   }
 }

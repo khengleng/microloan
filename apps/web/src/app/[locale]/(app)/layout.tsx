@@ -28,11 +28,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex h-screen bg-gray-100">
             <aside className="w-64 bg-slate-900 text-white flex flex-col">
                 <div className="p-4 font-bold text-xl border-b border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs">M</div>
-                        Magic Money
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {user?.tenantName ? user.tenantName.charAt(0).toUpperCase() : 'M'}
+                        </div>
+                        <span className="truncate text-base">{user?.tenantName || 'Loading...'}</span>
                     </div>
-                    {user?.role && <span className="text-[10px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-extrabold">{user.role}</span>}
+                    {user?.role && <span className="text-[10px] bg-blue-600 px-1.5 py-0.5 rounded uppercase font-extrabold flex-shrink-0">{user.role}</span>}
                 </div>
                 <nav className="flex-1 p-4 space-y-1">
                     {!isSuperAdmin && (
@@ -70,8 +72,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {/* Topbar */}
                 <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">M</div>
-                        <span className="text-2xl font-bold tracking-tight">Magic Money</span>
+                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl text-white">
+                            {user?.tenantName ? user.tenantName.charAt(0).toUpperCase() : 'M'}
+                        </div>
+                        <span className="text-2xl font-bold tracking-tight">{user?.tenantName || 'Magic Money'}</span>
                     </div>
                     <div className="flex gap-2">
                         <Link href={`/en/dashboard`} className={`px-2 py-1 text-sm rounded ${locale === 'en' ? 'bg-slate-900 text-white' : 'bg-gray-100'}`}>EN</Link>

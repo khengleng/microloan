@@ -137,8 +137,10 @@ export class AuthService {
     }
   }
 
-  private generateTokens(userId: string, email: string, role: string, tenantId: string) {
-    const payload = { sub: userId, email, role, tenantId };
+  private async generateTokens(userId: string, email: string, role: string, tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const tenantName = tenant?.name || 'Magic Money';
+    const payload = { sub: userId, email, role, tenantId, tenantName };
     return {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {
