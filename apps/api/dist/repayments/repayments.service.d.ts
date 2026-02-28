@@ -8,49 +8,49 @@ export declare class RepaymentsService {
     postRepayment(tenantId: string, userId: string, dto: PostRepaymentDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
-        date: Date;
         loanId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         principalPaid: import("@prisma/client/runtime/library").Decimal;
         interestPaid: import("@prisma/client/runtime/library").Decimal;
+        date: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(tenantId: string, loanId?: string): Promise<({
         loan: {
             borrower: {
                 id: string;
                 tenantId: string;
-                createdAt: Date;
-                updatedAt: Date;
                 firstName: string;
                 lastName: string;
                 phone: string | null;
                 address: string | null;
                 idNumber: string | null;
+                createdAt: Date;
+                updatedAt: Date;
             };
         } & {
             id: string;
             tenantId: string;
-            createdAt: Date;
-            updatedAt: Date;
             borrowerId: string;
+            status: import("@microloan/db").$Enums.LoanStatus;
             principal: import("@prisma/client/runtime/library").Decimal;
             annualInterestRate: import("@prisma/client/runtime/library").Decimal;
             termMonths: number;
-            startDate: Date;
             interestMethod: import("@microloan/db").$Enums.InterestMethod;
-            status: import("@microloan/db").$Enums.LoanStatus;
+            startDate: Date;
+            createdAt: Date;
+            updatedAt: Date;
         };
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
-        date: Date;
         loanId: string;
         amount: import("@prisma/client/runtime/library").Decimal;
         principalPaid: import("@prisma/client/runtime/library").Decimal;
         interestPaid: import("@prisma/client/runtime/library").Decimal;
+        date: Date;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
 }

@@ -39,6 +39,14 @@ let RepaymentsService = class RepaymentsService {
         if (dto.amount <= 0) {
             throw new common_1.BadRequestException('Repayment amount must be strictly greater than 0');
         }
+        const totalDue = loan.schedules.reduce((acc, schedule) => {
+            const dueInt = Math.max(0, Number(schedule.interestAmount) - Number(schedule.paidInterest));
+            const duePrin = Math.max(0, Number(schedule.principalAmount) - Number(schedule.paidPrincipal));
+            return acc + dueInt + duePrin;
+        }, 0);
+        if (dto.amount > totalDue + 0.01) {
+            throw new common_1.BadRequestException(`Repayment amount cannot exceed the remaining balance of $${totalDue.toFixed(2)}`);
+        }
         let remainingAmount = dto.amount;
         let totalInterestPaid = 0;
         let totalPrincipalPaid = 0;

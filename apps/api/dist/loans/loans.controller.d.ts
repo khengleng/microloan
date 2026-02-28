@@ -7,59 +7,77 @@ export declare class LoansController {
     create(user: JwtPayload, dto: CreateLoanDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@prisma/client").$Enums.InterestMethod;
-        status: import("@prisma/client").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(user: JwtPayload): Promise<({
         borrower: {
             id: string;
             tenantId: string;
-            createdAt: Date;
-            updatedAt: Date;
             firstName: string;
             lastName: string;
             phone: string | null;
             address: string | null;
             idNumber: string | null;
+            createdAt: Date;
+            updatedAt: Date;
         };
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@prisma/client").$Enums.InterestMethod;
-        status: import("@prisma/client").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
     findOne(user: JwtPayload, id: string): Promise<{
         borrower: {
             id: string;
             tenantId: string;
-            createdAt: Date;
-            updatedAt: Date;
             firstName: string;
             lastName: string;
             phone: string | null;
             address: string | null;
             idNumber: string | null;
-        };
-        schedules: {
-            id: string;
             createdAt: Date;
             updatedAt: Date;
-            installmentNumber: number;
+        };
+        repayments: {
+            id: string;
+            tenantId: string;
             loanId: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            principalPaid: import("@prisma/client/runtime/library").Decimal;
+            interestPaid: import("@prisma/client/runtime/library").Decimal;
+            date: Date;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+        documents: {
+            id: string;
+            tenantId: string;
+            loanId: string;
+            name: string;
+            content: string;
+            type: string;
+            createdAt: Date;
+        }[];
+        schedules: {
+            id: string;
+            loanId: string;
+            installmentNumber: number;
             dueDate: Date;
             principalAmount: import("@prisma/client/runtime/library").Decimal;
             interestAmount: import("@prisma/client/runtime/library").Decimal;
@@ -68,45 +86,64 @@ export declare class LoansController {
             paidPrincipal: import("@prisma/client/runtime/library").Decimal;
             paidInterest: import("@prisma/client/runtime/library").Decimal;
             isPaid: boolean;
-        }[];
-        repayments: {
-            id: string;
-            tenantId: string;
             createdAt: Date;
             updatedAt: Date;
-            date: Date;
-            loanId: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            principalPaid: import("@prisma/client/runtime/library").Decimal;
-            interestPaid: import("@prisma/client/runtime/library").Decimal;
         }[];
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@prisma/client").$Enums.InterestMethod;
-        status: import("@prisma/client").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     changeStatus(user: JwtPayload, id: string, dto: ChangeLoanStatusDto): Promise<{
+        borrower: {
+            id: string;
+            tenantId: string;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            address: string | null;
+            idNumber: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@prisma/client").$Enums.InterestMethod;
-        status: import("@prisma/client").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(user: JwtPayload, id: string): Promise<{
+        success: boolean;
+    }>;
+    addDocument(user: JwtPayload, id: string, dto: {
+        name: string;
+        content: string;
+        type: string;
+    }): Promise<{
+        id: string;
+        tenantId: string;
+        loanId: string;
+        name: string;
+        content: string;
+        type: string;
+        createdAt: Date;
+    }>;
+    removeDocument(user: JwtPayload, id: string, documentId: string): Promise<{
         success: boolean;
     }>;
 }

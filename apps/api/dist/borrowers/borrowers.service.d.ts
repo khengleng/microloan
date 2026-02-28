@@ -8,46 +8,46 @@ export declare class BorrowersService {
     create(tenantId: string, userId: string, dto: CreateBorrowerDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(tenantId: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }[]>;
     findOne(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     update(tenantId: string, userId: string, id: string, dto: UpdateBorrowerDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(tenantId: string, userId: string, id: string): Promise<{
         success: boolean;

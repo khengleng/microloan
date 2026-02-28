@@ -1,66 +1,86 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateLoanDto, ChangeLoanStatusDto } from './dto/create-loan.dto';
+import { BotService } from '../bot/bot.service';
 export declare class LoansService {
     private prisma;
     private audit;
-    constructor(prisma: PrismaService, audit: AuditService);
+    private bot;
+    constructor(prisma: PrismaService, audit: AuditService, bot: BotService);
     create(tenantId: string, userId: string, dto: CreateLoanDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@microloan/db").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
-        status: import("@microloan/db").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(tenantId: string): Promise<({
         borrower: {
             id: string;
             tenantId: string;
-            createdAt: Date;
-            updatedAt: Date;
             firstName: string;
             lastName: string;
             phone: string | null;
             address: string | null;
             idNumber: string | null;
+            createdAt: Date;
+            updatedAt: Date;
         };
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@microloan/db").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
-        status: import("@microloan/db").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
     findOne(tenantId: string, id: string): Promise<{
         borrower: {
             id: string;
             tenantId: string;
-            createdAt: Date;
-            updatedAt: Date;
             firstName: string;
             lastName: string;
             phone: string | null;
             address: string | null;
             idNumber: string | null;
-        };
-        schedules: {
-            id: string;
             createdAt: Date;
             updatedAt: Date;
-            installmentNumber: number;
+        };
+        repayments: {
+            id: string;
+            tenantId: string;
             loanId: string;
+            amount: import("@prisma/client/runtime/library").Decimal;
+            principalPaid: import("@prisma/client/runtime/library").Decimal;
+            interestPaid: import("@prisma/client/runtime/library").Decimal;
+            date: Date;
+            createdAt: Date;
+            updatedAt: Date;
+        }[];
+        documents: {
+            id: string;
+            tenantId: string;
+            loanId: string;
+            name: string;
+            content: string;
+            type: string;
+            createdAt: Date;
+        }[];
+        schedules: {
+            id: string;
+            loanId: string;
+            installmentNumber: number;
             dueDate: Date;
             principalAmount: import("@prisma/client/runtime/library").Decimal;
             interestAmount: import("@prisma/client/runtime/library").Decimal;
@@ -69,45 +89,64 @@ export declare class LoansService {
             paidPrincipal: import("@prisma/client/runtime/library").Decimal;
             paidInterest: import("@prisma/client/runtime/library").Decimal;
             isPaid: boolean;
-        }[];
-        repayments: {
-            id: string;
-            tenantId: string;
             createdAt: Date;
             updatedAt: Date;
-            date: Date;
-            loanId: string;
-            amount: import("@prisma/client/runtime/library").Decimal;
-            principalPaid: import("@prisma/client/runtime/library").Decimal;
-            interestPaid: import("@prisma/client/runtime/library").Decimal;
         }[];
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@microloan/db").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
-        status: import("@microloan/db").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     changeStatus(tenantId: string, userId: string, id: string, dto: ChangeLoanStatusDto): Promise<{
+        borrower: {
+            id: string;
+            tenantId: string;
+            firstName: string;
+            lastName: string;
+            phone: string | null;
+            address: string | null;
+            idNumber: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         borrowerId: string;
+        status: import("@microloan/db").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
         termMonths: number;
-        startDate: Date;
         interestMethod: import("@microloan/db").$Enums.InterestMethod;
-        status: import("@microloan/db").$Enums.LoanStatus;
+        startDate: Date;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(tenantId: string, userId: string, id: string): Promise<{
+        success: boolean;
+    }>;
+    addDocument(tenantId: string, userId: string, loanId: string, dto: {
+        name: string;
+        content: string;
+        type: string;
+    }): Promise<{
+        id: string;
+        tenantId: string;
+        loanId: string;
+        name: string;
+        content: string;
+        type: string;
+        createdAt: Date;
+    }>;
+    removeDocument(tenantId: string, userId: string, loanId: string, documentId: string): Promise<{
         success: boolean;
     }>;
 }

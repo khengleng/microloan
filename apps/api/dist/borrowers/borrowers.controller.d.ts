@@ -7,46 +7,46 @@ export declare class BorrowersController {
     create(user: JwtPayload, dto: CreateBorrowerDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(user: JwtPayload): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }[]>;
     findOne(user: JwtPayload, id: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     update(user: JwtPayload, id: string, dto: UpdateBorrowerDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         firstName: string;
         lastName: string;
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     remove(user: JwtPayload, id: string): Promise<{
         success: boolean;

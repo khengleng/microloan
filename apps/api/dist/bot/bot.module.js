@@ -6,20 +6,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LoansModule = void 0;
+exports.BotModule = void 0;
 const common_1 = require("@nestjs/common");
-const loans_service_1 = require("./loans.service");
-const loans_controller_1 = require("./loans.controller");
-const bot_module_1 = require("../bot/bot.module");
-let LoansModule = class LoansModule {
+const bot_service_1 = require("./bot.service");
+const prisma_module_1 = require("../prisma/prisma.module");
+const borrowers_module_1 = require("../borrowers/borrowers.module");
+const loans_module_1 = require("../loans/loans.module");
+let BotModule = class BotModule {
 };
-exports.LoansModule = LoansModule;
-exports.LoansModule = LoansModule = __decorate([
+exports.BotModule = BotModule;
+exports.BotModule = BotModule = __decorate([
     (0, common_1.Module)({
-        imports: [(0, common_1.forwardRef)(() => bot_module_1.BotModule)],
-        providers: [loans_service_1.LoansService],
-        controllers: [loans_controller_1.LoansController],
-        exports: [loans_service_1.LoansService],
+        imports: [prisma_module_1.PrismaModule, borrowers_module_1.BorrowersModule, (0, common_1.forwardRef)(() => loans_module_1.LoansModule)],
+        providers: [bot_service_1.BotService],
+        exports: [bot_service_1.BotService],
     })
-], LoansModule);
-//# sourceMappingURL=loans.module.js.map
+], BotModule);
+//# sourceMappingURL=bot.module.js.map

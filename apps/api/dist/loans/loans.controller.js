@@ -38,6 +38,12 @@ let LoansController = class LoansController {
     remove(user, id) {
         return this.loansService.remove(user.tenantId, user.sub, id);
     }
+    addDocument(user, id, dto) {
+        return this.loansService.addDocument(user.tenantId, user.sub, id, dto);
+    }
+    removeDocument(user, id, documentId) {
+        return this.loansService.removeDocument(user.tenantId, user.sub, id, documentId);
+    }
 };
 exports.LoansController = LoansController;
 __decorate([
@@ -80,6 +86,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "remove", null);
+__decorate([
+    (0, common_1.Post)(':id/documents'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], LoansController.prototype, "addDocument", null);
+__decorate([
+    (0, common_1.Delete)(':id/documents/:documentId'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Param)('documentId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", void 0)
+], LoansController.prototype, "removeDocument", null);
 exports.LoansController = LoansController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('loans'),
