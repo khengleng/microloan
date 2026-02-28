@@ -1,6 +1,6 @@
-# MicroLend OS (MVP) — Cambodia-first Micro‑Lending Backoffice
+# Magic Money (MVP) — Cambodia-first Micro‑Lending Backoffice
 
-MicroLend OS is a multi‑tenant, Khmer/English micro‑lending operations platform designed to replace Excel for small digital lenders.
+Magic Money is a multi‑tenant, Khmer/English micro‑lending operations platform designed to replace Excel for small digital lenders.
 
 ## What it does (MVP)
 ### Core modules

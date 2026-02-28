@@ -129,7 +129,7 @@ export class LoansService {
       // Send alert via telegram if they have a telegram chat mapped to them
       if (updated.borrower.telegramChatId) {
         try {
-          const msg = `🎉 Good news! Your loan of **$${updated.principal}** has been DISBURSED and is now ready. Please check the Microloan OS portal for your repayment schedule.`;
+          const msg = `🎉 Good news! Your loan of **$${updated.principal}** has been DISBURSED and is now ready. Please check the Magic Money portal for your repayment schedule.`;
           await this.bot.sendDisbursementAlert(tenantId, updated.borrower.telegramChatId, msg);
         } catch (error) {
           console.error('Failed to send telegram disbursement alert', error);

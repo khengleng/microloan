@@ -76,7 +76,7 @@ export default function RegisterTenantPage() {
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-12">
                         <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">M</div>
-                        <span className="text-2xl font-bold tracking-tight">Microloan OS</span>
+                        <span className="text-2xl font-bold tracking-tight">Magic Money</span>
                     </div>
                     <h2 className="text-5xl font-extrabold leading-tight mb-6">
                         Start your Lending <br />

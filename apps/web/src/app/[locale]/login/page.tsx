@@ -80,7 +80,7 @@ export default function LoginPage() {
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold text-center flex items-center justify-center gap-2 text-slate-900">
                         {mfaStep ? <ShieldCheck className="text-blue-600" /> : <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs">M</div>}
-                        MicroLend OS
+                        Magic Money
                     </CardTitle>
                     <CardDescription className="text-center">
                         {mfaStep ? 'Enter your 6-digit security code' : t('title')}

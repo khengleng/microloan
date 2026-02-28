@@ -95,7 +95,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const secret = generateSecret();
-    const otpauthUrl = otpauth.keyuri(user.email, 'Microloan OS', secret);
+    const otpauthUrl = otpauth.keyuri(user.email, 'Magic Money', secret);
     const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
 
     // Save secret temporarily but don't enable yet

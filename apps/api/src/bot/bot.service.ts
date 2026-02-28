@@ -7,7 +7,7 @@ import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
 
-const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Microloan. 
+const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
 1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
 2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
@@ -82,7 +82,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             this.conversations[conversationId] = [
                 { role: 'system', content: SYSTEM_PROMPT }
             ];
-            ctx.reply('Welcome to Microloan! Need a loan? Just tell me how much you need or ask me for help applying!');
+            ctx.reply('Welcome to Magic Money! Need a loan? Just tell me how much you need or ask me for help applying!');
         });
 
         bot.on('text', async (ctx) => {
@@ -107,7 +107,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             type: 'function',
                             function: {
                                 name: 'originate_loan',
-                                description: 'Creates a DRAFT loan in the Microloan system',
+                                description: 'Creates a DRAFT loan in the Magic Money system',
                                 parameters: {
                                     type: 'object',
                                     properties: {

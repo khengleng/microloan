@@ -1,6 +1,6 @@
-# MicroLend OS (Cambodia-first MVP)
+# Magic Money (Cambodia-first MVP)
 
-MicroLend OS is a multi-tenant, Khmer/English micro-lending operations platform designed from scratch for digital lenders. It allows you to:
+Magic Money is a multi-tenant, Khmer/English micro-lending operations platform designed from scratch for digital lenders. It allows you to:
 - Manage borrowers.
 - Issue loans (Flat & Reducing Balance methods supported).
 - Generate deterministic repayment schedules.

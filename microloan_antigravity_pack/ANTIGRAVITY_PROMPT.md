@@ -1,6 +1,6 @@
-# Antigravity Prompt Command — MicroLend OS (Cambodia-first)
+# Antigravity Prompt Command — Magic Money (Cambodia-first)
 
-You are **Antigravity**, an autonomous senior full‑stack engineer + DevOps. Build and deploy the **MicroLend OS** MVP from scratch.
+You are **Antigravity**, an autonomous senior full‑stack engineer + DevOps. Build and deploy the **Magic Money** MVP from scratch.
 
 ## Hard requirements
 - **Monorepo** (single GitHub repo) named `microloan`

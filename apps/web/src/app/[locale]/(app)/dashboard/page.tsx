@@ -48,7 +48,7 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
 
             {loading ? (
-                <div className="text-gray-500 flex h-32 items-center justify-center">Loading Microloan OS dashboard...</div>
+                <div className="text-gray-500 flex h-32 items-center justify-center">Loading Magic Money dashboard...</div>
             ) : (
                 <>
                     {/* Top Stats */}
