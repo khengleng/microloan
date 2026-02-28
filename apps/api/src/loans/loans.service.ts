@@ -8,12 +8,14 @@ import { AuditService } from '../audit/audit.service';
 import { CreateLoanDto, ChangeLoanStatusDto } from './dto/create-loan.dto';
 import { calculateRepaymentSchedule, LoanParams } from '@microloan/shared';
 import { LoanStatus } from '@microloan/db';
+import { BotService } from '../bot/bot.service';
 
 @Injectable()
 export class LoansService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private bot: BotService,
   ) { }
 
   async create(tenantId: string, userId: string, dto: CreateLoanDto) {
@@ -115,7 +117,17 @@ export class LoansService {
     const updated = await this.prisma.loan.update({
       where: { id },
       data: { status: dto.status as LoanStatus },
+      include: { borrower: true },
     });
+
+    if (updated.status === LoanStatus.DISBURSED && loan.status !== LoanStatus.DISBURSED) {
+      // Send alert via telegram if they have a telegram chat mapped to them
+      try {
+        await this.bot.sendDisbursementAlert(updated.borrower.phone, updated);
+      } catch (error) {
+        console.error('Failed to send telegram disbursement alert', error);
+      }
+    }
 
     await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {
       old: loan.status,

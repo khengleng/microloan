@@ -27,6 +27,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     // We will store simple conversational state per Telegram Chat ID
     private conversations: Record<number, any[]> = {};
+    private phoneToChatId: Map<string, number> = new Map();
 
     constructor(
         private readonly prisma: PrismaService,
@@ -165,6 +166,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             });
         }
 
+        // Map phone to chatId so we can message them later
+        if (args.phone) {
+            this.phoneToChatId.set(args.phone.replace(/[^0-9+]/g, ''), chatId);
+        }
+
         // 2. Create Loan
         await this.loansService.create(tenantId, userId, {
             borrowerId: borrower.id,
@@ -174,6 +180,21 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             startDate: new Date().toISOString(),
             interestMethod: InterestMethod.FLAT,
         });
+    }
+
+    async sendDisbursementAlert(phone: string | null, loanDetails: any) {
+        if (!this.enabled || !this.bot || !phone) return;
+
+        const cleanPhone = phone.replace(/[^0-9+]/g, '');
+        const chatId = this.phoneToChatId.get(cleanPhone);
+
+        if (chatId) {
+            const message = `🎉 Good news! Your loan of **$${loanDetails.principal}** has been officially DISBURSED! Your repayment schedule is now active. Log into the MicroLend app for full details.`;
+            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+            this.logger.log(`Disbursement alert sent to Telegram chat ${chatId}`);
+        } else {
+            this.logger.warn(`Could not find Telegram ChatId for phone ${phone}`);
+        }
     }
 
     onModuleDestroy() {
