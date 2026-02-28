@@ -3,12 +3,14 @@ import { LoansService } from '../loans/loans.service';
 import { BorrowersService } from '../borrowers/borrowers.service';
 import { RepaymentsService } from '../repayments/repayments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(
@@ -18,6 +20,7 @@ export class ReportsController {
     private readonly prisma: PrismaService,
   ) { }
 
+  @Roles('ADMIN', 'OPS', 'AUDITOR')
   @Get('dashboard')
   async getDashboardStats(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;
@@ -69,6 +72,7 @@ export class ReportsController {
     };
   }
 
+  @Roles('ADMIN', 'OPS', 'AUDITOR')
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {
     const loans = await this.loansService.findAll(user.tenantId);
@@ -93,6 +97,7 @@ export class ReportsController {
     res.send(csv);
   }
 
+  @Roles('ADMIN', 'OPS', 'AUDITOR')
   @Get('repayments')
   async exportRepayments(
     @CurrentUser() user: JwtPayload,
@@ -118,6 +123,7 @@ export class ReportsController {
     res.send(csv);
   }
 
+  @Roles('ADMIN', 'OPS', 'AUDITOR')
   @Get('cashflow')
   async getCashflow(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;

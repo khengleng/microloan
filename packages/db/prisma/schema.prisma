@@ -23,6 +23,7 @@ model Tenant {
 }
 
 enum Role {
+  SUPERADMIN
   ADMIN
   OPS
   AUDITOR

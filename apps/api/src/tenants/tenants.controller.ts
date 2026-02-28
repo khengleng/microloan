@@ -9,31 +9,31 @@ import { Roles } from '../auth/roles.decorator';
 export class TenantsController {
     constructor(private readonly tenantsService: TenantsService) { }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN')
     @Get()
     findAll() {
         return this.tenantsService.findAll();
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN')
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.tenantsService.findOne(id);
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN')
     @Post()
     create(@Body() data: { name: string }) {
         return this.tenantsService.create(data);
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN')
     @Put(':id')
     update(@Param('id') id: string, @Body() data: { name: string }) {
         return this.tenantsService.update(id, data);
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN')
     @Delete(':id')
     remove(@Param('id') id: string) {
         return this.tenantsService.remove(id);
