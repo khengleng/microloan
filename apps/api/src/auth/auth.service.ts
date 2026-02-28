@@ -6,8 +6,14 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@microloan/db';
-import { authenticator } from 'otplib';
+import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
+
+const otpauth = {
+  keyuri: (email: string, issuer: string, secret: string) => {
+    return `otpauth://totp/${issuer}:${email}?secret=${secret}&issuer=${issuer}`;
+  }
+};
 
 @Injectable()
 export class AuthService {
@@ -31,12 +37,15 @@ export class AuthService {
         data: { name: dto.organizationName }
       });
 
+      const userCount = await tx.user.count();
+      const role = userCount === 0 ? Role.SUPERADMIN : Role.ADMIN;
+
       const user = await tx.user.create({
         data: {
           tenantId: tenant.id,
           email: dto.adminEmail,
           passwordHash,
-          role: Role.ADMIN
+          role: role
         }
       });
 
@@ -71,7 +80,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException();
 
-    const isValid = authenticator.verify({
+    const isValid = verify({
       token: code,
       secret: user.twoFactorSecret
     });
@@ -85,8 +94,8 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
 
-    const secret = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(user.email, 'MicroLend OS', secret);
+    const secret = generateSecret();
+    const otpauthUrl = otpauth.keyuri(user.email, 'Microloan OS', secret);
     const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
 
     // Save secret temporarily but don't enable yet
@@ -102,7 +111,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException('MFA not initiated');
 
-    const isValid = authenticator.verify({
+    const isValid = verify({
       token: code,
       secret: user.twoFactorSecret
     });

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
 import { LoanProductsService } from './loan-products.service';
-import type { CreateLoanProductDto } from './dto/create-loan-product.dto';
-import type { UpdateLoanProductDto } from './dto/update-loan-product.dto';
+import { CreateLoanProductDto } from './dto/create-loan-product.dto';
+import { UpdateLoanProductDto } from './dto/update-loan-product.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
