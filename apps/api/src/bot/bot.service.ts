@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Telegraf } from 'telegraf';
 import OpenAI from 'openai';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,6 +32,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     constructor(
         private readonly prisma: PrismaService,
         private readonly borrowersService: BorrowersService,
+        @Inject(forwardRef(() => LoansService))
         private readonly loansService: LoansService,
     ) { }
 
