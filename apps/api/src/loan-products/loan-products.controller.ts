@@ -7,7 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('v1/loan-products')
+@Controller('loan-products')
 export class LoanProductsController {
     constructor(private readonly loanProductsService: LoanProductsService) { }
 
