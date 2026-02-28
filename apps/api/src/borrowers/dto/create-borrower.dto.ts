@@ -20,6 +20,10 @@ export class CreateBorrowerDto {
   @IsString()
   @IsOptional()
   idNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  telegramChatId?: string;
 }
 
 export class UpdateBorrowerDto {
@@ -42,4 +46,8 @@ export class UpdateBorrowerDto {
   @IsString()
   @IsOptional()
   idNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  telegramChatId?: string;
 }

@@ -85,7 +85,7 @@ export default function DashboardPage() {
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Last 6 Months)</h3>
                             <div className="h-72 w-full relative">
                                 {isMounted && chartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%" aspect={3}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
@@ -111,7 +111,7 @@ export default function DashboardPage() {
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume</h3>
                             <div className="h-72 w-full relative">
                                 {isMounted && chartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%" aspect={3}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />

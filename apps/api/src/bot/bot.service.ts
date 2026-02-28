@@ -163,7 +163,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                 lastName: args.lastName,
                 idNumber: 'BOT-' + Date.now().toString(),
                 phone: args.phone,
-                address: 'Telegram Client'
+                address: 'Telegram Client',
+                telegramChatId: chatId.toString(),
+            });
+        } else if (!borrower.telegramChatId) {
+            // Update existing borrower with chat id
+            borrower = await this.prisma.borrower.update({
+                where: { id: borrower.id },
+                data: { telegramChatId: chatId.toString() }
             });
         }
 

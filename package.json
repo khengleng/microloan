@@ -11,7 +11,7 @@
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
         "db:push": "pnpm --filter db db:push",
         "db:seed": "pnpm --filter db db:seed",
-        "start": "eval $START_COMMAND"
+        "start": "pnpm --filter db db:push --accept-data-loss && eval \"${START_COMMAND:-node apps/api/dist/main}\""
     },
     "devDependencies": {
         "prettier": "^3.2.5",
