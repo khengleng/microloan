@@ -14,7 +14,7 @@ async function main() {
         console.log('Created Tenant: Acme Lending');
     }
 
-    // 2. Admin User
+    // 2. Platform SuperAdmin User
     let admin = await prisma.user.findFirst({ where: { email: 'admin@acme.com' } });
     if (!admin) {
         const passwordHash = await bcrypt.hash('password123', 10);
@@ -23,10 +23,16 @@ async function main() {
                 tenantId: tenant.id,
                 email: 'admin@acme.com',
                 passwordHash,
-                role: Role.ADMIN,
+                role: Role.SUPERADMIN,
             },
         });
-        console.log('Created Admin: admin@acme.com / password123');
+        console.log('Created Platform SuperAdmin: admin@acme.com / password123');
+    } else if (admin.role !== Role.SUPERADMIN) {
+        await prisma.user.update({
+            where: { id: admin.id },
+            data: { role: Role.SUPERADMIN }
+        });
+        console.log('Promoted admin@acme.com to SUPERADMIN');
     }
 
     // 3. Borrower

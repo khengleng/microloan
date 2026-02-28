@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Search, ShieldAlert } from 'lucide-react';
 import { BorrowerModal } from '@/components/BorrowerModal';
+import { CrossCheckModal } from '@/components/CrossCheckModal';
 
 interface Borrower {
     id: string;
@@ -21,6 +22,7 @@ export default function BorrowersPage() {
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isCrossCheckOpen, setIsCrossCheckOpen] = useState(false);
     const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
 
     const fetchBorrowers = async () => {
@@ -58,10 +60,16 @@ export default function BorrowersPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">{t('title')}</h1>
-                <Button onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }} className="flex items-center gap-2">
-                    <Plus size={16} />
-                    {t('add_new')}
-                </Button>
+                <div className="flex gap-4">
+                    <Button onClick={() => setIsCrossCheckOpen(true)} className="flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200">
+                        <ShieldAlert size={16} className="text-amber-600" />
+                        Global Reliability Check
+                    </Button>
+                    <Button onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }} className="flex items-center gap-2 bg-slate-900">
+                        <Plus size={16} />
+                        {t('add_new')}
+                    </Button>
+                </div>
             </div>
 
             <BorrowerModal
@@ -69,6 +77,11 @@ export default function BorrowersPage() {
                 onOpenChange={setIsModalOpen}
                 onSuccess={fetchBorrowers}
                 borrower={selectedBorrower}
+            />
+
+            <CrossCheckModal
+                open={isCrossCheckOpen}
+                onOpenChange={setIsCrossCheckOpen}
             />
 
             <div className="bg-white rounded-lg shadow overflow-hidden">

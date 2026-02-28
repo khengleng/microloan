@@ -1,11 +1,12 @@
 "use client";
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Cookies from 'js-cookie';
 
 export default function LoginPage() {
     const t = useTranslations('Index');
+    const { locale } = useParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const router = useRouter();
@@ -60,6 +61,9 @@ export default function LoginPage() {
                     <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
                         {t('login')}
                     </button>
+                    <div className="text-center mt-4 text-sm text-gray-500">
+                        New operator? <button type="button" onClick={() => router.push(`/${locale}/register`)} className="text-blue-600 hover:underline">Register your organization</button>
+                    </div>
                 </form>
             </div>
         </div>

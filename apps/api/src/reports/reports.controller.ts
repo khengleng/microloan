@@ -20,7 +20,7 @@ export class ReportsController {
     private readonly prisma: PrismaService,
   ) { }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
   @Get('dashboard')
   async getDashboardStats(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;
@@ -72,7 +72,7 @@ export class ReportsController {
     };
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {
     const loans = await this.loansService.findAll(user.tenantId);
@@ -97,7 +97,7 @@ export class ReportsController {
     res.send(csv);
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Get('repayments')
   async exportRepayments(
     @CurrentUser() user: JwtPayload,
@@ -123,7 +123,7 @@ export class ReportsController {
     res.send(csv);
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get('cashflow')
   async getCashflow(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;

@@ -13,7 +13,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class LoanProductsController {
     constructor(private readonly loanProductsService: LoanProductsService) { }
 
-    @Roles('ADMIN', 'OPS')
+    @Roles('ADMIN', 'OPERATOR')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() createLoanProductDto: CreateLoanProductDto) {
         return this.loanProductsService.create(user.tenantId, createLoanProductDto);
@@ -29,13 +29,13 @@ export class LoanProductsController {
         return this.loanProductsService.findOne(user.tenantId, id);
     }
 
-    @Roles('ADMIN', 'OPS')
+    @Roles('ADMIN', 'OPERATOR')
     @Put(':id')
     update(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() updateLoanProductDto: UpdateLoanProductDto) {
         return this.loanProductsService.update(user.tenantId, id, updateLoanProductDto);
     }
 
-    @Roles('ADMIN', 'OPS')
+    @Roles('ADMIN', 'OPERATOR')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.loanProductsService.remove(user.tenantId, id);

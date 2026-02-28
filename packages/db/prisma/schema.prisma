@@ -8,10 +8,13 @@ datasource db {
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  name             String
+  telegramBotToken String?  @unique // Per-tenant bot token
+  plan             String   @default("FREE") // Basic subscription visibility
+  status           String   @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   users        User[]
   borrowers    Borrower[]
@@ -25,19 +28,24 @@ model Tenant {
 enum Role {
   SUPERADMIN
   ADMIN
-  OPS
-  AUDITOR
+  OPERATOR
+  FINANCE
+  SALES
+  CX
 }
 
 model User {
-  id           String   @id @default(uuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(OPS)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  email            String   @unique
+  passwordHash     String
+  twoFactorSecret  String? // For MFA
+  twoFactorEnabled Boolean  @default(false)
+  role             Role     @default(OPERATOR)
+  telegramChatId   String? // Staff's telegram chat ID
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   auditLogs AuditLog[]
 }

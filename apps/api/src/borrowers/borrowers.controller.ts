@@ -7,6 +7,7 @@ import {
   Put,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { BorrowersService } from './borrowers.service';
 import {
@@ -24,25 +25,35 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class BorrowersController {
   constructor(private readonly borrowersService: BorrowersService) { }
 
-  @Roles('ADMIN', 'OPS')
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')
+  @Get('cross-check')
+  checkCrossTenant(
+    @CurrentUser() user: JwtPayload,
+    @Query('idNumber') idNumber?: string,
+    @Query('phone') phone?: string,
+  ) {
+    return this.borrowersService.checkCrossTenantCredit(user.tenantId, { idNumber, phone });
+  }
+
+  @Roles('ADMIN', 'OPERATOR', 'SALES')
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateBorrowerDto) {
     return this.borrowersService.create(user.tenantId, user.sub, dto);
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
     return this.borrowersService.findAll(user.tenantId);
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')
   @Get(':id')
   findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.borrowersService.findOne(user.tenantId, id);
   }
 
-  @Roles('ADMIN', 'OPS')
+  @Roles('ADMIN', 'OPERATOR')
   @Put(':id')
   update(
     @CurrentUser() user: JwtPayload,

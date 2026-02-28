@@ -12,13 +12,13 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class RepaymentsController {
   constructor(private readonly repaymentsService: RepaymentsService) { }
 
-  @Roles('ADMIN', 'OPS')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: PostRepaymentDto) {
     return this.repaymentsService.postRepayment(user.tenantId, user.sub, dto);
   }
 
-  @Roles('ADMIN', 'OPS', 'AUDITOR')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX')
   @Get()
   findAll(@CurrentUser() user: JwtPayload, @Query('loanId') loanId?: string) {
     return this.repaymentsService.findAll(user.tenantId, loanId);

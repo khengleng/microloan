@@ -76,4 +76,31 @@ export class BorrowersService {
     await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, b);
     return { success: true };
   }
+
+  async checkCrossTenantCredit(tenantId: string, query: { idNumber?: string; phone?: string }) {
+    // We search across ALL tenants but only return status summaries for privacy
+    const borrowers = await this.prisma.borrower.findMany({
+      where: {
+        OR: [
+          query.idNumber ? { idNumber: query.idNumber } : {},
+          query.phone ? { phone: query.phone } : {},
+        ].filter(q => Object.keys(q).length > 0)
+      },
+      include: {
+        tenant: { select: { name: true } },
+        loans: {
+          select: { status: true, principal: true, createdAt: true }
+        }
+      }
+    });
+
+    return borrowers.map(b => ({
+      organization: b.tenantId === tenantId ? 'Your Organization' : 'Another Organization',
+      organizationName: b.tenantId === tenantId ? b.tenant.name : '***', // Mask name for external tenants if necessary, but user asked for "cross check"
+      loans: b.loans.map(l => ({
+        status: l.status,
+        date: l.createdAt
+      }))
+    }));
+  }
 }

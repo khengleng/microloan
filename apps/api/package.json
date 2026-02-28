@@ -34,8 +34,10 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "openai": "^6.25.0",
+    "otplib": "^13.3.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "telegraf": "^4.16.3"
@@ -52,6 +54,7 @@
     "@types/node": "^22.10.7",
     "@types/node-schedule": "^2.1.8",
     "@types/passport-jwt": "^4.0.1",
+    "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
