@@ -17,7 +17,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <Link href={`/${locale}/dashboard`} className="block px-4 py-2 rounded hover:bg-slate-800">{t('dashboard')}</Link>
                     <Link href={`/${locale}/borrowers`} className="block px-4 py-2 rounded hover:bg-slate-800">{t('borrowers')}</Link>
                     <Link href={`/${locale}/loans`} className="block px-4 py-2 rounded hover:bg-slate-800">{t('loans')}</Link>
-                    <Link href={`/${locale}/products`} className="block px-4 py-2 rounded hover:bg-slate-800">Products</Link>
+                    <Link href={`/${locale}/products`} className="block px-4 py-2 rounded hover:bg-slate-800">Loan Products</Link>
+                    <Link href={`/${locale}/tenants`} className="block px-4 py-2 rounded hover:bg-slate-800">Organizations</Link>
                     <Link href={`/${locale}/repayments`} className="block px-4 py-2 rounded hover:bg-slate-800">{t('repayments')}</Link>
                     <Link href={`/${locale}/reports`} className="block px-4 py-2 rounded hover:bg-slate-800">{t('reports')}</Link>
                 </nav>

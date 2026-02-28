@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
 import { LoanProductsService } from './loan-products.service';
-import { CreateLoanProductDto } from './dto/create-loan-product.dto';
-import { UpdateLoanProductDto } from './dto/update-loan-product.dto';
+import type { CreateLoanProductDto } from './dto/create-loan-product.dto';
+import type { UpdateLoanProductDto } from './dto/update-loan-product.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtPayload } from '../auth/jwt.strategy';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('loan-products')
@@ -13,29 +15,29 @@ export class LoanProductsController {
 
     @Roles('ADMIN', 'OPS')
     @Post()
-    create(@Request() req, @Body() createLoanProductDto: CreateLoanProductDto) {
-        return this.loanProductsService.create(req.user.tenantId, createLoanProductDto);
+    create(@CurrentUser() user: JwtPayload, @Body() createLoanProductDto: CreateLoanProductDto) {
+        return this.loanProductsService.create(user.tenantId, createLoanProductDto);
     }
 
     @Get()
-    findAll(@Request() req) {
-        return this.loanProductsService.findAll(req.user.tenantId);
+    findAll(@CurrentUser() user: JwtPayload) {
+        return this.loanProductsService.findAll(user.tenantId);
     }
 
     @Get(':id')
-    findOne(@Request() req, @Param('id') id: string) {
-        return this.loanProductsService.findOne(req.user.tenantId, id);
+    findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.loanProductsService.findOne(user.tenantId, id);
     }
 
     @Roles('ADMIN', 'OPS')
     @Put(':id')
-    update(@Request() req, @Param('id') id: string, @Body() updateLoanProductDto: UpdateLoanProductDto) {
-        return this.loanProductsService.update(req.user.tenantId, id, updateLoanProductDto);
+    update(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() updateLoanProductDto: UpdateLoanProductDto) {
+        return this.loanProductsService.update(user.tenantId, id, updateLoanProductDto);
     }
 
     @Roles('ADMIN', 'OPS')
     @Delete(':id')
-    remove(@Request() req, @Param('id') id: string) {
-        return this.loanProductsService.remove(req.user.tenantId, id);
+    remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.loanProductsService.remove(user.tenantId, id);
     }
 }
