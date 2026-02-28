@@ -7,7 +7,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'https://web-production-6e20.up.railway.app',
+      /\.railway\.app$/, // Allow any railway subdomains
       'http://localhost:3000',
       'http://localhost:8080'
     ],
