@@ -14,6 +14,8 @@ Your goals:
 
 Have a natural conversation. You can ask for info or answer questions about their account.
 Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info. Interpret the JSON returned by check_loan_balance and explain it in a user-friendly way (e.g., if it's DRAFT status, explain it is pending approval; if DISBURSED, emphasize their next payment amount and date).
+
+IMPORTANT EXCEPTION TO DRAFTS: the check_loan_balance function returns the COMPLETE breakdown of the user's pending and paid repayment schedule. You MUST use this data if the user asks any questions about their full repayment schedule, interest breakdown, or pending amounts. Do not tell the user to check their agreement document.
 `;
 
 @Injectable()
@@ -207,7 +209,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     async checkLoanBalance(chatId: number): Promise<string> {
         const borrower = await this.prisma.borrower.findFirst({
             where: { telegramChatId: chatId.toString() },
-            include: { loans: { include: { schedules: { where: { isPaid: false }, orderBy: { dueDate: 'asc' } } } } }
+            include: { loans: { include: { schedules: { orderBy: { dueDate: 'asc' } } } } }
         });
 
         if (!borrower || borrower.loans.length === 0) {
@@ -215,14 +217,24 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         }
 
         const accountSummary = borrower.loans.map(l => {
-            const nextPayment = l.schedules[0];
+            const nextPayment = l.schedules.find(s => !s.isPaid);
             return {
                 id: l.id,
                 status: l.status,
                 principalAmount: Number(l.principal),
+                annualInterestRate: Number(l.annualInterestRate),
+                termMonths: l.termMonths,
+                interestMethod: l.interestMethod,
                 nextPaymentAmount: nextPayment ? Number(nextPayment.totalAmount) : null,
                 nextPaymentDueDate: nextPayment ? nextPayment.dueDate : null,
-                pendingInstallmentsCount: l.schedules.length
+                allSchedules: l.schedules.map(s => ({
+                    installmentNumber: s.installmentNumber,
+                    dueDate: s.dueDate,
+                    totalAmount: Number(s.totalAmount),
+                    principalAmount: Number(s.principalAmount),
+                    interestAmount: Number(s.interestAmount),
+                    isPaid: s.isPaid
+                }))
             };
         });
 
