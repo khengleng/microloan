@@ -96,6 +96,7 @@ export default function LoginPage() {
                                     <Input
                                         id="email"
                                         type="email"
+                                        autoComplete="email"
                                         placeholder="admin@example.com"
                                         className="pl-10 h-11"
                                         value={email}
@@ -111,6 +112,7 @@ export default function LoginPage() {
                                     <Input
                                         id="password"
                                         type="password"
+                                        autoComplete="current-password"
                                         placeholder="••••••••"
                                         className="pl-10 h-11"
                                         value={password}
