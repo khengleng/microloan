@@ -158,7 +158,14 @@ let BotService = BotService_1 = class BotService {
                 lastName: args.lastName,
                 idNumber: 'BOT-' + Date.now().toString(),
                 phone: args.phone,
-                address: 'Telegram Client'
+                address: 'Telegram Client',
+                telegramChatId: chatId.toString(),
+            });
+        }
+        else if (!borrower.telegramChatId) {
+            borrower = await this.prisma.borrower.update({
+                where: { id: borrower.id },
+                data: { telegramChatId: chatId.toString() }
             });
         }
         if (args.phone) {

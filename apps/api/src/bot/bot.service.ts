@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Telegraf } from 'telegraf';
 import OpenAI from 'openai';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,16 +7,13 @@ import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
 
-const SYSTEM_PROMPT = `You are a highly efficient and friendly loan origination AI assistant for MicroLend. 
-Your goal is to collect the necessary information from customers asking for a loan:
-- First Name
-- Last Name
-- Phone Number
-- Principal Amount ($)
-- Term (months)
+const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for MicroLend. 
+Your goals:
+1. Collect info to originate loans: First Name, Last Name, Phone Number, Principal ($), Term (months).
+2. Help users check their pending loan balance and next due dates.
 
-Have a natural conversation. You can ask for one or two pieces of information at a time.
-Once you have ALL the information, confirm the details with the user briefly, and then use the \`originate_loan\` function to submit the loan application to the backend system.
+Have a natural conversation. You can ask for info or answer questions about their account.
+Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info.
 `;
 
 @Injectable()
@@ -90,6 +88,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                                     required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths']
                                 }
                             }
+                        },
+                        {
+                            type: 'function',
+                            function: {
+                                name: 'check_loan_balance',
+                                description: 'Checks the user\'s current active loan balance and next payment due date.',
+                                parameters: {
+                                    type: 'object',
+                                    properties: {}
+                                }
+                            }
                         }
                     ]
                 });
@@ -97,17 +106,22 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                 const choice = response.choices[0];
                 if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
                     const toolCall = choice.message.tool_calls[0];
-                    if (toolCall.type === 'function' && toolCall.function.name === 'originate_loan') {
-                        const args = JSON.parse(toolCall.function.arguments);
+                    if (toolCall.type === 'function') {
+                        const args = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
 
-                        // Execute the system logic
-                        await this.handleOriginateLoan(chatId, args);
+                        let resultContent = '';
+                        if (toolCall.function.name === 'originate_loan') {
+                            await this.handleOriginateLoan(chatId, args);
+                            resultContent = 'Successfully originated loan';
+                        } else if (toolCall.function.name === 'check_loan_balance') {
+                            resultContent = await this.checkLoanBalance(chatId);
+                        }
 
                         this.conversations[chatId].push(choice.message as any);
                         this.conversations[chatId].push({
                             role: 'tool',
                             tool_call_id: toolCall.id,
-                            content: 'Successfully originated loan'
+                            content: resultContent
                         });
 
                         // get the success bot reply
@@ -190,18 +204,67 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         });
     }
 
-    async sendDisbursementAlert(phone: string | null, loanDetails: any) {
-        if (!this.enabled || !this.bot || !phone) return;
+    async checkLoanBalance(chatId: number): Promise<string> {
+        const borrower = await this.prisma.borrower.findFirst({
+            where: { telegramChatId: chatId.toString() },
+            include: { loans: { include: { schedules: { where: { isPaid: false }, orderBy: { dueDate: 'asc' } } } } }
+        });
 
-        const cleanPhone = phone.replace(/[^0-9+]/g, '');
-        const chatId = this.phoneToChatId.get(cleanPhone);
+        if (!borrower || borrower.loans.length === 0) {
+            return "Unable to find an active account or loan for you.";
+        }
+
+        const activeLoan = borrower.loans.find(l => l.status === 'DISBURSED');
+        if (!activeLoan) return "Your loan application is still pending or closed.";
+
+        const nextPayment = activeLoan.schedules[0];
+        if (!nextPayment) return "You have no pending payments right now.";
+
+        return `Your total active loan amount is $${activeLoan.principal}. Your next payment of $${nextPayment.totalAmount} is due on ${new Date(nextPayment.dueDate).toLocaleDateString()}.`;
+    }
+
+    async sendDisbursementAlert(phone: string | null, loanDetails: any) {
+        if (!this.enabled || !this.bot) return;
+
+        let chatId = loanDetails?.borrower?.telegramChatId;
+        if (!chatId && phone) {
+            const cleanPhone = phone.replace(/[^0-9+]/g, '');
+            const borrower = await this.prisma.borrower.findFirst({ where: { phone: { contains: cleanPhone } } });
+            if (borrower?.telegramChatId) chatId = borrower.telegramChatId;
+        }
 
         if (chatId) {
-            const message = `🎉 Good news! Your loan of **$${loanDetails.principal}** has been officially DISBURSED! Your repayment schedule is now active. Log into the MicroLend app for full details.`;
+            const message = `🎉 Good news! Your loan of **$${loanDetails.principal}** has been officially APPROVED and DISBURSED! Your repayment schedule is now active. Log into the MicroLend app for full details.`;
             await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
             this.logger.log(`Disbursement alert sent to Telegram chat ${chatId}`);
         } else {
             this.logger.warn(`Could not find Telegram ChatId for phone ${phone}`);
+        }
+    }
+
+    @Cron(CronExpression.EVERY_DAY_AT_10AM)
+    async sendLatePaymentAlerts() {
+        this.logger.log('Running daily late payment checks...');
+        if (!this.enabled || !this.bot) return;
+
+        const lateSchedules = await this.prisma.repaymentSchedule.findMany({
+            where: { isPaid: false, dueDate: { lt: new Date() } },
+            include: { loan: { include: { borrower: true } } }
+        });
+
+        const notified = new Set();
+        for (const schedule of lateSchedules) {
+            const borrower = schedule.loan.borrower;
+            if (borrower.telegramChatId && !notified.has(borrower.id)) {
+                notified.add(borrower.id);
+                try {
+                    const msg = `⚠️ **URGENT NOTICE: LATE PAYMENT** ⚠️\n\nDear ${borrower.firstName},\nYour loan payment of **$${schedule.totalAmount}** which was due on ${new Date(schedule.dueDate).toLocaleDateString()} is past due.\n\nPlease remit payment immediately. Failure to do so will result in formal collection procedures beginning on your account.`;
+                    await this.bot.telegram.sendMessage(borrower.telegramChatId, msg, { parse_mode: 'Markdown' });
+                    this.logger.log(`Sent late payment alert to ${borrower.telegramChatId}`);
+                } catch (e) {
+                    this.logger.error(`Failed to send alert to ${borrower.telegramChatId}`, e);
+                }
+            }
         }
     }
 

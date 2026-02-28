@@ -13,6 +13,7 @@ export declare class BorrowersService {
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        telegramChatId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -24,6 +25,7 @@ export declare class BorrowersService {
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        telegramChatId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }[]>;
@@ -35,6 +37,7 @@ export declare class BorrowersService {
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        telegramChatId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -46,6 +49,7 @@ export declare class BorrowersService {
         phone: string | null;
         address: string | null;
         idNumber: string | null;
+        telegramChatId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;

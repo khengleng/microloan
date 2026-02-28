@@ -4,6 +4,7 @@ export declare class CreateBorrowerDto {
     phone?: string;
     address?: string;
     idNumber?: string;
+    telegramChatId?: string;
 }
 export declare class UpdateBorrowerDto {
     firstName?: string;
@@ -11,4 +12,5 @@ export declare class UpdateBorrowerDto {
     phone?: string;
     address?: string;
     idNumber?: string;
+    telegramChatId?: string;
 }

@@ -17,6 +17,7 @@ class CreateBorrowerDto {
     phone;
     address;
     idNumber;
+    telegramChatId;
 }
 exports.CreateBorrowerDto = CreateBorrowerDto;
 __decorate([
@@ -44,12 +45,18 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CreateBorrowerDto.prototype, "idNumber", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CreateBorrowerDto.prototype, "telegramChatId", void 0);
 class UpdateBorrowerDto {
     firstName;
     lastName;
     phone;
     address;
     idNumber;
+    telegramChatId;
 }
 exports.UpdateBorrowerDto = UpdateBorrowerDto;
 __decorate([
@@ -77,4 +84,9 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], UpdateBorrowerDto.prototype, "idNumber", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], UpdateBorrowerDto.prototype, "telegramChatId", void 0);
 //# sourceMappingURL=create-borrower.dto.js.map
