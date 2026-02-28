@@ -41,16 +41,17 @@ model User {
 }
 
 model Borrower {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  firstName String
-  lastName  String
-  phone     String?
-  address   String?
-  idNumber  String?  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  firstName      String
+  lastName       String
+  phone          String?
+  address        String?
+  idNumber       String?  @unique
+  telegramChatId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   loans Loan[]
 }
@@ -141,6 +142,6 @@ model Document {
   loan      Loan     @relation(fields: [loanId], references: [id])
   name      String
   content   String   @db.Text // Base64 content or public URL
-  type      String   // e.g., "application/pdf", "image/png", or "url"
+  type      String // e.g., "application/pdf", "image/png", or "url"
   createdAt DateTime @default(now())
 }
