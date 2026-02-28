@@ -48,7 +48,7 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
 
             {loading ? (
-                <div className="text-gray-500 flex h-32 items-center justify-center">Loading dashboard...</div>
+                <div className="text-gray-500 flex h-32 items-center justify-center">Loading Microloan OS dashboard...</div>
             ) : (
                 <>
                     {/* Top Stats */}
@@ -83,7 +83,7 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 min-h-[350px]">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Cash Flow (Last 6 Months)</h3>
-                            <div className="h-72 w-full relative">
+                            <div className="h-[300px] w-full relative">
                                 {isMounted && chartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -109,7 +109,7 @@ export default function DashboardPage() {
 
                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 min-h-[350px]">
                             <h3 className="text-lg font-semibold mb-4 text-gray-800">Monthly Volume</h3>
-                            <div className="h-72 w-full relative">
+                            <div className="h-[300px] w-full relative">
                                 {isMounted && chartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
