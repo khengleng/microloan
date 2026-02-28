@@ -13,7 +13,7 @@ Your goals:
 2. Help users check their pending loan balance and next due dates.
 
 Have a natural conversation. You can ask for info or answer questions about their account.
-Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info.
+Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info. Interpret the JSON returned by check_loan_balance and explain it in a user-friendly way (e.g., if it's DRAFT status, explain it is pending approval; if DISBURSED, emphasize their next payment amount and date).
 `;
 
 @Injectable()
@@ -211,16 +211,22 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         });
 
         if (!borrower || borrower.loans.length === 0) {
-            return "Unable to find an active account or loan for you.";
+            return JSON.stringify({ error: "Unable to find an active account or loan for you." });
         }
 
-        const activeLoan = borrower.loans.find(l => l.status === 'DISBURSED');
-        if (!activeLoan) return "Your loan application is still pending or closed.";
+        const accountSummary = borrower.loans.map(l => {
+            const nextPayment = l.schedules[0];
+            return {
+                id: l.id,
+                status: l.status,
+                principalAmount: Number(l.principal),
+                nextPaymentAmount: nextPayment ? Number(nextPayment.totalAmount) : null,
+                nextPaymentDueDate: nextPayment ? nextPayment.dueDate : null,
+                pendingInstallmentsCount: l.schedules.length
+            };
+        });
 
-        const nextPayment = activeLoan.schedules[0];
-        if (!nextPayment) return "You have no pending payments right now.";
-
-        return `Your total active loan amount is $${activeLoan.principal}. Your next payment of $${nextPayment.totalAmount} is due on ${new Date(nextPayment.dueDate).toLocaleDateString()}.`;
+        return JSON.stringify({ loans: accountSummary });
     }
 
     async sendDisbursementAlert(phone: string | null, loanDetails: any) {
