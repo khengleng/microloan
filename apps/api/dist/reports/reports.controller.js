@@ -18,6 +18,8 @@ const loans_service_1 = require("../loans/loans.service");
 const borrowers_service_1 = require("../borrowers/borrowers.service");
 const repayments_service_1 = require("../repayments/repayments.service");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
 const prisma_service_1 = require("../prisma/prisma.service");
 let ReportsController = class ReportsController {
@@ -141,6 +143,7 @@ let ReportsController = class ReportsController {
 };
 exports.ReportsController = ReportsController;
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'SALES'),
     (0, common_1.Get)('dashboard'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -148,6 +151,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "getDashboardStats", null);
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
     (0, common_1.Get)('loan-book'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Res)()),
@@ -156,6 +160,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportLoanBook", null);
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
     (0, common_1.Get)('repayments'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Res)()),
@@ -164,6 +169,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportRepayments", null);
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX'),
     (0, common_1.Get)('cashflow'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -171,7 +177,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "getCashflow", null);
 exports.ReportsController = ReportsController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('reports'),
     __metadata("design:paramtypes", [loans_service_1.LoansService,
         borrowers_service_1.BorrowersService,

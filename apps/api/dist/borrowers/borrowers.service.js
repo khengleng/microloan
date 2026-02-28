@@ -69,6 +69,30 @@ let BorrowersService = class BorrowersService {
         await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, b);
         return { success: true };
     }
+    async checkCrossTenantCredit(tenantId, query) {
+        const borrowers = await this.prisma.borrower.findMany({
+            where: {
+                OR: [
+                    query.idNumber ? { idNumber: query.idNumber } : {},
+                    query.phone ? { phone: query.phone } : {},
+                ].filter(q => Object.keys(q).length > 0)
+            },
+            include: {
+                tenant: { select: { name: true } },
+                loans: {
+                    select: { status: true, principal: true, createdAt: true }
+                }
+            }
+        });
+        return borrowers.map(b => ({
+            organization: b.tenantId === tenantId ? 'Your Organization' : 'Another Organization',
+            organizationName: b.tenantId === tenantId ? b.tenant.name : '***',
+            loans: b.loans.map(l => ({
+                status: l.status,
+                date: l.createdAt
+            }))
+        }));
+    }
 };
 exports.BorrowersService = BorrowersService;
 exports.BorrowersService = BorrowersService = __decorate([

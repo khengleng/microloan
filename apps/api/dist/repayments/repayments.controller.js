@@ -17,6 +17,8 @@ const common_1 = require("@nestjs/common");
 const repayments_service_1 = require("./repayments.service");
 const post_repayment_dto_1 = require("./dto/post-repayment.dto");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
 let RepaymentsController = class RepaymentsController {
     repaymentsService;
@@ -32,6 +34,7 @@ let RepaymentsController = class RepaymentsController {
 };
 exports.RepaymentsController = RepaymentsController;
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
     (0, common_1.Post)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
@@ -40,6 +43,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], RepaymentsController.prototype, "create", null);
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'CX'),
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('loanId')),
@@ -48,7 +52,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], RepaymentsController.prototype, "findAll", null);
 exports.RepaymentsController = RepaymentsController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('repayments'),
     __metadata("design:paramtypes", [repayments_service_1.RepaymentsService])
 ], RepaymentsController);

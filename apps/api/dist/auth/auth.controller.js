@@ -16,12 +16,16 @@ exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
+const register_tenant_dto_1 = require("./dto/register-tenant.dto");
 const jwt_auth_guard_1 = require("./jwt-auth.guard");
 const current_user_decorator_1 = require("./current-user.decorator");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
         this.authService = authService;
+    }
+    register(registerDto) {
+        return this.authService.registerTenant(registerDto);
     }
     login(loginDto) {
         return this.authService.login(loginDto);
@@ -32,8 +36,24 @@ let AuthController = class AuthController {
     getProfile(user) {
         return user;
     }
+    verifyMfa(dto) {
+        return this.authService.verifyMfa(dto.userId, dto.code);
+    }
+    generateMfaSecret(user) {
+        return this.authService.generateMfaSecret(user.sub);
+    }
+    enableMfa(user, dto) {
+        return this.authService.enableMfa(user.sub, dto.code);
+    }
 };
 exports.AuthController = AuthController;
+__decorate([
+    (0, common_1.Post)('register-tenant'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [register_tenant_dto_1.RegisterTenantDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "register", null);
 __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('login'),
@@ -58,6 +78,31 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "getProfile", null);
+__decorate([
+    (0, common_1.Post)('mfa/authenticate'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "verifyMfa", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('mfa/generate'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "generateMfaSecret", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('mfa/enable'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "enableMfa", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

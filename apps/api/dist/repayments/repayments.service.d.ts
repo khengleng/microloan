@@ -34,6 +34,8 @@ export declare class RepaymentsService {
             id: string;
             tenantId: string;
             borrowerId: string;
+            productId: string | null;
+            creditRatingApplied: string | null;
             status: import("@microloan/db").$Enums.LoanStatus;
             principal: import("@prisma/client/runtime/library").Decimal;
             annualInterestRate: import("@prisma/client/runtime/library").Decimal;

@@ -8,6 +8,8 @@ export declare class LoansController {
         id: string;
         tenantId: string;
         borrowerId: string;
+        productId: string | null;
+        creditRatingApplied: string | null;
         status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
@@ -34,6 +36,8 @@ export declare class LoansController {
         id: string;
         tenantId: string;
         borrowerId: string;
+        productId: string | null;
+        creditRatingApplied: string | null;
         status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
@@ -45,6 +49,22 @@ export declare class LoansController {
     })[]>;
     findOne(user: JwtPayload, id: string): Promise<{
         borrower: {
+            loans: {
+                id: string;
+                tenantId: string;
+                borrowerId: string;
+                productId: string | null;
+                creditRatingApplied: string | null;
+                status: import("@prisma/client").$Enums.LoanStatus;
+                principal: import("@prisma/client/runtime/library").Decimal;
+                annualInterestRate: import("@prisma/client/runtime/library").Decimal;
+                termMonths: number;
+                interestMethod: import("@prisma/client").$Enums.InterestMethod;
+                startDate: Date;
+                createdAt: Date;
+                updatedAt: Date;
+            }[];
+        } & {
             id: string;
             tenantId: string;
             firstName: string;
@@ -95,6 +115,8 @@ export declare class LoansController {
         id: string;
         tenantId: string;
         borrowerId: string;
+        productId: string | null;
+        creditRatingApplied: string | null;
         status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;
@@ -121,6 +143,8 @@ export declare class LoansController {
         id: string;
         tenantId: string;
         borrowerId: string;
+        productId: string | null;
+        creditRatingApplied: string | null;
         status: import("@prisma/client").$Enums.LoanStatus;
         principal: import("@prisma/client/runtime/library").Decimal;
         annualInterestRate: import("@prisma/client/runtime/library").Decimal;

@@ -18,85 +18,125 @@ var BotService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BotService = void 0;
 const common_1 = require("@nestjs/common");
+const schedule_1 = require("@nestjs/schedule");
 const telegraf_1 = require("telegraf");
 const openai_1 = __importDefault(require("openai"));
 const prisma_service_1 = require("../prisma/prisma.service");
 const borrowers_service_1 = require("../borrowers/borrowers.service");
 const loans_service_1 = require("../loans/loans.service");
-const shared_1 = require("@microloan/shared");
-const SYSTEM_PROMPT = `You are a highly efficient and friendly loan origination AI assistant for MicroLend. 
-Your goal is to collect the necessary information from customers asking for a loan:
-- First Name
-- Last Name
-- Phone Number
-- Principal Amount ($)
-- Term (months)
+const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Microloan. 
+Your goals:
+1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
+2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
+3. Collect info to originate loans: First Name, Last Name, Phone Number, Principal ($), Term (months), and the chosen productId.
+4. Help users check their pending loan balance and next due dates using \`check_loan_balance\`.
 
-Have a natural conversation. You can ask for one or two pieces of information at a time.
-Once you have ALL the information, confirm the details with the user briefly, and then use the \`originate_loan\` function to submit the loan application to the backend system.
+Have a natural conversation. You can ask for info or answer questions about their account.
+Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info. Interpret the JSON returned by check_loan_balance and explain it in a user-friendly way.
 `;
 let BotService = BotService_1 = class BotService {
     prisma;
     borrowersService;
     loansService;
-    bot;
+    bots = new Map();
     openai;
     logger = new common_1.Logger(BotService_1.name);
     enabled = false;
     conversations = {};
-    phoneToChatId = new Map();
     constructor(prisma, borrowersService, loansService) {
         this.prisma = prisma;
         this.borrowersService = borrowersService;
         this.loansService = loansService;
     }
     async onModuleInit() {
-        const token = process.env.TELEGRAM_BOT_TOKEN;
         const apiKey = process.env.OPENAI_API_KEY;
-        if (!token || !apiKey) {
-            this.logger.warn('TELEGRAM_BOT_TOKEN or OPENAI_API_KEY missing. Bot is disabled.');
+        if (!apiKey) {
+            this.logger.warn('OPENAI_API_KEY missing. Bots are disabled.');
             return;
         }
-        this.bot = new telegraf_1.Telegraf(token);
         this.openai = new openai_1.default({ apiKey });
         this.enabled = true;
-        this.bot.start((ctx) => {
-            this.conversations[ctx.chat.id] = [
+        await this.reloadAllBots();
+    }
+    async reloadAllBots() {
+        for (const [tenantId, bot] of this.bots.entries()) {
+            bot.stop('SIGINT');
+            this.logger.log(`Stopped bot for tenant: ${tenantId}`);
+        }
+        this.bots.clear();
+        const tenants = await this.prisma.tenant.findMany({
+            where: { telegramBotToken: { not: null } }
+        });
+        for (const tenant of tenants) {
+            try {
+                await this.startBotForTenant(tenant.id, tenant.telegramBotToken);
+            }
+            catch (err) {
+                this.logger.error(`Failed to start bot for tenant ${tenant.id}`, err);
+            }
+        }
+    }
+    async startBotForTenant(tenantId, token) {
+        if (this.bots.has(tenantId)) {
+            this.bots.get(tenantId)?.stop('SIGINT');
+        }
+        const bot = new telegraf_1.Telegraf(token);
+        bot.start((ctx) => {
+            const conversationId = `${tenantId}:${ctx.chat.id}`;
+            this.conversations[conversationId] = [
                 { role: 'system', content: SYSTEM_PROMPT }
             ];
-            ctx.reply('Welcome to MicroLend! Need a loan? Just tell me how much you need or ask me for help applying!');
+            ctx.reply('Welcome to Microloan! Need a loan? Just tell me how much you need or ask me for help applying!');
         });
-        this.bot.on('text', async (ctx) => {
+        bot.on('text', async (ctx) => {
             const chatId = ctx.chat.id;
             const text = ctx.message.text;
-            if (!this.conversations[chatId]) {
-                this.conversations[chatId] = [
+            const conversationId = `${tenantId}:${chatId}`;
+            if (!this.conversations[conversationId]) {
+                this.conversations[conversationId] = [
                     { role: 'system', content: SYSTEM_PROMPT }
                 ];
             }
-            this.conversations[chatId].push({ role: 'user', content: text });
+            this.conversations[conversationId].push({ role: 'user', content: text });
             try {
                 await ctx.sendChatAction('typing');
                 const response = await this.openai.chat.completions.create({
                     model: 'gpt-4o',
-                    messages: this.conversations[chatId],
+                    messages: this.conversations[conversationId],
                     tools: [
                         {
                             type: 'function',
                             function: {
                                 name: 'originate_loan',
-                                description: 'Creates a DRAFT loan in the MicroLend system for the given user in a specified tenant',
+                                description: 'Creates a DRAFT loan in the Microloan system',
                                 parameters: {
                                     type: 'object',
                                     properties: {
                                         firstName: { type: 'string' },
                                         lastName: { type: 'string' },
                                         phone: { type: 'string' },
-                                        principal: { type: 'number', description: 'The total loan requested amount' },
-                                        termMonths: { type: 'number', description: 'Duration of the loan in months' },
+                                        principal: { type: 'number' },
+                                        termMonths: { type: 'number' },
+                                        productId: { type: 'string' },
                                     },
-                                    required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths']
+                                    required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths', 'productId']
                                 }
+                            }
+                        },
+                        {
+                            type: 'function',
+                            function: {
+                                name: 'check_loan_balance',
+                                description: 'Checks the user\'s current active loan balance.',
+                                parameters: { type: 'object', properties: {} }
+                            }
+                        },
+                        {
+                            type: 'function',
+                            function: {
+                                name: 'get_loan_products',
+                                description: 'Fetches the list of active loan products.',
+                                parameters: { type: 'object', properties: {} }
                             }
                         }
                     ]
@@ -104,47 +144,49 @@ let BotService = BotService_1 = class BotService {
                 const choice = response.choices[0];
                 if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
                     const toolCall = choice.message.tool_calls[0];
-                    if (toolCall.type === 'function' && toolCall.function.name === 'originate_loan') {
-                        const args = JSON.parse(toolCall.function.arguments);
-                        await this.handleOriginateLoan(chatId, args);
-                        this.conversations[chatId].push(choice.message);
-                        this.conversations[chatId].push({
-                            role: 'tool',
-                            tool_call_id: toolCall.id,
-                            content: 'Successfully originated loan'
-                        });
-                        const followup = await this.openai.chat.completions.create({
-                            model: 'gpt-4o',
-                            messages: this.conversations[chatId]
-                        });
-                        const replyText = followup.choices[0].message.content || 'Done!';
-                        this.conversations[chatId].push({ role: 'assistant', content: replyText });
-                        ctx.reply(replyText);
+                    const args = toolCall.function?.arguments ? JSON.parse(toolCall.function.arguments) : {};
+                    let resultContent = '';
+                    const functionName = toolCall.function?.name;
+                    if (functionName === 'originate_loan') {
+                        await this.handleOriginateLoan(tenantId, chatId, args);
+                        resultContent = 'Successfully originated loan';
                     }
+                    else if (functionName === 'check_loan_balance') {
+                        resultContent = await this.checkLoanBalance(tenantId, chatId);
+                    }
+                    else if (functionName === 'get_loan_products') {
+                        resultContent = await this.getLoanProducts(tenantId);
+                    }
+                    this.conversations[conversationId].push(choice.message);
+                    this.conversations[conversationId].push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: resultContent
+                    });
+                    const followup = await this.openai.chat.completions.create({
+                        model: 'gpt-4o',
+                        messages: this.conversations[conversationId]
+                    });
+                    const replyText = followup.choices[0].message.content || 'Done!';
+                    this.conversations[conversationId].push({ role: 'assistant', content: replyText });
+                    ctx.reply(replyText);
                 }
                 else {
                     const aiResponse = choice.message.content || '...';
-                    this.conversations[chatId].push({ role: 'assistant', content: aiResponse });
+                    this.conversations[conversationId].push({ role: 'assistant', content: aiResponse });
                     ctx.reply(aiResponse);
                 }
             }
             catch (err) {
-                this.logger.error('Error handling telegram message', err);
+                this.logger.error(`Error handling telegram message for tenant ${tenantId}`, err);
                 ctx.reply('Sorry, I encountered an error processing your request.');
             }
         });
-        this.bot.launch();
-        this.logger.log('Telegram Bot successfully started.');
+        bot.launch();
+        this.bots.set(tenantId, bot);
+        this.logger.log(`Telegram Bot started for tenant: ${tenantId}`);
     }
-    async handleOriginateLoan(chatId, args) {
-        const defaultTenantId = process.env.BOT_DEFAULT_TENANT_ID;
-        let tenantId = defaultTenantId;
-        if (!tenantId) {
-            const tenant = await this.prisma.tenant.findFirst();
-            if (!tenant)
-                throw new Error('No tenant found in the entire system');
-            tenantId = tenant.id;
-        }
+    async handleOriginateLoan(tenantId, chatId, args) {
         const user = await this.prisma.user.findFirst({ where: { tenantId } });
         if (!user)
             throw new Error('No valid user found in tenant');
@@ -168,39 +210,92 @@ let BotService = BotService_1 = class BotService {
                 data: { telegramChatId: chatId.toString() }
             });
         }
-        if (args.phone) {
-            this.phoneToChatId.set(args.phone.replace(/[^0-9+]/g, ''), chatId);
-        }
+        const product = await this.prisma.loanProduct.findFirst({
+            where: { id: args.productId, tenantId },
+            include: { policies: true }
+        });
+        if (!product)
+            throw new Error('Invalid loan product ID');
+        let policy = product.policies.find(p => p.creditRating === 'GOOD') || product.policies[0];
+        if (!policy)
+            throw new Error('Selected product has no valid interest policies.');
         await this.loansService.create(tenantId, userId, {
             borrowerId: borrower.id,
             principal: args.principal,
-            annualInterestRate: 12,
+            annualInterestRate: Number(policy.interestRate),
             termMonths: args.termMonths,
             startDate: new Date().toISOString(),
-            interestMethod: shared_1.InterestMethod.FLAT,
+            interestMethod: product.interestMethod,
+            productId: product.id,
+            creditRatingApplied: policy.creditRating,
         });
     }
-    async sendDisbursementAlert(phone, loanDetails) {
-        if (!this.enabled || !this.bot || !phone)
-            return;
-        const cleanPhone = phone.replace(/[^0-9+]/g, '');
-        const chatId = this.phoneToChatId.get(cleanPhone);
-        if (chatId) {
-            const message = `🎉 Good news! Your loan of **$${loanDetails.principal}** has been officially DISBURSED! Your repayment schedule is now active. Log into the MicroLend app for full details.`;
-            await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-            this.logger.log(`Disbursement alert sent to Telegram chat ${chatId}`);
+    async getLoanProducts(tenantId) {
+        const products = await this.prisma.loanProduct.findMany({
+            where: { isActive: true, tenantId },
+            include: { policies: true }
+        });
+        return JSON.stringify(products);
+    }
+    async checkLoanBalance(tenantId, chatId) {
+        const borrower = await this.prisma.borrower.findFirst({
+            where: { telegramChatId: chatId.toString(), tenantId },
+            include: { loans: { include: { schedules: { orderBy: { dueDate: 'asc' } } } } }
+        });
+        if (!borrower || borrower.loans.length === 0) {
+            return JSON.stringify({ error: "Unable to find an active account or loan for you." });
         }
-        else {
-            this.logger.warn(`Could not find Telegram ChatId for phone ${phone}`);
+        const accountSummary = borrower.loans.map(l => {
+            const nextPayment = l.schedules.find(s => !s.isPaid);
+            return {
+                id: l.id,
+                status: l.status,
+                principalAmount: Number(l.principal),
+                nextPaymentAmount: nextPayment ? Number(nextPayment.totalAmount) : null,
+                nextPaymentDueDate: nextPayment ? nextPayment.dueDate : null,
+            };
+        });
+        return JSON.stringify({ loans: accountSummary });
+    }
+    async sendDisbursementAlert(tenantId, chatId, message) {
+        const bot = this.bots.get(tenantId);
+        if (bot) {
+            await bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        }
+    }
+    async sendLatePaymentAlerts() {
+        this.logger.log('Running daily late payment checks across all tenants...');
+        const lateSchedules = await this.prisma.repaymentSchedule.findMany({
+            where: { isPaid: false, dueDate: { lt: new Date() } },
+            include: { loan: { include: { borrower: true, tenant: true } } }
+        });
+        for (const schedule of lateSchedules) {
+            const bot = this.bots.get(schedule.loan.tenantId);
+            const borrower = schedule.loan.borrower;
+            if (bot && borrower.telegramChatId) {
+                try {
+                    const msg = `⚠️ **LATE PAYMENT NOTICE** ⚠️\n\nDear ${borrower.firstName},\nYour payment of **$${schedule.totalAmount}** was due on ${new Date(schedule.dueDate).toLocaleDateString()}.\n\nPlease pay as soon as possible.`;
+                    await bot.telegram.sendMessage(borrower.telegramChatId, msg, { parse_mode: 'Markdown' });
+                }
+                catch (e) {
+                    this.logger.error(`Failed to alert ${borrower.id} via bot ${schedule.loan.tenantId}`, e);
+                }
+            }
         }
     }
     onModuleDestroy() {
-        if (this.enabled && this.bot) {
-            this.bot.stop('SIGINT');
+        for (const bot of this.bots.values()) {
+            bot.stop('SIGINT');
         }
     }
 };
 exports.BotService = BotService;
+__decorate([
+    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_DAY_AT_10AM),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], BotService.prototype, "sendLatePaymentAlerts", null);
 exports.BotService = BotService = BotService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => loans_service_1.LoansService))),

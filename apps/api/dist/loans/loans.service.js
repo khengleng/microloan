@@ -52,6 +52,8 @@ let LoansService = class LoansService {
                     termMonths: dto.termMonths,
                     startDate: new Date(dto.startDate),
                     interestMethod: dto.interestMethod,
+                    productId: dto.productId,
+                    creditRatingApplied: dto.creditRatingApplied,
                     status: db_1.LoanStatus.DRAFT,
                 },
             });
@@ -84,7 +86,7 @@ let LoansService = class LoansService {
         const loan = await this.prisma.loan.findUnique({
             where: { id, tenantId },
             include: {
-                borrower: true,
+                borrower: { include: { loans: true } },
                 schedules: { orderBy: { installmentNumber: 'asc' } },
                 repayments: { orderBy: { date: 'asc' } },
                 documents: { orderBy: { createdAt: 'desc' } },
@@ -107,11 +109,14 @@ let LoansService = class LoansService {
             include: { borrower: true },
         });
         if (updated.status === db_1.LoanStatus.DISBURSED && loan.status !== db_1.LoanStatus.DISBURSED) {
-            try {
-                await this.bot.sendDisbursementAlert(updated.borrower.phone, updated);
-            }
-            catch (error) {
-                console.error('Failed to send telegram disbursement alert', error);
+            if (updated.borrower.telegramChatId) {
+                try {
+                    const msg = `🎉 Good news! Your loan of **$${updated.principal}** has been DISBURSED and is now ready. Please check the Microloan OS portal for your repayment schedule.`;
+                    await this.bot.sendDisbursementAlert(tenantId, updated.borrower.telegramChatId, msg);
+                }
+                catch (error) {
+                    console.error('Failed to send telegram disbursement alert', error);
+                }
             }
         }
         await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {

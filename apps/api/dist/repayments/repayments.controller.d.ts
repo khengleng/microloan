@@ -33,6 +33,8 @@ export declare class RepaymentsController {
             id: string;
             tenantId: string;
             borrowerId: string;
+            productId: string | null;
+            creditRatingApplied: string | null;
             status: import("@prisma/client").$Enums.LoanStatus;
             principal: import("@prisma/client/runtime/library").Decimal;
             annualInterestRate: import("@prisma/client/runtime/library").Decimal;

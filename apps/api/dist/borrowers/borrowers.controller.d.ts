@@ -4,6 +4,14 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export declare class BorrowersController {
     private readonly borrowersService;
     constructor(borrowersService: BorrowersService);
+    checkCrossTenant(user: JwtPayload, idNumber?: string, phone?: string): Promise<{
+        organization: string;
+        organizationName: string;
+        loans: {
+            status: import("@prisma/client").$Enums.LoanStatus;
+            date: Date;
+        }[];
+    }[]>;
     create(user: JwtPayload, dto: CreateBorrowerDto): Promise<{
         id: string;
         tenantId: string;

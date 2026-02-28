@@ -6,6 +6,8 @@ export declare class CreateLoanDto {
     termMonths: number;
     startDate: string;
     interestMethod: InterestMethod;
+    productId?: string;
+    creditRatingApplied?: string;
 }
 export declare class ChangeLoanStatusDto {
     status: 'DRAFT' | 'DISBURSED' | 'CLOSED' | 'DEFAULTED';

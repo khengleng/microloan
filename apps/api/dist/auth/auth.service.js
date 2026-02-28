@@ -47,23 +47,109 @@ const common_1 = require("@nestjs/common");
 const users_service_1 = require("../users/users.service");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = __importStar(require("bcrypt"));
+const prisma_service_1 = require("../prisma/prisma.service");
+const db_1 = require("@microloan/db");
+const otplib_1 = require("otplib");
+const qrcode = __importStar(require("qrcode"));
+const otpauth = {
+    keyuri: (email, issuer, secret) => {
+        return `otpauth://totp/${issuer}:${email}?secret=${secret}&issuer=${issuer}`;
+    }
+};
 let AuthService = class AuthService {
     usersService;
     jwtService;
-    constructor(usersService, jwtService) {
+    prisma;
+    constructor(usersService, jwtService, prisma) {
         this.usersService = usersService;
         this.jwtService = jwtService;
+        this.prisma = prisma;
+    }
+    async registerTenant(dto) {
+        const existing = await this.usersService.findOneByEmail(dto.adminEmail);
+        if (existing) {
+            throw new common_1.ConflictException('User with this email already exists.');
+        }
+        const salt = await bcrypt.genSalt();
+        const passwordHash = await bcrypt.hash(dto.adminPassword, salt);
+        return this.prisma.$transaction(async (tx) => {
+            const tenant = await tx.tenant.create({
+                data: { name: dto.organizationName }
+            });
+            const userCount = await tx.user.count();
+            const role = userCount === 0 ? db_1.Role.SUPERADMIN : db_1.Role.ADMIN;
+            const user = await tx.user.create({
+                data: {
+                    tenantId: tenant.id,
+                    email: dto.adminEmail,
+                    passwordHash,
+                    role: role
+                }
+            });
+            return {
+                tenantId: tenant.id,
+                tenantName: tenant.name,
+                adminEmail: user.email,
+                message: 'Organization registered successfully. You can now log in.'
+            };
+        });
     }
     async login(loginDto) {
         const user = await this.usersService.findOneByEmail(loginDto.email);
-        if (!user) {
+        if (!user)
             throw new common_1.UnauthorizedException('Invalid credentials');
-        }
         const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
-        if (!isMatch) {
+        if (!isMatch)
             throw new common_1.UnauthorizedException('Invalid credentials');
+        if (user.twoFactorEnabled) {
+            return {
+                mfaRequired: true,
+                userId: user.id,
+                message: 'Please provide your TOTP code'
+            };
         }
         return this.generateTokens(user.id, user.email, user.role, user.tenantId);
+    }
+    async verifyMfa(userId, code) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !user.twoFactorSecret)
+            throw new common_1.UnauthorizedException();
+        const isValid = (0, otplib_1.verify)({
+            token: code,
+            secret: user.twoFactorSecret
+        });
+        if (!isValid)
+            throw new common_1.UnauthorizedException('Invalid MFA code');
+        return this.generateTokens(user.id, user.email, user.role, user.tenantId);
+    }
+    async generateMfaSecret(userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.UnauthorizedException();
+        const secret = (0, otplib_1.generateSecret)();
+        const otpauthUrl = otpauth.keyuri(user.email, 'Microloan OS', secret);
+        const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { twoFactorSecret: secret }
+        });
+        return { secret, qrCodeDataUrl };
+    }
+    async enableMfa(userId, code) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !user.twoFactorSecret)
+            throw new common_1.UnauthorizedException('MFA not initiated');
+        const isValid = (0, otplib_1.verify)({
+            token: code,
+            secret: user.twoFactorSecret
+        });
+        if (!isValid)
+            throw new common_1.UnauthorizedException('Invalid verification code');
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { twoFactorEnabled: true }
+        });
+        return { success: true };
     }
     async refreshToken(refreshToken) {
         try {
@@ -91,6 +177,7 @@ exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [users_service_1.UsersService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        prisma_service_1.PrismaService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

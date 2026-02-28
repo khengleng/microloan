@@ -6,15 +6,19 @@ export declare class BotService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma;
     private readonly borrowersService;
     private readonly loansService;
-    private bot;
+    private bots;
     private openai;
     private readonly logger;
     private enabled;
     private conversations;
-    private phoneToChatId;
     constructor(prisma: PrismaService, borrowersService: BorrowersService, loansService: LoansService);
     onModuleInit(): Promise<void>;
-    handleOriginateLoan(chatId: number, args: any): Promise<void>;
-    sendDisbursementAlert(phone: string | null, loanDetails: any): Promise<void>;
+    reloadAllBots(): Promise<void>;
+    startBotForTenant(tenantId: string, token: string): Promise<void>;
+    handleOriginateLoan(tenantId: string, chatId: number, args: any): Promise<void>;
+    getLoanProducts(tenantId: string): Promise<string>;
+    checkLoanBalance(tenantId: string, chatId: number): Promise<string>;
+    sendDisbursementAlert(tenantId: string, chatId: string, message: string): Promise<void>;
+    sendLatePaymentAlerts(): Promise<void>;
     onModuleDestroy(): void;
 }

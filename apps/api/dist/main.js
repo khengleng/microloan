@@ -7,7 +7,7 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.enableCors({
         origin: [
-            'https://web-production-6e20.up.railway.app',
+            /\.railway\.app$/,
             'http://localhost:3000',
             'http://localhost:8080'
         ],

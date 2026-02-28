@@ -10,13 +10,16 @@ exports.TenantsModule = void 0;
 const common_1 = require("@nestjs/common");
 const tenants_service_1 = require("./tenants.service");
 const tenants_controller_1 = require("./tenants.controller");
+const settings_controller_1 = require("./settings.controller");
+const bot_module_1 = require("../bot/bot.module");
 let TenantsModule = class TenantsModule {
 };
 exports.TenantsModule = TenantsModule;
 exports.TenantsModule = TenantsModule = __decorate([
     (0, common_1.Module)({
+        imports: [bot_module_1.BotModule],
         providers: [tenants_service_1.TenantsService],
-        controllers: [tenants_controller_1.TenantsController],
+        controllers: [tenants_controller_1.TenantsController, settings_controller_1.SettingsController],
     })
 ], TenantsModule);
 //# sourceMappingURL=tenants.module.js.map
