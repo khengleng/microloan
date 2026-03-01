@@ -143,7 +143,7 @@ let ReportsController = class ReportsController {
 };
 exports.ReportsController = ReportsController;
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'SALES'),
+    (0, roles_decorator_1.Roles)('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE', 'SALES'),
     (0, common_1.Get)('dashboard'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
@@ -151,7 +151,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "getDashboardStats", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
+    (0, roles_decorator_1.Roles)('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE'),
     (0, common_1.Get)('loan-book'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Res)()),
@@ -160,7 +160,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportLoanBook", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
+    (0, roles_decorator_1.Roles)('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE'),
     (0, common_1.Get)('repayments'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Res)()),
@@ -169,7 +169,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportRepayments", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX'),
+    (0, roles_decorator_1.Roles)('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX'),
     (0, common_1.Get)('cashflow'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
