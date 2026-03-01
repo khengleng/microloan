@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Search, Eye, FileText, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, FileText, Loader2, Download } from 'lucide-react';
 import { LoanModal } from '@/components/LoanModal';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -64,6 +64,21 @@ export default function LoansPage() {
 
     const statuses = ['ALL', 'DRAFT', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
 
+    const exportToExcel = async () => {
+        try {
+            const res = await api.get('/exports/loans/excel', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'loans.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch {
+            showToast('Failed to export loans', 'error');
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -72,13 +87,22 @@ export default function LoansPage() {
                     <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">{loans.length} loan{loans.length !== 1 ? 's' : ''} total</p>
                 </div>
-                <Button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 flex-shrink-0"
-                >
-                    <Plus size={15} />
-                    {t('add_new')}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        onClick={exportToExcel}
+                        variant="outline"
+                        className="flex items-center gap-2 flex-shrink-0"
+                    >
+                        <Download size={15} /> Export
+                    </Button>
+                    <Button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 flex-shrink-0"
+                    >
+                        <Plus size={15} />
+                        {t('add_new')}
+                    </Button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -99,8 +123,8 @@ export default function LoansPage() {
                             key={s}
                             onClick={() => setStatusFilter(s)}
                             className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all ${statusFilter === s
-                                    ? 'bg-slate-900 text-white'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             {s}

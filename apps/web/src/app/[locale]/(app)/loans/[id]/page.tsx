@@ -143,24 +143,36 @@ export default function LoanDetailsPage() {
             return;
         }
         setUploadingDoc(true);
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const base64Content = reader.result as string;
-            try {
-                await api.post(`/loans/${id}/documents`, {
-                    name: file.name,
-                    content: base64Content,
-                    type: file.type || 'application/octet-stream',
-                });
-                showToast('Document uploaded', 'success');
-                fetchLoan();
-            } catch {
-                showToast('Upload failed', 'error');
-            } finally {
-                setUploadingDoc(false);
-            }
-        };
-        reader.readAsDataURL(file);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            await api.post(`/documents/upload/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            showToast('Document uploaded successfully to Vault', 'success');
+            fetchLoan();
+        } catch {
+            showToast('Upload failed', 'error');
+        } finally {
+            setUploadingDoc(false);
+        }
+    };
+
+    const handleDownloadDoc = async (docId: string, name: string) => {
+        try {
+            const res = await api.get(`/documents/download/${docId}`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', name);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch {
+            showToast('Download failed', 'error');
+        }
     };
 
     const handleDeleteDoc = async (docId: string) => {
@@ -374,11 +386,9 @@ export default function LoanDetailsPage() {
                                         <span className="truncate text-sm font-medium">{doc.name}</span>
                                     </div>
                                     <div className="flex gap-2 shrink-0">
-                                        <a href={doc.content} download={doc.name}>
-                                            <Button size="icon" variant="ghost" className="text-blue-600 h-8 w-8">
-                                                <Download size={16} />
-                                            </Button>
-                                        </a>
+                                        <Button size="icon" variant="ghost" className="text-blue-600 h-8 w-8" onClick={() => handleDownloadDoc(doc.id, doc.name)}>
+                                            <Download size={16} />
+                                        </Button>
                                         <Button size="icon" variant="ghost" className="text-red-500 h-8 w-8" onClick={() => handleDeleteDoc(doc.id)}>
                                             <Trash2 size={16} />
                                         </Button>

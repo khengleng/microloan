@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Search, CreditCard, Loader2 } from 'lucide-react';
+import { Plus, Search, CreditCard, Loader2, Download } from 'lucide-react';
 import { RepaymentModal } from '@/components/RepaymentModal';
 
 interface Repayment {
@@ -47,6 +47,21 @@ export default function RepaymentsPage() {
 
     const totalCollected = repayments.reduce((sum, r) => sum + Number(r.amount), 0);
 
+    const exportToExcel = async () => {
+        try {
+            const res = await api.get('/exports/repayments/excel', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'repayments.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch {
+            showToast('Failed to export repayments', 'error');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -56,9 +71,18 @@ export default function RepaymentsPage() {
                         {repayments.length} payments · Total collected: <span className="font-semibold text-emerald-600">${totalCollected.toLocaleString()}</span>
                     </p>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 flex-shrink-0">
-                    <Plus size={15} /> {t('add_new')}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        onClick={exportToExcel}
+                        variant="outline"
+                        className="flex items-center gap-2 flex-shrink-0"
+                    >
+                        <Download size={15} /> Export
+                    </Button>
+                    <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 flex-shrink-0">
+                        <Plus size={15} /> {t('add_new')}
+                    </Button>
+                </div>
             </div>
 
             <div className="relative">

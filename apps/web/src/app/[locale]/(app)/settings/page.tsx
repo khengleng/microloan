@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, MessageSquare, Save, Settings, Loader2 } from 'lucide-react';
+import { Building2, MessageSquare, Save, Settings, Loader2, CreditCard } from 'lucide-react';
 import { MfaSetup } from '@/components/auth/mfa-setup';
 
 export default function SettingsPage() {
@@ -14,7 +14,8 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false);
     const [settings, setSettings] = useState({
         name: '',
-        telegramBotToken: ''
+        telegramBotToken: '',
+        plan: 'FREE'
     });
 
     useEffect(() => {
@@ -34,6 +35,15 @@ export default function SettingsPage() {
             alert('Failed to update settings: ' + (err.response?.data?.message || err.message));
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleUpgrade = async (plan: string) => {
+        try {
+            const res = await api.post('/billing/checkout', { plan });
+            window.location.href = res.data.url;
+        } catch (err: any) {
+            alert('Checkout failed: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -113,6 +123,33 @@ export default function SettingsPage() {
                             </Button>
                         </div>
                     </form>
+
+                    {/* Billing & Subscriptions */}
+                    <Card className="border-green-100 shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <CreditCard size={20} className="text-emerald-600" />
+                                Billing & Plan
+                            </CardTitle>
+                            <CardDescription>Manage your platform subscription.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-4 bg-slate-50 rounded-lg flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-700">Current Plan</p>
+                                    <p className="text-2xl font-bold text-slate-900">{settings.plan}</p>
+                                </div>
+                                {settings.plan === 'FREE' ? (
+                                    <Button onClick={() => handleUpgrade('PRO')} className="bg-emerald-600 hover:bg-emerald-700 text-white">Upgrade to PRO</Button>
+                                ) : (
+                                    <Button variant="outline" onClick={() => handleUpgrade('ENTERPRISE')}>Switch to Enterprise</Button>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Upgrading your plan will safely redirect you to our Stripe checkout portal.
+                            </p>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <div className="space-y-8">
