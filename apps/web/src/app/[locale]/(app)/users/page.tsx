@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX } from 'lucide-react';
 
 const ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
 const ROLE_COLORS: Record<string, string> = {
@@ -22,6 +22,7 @@ interface TeamMember {
     id: string;
     email: string;
     role: string;
+    isActive: boolean;
     twoFactorEnabled: boolean;
     createdAt: string;
 }
@@ -66,14 +67,14 @@ export default function UsersPage() {
     };
 
     const handleDelete = async (id: string, email: string) => {
-        if (!confirm(`Remove ${email} from the team?`)) return;
+        if (!confirm(`Suspend ${email}'s access? They will no longer be able to log in.`)) return;
         setDeletingId(id);
         try {
             await api.delete(`/users/${id}`);
-            showToast(`${email} has been removed`, 'success');
+            showToast(`${email} has been suspended`, 'success');
             fetchUsers();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Cannot remove this user', 'error');
+            showToast(err.response?.data?.message || 'Cannot suspend this user', 'error');
         } finally {
             setDeletingId(null);
         }
@@ -140,11 +141,12 @@ export default function UsersPage() {
                                 <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                            <div className={`w-9 h-9 rounded-full ${user.isActive ? 'bg-slate-200 text-slate-600' : 'bg-red-50 text-red-600 border border-red-100'} flex items-center justify-center text-sm font-bold flex-shrink-0`}>
                                                 {user.email.charAt(0).toUpperCase()}
                                             </div>
                                             <div>
-                                                <div className="text-sm font-medium text-slate-900">{user.email}</div>
+                                                <div className={`text-sm font-medium ${user.isActive ? 'text-slate-900' : 'text-slate-500 line-through'}`}>{user.email}</div>
+                                                {!user.isActive && <div className="text-xs text-red-500 mt-0.5">Suspended</div>}
                                             </div>
                                         </div>
                                     </td>
@@ -170,14 +172,14 @@ export default function UsersPage() {
                                         {new Date(user.createdAt).toLocaleDateString()}
                                     </td>
                                     <td className="px-5 py-4 text-right">
-                                        {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && (
+                                        {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.isActive && (
                                             <button
                                                 onClick={() => handleDelete(user.id, user.email)}
                                                 disabled={deletingId === user.id}
                                                 className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                                                title="Remove member"
+                                                title="Suspend member"
                                             >
-                                                {deletingId === user.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                                {deletingId === user.id ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
                                             </button>
                                         )}
                                     </td>

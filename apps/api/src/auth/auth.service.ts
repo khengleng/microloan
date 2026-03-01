@@ -108,6 +108,12 @@ export class AuthService {
       throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
+    // ── User Suspended check ────────────────────────────────────────────
+    if (user.isActive === false) {
+      await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_SUSPENDED', ip, user.id);
+      throw new ForbiddenException('Your account has been suspended. Please contact your administrator.');
+    }
+
     // ── Account lockout check ────────────────────────────────────────────
     if (user.lockedUntil && new Date() < user.lockedUntil) {
       const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);

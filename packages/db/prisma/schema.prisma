@@ -42,6 +42,7 @@ model User {
   passwordHash     String
   twoFactorSecret  String?   // For MFA
   twoFactorEnabled Boolean   @default(false)
+  isActive         Boolean   @default(true) // For soft delete / suspension
   role             Role      @default(OPERATOR)
   telegramChatId   String?   // Staff's telegram chat ID
   loginAttempts    Int       @default(0)  // Brute-force counter
