@@ -40,6 +40,7 @@ async function bootstrap() {
             if (!origin)
                 return callback(null, true);
             if (/\.railway\.app$/.test(origin) ||
+                /\.cambobia\.com$/.test(origin) ||
                 /^http:\/\/localhost(:\d+)?$/.test(origin) ||
                 /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
                 return callback(null, true);
