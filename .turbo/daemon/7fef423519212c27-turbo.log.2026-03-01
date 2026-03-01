@@ -452,3 +452,5 @@
 2026-03-01T08:55:25.042912Z  WARN turborepo_lib::package_changes_watcher: hashes are the same, no need to rerun
 2026-03-01T08:55:25.142919Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/api/dist/tsconfig.build.tsbuildinfo")}
 2026-03-01T08:55:25.142929Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
+2026-03-01T10:24:11.449958Z  WARN turborepo_lib::package_changes_watcher: changed_files: {AnchoredSystemPathBuf("apps/api/src/main.ts")}
+2026-03-01T10:24:11.449989Z  WARN turborepo_lib::package_changes_watcher: changed_packages: Ok(Some({WorkspacePackage { name: Other("api"), path: AnchoredSystemPathBuf("apps/api") }}))
