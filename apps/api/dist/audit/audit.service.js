@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuditService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const mask_1 = require("../common/mask");
 let AuditService = class AuditService {
     prisma;
     constructor(prisma) {
@@ -19,6 +20,9 @@ let AuditService = class AuditService {
     }
     async logAction(tenantId, userId, action, entity, entityId, metadata) {
         try {
+            const safeMetadata = metadata
+                ? (0, mask_1.scrubSensitiveKeys)(JSON.parse(JSON.stringify(metadata, (_, v) => typeof v === 'bigint' ? v.toString() : v)))
+                : null;
             await this.prisma.auditLog.create({
                 data: {
                     tenantId,
@@ -26,12 +30,12 @@ let AuditService = class AuditService {
                     action,
                     entity,
                     entityId,
-                    metadata: metadata ? JSON.parse(JSON.stringify(metadata, (_, v) => typeof v === 'bigint' ? v.toString() : v)) : null,
+                    metadata: safeMetadata,
                 },
             });
         }
         catch (err) {
-            console.error('Failed to log audit action', err);
+            console.error('[AuditService] Failed to log audit action', err);
         }
     }
 };

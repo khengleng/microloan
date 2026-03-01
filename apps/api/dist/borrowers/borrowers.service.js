@@ -13,6 +13,7 @@ exports.BorrowersService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const audit_service_1 = require("../audit/audit.service");
+const mask_1 = require("../common/mask");
 let BorrowersService = class BorrowersService {
     prisma;
     audit;
@@ -22,7 +23,7 @@ let BorrowersService = class BorrowersService {
     }
     async create(tenantId, userId, dto) {
         const b = await this.prisma.borrower.create({ data: { tenantId, ...dto } });
-        await this.audit.logAction(tenantId, userId, 'CREATE', 'Borrower', b.id, dto);
+        await this.audit.logAction(tenantId, userId, 'CREATE', 'Borrower', b.id, (0, mask_1.maskBorrowerDto)(dto));
         return b;
     }
     async findAll(tenantId) {
@@ -50,8 +51,8 @@ let BorrowersService = class BorrowersService {
             data: dto,
         });
         await this.audit.logAction(tenantId, userId, 'UPDATE', 'Borrower', b.id, {
-            old: b,
-            new: updated,
+            before: (0, mask_1.maskBorrowerForAudit)(b),
+            after: (0, mask_1.maskBorrowerDto)(dto),
         });
         return updated;
     }
@@ -66,7 +67,7 @@ let BorrowersService = class BorrowersService {
             throw new Error('Cannot delete borrower with associated loans');
         }
         await this.prisma.borrower.delete({ where: { id } });
-        await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, b);
+        await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, (0, mask_1.maskBorrowerForAudit)(b));
         return { success: true };
     }
     async checkCrossTenantCredit(tenantId, query) {

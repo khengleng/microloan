@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { maskBorrowerDto, maskBorrowerForAudit } from '../common/mask';
 import {
   CreateBorrowerDto,
   UpdateBorrowerDto,
@@ -21,7 +22,7 @@ export class BorrowersService {
       'CREATE',
       'Borrower',
       b.id,
-      dto,
+      maskBorrowerDto(dto),   // ← PII masked
     );
     return b;
   }
@@ -56,8 +57,8 @@ export class BorrowersService {
       data: dto,
     });
     await this.audit.logAction(tenantId, userId, 'UPDATE', 'Borrower', b.id, {
-      old: b,
-      new: updated,
+      before: maskBorrowerForAudit(b),      // ← masked
+      after: maskBorrowerDto(dto),          // ← masked
     });
     return updated;
   }
@@ -73,7 +74,9 @@ export class BorrowersService {
     }
 
     await this.prisma.borrower.delete({ where: { id } });
-    await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, b);
+    await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id,
+      maskBorrowerForAudit(b),   // ← masked, initials only
+    );
     return { success: true };
   }
 

@@ -10,21 +10,21 @@ export declare class AuthService {
     private prisma;
     private audit;
     constructor(usersService: UsersService, jwtService: JwtService, prisma: PrismaService, audit: AuditService);
-    registerTenant(dto: RegisterTenantDto): Promise<{
+    registerTenant(dto: RegisterTenantDto, ip?: string): Promise<{
         tenantId: string;
         tenantName: string;
         adminEmail: string;
         message: string;
     }>;
-    login(loginDto: LoginDto): Promise<{
+    login(loginDto: LoginDto, ip?: string): Promise<{
         access_token: string;
         refresh_token: string;
     } | {
         mfaRequired: boolean;
-        userId: string;
+        userId: any;
         message: string;
     }>;
-    verifyMfa(userId: string, code: string): Promise<{
+    verifyMfa(userId: string, code: string, ip?: string): Promise<{
         access_token: string;
         refresh_token: string;
     }>;
@@ -61,6 +61,6 @@ export declare class AuthService {
         access_token: string;
         refresh_token: string;
     }>;
-    private auditLoginFail;
+    private auditSecurityEvent;
     private generateTokens;
 }

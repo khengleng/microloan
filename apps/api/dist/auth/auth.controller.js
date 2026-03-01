@@ -19,16 +19,23 @@ const login_dto_1 = require("./dto/login.dto");
 const register_tenant_dto_1 = require("./dto/register-tenant.dto");
 const jwt_auth_guard_1 = require("./jwt-auth.guard");
 const current_user_decorator_1 = require("./current-user.decorator");
+function getIp(req) {
+    const forwarded = req.headers?.['x-forwarded-for'];
+    if (forwarded) {
+        return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+    }
+    return req.socket?.remoteAddress || req.ip || 'unknown';
+}
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
         this.authService = authService;
     }
-    register(registerDto) {
-        return this.authService.registerTenant(registerDto);
+    register(registerDto, req) {
+        return this.authService.registerTenant(registerDto, getIp(req));
     }
-    login(loginDto) {
-        return this.authService.login(loginDto);
+    login(loginDto, req) {
+        return this.authService.login(loginDto, getIp(req));
     }
     refresh(refreshDto) {
         return this.authService.refreshToken(refreshDto.refreshToken);
@@ -36,8 +43,8 @@ let AuthController = class AuthController {
     getProfile(user) {
         return user;
     }
-    verifyMfa(dto) {
-        return this.authService.verifyMfa(dto.userId, dto.code);
+    verifyMfa(dto, req) {
+        return this.authService.verifyMfa(dto.userId, dto.code, getIp(req));
     }
     generateMfaSecret(user) {
         return this.authService.generateMfaSecret(user.sub);
@@ -64,16 +71,18 @@ exports.AuthController = AuthController;
 __decorate([
     (0, common_1.Post)('register-tenant'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [register_tenant_dto_1.RegisterTenantDto]),
+    __metadata("design:paramtypes", [register_tenant_dto_1.RegisterTenantDto, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "register", null);
 __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('login'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [login_dto_1.LoginDto]),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
 __decorate([
@@ -96,8 +105,9 @@ __decorate([
     (0, common_1.Post)('mfa/authenticate'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "verifyMfa", null);
 __decorate([

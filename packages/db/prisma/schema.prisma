@@ -35,19 +35,25 @@ enum Role {
 }
 
 model User {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   tenantId         String
-  tenant           Tenant   @relation(fields: [tenantId], references: [id])
-  email            String   @unique
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  email            String    @unique
   passwordHash     String
-  twoFactorSecret  String? // For MFA
-  twoFactorEnabled Boolean  @default(false)
-  role             Role     @default(OPERATOR)
-  telegramChatId   String? // Staff's telegram chat ID
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  twoFactorSecret  String?   // For MFA
+  twoFactorEnabled Boolean   @default(false)
+  role             Role      @default(OPERATOR)
+  telegramChatId   String?   // Staff's telegram chat ID
+  loginAttempts    Int       @default(0)  // Brute-force counter
+  lockedUntil      DateTime? // Account locked until this timestamp
+  lastLoginAt      DateTime? // Last successful login
+  lastLoginIp      String?   // Last known IP for anomaly detection
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   auditLogs AuditLog[]
+  @@index([tenantId])
+  @@index([email])
 }
 
 model Borrower {
@@ -168,13 +174,17 @@ model AuditLog {
   id        String   @id @default(uuid())
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  action    String // CREATE, UPDATE, DELETE
-  entity    String // Borrower, Loan, Repayment
+  userId    String?  // Nullable  — allows anonymous security events (e.g. unknown email login)
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   // CREATE, UPDATE, DELETE, LOGIN
+  entity    String   // Borrower, Loan, Repayment, User, Tenant
   entityId  String
-  metadata  Json? // Stores old/new values
+  metadata  Json?    // Masked metadata only — never raw PII
   createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, action])
+  @@index([userId])
 }
 
 model Document {

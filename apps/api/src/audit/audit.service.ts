@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { scrubSensitiveKeys } from '../common/mask';
 
 @Injectable()
 export class AuditService {
@@ -14,6 +15,19 @@ export class AuditService {
     metadata?: any,
   ) {
     try {
+      // ── Safety net: scrub all sensitive keys before persisting ──────────────
+      // This ensures passwords, tokens, secrets can NEVER reach the audit store
+      // even if a caller accidentally passes raw data.
+      const safeMetadata = metadata
+        ? scrubSensitiveKeys(
+          JSON.parse(
+            JSON.stringify(metadata, (_, v) =>
+              typeof v === 'bigint' ? v.toString() : v,
+            ),
+          ),
+        )
+        : null;
+
       await this.prisma.auditLog.create({
         data: {
           tenantId,
@@ -21,12 +35,12 @@ export class AuditService {
           action,
           entity,
           entityId,
-          metadata: metadata ? JSON.parse(JSON.stringify(metadata, (_, v) => typeof v === 'bigint' ? v.toString() : v)) : null,
+          metadata: safeMetadata,
         },
       });
     } catch (err) {
-      console.error('Failed to log audit action', err);
-      // We don't want to fail the main transaction just because auditing failed
+      console.error('[AuditService] Failed to log audit action', err);
+      // Never fail the main transaction due to an audit error
     }
   }
 }

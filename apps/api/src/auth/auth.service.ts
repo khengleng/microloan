@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -9,6 +15,12 @@ import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
+import { RateLimiter } from '../common/rate-limiter';
+
+// ── Security constants ───────────────────────────────────────────────────────
+const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
+const LOCK_DURATION_MS = 30 * 60 * 1000; // Locked for 30 minutes
+const GENERIC_AUTH_ERROR = 'Invalid credentials'; // Never reveal which field failed
 
 const otpauth = {
   keyuri: (email: string, issuer: string, secret: string) => {
@@ -25,13 +37,22 @@ export class AuthService {
     private audit: AuditService,
   ) { }
 
-  async registerTenant(dto: RegisterTenantDto) {
-    const existing = await this.usersService.findOneByEmail(dto.adminEmail);
-    if (existing) {
-      throw new ConflictException('User with this email already exists.');
+  async registerTenant(dto: RegisterTenantDto, ip?: string) {
+    // Rate limit: 5 registrations per IP per hour
+    if (ip) {
+      const rateCheck = RateLimiter.register(ip);
+      if (!rateCheck.allowed) {
+        throw new ForbiddenException('Too many registration attempts. Please try again later.');
+      }
     }
 
-    const salt = await bcrypt.genSalt();
+    const existing = await this.usersService.findOneByEmail(dto.adminEmail);
+    if (existing) {
+      // Don't reveal that the email exists — return same error timing
+      throw new ConflictException('Registration failed. Please check your details.');
+    }
+
+    const salt = await bcrypt.genSalt(12); // 12 rounds for stronger hashing
     const passwordHash = await bcrypt.hash(dto.adminPassword, salt);
 
     return this.prisma.$transaction(async (tx) => {
@@ -47,86 +68,149 @@ export class AuthService {
           tenantId: tenant.id,
           email: dto.adminEmail,
           passwordHash,
-          role: role
+          role,
         }
       });
 
-      // Audit after TX completes
       await this.audit.logAction(tenant.id, user.id, 'CREATE', 'Tenant', tenant.id, {
         organizationName: dto.organizationName,
-        adminEmail: dto.adminEmail,
         role,
         event: 'TENANT_REGISTERED',
+        ip: ip || 'unknown',
       });
 
       return {
         tenantId: tenant.id,
         tenantName: tenant.name,
         adminEmail: user.email,
-        message: 'Organization registered successfully. You can now log in.'
+        message: 'Organization registered successfully. You can now log in.',
       };
     });
   }
 
-  async login(loginDto: LoginDto) {
-    const user = await this.usersService.findOneByEmail(loginDto.email);
+  async login(loginDto: LoginDto, ip?: string) {
+    // ── Rate limit by IP ─────────────────────────────────────────────────
+    if (ip) {
+      const rateCheck = RateLimiter.login(ip);
+      if (!rateCheck.allowed) {
+        await this.auditSecurityEvent(null, loginDto.email, 'LOGIN_RATE_LIMITED', ip);
+        throw new ForbiddenException('Too many login attempts. Please wait 15 minutes.');
+      }
+    }
 
-    // Audit failed login attempt (security compliance)
+    const user: any = await this.usersService.findOneByEmail(loginDto.email);
+
+    // ── User not found — generic error, equal timing ─────────────────────
     if (!user) {
-      await this.auditLoginFail(null, loginDto.email, 'USER_NOT_FOUND');
-      throw new UnauthorizedException('Invalid credentials');
+      await this.auditSecurityEvent(null, loginDto.email, 'LOGIN_UNKNOWN_EMAIL', ip);
+      // Compare against a dummy to prevent timing attacks
+      await bcrypt.compare(loginDto.password, '$2b$12$dummyhashfortimingnormalisation');
+      throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
-    const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
-    if (!isMatch) {
-      await this.auditLoginFail(user.tenantId, loginDto.email, 'WRONG_PASSWORD', user.id);
-      throw new UnauthorizedException('Invalid credentials');
+    // ── Account lockout check ────────────────────────────────────────────
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_ACCOUNT_LOCKED', ip, user.id);
+      throw new ForbiddenException(
+        `Account is temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`
+      );
     }
+
+    // ── Password check ───────────────────────────────────────────────────
+    const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
+
+    if (!isMatch) {
+      // Increment failed attempts
+      const newAttempts = (user.loginAttempts || 0) + 1;
+      const shouldLock = newAttempts >= MAX_FAILED_ATTEMPTS;
+
+      await (this.prisma.user as any).update({
+        where: { id: user.id },
+        data: {
+          loginAttempts: newAttempts,
+          lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+        },
+      });
+
+      await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_FAILED', ip, user.id, {
+        attempt: newAttempts,
+        locked: shouldLock,
+      });
+
+      if (shouldLock) {
+        throw new ForbiddenException(
+          `Account locked for 30 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts.`
+        );
+      }
+
+      const remaining = MAX_FAILED_ATTEMPTS - newAttempts;
+      throw new UnauthorizedException(
+        remaining > 0
+          ? `${GENERIC_AUTH_ERROR}. ${remaining} attempt(s) remaining before lockout.`
+          : GENERIC_AUTH_ERROR,
+      );
+    }
+
+    // ── Success: reset failed attempts, update last login ────────────────
+    await (this.prisma.user as any).update({
+      where: { id: user.id },
+      data: {
+        loginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+        lastLoginIp: ip || null,
+      },
+    });
 
     if (user.twoFactorEnabled) {
       await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-        email: user.email,
         event: 'MFA_CHALLENGE_ISSUED',
         role: user.role,
+        ip: ip || 'unknown',
       });
       return {
         mfaRequired: true,
         userId: user.id,
-        message: 'Please provide your TOTP code'
+        message: 'Please provide your TOTP code',
       };
     }
 
-    // Successful login
     await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-      email: user.email,
       event: 'LOGIN_SUCCESS',
       role: user.role,
+      ip: ip || 'unknown',
     });
 
     return this.generateTokens(user.id, user.email, user.role, user.tenantId);
   }
 
-  async verifyMfa(userId: string, code: string) {
+  async verifyMfa(userId: string, code: string, ip?: string) {
+    // Rate limit MFA attempts by IP
+    if (ip) {
+      const rateCheck = RateLimiter.mfa(ip);
+      if (!rateCheck.allowed) {
+        throw new ForbiddenException('Too many MFA attempts. Please wait 15 minutes.');
+      }
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException();
 
-    const isValid = verify({
-      token: code,
-      secret: user.twoFactorSecret
-    });
+    const isValid = verify({ token: code, secret: user.twoFactorSecret });
 
     if (!isValid) {
       await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-        email: user.email,
         event: 'MFA_FAILED',
+        ip: ip || 'unknown',
       });
       throw new UnauthorizedException('Invalid MFA code');
     }
 
     await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-      email: user.email,
       event: 'MFA_SUCCESS',
       role: user.role,
+      ip: ip || 'unknown',
     });
 
     return this.generateTokens(user.id, user.email, user.role, user.tenantId);
@@ -142,11 +226,10 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret }
+      data: { twoFactorSecret: secret },
     });
 
     await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
-      email: user.email,
       event: 'MFA_SETUP_INITIATED',
     });
 
@@ -157,20 +240,15 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException('MFA not initiated');
 
-    const isValid = verify({
-      token: code,
-      secret: user.twoFactorSecret
-    });
-
+    const isValid = verify({ token: code, secret: user.twoFactorSecret });
     if (!isValid) throw new UnauthorizedException('Invalid verification code');
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorEnabled: true }
+      data: { twoFactorEnabled: true },
     });
 
     await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
-      email: user.email,
       event: 'MFA_ENABLED',
     });
 
@@ -179,7 +257,8 @@ export class AuthService {
 
   async promoteSuperadmin(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new UnauthorizedException(`No user found with email: ${email}`);
+    if (!user) throw new BadRequestException(`No user found with email: ${email}`);
+
     const updated = await this.prisma.user.update({
       where: { email },
       data: { role: Role.SUPERADMIN },
@@ -187,7 +266,6 @@ export class AuthService {
     });
 
     await this.audit.logAction(updated.tenantId, updated.id, 'UPDATE', 'User', updated.id, {
-      email: updated.email,
       event: 'PROMOTED_TO_SUPERADMIN',
       newRole: Role.SUPERADMIN,
     });
@@ -210,22 +288,31 @@ export class AuthService {
       });
       return this.generateTokens(payload.sub, payload.email, payload.role, payload.tenantId);
     } catch {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
 
-  private async auditLoginFail(tenantId: string | null, email: string, reason: string, userId?: string) {
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private async auditSecurityEvent(
+    tenantId: string | null,
+    email: string,
+    event: string,
+    ip?: string,
+    userId?: string,
+    extra?: any,
+  ) {
     try {
-      // For unknown users, we use a system tenant log (best effort)
-      if (!tenantId) {
-        const systemTenant = await this.prisma.tenant.findFirst();
-        tenantId = systemTenant?.id || 'unknown';
+      let tid = tenantId;
+      if (!tid) {
+        const first = await this.prisma.tenant.findFirst();
+        tid = first?.id || 'system';
       }
-      await this.audit.logAction(tenantId, userId || 'anonymous', 'LOGIN', 'User', userId || email, {
-        email,
-        event: 'LOGIN_FAILED',
-        reason,
+      await this.audit.logAction(tid, userId || 'anonymous', 'LOGIN', 'User', userId || email, {
+        event,
+        ip: ip || 'unknown',
         timestamp: new Date().toISOString(),
+        ...extra,
       });
     } catch { /* never fail on audit */ }
   }

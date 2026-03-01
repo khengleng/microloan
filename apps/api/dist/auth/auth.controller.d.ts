@@ -5,18 +5,18 @@ import type { JwtPayload } from './jwt.strategy';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
-    register(registerDto: RegisterTenantDto): Promise<{
+    register(registerDto: RegisterTenantDto, req: any): Promise<{
         tenantId: string;
         tenantName: string;
         adminEmail: string;
         message: string;
     }>;
-    login(loginDto: LoginDto): Promise<{
+    login(loginDto: LoginDto, req: any): Promise<{
         access_token: string;
         refresh_token: string;
     } | {
         mfaRequired: boolean;
-        userId: string;
+        userId: any;
         message: string;
     }>;
     refresh(refreshDto: RefreshDto): Promise<{
@@ -27,7 +27,7 @@ export declare class AuthController {
     verifyMfa(dto: {
         userId: string;
         code: string;
-    }): Promise<{
+    }, req: any): Promise<{
         access_token: string;
         refresh_token: string;
     }>;

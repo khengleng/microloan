@@ -7,6 +7,7 @@ import {
   Get,
   UseGuards,
   UnauthorizedException,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshDto } from './dto/login.dto';
@@ -15,19 +16,28 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import type { JwtPayload } from './jwt.strategy';
 
+/** Extract real IP — works behind Railway / proxy forwarding */
+function getIp(req: any): string {
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (forwarded) {
+    return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || req.ip || 'unknown';
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   @Post('register-tenant')
-  register(@Body() registerDto: RegisterTenantDto) {
-    return this.authService.registerTenant(registerDto);
+  register(@Body() registerDto: RegisterTenantDto, @Req() req: any) {
+    return this.authService.registerTenant(registerDto, getIp(req));
   }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  login(@Body() loginDto: LoginDto, @Req() req: any) {
+    return this.authService.login(loginDto, getIp(req));
   }
 
   @HttpCode(HttpStatus.OK)
@@ -44,8 +54,8 @@ export class AuthController {
 
   @Post('mfa/authenticate')
   @HttpCode(HttpStatus.OK)
-  verifyMfa(@Body() dto: { userId: string; code: string }) {
-    return this.authService.verifyMfa(dto.userId, dto.code);
+  verifyMfa(@Body() dto: { userId: string; code: string }, @Req() req: any) {
+    return this.authService.verifyMfa(dto.userId, dto.code, getIp(req));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -61,8 +71,7 @@ export class AuthController {
   }
 
   /**
-   * One-time admin setup endpoints — protected by SETUP_SECRET env variable.
-   * Use these to promote an existing account to SUPERADMIN or to see who is SUPERADMIN.
+   * Secured by SETUP_SECRET env variable — one-time admin setup only.
    */
   @HttpCode(HttpStatus.OK)
   @Post('promote-superadmin')
