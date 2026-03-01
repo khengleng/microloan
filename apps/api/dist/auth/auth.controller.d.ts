@@ -40,4 +40,31 @@ export declare class AuthController {
     }): Promise<{
         success: boolean;
     }>;
+    promoteSuperadmin(body: {
+        email: string;
+        secret: string;
+    }): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            tenantId: string;
+            email: string;
+            role: import("@prisma/client").$Enums.Role;
+        };
+    }>;
+    listSuperadmins(body: {
+        secret: string;
+    }): Promise<{
+        superadmins: {
+            tenant: {
+                name: string;
+            };
+            id: string;
+            createdAt: Date;
+            email: string;
+            role: import("@prisma/client").$Enums.Role;
+        }[];
+        count: number;
+    }>;
 }

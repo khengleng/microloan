@@ -45,6 +45,20 @@ let AuthController = class AuthController {
     enableMfa(user, dto) {
         return this.authService.enableMfa(user.sub, dto.code);
     }
+    async promoteSuperadmin(body) {
+        const setupSecret = process.env.SETUP_SECRET;
+        if (!setupSecret || body.secret !== setupSecret) {
+            throw new common_1.UnauthorizedException('Invalid setup secret');
+        }
+        return this.authService.promoteSuperadmin(body.email);
+    }
+    async listSuperadmins(body) {
+        const setupSecret = process.env.SETUP_SECRET;
+        if (!setupSecret || body.secret !== setupSecret) {
+            throw new common_1.UnauthorizedException('Invalid setup secret');
+        }
+        return this.authService.listSuperadmins();
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -103,6 +117,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "enableMfa", null);
+__decorate([
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.Post)('promote-superadmin'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "promoteSuperadmin", null);
+__decorate([
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, common_1.Post)('list-superadmins'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "listSuperadmins", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

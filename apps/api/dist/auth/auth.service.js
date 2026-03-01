@@ -162,6 +162,24 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid refresh token');
         }
     }
+    async promoteSuperadmin(email) {
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (!user)
+            throw new common_1.UnauthorizedException(`No user found with email: ${email}`);
+        const updated = await this.prisma.user.update({
+            where: { email },
+            data: { role: db_1.Role.SUPERADMIN },
+            select: { id: true, email: true, role: true, tenantId: true },
+        });
+        return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
+    }
+    async listSuperadmins() {
+        const admins = await this.prisma.user.findMany({
+            where: { role: db_1.Role.SUPERADMIN },
+            select: { id: true, email: true, role: true, createdAt: true, tenant: { select: { name: true } } },
+        });
+        return { superadmins: admins, count: admins.length };
+    }
     async generateTokens(userId, email, role, tenantId) {
         const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
         const tenantName = tenant?.name || 'Magic Money';

@@ -137,6 +137,25 @@ export class AuthService {
     }
   }
 
+  async promoteSuperadmin(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new UnauthorizedException(`No user found with email: ${email}`);
+    const updated = await this.prisma.user.update({
+      where: { email },
+      data: { role: Role.SUPERADMIN },
+      select: { id: true, email: true, role: true, tenantId: true },
+    });
+    return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
+  }
+
+  async listSuperadmins() {
+    const admins = await this.prisma.user.findMany({
+      where: { role: Role.SUPERADMIN },
+      select: { id: true, email: true, role: true, createdAt: true, tenant: { select: { name: true } } },
+    });
+    return { superadmins: admins, count: admins.length };
+  }
+
   private async generateTokens(userId: string, email: string, role: string, tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
     const tenantName = tenant?.name || 'Magic Money';

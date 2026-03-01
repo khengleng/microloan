@@ -37,5 +37,27 @@ export declare class AuthService {
         access_token: string;
         refresh_token: string;
     }>;
+    promoteSuperadmin(email: string): Promise<{
+        success: boolean;
+        message: string;
+        user: {
+            id: string;
+            tenantId: string;
+            email: string;
+            role: import("@microloan/db").$Enums.Role;
+        };
+    }>;
+    listSuperadmins(): Promise<{
+        superadmins: {
+            tenant: {
+                name: string;
+            };
+            id: string;
+            createdAt: Date;
+            email: string;
+            role: import("@microloan/db").$Enums.Role;
+        }[];
+        count: number;
+    }>;
     private generateTokens;
 }

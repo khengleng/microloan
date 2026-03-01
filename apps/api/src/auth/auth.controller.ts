@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Get,
   UseGuards,
-  Request,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshDto } from './dto/login.dto';
@@ -44,7 +44,7 @@ export class AuthController {
 
   @Post('mfa/authenticate')
   @HttpCode(HttpStatus.OK)
-  verifyMfa(@Body() dto: { userId: string, code: string }) {
+  verifyMfa(@Body() dto: { userId: string; code: string }) {
     return this.authService.verifyMfa(dto.userId, dto.code);
   }
 
@@ -58,5 +58,29 @@ export class AuthController {
   @Post('mfa/enable')
   enableMfa(@CurrentUser() user: JwtPayload, @Body() dto: { code: string }) {
     return this.authService.enableMfa(user.sub, dto.code);
+  }
+
+  /**
+   * One-time admin setup endpoints — protected by SETUP_SECRET env variable.
+   * Use these to promote an existing account to SUPERADMIN or to see who is SUPERADMIN.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('promote-superadmin')
+  async promoteSuperadmin(@Body() body: { email: string; secret: string }) {
+    const setupSecret = process.env.SETUP_SECRET;
+    if (!setupSecret || body.secret !== setupSecret) {
+      throw new UnauthorizedException('Invalid setup secret');
+    }
+    return this.authService.promoteSuperadmin(body.email);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('list-superadmins')
+  async listSuperadmins(@Body() body: { secret: string }) {
+    const setupSecret = process.env.SETUP_SECRET;
+    if (!setupSecret || body.secret !== setupSecret) {
+      throw new UnauthorizedException('Invalid setup secret');
+    }
+    return this.authService.listSuperadmins();
   }
 }
