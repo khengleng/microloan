@@ -20,6 +20,7 @@ const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
+const quota_guard_1 = require("../common/quota.guard");
 let BorrowersController = class BorrowersController {
     borrowersService;
     constructor(borrowersService) {
@@ -57,6 +58,7 @@ __decorate([
 ], BorrowersController.prototype, "checkCrossTenant", null);
 __decorate([
     (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'SALES'),
+    (0, quota_guard_1.CheckQuota)('borrowers'),
     (0, common_1.Post)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
@@ -101,7 +103,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], BorrowersController.prototype, "remove", null);
 exports.BorrowersController = BorrowersController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard, quota_guard_1.QuotaGuard),
     (0, common_1.Controller)('borrowers'),
     __metadata("design:paramtypes", [borrowers_service_1.BorrowersService])
 ], BorrowersController);

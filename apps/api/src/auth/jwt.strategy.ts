@@ -1,6 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+
+import { PrismaService } from '../prisma/prisma.service';
 
 export type JwtPayload = {
   sub: string;
@@ -8,11 +10,12 @@ export type JwtPayload = {
   role: string;
   tenantId: string;
   tenantName?: string;
+  tenantPlan?: string;     // Added for quota checking
 };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -24,6 +27,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload.tenantId) {
       throw new UnauthorizedException('Invalid token');
     }
+
+    // MANDATORY GLOBAL TENANT GUARD + DATA ISOLATION GUARD
+    // Instantly drops access across all routes if the tenant is suspended.
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: payload.tenantId },
+      select: { status: true, plan: true },
+    });
+
+    if (!tenant) {
+      throw new UnauthorizedException('Organization not found');
+    }
+
+    if (tenant.status !== 'ACTIVE') {
+      throw new ForbiddenException(
+        `Organization Suspended. Please contact support or upgrade your subscription.`
+      );
+    }
     return {
       id: payload.sub,
       sub: payload.sub,
@@ -31,6 +51,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: payload.role,
       tenantId: payload.tenantId,
       tenantName: payload.tenantName,
+      tenantPlan: tenant.plan,
     };
   }
 }

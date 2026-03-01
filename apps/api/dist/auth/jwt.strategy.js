@@ -13,17 +13,30 @@ exports.JwtStrategy = void 0;
 const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
+const prisma_service_1 = require("../prisma/prisma.service");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
-    constructor() {
+    prisma;
+    constructor(prisma) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
             secretOrKey: process.env.JWT_ACCESS_SECRET || 'secretKey',
         });
+        this.prisma = prisma;
     }
     async validate(payload) {
         if (!payload.tenantId) {
             throw new common_1.UnauthorizedException('Invalid token');
+        }
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { id: payload.tenantId },
+            select: { status: true, plan: true },
+        });
+        if (!tenant) {
+            throw new common_1.UnauthorizedException('Organization not found');
+        }
+        if (tenant.status !== 'ACTIVE') {
+            throw new common_1.ForbiddenException(`Organization Suspended. Please contact support or upgrade your subscription.`);
         }
         return {
             id: payload.sub,
@@ -32,12 +45,13 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
             role: payload.role,
             tenantId: payload.tenantId,
             tenantName: payload.tenantName,
+            tenantPlan: tenant.plan,
         };
     }
 };
 exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

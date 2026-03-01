@@ -33,6 +33,7 @@ interface Tenant {
     plan: string;
     createdAt: string;
     _count: { users: number; borrowers: number; loans: number; repayments: number; };
+    performance: { disbursed: number; collected: number; };
 }
 
 interface Stats {
@@ -316,9 +317,13 @@ export default function TenantsPage() {
                                         <div className="text-[9px] text-slate-400 uppercase mt-0.5">Loans</div>
                                     </div>
                                     <div className="text-center border-l border-slate-200">
-                                        <div className="text-sm font-bold text-slate-800">{tenant._count.repayments}</div>
-                                        <div className="text-[9px] text-slate-400 uppercase mt-0.5">Payments</div>
+                                        <div className="text-sm font-bold text-slate-800">${(tenant.performance?.disbursed || 0).toLocaleString()}</div>
+                                        <div className="text-[9px] text-slate-400 uppercase mt-0.5">Volume</div>
                                     </div>
+                                </div>
+                                <div className="bg-emerald-50 rounded-b-lg p-2 flex justify-between items-center px-4 -mx-5 -mb-5 mt-4 border-t border-emerald-100">
+                                    <span className="text-xs font-semibold text-emerald-700">Total Collected</span>
+                                    <span className="text-sm font-bold text-emerald-800">${(tenant.performance?.collected || 0).toLocaleString()}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1.5 mt-3 text-[11px] text-slate-400">

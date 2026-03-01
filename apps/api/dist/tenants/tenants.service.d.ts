@@ -4,14 +4,17 @@ export declare class TenantsService {
     private readonly prisma;
     private readonly audit;
     constructor(prisma: PrismaService, audit: AuditService);
-    findAll(): Promise<({
+    findAll(): Promise<{
+        performance: {
+            disbursed: number;
+            collected: number;
+        };
         _count: {
             users: number;
             borrowers: number;
             loans: number;
             repayments: number;
         };
-    } & {
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -19,7 +22,7 @@ export declare class TenantsService {
         status: string;
         createdAt: Date;
         updatedAt: Date;
-    })[]>;
+    }[]>;
     findOne(id: string): Promise<({
         users: {
             id: string;

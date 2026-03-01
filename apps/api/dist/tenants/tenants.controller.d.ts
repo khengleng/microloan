@@ -12,14 +12,17 @@ export declare class TenantsController {
         disbursedLoans: number;
         totalRepaymentsCollected: number | import("@prisma/client/runtime/library").Decimal;
     }>;
-    findAll(): Promise<({
+    findAll(): Promise<{
+        performance: {
+            disbursed: number;
+            collected: number;
+        };
         _count: {
             users: number;
             borrowers: number;
             loans: number;
             repayments: number;
         };
-    } & {
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -27,7 +30,7 @@ export declare class TenantsController {
         status: string;
         createdAt: Date;
         updatedAt: Date;
-    })[]>;
+    }[]>;
     findOne(id: string): Promise<({
         users: {
             id: string;

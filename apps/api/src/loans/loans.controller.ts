@@ -14,14 +14,16 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, QuotaGuard)
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) { }
 
   @Roles('ADMIN', 'OPERATOR', 'SALES')
+  @CheckQuota('loans')
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateLoanDto) {
     return this.loansService.create(user.tenantId, user.sub, dto);

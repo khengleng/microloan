@@ -10,7 +10,7 @@ export class TenantsService {
     ) { }
 
     async findAll() {
-        return this.prisma.tenant.findMany({
+        const tenants = await this.prisma.tenant.findMany({
             include: {
                 _count: {
                     select: {
@@ -22,6 +22,31 @@ export class TenantsService {
                 }
             },
             orderBy: { createdAt: 'desc' },
+        });
+
+        // Fast grouped aggregation for financial performance
+        const [loanStats, repaymentStats] = await Promise.all([
+            this.prisma.loan.groupBy({
+                by: ['tenantId'],
+                _sum: { principal: true },
+                where: { status: 'DISBURSED' }
+            }),
+            this.prisma.repayment.groupBy({
+                by: ['tenantId'],
+                _sum: { amount: true }
+            })
+        ]);
+
+        return tenants.map(t => {
+            const l = loanStats.find(ls => ls.tenantId === t.id);
+            const r = repaymentStats.find(rs => rs.tenantId === t.id);
+            return {
+                ...t,
+                performance: {
+                    disbursed: Number(l?._sum?.principal || 0),
+                    collected: Number(r?._sum?.amount || 0),
+                }
+            };
         });
     }
 

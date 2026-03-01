@@ -5,9 +5,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, QuotaGuard)
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
@@ -19,6 +20,7 @@ export class UsersController {
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
+    @CheckQuota('users')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
         return this.usersService.create(user.tenantId, {

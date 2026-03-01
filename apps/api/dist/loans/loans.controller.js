@@ -20,6 +20,7 @@ const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
+const quota_guard_1 = require("../common/quota.guard");
 let LoansController = class LoansController {
     loansService;
     constructor(loansService) {
@@ -50,6 +51,7 @@ let LoansController = class LoansController {
 exports.LoansController = LoansController;
 __decorate([
     (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'SALES'),
+    (0, quota_guard_1.CheckQuota)('loans'),
     (0, common_1.Post)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
@@ -114,7 +116,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "removeDocument", null);
 exports.LoansController = LoansController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard, quota_guard_1.QuotaGuard),
     (0, common_1.Controller)('loans'),
     __metadata("design:paramtypes", [loans_service_1.LoansService])
 ], LoansController);
