@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download } from 'lucide-react';
+import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download, ThumbsUp } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
@@ -40,6 +41,7 @@ interface Document {
 interface Loan {
     id: string;
     borrower: {
+        id: string;
         firstName: string;
         lastName: string;
         phone: string;
@@ -65,6 +67,7 @@ export default function LoanDetailsPage() {
     const { id, locale } = useParams();
     const router = useRouter();
     const t = useTranslations('LoanDetails');
+    const { showToast } = useToast();
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,25 +80,36 @@ export default function LoanDetailsPage() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    const handleDisburse = async () => {
-        if (!confirm('Are you sure you want to disburse this loan? This will activate the repayment schedule.')) return;
+    const handleApprove = async () => {
+        if (!confirm('Approve this loan? It will move to APPROVED status awaiting disbursement.')) return;
         try {
-            await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
+            await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
+            showToast('Loan approved successfully', 'success');
             fetchLoan();
         } catch (error) {
-            console.error('Failed to disburse loan', error);
-            alert('Failed to disburse loan');
+            showToast('Failed to approve loan', 'error');
+        }
+    };
+
+    const handleDisburse = async () => {
+        if (!confirm('Disburse this loan? This will activate the repayment schedule.')) return;
+        try {
+            await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
+            showToast('Loan disbursed — repayment schedule is now active', 'success');
+            fetchLoan();
+        } catch (error) {
+            showToast('Failed to disburse loan', 'error');
         }
     };
 
     const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this DRAFT loan? This action cannot be undone.')) return;
+        if (!confirm('Delete this DRAFT loan? This cannot be undone.')) return;
         try {
             await api.delete(`/loans/${id}`);
+            showToast('Loan deleted', 'success');
             router.push(`/${locale}/loans`);
         } catch (error) {
-            console.error('Failed to delete loan', error);
-            alert('Failed to delete loan');
+            showToast('Failed to delete loan', 'error');
         }
     };
 
@@ -104,12 +118,10 @@ export default function LoanDetailsPage() {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         if (file.size > 5 * 1024 * 1024) {
-            alert('File is too large. Limit is 5MB.');
+            showToast('File too large. Limit is 5MB.', 'error');
             return;
         }
-
         setUploadingDoc(true);
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -120,10 +132,10 @@ export default function LoanDetailsPage() {
                     content: base64Content,
                     type: file.type || 'application/octet-stream',
                 });
+                showToast('Document uploaded', 'success');
                 fetchLoan();
-            } catch (error) {
-                console.error('Upload failed', error);
-                alert('Upload failed');
+            } catch {
+                showToast('Upload failed', 'error');
             } finally {
                 setUploadingDoc(false);
             }
@@ -135,10 +147,10 @@ export default function LoanDetailsPage() {
         if (!confirm('Delete this document?')) return;
         try {
             await api.delete(`/loans/${id}/documents/${docId}`);
+            showToast('Document deleted', 'success');
             fetchLoan();
-        } catch (error) {
-            console.error('Delete failed', error);
-            alert('Delete failed');
+        } catch {
+            showToast('Delete failed', 'error');
         }
     };
 
@@ -152,31 +164,36 @@ export default function LoanDetailsPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <Link href={`/${locale}/loans`}>
-                        <Button variant="ghost" size="icon">
-                            <ChevronLeft size={24} />
-                        </Button>
+                        <Button variant="ghost" size="icon"><ChevronLeft size={24} /></Button>
                     </Link>
-                    <h1 className="text-2xl font-bold">{t('title')} - {loan.borrower.firstName} {loan.borrower.lastName}</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold">{t('title')}</h1>
+                        <Link href={`/${locale}/borrowers/${loan.borrower.id}`} className="text-sm text-blue-600 hover:underline">
+                            {loan.borrower.firstName} {loan.borrower.lastName} →
+                        </Link>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     {loan.status === 'DRAFT' && (
                         <>
                             <Button onClick={handleDelete} variant="destructive" className="flex items-center gap-2">
-                                <Trash2 size={16} />
-                                Delete Draft
+                                <Trash2 size={16} /> Delete Draft
                             </Button>
-                            <Button onClick={handleDisburse} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-                                <CheckCircle size={16} />
-                                Disburse Loan
+                            <Button onClick={handleApprove} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+                                <ThumbsUp size={16} /> Approve
                             </Button>
                         </>
                     )}
+                    {loan.status === 'APPROVED' && (
+                        <Button onClick={handleDisburse} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
+                            <CheckCircle size={16} /> Disburse Loan
+                        </Button>
+                    )}
                     {loan.status === 'DISBURSED' && (
                         <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                            <Plus size={16} />
-                            Make a Payment
+                            <Plus size={16} /> Make a Payment
                         </Button>
                     )}
                 </div>

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
-    Settings, Building, LogOut, ChevronRight, ShieldCheck, AlertTriangle, UserCog
+    Settings, Building, LogOut, ChevronRight, ShieldCheck, AlertTriangle, UserCog, Shield
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -93,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 <>
                                     <p className="text-[10px] uppercase text-slate-500 px-3 pt-4 pb-1 font-semibold tracking-widest">Admin</p>
                                     {navItem('/users', 'Team Members', UserCog)}
+                                    {navItem('/audit', 'Audit Log', Shield)}
                                     {navItem('/settings', 'Settings', Settings)}
                                 </>
                             )}

@@ -5,9 +5,11 @@ import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Search, ShieldAlert, User, Phone, CreditCard, MapPin, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Search, ShieldAlert, User, Phone, CreditCard, MapPin, Pencil, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { BorrowerModal } from '@/components/BorrowerModal';
 import { CrossCheckModal } from '@/components/CrossCheckModal';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
 interface Borrower {
     id: string;
@@ -20,6 +22,7 @@ interface Borrower {
 
 export default function BorrowersPage() {
     const t = useTranslations('Borrowers');
+    const { locale } = useParams();
     const { showToast } = useToast();
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [loading, setLoading] = useState(true);
@@ -164,6 +167,11 @@ export default function BorrowersPage() {
                                     <td className="px-5 py-4 text-sm text-slate-500 hidden lg:table-cell max-w-[180px] truncate">{borrower.address}</td>
                                     <td className="px-5 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
+                                            <Link href={`/${locale}/borrowers/${borrower.id}`}>
+                                                <button className="p-1.5 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="View Profile">
+                                                    <ExternalLink size={14} />
+                                                </button>
+                                            </Link>
                                             <button
                                                 onClick={() => handleEdit(borrower)}
                                                 className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
