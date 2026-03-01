@@ -28,6 +28,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }[]>;
@@ -44,6 +46,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }) | null>;
@@ -55,6 +59,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -68,6 +74,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -77,6 +85,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -86,6 +96,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -95,6 +107,8 @@ export declare class TenantsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;

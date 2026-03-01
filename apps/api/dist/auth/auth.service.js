@@ -127,6 +127,10 @@ let AuthService = class AuthService {
             await bcrypt.compare(loginDto.password, '$2b$12$dummyhashfortimingnormalisation');
             throw new common_1.UnauthorizedException(GENERIC_AUTH_ERROR);
         }
+        if (user.isActive === false) {
+            await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_SUSPENDED', ip, user.id);
+            throw new common_1.ForbiddenException('Your account has been suspended. Please contact your administrator.');
+        }
         if (user.lockedUntil && new Date() < user.lockedUntil) {
             const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
             await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_ACCOUNT_LOCKED', ip, user.id);

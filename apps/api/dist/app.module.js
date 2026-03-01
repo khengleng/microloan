@@ -23,6 +23,13 @@ const reports_module_1 = require("./reports/reports.module");
 const bot_module_1 = require("./bot/bot.module");
 const loan_products_module_1 = require("./loan-products/loan-products.module");
 const health_module_1 = require("./health/health.module");
+const billing_module_1 = require("./billing/billing.module");
+const document_vault_module_1 = require("./document-vault/document-vault.module");
+const penalty_cron_service_1 = require("./penalty-cron/penalty-cron.service");
+const exports_service_1 = require("./exports/exports.service");
+const penalty_cron_module_1 = require("./penalty-cron/penalty-cron.module");
+const exports_controller_1 = require("./exports/exports.controller");
+const exports_module_1 = require("./exports/exports.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -42,9 +49,13 @@ exports.AppModule = AppModule = __decorate([
             bot_module_1.BotModule,
             loan_products_module_1.LoanProductsModule,
             health_module_1.HealthModule,
+            billing_module_1.BillingModule,
+            document_vault_module_1.DocumentVaultModule,
+            penalty_cron_module_1.PenaltyCronModule,
+            exports_module_1.ExportsModule,
         ],
-        controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        controllers: [app_controller_1.AppController, exports_controller_1.ExportsController],
+        providers: [app_service_1.AppService, penalty_cron_service_1.PenaltyCronService, exports_service_1.ExportsService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

@@ -47,7 +47,7 @@ let BorrowersService = class BorrowersService {
         if (!b)
             throw new common_1.NotFoundException('Borrower not found');
         const updated = await this.prisma.borrower.update({
-            where: { id },
+            where: { id, tenantId },
             data: dto,
         });
         await this.audit.logAction(tenantId, userId, 'UPDATE', 'Borrower', b.id, {
@@ -66,7 +66,7 @@ let BorrowersService = class BorrowersService {
         if (b._count.loans > 0) {
             throw new Error('Cannot delete borrower with associated loans');
         }
-        await this.prisma.borrower.delete({ where: { id } });
+        await this.prisma.borrower.delete({ where: { id, tenantId } });
         await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, (0, mask_1.maskBorrowerForAudit)(b));
         return { success: true };
     }

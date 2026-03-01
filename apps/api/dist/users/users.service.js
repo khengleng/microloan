@@ -67,6 +67,7 @@ let UsersService = class UsersService {
                 id: true,
                 email: true,
                 role: true,
+                isActive: true,
                 twoFactorEnabled: true,
                 createdAt: true,
                 updatedAt: true,
@@ -99,8 +100,14 @@ let UsersService = class UsersService {
     }
     async remove(tenantId, id, actorId) {
         const user = await this.prisma.user.findUnique({ where: { id, tenantId } });
-        const result = await this.prisma.user.delete({ where: { id, tenantId } });
-        await this.audit.logAction(tenantId, actorId || id, 'DELETE', 'User', id, {
+        if (!user)
+            return null;
+        const result = await this.prisma.user.update({
+            where: { id, tenantId },
+            data: { isActive: false },
+        });
+        await this.audit.logAction(tenantId, actorId || id, 'UPDATE', 'User', id, {
+            event: 'USER_SUSPENDED',
             email: user?.email,
             role: user?.role,
         });

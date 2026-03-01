@@ -83,6 +83,7 @@ export declare class LoansController {
             amount: import("@prisma/client/runtime/library").Decimal;
             principalPaid: import("@prisma/client/runtime/library").Decimal;
             interestPaid: import("@prisma/client/runtime/library").Decimal;
+            penaltyPaid: import("@prisma/client/runtime/library").Decimal;
             date: Date;
             createdAt: Date;
             updatedAt: Date;
@@ -103,10 +104,12 @@ export declare class LoansController {
             dueDate: Date;
             principalAmount: import("@prisma/client/runtime/library").Decimal;
             interestAmount: import("@prisma/client/runtime/library").Decimal;
+            penaltyAmount: import("@prisma/client/runtime/library").Decimal;
             totalAmount: import("@prisma/client/runtime/library").Decimal;
             outstandingPrincipal: import("@prisma/client/runtime/library").Decimal;
             paidPrincipal: import("@prisma/client/runtime/library").Decimal;
             paidInterest: import("@prisma/client/runtime/library").Decimal;
+            paidPenalty: import("@prisma/client/runtime/library").Decimal;
             isPaid: boolean;
             createdAt: Date;
             updatedAt: Date;

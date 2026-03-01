@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import api from "@/lib/api";
 
 interface LoanModalProps {
@@ -80,8 +79,9 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="borrowerId">{t('borrower')}</Label>
-                        <Select
+                        <select
                             id="borrowerId"
+                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             value={formData.borrowerId}
                             onChange={e => setFormData({ ...formData, borrowerId: e.target.value })}
                             required
@@ -90,7 +90,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {borrowers.map(b => (
                                 <option key={b.id} value={b.id}>{b.firstName} {b.lastName}</option>
                             ))}
-                        </Select>
+                        </select>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -143,15 +143,16 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
                     <div className="space-y-2">
                         <Label htmlFor="interestMethod">{t('method')}</Label>
-                        <Select
+                        <select
                             id="interestMethod"
+                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             value={formData.interestMethod}
                             onChange={e => setFormData({ ...formData, interestMethod: e.target.value })}
                             required
                         >
                             <option value="FLAT">{t('flat')}</option>
                             <option value="REDUCING_BALANCE">{t('reducing_balance')}</option>
-                        </Select>
+                        </select>
                     </div>
 
                     <DialogFooter>

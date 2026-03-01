@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import api from "@/lib/api";
 
 interface RepaymentModalProps {
@@ -100,8 +99,9 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="loanId">{t('loan')}</Label>
-                        <Select
+                        <select
                             id="loanId"
+                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             value={formData.loanId}
                             onChange={e => setFormData({ ...formData, loanId: e.target.value })}
                             required
@@ -112,7 +112,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                     {l.borrower.firstName} {l.borrower.lastName} - ${l.principal}
                                 </option>
                             ))}
-                        </Select>
+                        </select>
                     </div>
 
                     <div className="space-y-2">

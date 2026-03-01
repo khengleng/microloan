@@ -57,7 +57,7 @@ let LoanProductsService = class LoanProductsService {
                 });
             }
             return tx.loanProduct.update({
-                where: { id },
+                where: { id, tenantId },
                 data: {
                     ...productData,
                     ...(policies ? {
@@ -73,7 +73,7 @@ let LoanProductsService = class LoanProductsService {
     async remove(tenantId, id) {
         await this.findOne(tenantId, id);
         return this.prisma.loanProduct.delete({
-            where: { id }
+            where: { id, tenantId }
         });
     }
 };

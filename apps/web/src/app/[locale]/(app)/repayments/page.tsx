@@ -39,13 +39,17 @@ export default function RepaymentsPage() {
 
     useEffect(() => { fetchRepayments(); }, []);
 
-    const filtered = useMemo(() =>
-        repayments.filter(r =>
-            `${r.loan.borrower.firstName} ${r.loan.borrower.lastName}`
+    const filtered = useMemo(() => {
+        if (!Array.isArray(repayments)) return [];
+        return repayments.filter(r =>
+            `${r.loan?.borrower?.firstName || ''} ${r.loan?.borrower?.lastName || ''}`
                 .toLowerCase().includes(searchQuery.toLowerCase())
-        ), [repayments, searchQuery]);
+        );
+    }, [repayments, searchQuery]);
 
-    const totalCollected = repayments.reduce((sum, r) => sum + Number(r.amount), 0);
+    const totalCollected = Array.isArray(repayments)
+        ? repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0)
+        : 0;
 
     const exportToExcel = async () => {
         try {

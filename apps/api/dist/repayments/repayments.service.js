@@ -109,7 +109,7 @@ let RepaymentsService = class RepaymentsService {
         });
         if (unpaidCount === 0 && (updates.length > 0 || loan.schedules.length === 0)) {
             await this.prisma.loan.update({
-                where: { id: dto.loanId },
+                where: { id: dto.loanId, tenantId },
                 data: { status: db_1.LoanStatus.CLOSED },
             });
             await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {

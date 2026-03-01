@@ -24,11 +24,16 @@ export declare class UsersService {
         passwordHash: string;
         twoFactorSecret: string | null;
         twoFactorEnabled: boolean;
+        isActive: boolean;
         role: import("@microloan/db").$Enums.Role;
         telegramChatId: string | null;
+        loginAttempts: number;
+        lockedUntil: Date | null;
+        lastLoginAt: Date | null;
+        lastLoginIp: string | null;
         createdAt: Date;
         updatedAt: Date;
-    }>;
+    } | null>;
     updateRole(tenantId: string, id: string, role: string, actorId?: string): Promise<{
         id: string;
         email: string;

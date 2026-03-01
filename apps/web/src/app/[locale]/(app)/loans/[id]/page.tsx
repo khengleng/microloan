@@ -252,12 +252,12 @@ export default function LoanDetailsPage() {
                             <div className="mt-2 text-sm text-amber-700">
                                 <p>Before approving this loan, please notice that this borrower has existing loan records:</p>
                                 <ul className="list-disc pl-5 mt-1 space-y-1">
-                                    {loan.borrower.loans.filter(l => l.id !== loan.id).map(l => (
+                                    {(loan.borrower?.loans || []).filter(l => l.id !== loan.id).map(l => (
                                         <li key={l.id}>
                                             <Link href={`/${locale}/loans/${l.id}`} className="font-semibold underline">
-                                                Loan ${l.principal.toLocaleString()}
+                                                Loan ${l.principal?.toLocaleString()}
                                             </Link>
-                                            {' '}- Status: <span className="font-bold">{l.status}</span> (Created {new Date(l.createdAt).toLocaleDateString()})
+                                            {' '}- Status: <span className="font-bold">{l.status}</span> (Created {l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'N/A'})
                                         </li>
                                     ))}
                                 </ul>
@@ -344,15 +344,15 @@ export default function LoanDetailsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {loan.repayments.length === 0 ? (
+                            {(!loan.repayments || loan.repayments.length === 0) ? (
                                 <tr><td colSpan={4} className="py-4 text-center text-gray-500">No repayments yet.</td></tr>
                             ) : (
-                                loan.repayments.map((rp) => (
+                                (loan.repayments || []).map((rp) => (
                                     <tr key={rp.id}>
                                         <td className="py-2">{new Date(rp.date).toLocaleDateString()}</td>
-                                        <td className="py-2 text-right font-medium">${rp.amount.toLocaleString()}</td>
-                                        <td className="py-2 text-right text-green-600">${rp.interestPaid?.toLocaleString() || 0}</td>
-                                        <td className="py-2 text-right text-blue-600">${rp.principalPaid?.toLocaleString() || 0}</td>
+                                        <td className="py-2 text-right font-medium">${Number(rp.amount || 0).toLocaleString()}</td>
+                                        <td className="py-2 text-right text-green-600">${Number(rp.interestPaid || 0).toLocaleString()}</td>
+                                        <td className="py-2 text-right text-blue-600">${Number(rp.principalPaid || 0).toLocaleString()}</td>
                                     </tr>
                                 ))
                             )}

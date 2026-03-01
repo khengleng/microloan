@@ -12,6 +12,7 @@ export declare class RepaymentsService {
         amount: import("@prisma/client/runtime/library").Decimal;
         principalPaid: import("@prisma/client/runtime/library").Decimal;
         interestPaid: import("@prisma/client/runtime/library").Decimal;
+        penaltyPaid: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         createdAt: Date;
         updatedAt: Date;
@@ -52,6 +53,7 @@ export declare class RepaymentsService {
         amount: import("@prisma/client/runtime/library").Decimal;
         principalPaid: import("@prisma/client/runtime/library").Decimal;
         interestPaid: import("@prisma/client/runtime/library").Decimal;
+        penaltyPaid: import("@prisma/client/runtime/library").Decimal;
         date: Date;
         createdAt: Date;
         updatedAt: Date;

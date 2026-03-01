@@ -53,14 +53,15 @@ export default function LoansPage() {
 
     useEffect(() => { fetchLoans(); }, []);
 
-    const filtered = useMemo(() =>
-        loans.filter(l => {
-            const matchSearch = `${l.borrower.firstName} ${l.borrower.lastName}`
+    const filtered = useMemo(() => {
+        if (!Array.isArray(loans)) return [];
+        return loans.filter(l => {
+            const matchSearch = `${l.borrower?.firstName || ''} ${l.borrower?.lastName || ''}`
                 .toLowerCase().includes(searchQuery.toLowerCase());
             const matchStatus = statusFilter === 'ALL' || l.status === statusFilter;
             return matchSearch && matchStatus;
-        }),
-        [loans, searchQuery, statusFilter]);
+        });
+    }, [loans, searchQuery, statusFilter]);
 
     const statuses = ['ALL', 'DRAFT', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
 

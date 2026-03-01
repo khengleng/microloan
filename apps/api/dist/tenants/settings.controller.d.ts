@@ -20,6 +20,8 @@ export declare class SettingsController {
         telegramBotToken: string | null;
         plan: string;
         status: string;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
         createdAt: Date;
         updatedAt: Date;
     }>;

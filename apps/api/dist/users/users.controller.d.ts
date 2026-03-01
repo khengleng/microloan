@@ -17,11 +17,16 @@ export declare class UsersController {
         passwordHash: string;
         twoFactorSecret: string | null;
         twoFactorEnabled: boolean;
+        isActive: boolean;
         role: import("@prisma/client").$Enums.Role;
         telegramChatId: string | null;
+        loginAttempts: number;
+        lockedUntil: Date | null;
+        lastLoginAt: Date | null;
+        lastLoginIp: string | null;
         createdAt: Date;
         updatedAt: Date;
-    }>;
+    } | null>;
     updateRole(user: JwtPayload, id: string, body: {
         role: string;
     }): Promise<{
