@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Plus, Search, ShieldAlert, User, Phone, CreditCard, MapPin, Pencil, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { BorrowerModal } from '@/components/BorrowerModal';
 import { CrossCheckModal } from '@/components/CrossCheckModal';
@@ -24,6 +25,7 @@ export default function BorrowersPage() {
     const t = useTranslations('Borrowers');
     const { locale } = useParams();
     const { showToast } = useToast();
+    const confirm = useConfirm();
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +52,13 @@ export default function BorrowersPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this borrower? This action cannot be undone.')) return;
+        const ok = await confirm({
+            title: 'Delete Borrower',
+            message: 'This will permanently delete the borrower and all their data. This cannot be undone.',
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        });
+        if (!ok) return;
         setDeletingId(id);
         try {
             await api.delete(`/borrowers/${id}`);
@@ -62,6 +70,7 @@ export default function BorrowersPage() {
             setDeletingId(null);
         }
     };
+
 
     useEffect(() => { fetchBorrowers(); }, []);
 

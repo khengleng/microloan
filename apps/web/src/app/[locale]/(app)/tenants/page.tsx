@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 const PLANS = ['FREE', 'BASIC', 'PROFESSIONAL', 'ENTERPRISE'];
 const PLAN_COLORS: Record<string, string> = {
@@ -46,6 +47,7 @@ interface Stats {
 
 export default function TenantsPage() {
     const { showToast } = useToast();
+    const confirm = useConfirm();
     const [stats, setStats] = useState<Stats | null>(null);
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(true);
@@ -114,7 +116,13 @@ export default function TenantsPage() {
     };
 
     const handleDelete = async (t: Tenant) => {
-        if (!confirm(`Soft-delete "${t.name}"? The org will be suspended and hidden.`)) return;
+        const ok = await confirm({
+            title: `Remove "${t.name}"?`,
+            message: 'The organization will be suspended and disabled. This action cannot be undone.',
+            confirmLabel: 'Remove',
+            variant: 'danger',
+        });
+        if (!ok) return;
         try {
             await api.delete(`/tenants/${t.id}`);
             showToast(`${t.name} has been removed`, 'success');

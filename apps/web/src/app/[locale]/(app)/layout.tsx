@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
-    Settings, Building, LogOut, ChevronRight, ShieldCheck, AlertTriangle, UserCog, Shield
+    Settings, Building, LogOut, ChevronRight, ShieldCheck, AlertTriangle, UserCog, Shield, Menu, X
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const pathname = usePathname();
     const t = useTranslations('Nav');
     const [user, setUser] = useState<any>(null);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     useEffect(() => {
         api.get('/auth/me')
@@ -36,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return (
             <Link
                 href={`/${locale}${href}`}
+                onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${active
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -48,10 +50,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         );
     };
 
+
     return (
         <div className="flex h-screen bg-slate-50">
+            {/* Mobile overlay */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
-            <aside className="w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-xl">
+            <aside className={`fixed lg:relative inset-y-0 left-0 z-30 w-60 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-xl transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                }`}>
                 {/* Brand */}
                 <div className="p-4 border-b border-slate-800">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -128,11 +140,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </aside>
 
             {/* Main */}
-            <main className="flex-1 overflow-auto">
+            <main className="flex-1 overflow-auto min-w-0">
                 {/* Topbar */}
-                <header className="bg-white border-b border-slate-100 px-6 py-3 flex justify-between items-center sticky top-0 z-10">
+                <header className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex justify-between items-center sticky top-0 z-10">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">
+                        {/* Hamburger — mobile only */}
+                        <button
+                            onClick={() => setSidebarOpen(true)}
+                            className="lg:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100"
+                        >
+                            <Menu size={20} />
+                        </button>
+                        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white hidden sm:flex">
                             {user?.tenantName ? user.tenantName.charAt(0).toUpperCase() : '·'}
                         </div>
                         <span className="text-lg font-bold tracking-tight text-slate-800">{user?.tenantName || '...'}</span>

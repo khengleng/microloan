@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download, ThumbsUp } from 'lucide-react';
 import Link from 'next/link';
@@ -68,6 +69,7 @@ export default function LoanDetailsPage() {
     const router = useRouter();
     const t = useTranslations('LoanDetails');
     const { showToast } = useToast();
+    const confirm = useConfirm();
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -81,7 +83,13 @@ export default function LoanDetailsPage() {
     }, [id]);
 
     const handleApprove = async () => {
-        if (!confirm('Approve this loan? It will move to APPROVED status awaiting disbursement.')) return;
+        const ok = await confirm({
+            title: 'Approve Loan',
+            message: 'This loan will move to APPROVED status, awaiting disbursement.',
+            confirmLabel: 'Approve',
+            variant: 'default',
+        });
+        if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
             showToast('Loan approved successfully', 'success');
@@ -92,7 +100,13 @@ export default function LoanDetailsPage() {
     };
 
     const handleDisburse = async () => {
-        if (!confirm('Disburse this loan? This will activate the repayment schedule.')) return;
+        const ok = await confirm({
+            title: 'Disburse Loan',
+            message: 'This will activate the repayment schedule. The borrower will receive the funds.',
+            confirmLabel: 'Disburse',
+            variant: 'warning',
+        });
+        if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
             showToast('Loan disbursed — repayment schedule is now active', 'success');
@@ -103,7 +117,13 @@ export default function LoanDetailsPage() {
     };
 
     const handleDelete = async () => {
-        if (!confirm('Delete this DRAFT loan? This cannot be undone.')) return;
+        const ok = await confirm({
+            title: 'Delete Draft Loan',
+            message: 'This draft loan will be permanently deleted. This cannot be undone.',
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        });
+        if (!ok) return;
         try {
             await api.delete(`/loans/${id}`);
             showToast('Loan deleted', 'success');
@@ -144,7 +164,13 @@ export default function LoanDetailsPage() {
     };
 
     const handleDeleteDoc = async (docId: string) => {
-        if (!confirm('Delete this document?')) return;
+        const ok = await confirm({
+            title: 'Delete Document',
+            message: 'This document will be permanently removed from this loan.',
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        });
+        if (!ok) return;
         try {
             await api.delete(`/loans/${id}/documents/${docId}`);
             showToast('Document deleted', 'success');
