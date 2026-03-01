@@ -12,10 +12,12 @@ export class TenantsService {
                     select: {
                         users: true,
                         borrowers: true,
-                        loans: true
+                        loans: true,
+                        repayments: true,
                     }
                 }
-            }
+            },
+            orderBy: { createdAt: 'desc' },
         });
     }
 
@@ -24,35 +26,70 @@ export class TenantsService {
             where: { id },
             include: {
                 users: {
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true,
-                        createdAt: true
-                    }
+                    select: { id: true, email: true, role: true, createdAt: true }
                 }
             }
         });
     }
 
     async create(data: { name: string }) {
-        return this.prisma.tenant.create({
-            data
-        });
+        return this.prisma.tenant.create({ data });
     }
 
-    async update(id: string, data: { name: string }) {
+    async update(id: string, data: { name?: string; plan?: string; status?: string }) {
+        return this.prisma.tenant.update({ where: { id }, data });
+    }
+
+    async setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED') {
         return this.prisma.tenant.update({
             where: { id },
-            data
+            data: { status },
         });
     }
 
     async remove(id: string) {
-        // Warning: This will fail if there are related records due to foreign key constraints
-        // In a real app, we might want soft delete or handle cleanup
-        return this.prisma.tenant.delete({
-            where: { id }
+        // Soft delete by suspending and marking deleted
+        return this.prisma.tenant.update({
+            where: { id },
+            data: { status: 'SUSPENDED' },
         });
+    }
+
+    async getTenantUsers(tenantId: string) {
+        return this.prisma.user.findMany({
+            where: { tenantId },
+            select: { id: true, email: true, role: true, twoFactorEnabled: true, createdAt: true },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+
+    async platformStats() {
+        const [
+            totalTenants,
+            activeTenants,
+            suspendedTenants,
+            totalBorrowers,
+            totalLoans,
+            disbursedLoans,
+            totalRepayments,
+        ] = await Promise.all([
+            this.prisma.tenant.count(),
+            this.prisma.tenant.count({ where: { status: 'ACTIVE' } }),
+            this.prisma.tenant.count({ where: { status: 'SUSPENDED' } }),
+            this.prisma.borrower.count(),
+            this.prisma.loan.count(),
+            this.prisma.loan.count({ where: { status: 'DISBURSED' } }),
+            this.prisma.repayment.aggregate({ _sum: { amount: true } }),
+        ]);
+
+        return {
+            totalTenants,
+            activeTenants,
+            suspendedTenants,
+            totalBorrowers,
+            totalLoans,
+            disbursedLoans,
+            totalRepaymentsCollected: totalRepayments._sum.amount || 0,
+        };
     }
 }

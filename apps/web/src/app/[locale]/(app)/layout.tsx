@@ -69,11 +69,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 {/* Nav */}
                 <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-                    {/* SUPERADMIN sees only Organizations */}
+                    {/* SUPERADMIN sees Platform + their team */}
                     {isSuperAdmin && (
                         <>
                             <p className="text-[10px] uppercase text-slate-500 px-3 pt-2 pb-1 font-semibold tracking-widest">Platform</p>
                             {navItem('/tenants', 'Organizations', Building)}
+                            <p className="text-[10px] uppercase text-slate-500 px-3 pt-4 pb-1 font-semibold tracking-widest">PaaS Admin</p>
+                            {navItem('/users', 'My Team', UserCog)}
+                            {navItem('/audit', 'Audit Log', Shield)}
                         </>
                     )}
 

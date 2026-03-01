@@ -23,6 +23,9 @@ let TenantsController = class TenantsController {
     constructor(tenantsService) {
         this.tenantsService = tenantsService;
     }
+    platformStats() {
+        return this.tenantsService.platformStats();
+    }
     findAll() {
         return this.tenantsService.findAll();
     }
@@ -35,11 +38,27 @@ let TenantsController = class TenantsController {
     update(id, data) {
         return this.tenantsService.update(id, data);
     }
+    suspend(id) {
+        return this.tenantsService.setStatus(id, 'SUSPENDED');
+    }
+    activate(id) {
+        return this.tenantsService.setStatus(id, 'ACTIVE');
+    }
     remove(id) {
         return this.tenantsService.remove(id);
     }
+    tenantUsers(id) {
+        return this.tenantsService.getTenantUsers(id);
+    }
 };
 exports.TenantsController = TenantsController;
+__decorate([
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
+    (0, common_1.Get)('stats/platform'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], TenantsController.prototype, "platformStats", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Get)(),
@@ -74,12 +93,36 @@ __decorate([
 ], TenantsController.prototype, "update", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
+    (0, common_1.Put)(':id/suspend'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], TenantsController.prototype, "suspend", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
+    (0, common_1.Put)(':id/activate'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], TenantsController.prototype, "activate", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "remove", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
+    (0, common_1.Get)(':id/users'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], TenantsController.prototype, "tenantUsers", null);
 exports.TenantsController = TenantsController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('tenants'),

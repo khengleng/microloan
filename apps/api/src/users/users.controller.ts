@@ -12,13 +12,13 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Get()
     findAll(@CurrentUser() user: JwtPayload) {
         return this.usersService.findAll(user.tenantId);
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
         return this.usersService.create(user.tenantId, {
@@ -28,7 +28,7 @@ export class UsersController {
         });
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.usersService.remove(user.tenantId, id);
