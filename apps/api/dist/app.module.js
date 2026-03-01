@@ -22,6 +22,7 @@ const audit_module_1 = require("./audit/audit.module");
 const reports_module_1 = require("./reports/reports.module");
 const bot_module_1 = require("./bot/bot.module");
 const loan_products_module_1 = require("./loan-products/loan-products.module");
+const health_module_1 = require("./health/health.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -40,6 +41,7 @@ exports.AppModule = AppModule = __decorate([
             reports_module_1.ReportsModule,
             bot_module_1.BotModule,
             loan_products_module_1.LoanProductsModule,
+            health_module_1.HealthModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

@@ -127,19 +127,6 @@ export declare class LoansController {
         updatedAt: Date;
     }>;
     changeStatus(user: JwtPayload, id: string, dto: ChangeLoanStatusDto): Promise<{
-        borrower: {
-            id: string;
-            tenantId: string;
-            firstName: string;
-            lastName: string;
-            phone: string | null;
-            address: string | null;
-            idNumber: string | null;
-            telegramChatId: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-        };
-    } & {
         id: string;
         tenantId: string;
         borrowerId: string;

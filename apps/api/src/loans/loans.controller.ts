@@ -41,14 +41,14 @@ export class LoansController {
     return this.loansService.findOne(user.tenantId, id);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
   @Put(':id/status')
   changeStatus(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() dto: ChangeLoanStatusDto,
   ) {
-    return this.loansService.changeStatus(user.tenantId, user.sub, id, dto);
+    return this.loansService.changeStatus(user.tenantId, user.sub, user.role, id, dto);
   }
 
   @Roles('ADMIN', 'OPERATOR')

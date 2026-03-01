@@ -129,20 +129,7 @@ export declare class LoansService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    changeStatus(tenantId: string, userId: string, id: string, dto: ChangeLoanStatusDto): Promise<{
-        borrower: {
-            id: string;
-            tenantId: string;
-            firstName: string;
-            lastName: string;
-            phone: string | null;
-            address: string | null;
-            idNumber: string | null;
-            telegramChatId: string | null;
-            createdAt: Date;
-            updatedAt: Date;
-        };
-    } & {
+    changeStatus(tenantId: string, userId: string, userRole: string, id: string, dto: ChangeLoanStatusDto): Promise<{
         id: string;
         tenantId: string;
         borrowerId: string;

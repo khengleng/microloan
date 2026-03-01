@@ -36,7 +36,7 @@ let LoansController = class LoansController {
         return this.loansService.findOne(user.tenantId, id);
     }
     changeStatus(user, id, dto) {
-        return this.loansService.changeStatus(user.tenantId, user.sub, id, dto);
+        return this.loansService.changeStatus(user.tenantId, user.sub, user.role, id, dto);
     }
     remove(user, id) {
         return this.loansService.remove(user.tenantId, user.sub, id);
@@ -77,7 +77,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "findOne", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE'),
+    (0, roles_decorator_1.Roles)('ADMIN', 'OPERATOR', 'FINANCE', 'SALES'),
     (0, common_1.Put)(':id/status'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id')),

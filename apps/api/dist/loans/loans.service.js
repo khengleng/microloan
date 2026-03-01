@@ -96,12 +96,36 @@ let LoansService = class LoansService {
             throw new common_1.NotFoundException('Loan not found');
         return loan;
     }
-    async changeStatus(tenantId, userId, id, dto) {
+    async changeStatus(tenantId, userId, userRole, id, dto) {
         const loan = await this.prisma.loan.findUnique({ where: { id, tenantId } });
         if (!loan)
             throw new common_1.NotFoundException('Loan not found');
-        if (loan.status === db_1.LoanStatus.CLOSED) {
+        const currentStatus = loan.status;
+        const targetStatus = dto.status;
+        if (currentStatus === db_1.LoanStatus.CLOSED) {
             throw new common_1.BadRequestException('Cannot change status of a closed loan');
+        }
+        if (currentStatus === targetStatus)
+            return loan;
+        if (currentStatus === db_1.LoanStatus.DRAFT && targetStatus === 'APPROVED') {
+            if (!['SUPERADMIN', 'ADMIN', 'FINANCE', 'OPERATOR'].includes(userRole)) {
+                throw new common_1.ForbiddenException(`Your role (${userRole}) is not authorized to APPROVE loans.`);
+            }
+        }
+        if (currentStatus === 'APPROVED' && targetStatus === db_1.LoanStatus.DISBURSED) {
+            if (!['SUPERADMIN', 'ADMIN', 'FINANCE'].includes(userRole)) {
+                throw new common_1.ForbiddenException(`Your role (${userRole}) is not authorized to DISBURSE funds.`);
+            }
+        }
+        if (targetStatus === db_1.LoanStatus.DEFAULTED) {
+            if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
+                throw new common_1.ForbiddenException(`Only an ADMIN can mark a loan as DEFAULTED.`);
+            }
+        }
+        if (currentStatus === db_1.LoanStatus.DISBURSED && ['DRAFT', 'APPROVED'].includes(targetStatus)) {
+            if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
+                throw new common_1.ForbiddenException(`Cannot reverse a disbursed loan without ADMIN privileges.`);
+            }
         }
         const updated = await this.prisma.loan.update({
             where: { id },

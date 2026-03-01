@@ -13,6 +13,7 @@ import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
 import { BotModule } from './bot/bot.module';
 import { LoanProductsModule } from './loan-products/loan-products.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { LoanProductsModule } from './loan-products/loan-products.module';
     ReportsModule,
     BotModule,
     LoanProductsModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

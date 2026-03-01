@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -108,15 +109,49 @@ export class LoansService {
   async changeStatus(
     tenantId: string,
     userId: string,
+    userRole: string,
     id: string,
     dto: ChangeLoanStatusDto,
   ) {
     const loan = await this.prisma.loan.findUnique({ where: { id, tenantId } });
     if (!loan) throw new NotFoundException('Loan not found');
 
-    // Status machine logic
-    if (loan.status === LoanStatus.CLOSED) {
+    // ── Strict Financial Transition State Machine (RBAC) ─────────────────────
+    const currentStatus = loan.status;
+    const targetStatus = dto.status as LoanStatus;
+
+    if (currentStatus === LoanStatus.CLOSED) {
       throw new BadRequestException('Cannot change status of a closed loan');
+    }
+
+    if (currentStatus === targetStatus) return loan;
+
+    // Transition Rule 1: DRAFT -> APPROVED
+    if (currentStatus === LoanStatus.DRAFT && targetStatus === ('APPROVED' as any)) {
+      if (!['SUPERADMIN', 'ADMIN', 'FINANCE', 'OPERATOR'].includes(userRole)) {
+        throw new ForbiddenException(`Your role (${userRole}) is not authorized to APPROVE loans.`);
+      }
+    }
+
+    // Transition Rule 2: APPROVED -> DISBURSED
+    if (currentStatus === ('APPROVED' as any) && targetStatus === LoanStatus.DISBURSED) {
+      if (!['SUPERADMIN', 'ADMIN', 'FINANCE'].includes(userRole)) {
+        throw new ForbiddenException(`Your role (${userRole}) is not authorized to DISBURSE funds.`);
+      }
+    }
+
+    // Transition Rule 3: Mark as DEFAULTED
+    if (targetStatus === LoanStatus.DEFAULTED) {
+      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
+        throw new ForbiddenException(`Only an ADMIN can mark a loan as DEFAULTED.`);
+      }
+    }
+
+    // Protection for backward transitions (e.g. DISBURSED -> DRAFT)
+    if (currentStatus === LoanStatus.DISBURSED && ['DRAFT', 'APPROVED'].includes(targetStatus)) {
+      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
+        throw new ForbiddenException(`Cannot reverse a disbursed loan without ADMIN privileges.`);
+      }
     }
 
     const updated = await this.prisma.loan.update({
