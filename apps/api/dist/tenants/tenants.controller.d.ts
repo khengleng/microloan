@@ -1,4 +1,5 @@
 import { TenantsService } from './tenants.service';
+import type { JwtPayload } from '../auth/jwt.strategy';
 export declare class TenantsController {
     private readonly tenantsService;
     constructor(tenantsService: TenantsService);
@@ -43,7 +44,7 @@ export declare class TenantsController {
         createdAt: Date;
         updatedAt: Date;
     }) | null>;
-    create(data: {
+    create(user: JwtPayload, data: {
         name: string;
     }): Promise<{
         id: string;
@@ -54,7 +55,7 @@ export declare class TenantsController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    update(id: string, data: {
+    update(id: string, user: JwtPayload, data: {
         name?: string;
         plan?: string;
         status?: string;
@@ -67,7 +68,7 @@ export declare class TenantsController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    suspend(id: string): Promise<{
+    suspend(id: string, user: JwtPayload): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -76,7 +77,7 @@ export declare class TenantsController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    activate(id: string): Promise<{
+    activate(id: string, user: JwtPayload): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -85,7 +86,7 @@ export declare class TenantsController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    remove(id: string): Promise<{
+    remove(id: string, user: JwtPayload): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;

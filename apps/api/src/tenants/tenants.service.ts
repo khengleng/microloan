@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class TenantsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly audit: AuditService,
+    ) { }
 
     async findAll() {
         return this.prisma.tenant.findMany({
@@ -32,27 +36,50 @@ export class TenantsService {
         });
     }
 
-    async create(data: { name: string }) {
-        return this.prisma.tenant.create({ data });
+    async create(data: { name: string }, actorId?: string) {
+        const tenant = await this.prisma.tenant.create({ data });
+        await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
+            name: tenant.name,
+            event: 'TENANT_CREATED',
+        });
+        return tenant;
     }
 
-    async update(id: string, data: { name?: string; plan?: string; status?: string }) {
-        return this.prisma.tenant.update({ where: { id }, data });
+    async update(id: string, data: { name?: string; plan?: string; status?: string }, actorId?: string) {
+        const before = await this.prisma.tenant.findUnique({ where: { id } });
+        const tenant = await this.prisma.tenant.update({ where: { id }, data });
+        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
+            before: { name: before?.name, plan: before?.status, status: before?.status },
+            after: { name: data.name, plan: data.plan, status: data.status },
+            event: 'TENANT_UPDATED',
+        });
+        return tenant;
     }
 
-    async setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED') {
-        return this.prisma.tenant.update({
+    async setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED', actorId?: string) {
+        const tenant = await this.prisma.tenant.update({
             where: { id },
             data: { status },
         });
+        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
+            name: tenant.name,
+            newStatus: status,
+            event: status === 'SUSPENDED' ? 'TENANT_SUSPENDED' : 'TENANT_ACTIVATED',
+        });
+        return tenant;
     }
 
-    async remove(id: string) {
-        // Soft delete by suspending and marking deleted
-        return this.prisma.tenant.update({
+    async remove(id: string, actorId?: string) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+        const result = await this.prisma.tenant.update({
             where: { id },
             data: { status: 'SUSPENDED' },
         });
+        await this.audit.logAction(id, actorId || 'system', 'DELETE', 'Tenant', id, {
+            name: tenant?.name,
+            event: 'TENANT_SOFT_DELETED',
+        });
+        return result;
     }
 
     async getTenantUsers(tenantId: string) {

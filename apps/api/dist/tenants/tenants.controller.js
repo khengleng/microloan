@@ -18,6 +18,7 @@ const tenants_service_1 = require("./tenants.service");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
+const current_user_decorator_1 = require("../auth/current-user.decorator");
 let TenantsController = class TenantsController {
     tenantsService;
     constructor(tenantsService) {
@@ -32,20 +33,20 @@ let TenantsController = class TenantsController {
     findOne(id) {
         return this.tenantsService.findOne(id);
     }
-    create(data) {
-        return this.tenantsService.create(data);
+    create(user, data) {
+        return this.tenantsService.create(data, user.sub);
     }
-    update(id, data) {
-        return this.tenantsService.update(id, data);
+    update(id, user, data) {
+        return this.tenantsService.update(id, data, user.sub);
     }
-    suspend(id) {
-        return this.tenantsService.setStatus(id, 'SUSPENDED');
+    suspend(id, user) {
+        return this.tenantsService.setStatus(id, 'SUSPENDED', user.sub);
     }
-    activate(id) {
-        return this.tenantsService.setStatus(id, 'ACTIVE');
+    activate(id, user) {
+        return this.tenantsService.setStatus(id, 'ACTIVE', user.sub);
     }
-    remove(id) {
-        return this.tenantsService.remove(id);
+    remove(id, user) {
+        return this.tenantsService.remove(id, user.sub);
     }
     tenantUsers(id) {
         return this.tenantsService.getTenantUsers(id);
@@ -77,42 +78,47 @@ __decorate([
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "create", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Put)(':id'),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "update", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Put)(':id/suspend'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "suspend", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Put)(':id/activate'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "activate", null);
 __decorate([
     (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], TenantsController.prototype, "remove", null);
 __decorate([

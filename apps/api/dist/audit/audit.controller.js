@@ -24,15 +24,97 @@ let AuditLogsController = class AuditLogsController {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async findAll(user) {
-        return this.prisma.auditLog.findMany({
-            where: { tenantId: user.tenantId },
-            include: {
-                user: { select: { email: true, role: true } },
+    async findAll(user, page, limit, action, entity, from, to, search) {
+        const pageNum = Math.max(1, parseInt(page || '1'));
+        const pageSize = Math.min(100, parseInt(limit || '50'));
+        const skip = (pageNum - 1) * pageSize;
+        const where = { tenantId: user.tenantId };
+        if (action)
+            where.action = action;
+        if (entity)
+            where.entity = entity;
+        if (from || to) {
+            where.createdAt = {};
+            if (from)
+                where.createdAt.gte = new Date(from);
+            if (to)
+                where.createdAt.lte = new Date(to);
+        }
+        const [logs, total] = await Promise.all([
+            this.prisma.auditLog.findMany({
+                where,
+                include: { user: { select: { email: true, role: true } } },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: pageSize,
+            }),
+            this.prisma.auditLog.count({ where }),
+        ]);
+        return {
+            data: logs,
+            meta: {
+                total,
+                page: pageNum,
+                pageSize,
+                pages: Math.ceil(total / pageSize),
             },
+        };
+    }
+    async exportCsv(user, res, from, to, action, entity) {
+        const where = { tenantId: user.tenantId };
+        if (action)
+            where.action = action;
+        if (entity)
+            where.entity = entity;
+        if (from || to) {
+            where.createdAt = {};
+            if (from)
+                where.createdAt.gte = new Date(from);
+            if (to)
+                where.createdAt.lte = new Date(to);
+        }
+        const logs = await this.prisma.auditLog.findMany({
+            where,
+            include: { user: { select: { email: true, role: true } } },
             orderBy: { createdAt: 'desc' },
-            take: 200,
+            take: 10000,
         });
+        const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const header = ['Timestamp', 'Action', 'Entity', 'EntityId', 'User Email', 'User Role', 'Details'];
+        const rows = logs.map(l => [
+            escape(new Date(l.createdAt).toISOString()),
+            escape(l.action),
+            escape(l.entity),
+            escape(l.entityId),
+            escape(l.user?.email ?? l.userId),
+            escape(l.user?.role ?? ''),
+            escape(l.metadata ? JSON.stringify(l.metadata) : ''),
+        ]);
+        const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const filename = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+    }
+    async summary(user) {
+        const [totalEvents, loginEvents, failedLogins, today,] = await Promise.all([
+            this.prisma.auditLog.count({ where: { tenantId: user.tenantId } }),
+            this.prisma.auditLog.count({ where: { tenantId: user.tenantId, action: 'LOGIN' } }),
+            this.prisma.auditLog.count({
+                where: {
+                    tenantId: user.tenantId,
+                    action: 'LOGIN',
+                    metadata: { path: ['event'], equals: 'LOGIN_FAILED' },
+                }
+            }),
+            this.prisma.auditLog.count({
+                where: {
+                    tenantId: user.tenantId,
+                    createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+                }
+            }),
+        ]);
+        return { totalEvents, loginEvents, failedLogins, today };
     }
 };
 exports.AuditLogsController = AuditLogsController;
@@ -40,10 +122,38 @@ __decorate([
     (0, roles_decorator_1.Roles)('ADMIN', 'SUPERADMIN'),
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('action')),
+    __param(4, (0, common_1.Query)('entity')),
+    __param(5, (0, common_1.Query)('from')),
+    __param(6, (0, common_1.Query)('to')),
+    __param(7, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AuditLogsController.prototype, "findAll", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'SUPERADMIN'),
+    (0, common_1.Get)('export/csv'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Res)()),
+    __param(2, (0, common_1.Query)('from')),
+    __param(3, (0, common_1.Query)('to')),
+    __param(4, (0, common_1.Query)('action')),
+    __param(5, (0, common_1.Query)('entity')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], AuditLogsController.prototype, "exportCsv", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'SUPERADMIN'),
+    (0, common_1.Get)('summary'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], AuditLogsController.prototype, "findAll", null);
+], AuditLogsController.prototype, "summary", null);
 exports.AuditLogsController = AuditLogsController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('audit-logs'),

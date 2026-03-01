@@ -12,10 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TenantsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const audit_service_1 = require("../audit/audit.service");
 let TenantsService = class TenantsService {
     prisma;
-    constructor(prisma) {
+    audit;
+    constructor(prisma, audit) {
         this.prisma = prisma;
+        this.audit = audit;
     }
     async findAll() {
         return this.prisma.tenant.findMany({
@@ -42,23 +45,47 @@ let TenantsService = class TenantsService {
             }
         });
     }
-    async create(data) {
-        return this.prisma.tenant.create({ data });
+    async create(data, actorId) {
+        const tenant = await this.prisma.tenant.create({ data });
+        await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
+            name: tenant.name,
+            event: 'TENANT_CREATED',
+        });
+        return tenant;
     }
-    async update(id, data) {
-        return this.prisma.tenant.update({ where: { id }, data });
+    async update(id, data, actorId) {
+        const before = await this.prisma.tenant.findUnique({ where: { id } });
+        const tenant = await this.prisma.tenant.update({ where: { id }, data });
+        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
+            before: { name: before?.name, plan: before?.status, status: before?.status },
+            after: { name: data.name, plan: data.plan, status: data.status },
+            event: 'TENANT_UPDATED',
+        });
+        return tenant;
     }
-    async setStatus(id, status) {
-        return this.prisma.tenant.update({
+    async setStatus(id, status, actorId) {
+        const tenant = await this.prisma.tenant.update({
             where: { id },
             data: { status },
         });
+        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
+            name: tenant.name,
+            newStatus: status,
+            event: status === 'SUSPENDED' ? 'TENANT_SUSPENDED' : 'TENANT_ACTIVATED',
+        });
+        return tenant;
     }
-    async remove(id) {
-        return this.prisma.tenant.update({
+    async remove(id, actorId) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+        const result = await this.prisma.tenant.update({
             where: { id },
             data: { status: 'SUSPENDED' },
         });
+        await this.audit.logAction(id, actorId || 'system', 'DELETE', 'Tenant', id, {
+            name: tenant?.name,
+            event: 'TENANT_SOFT_DELETED',
+        });
+        return result;
     }
     async getTenantUsers(tenantId) {
         return this.prisma.user.findMany({
@@ -91,6 +118,7 @@ let TenantsService = class TenantsService {
 exports.TenantsService = TenantsService;
 exports.TenantsService = TenantsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        audit_service_1.AuditService])
 ], TenantsService);
 //# sourceMappingURL=tenants.service.js.map

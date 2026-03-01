@@ -31,32 +31,32 @@ export class TenantsController {
 
     @Roles('SUPERADMIN')
     @Post()
-    create(@Body() data: { name: string }) {
-        return this.tenantsService.create(data);
+    create(@CurrentUser() user: JwtPayload, @Body() data: { name: string }) {
+        return this.tenantsService.create(data, user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Put(':id')
-    update(@Param('id') id: string, @Body() data: { name?: string; plan?: string; status?: string }) {
-        return this.tenantsService.update(id, data);
+    update(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() data: { name?: string; plan?: string; status?: string }) {
+        return this.tenantsService.update(id, data, user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Put(':id/suspend')
-    suspend(@Param('id') id: string) {
-        return this.tenantsService.setStatus(id, 'SUSPENDED');
+    suspend(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        return this.tenantsService.setStatus(id, 'SUSPENDED', user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Put(':id/activate')
-    activate(@Param('id') id: string) {
-        return this.tenantsService.setStatus(id, 'ACTIVE');
+    activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        return this.tenantsService.setStatus(id, 'ACTIVE', user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Delete(':id')
-    remove(@Param('id') id: string) {
-        return this.tenantsService.remove(id);
+    remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        return this.tenantsService.remove(id, user.sub);
     }
 
     // SUPERADMIN user management (for PaaS team)

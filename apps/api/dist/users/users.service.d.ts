@@ -1,8 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { User, Role } from '@microloan/db';
 export declare class UsersService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private audit;
+    constructor(prisma: PrismaService, audit: AuditService);
     findOneByEmail(email: string): Promise<User | null>;
     findById(id: string): Promise<User | null>;
     findAll(tenantId: string): Promise<any[]>;
@@ -10,12 +12,12 @@ export declare class UsersService {
         email: string;
         passwordHash: string;
         role: Role;
-    }): Promise<{
+    }, actorId?: string): Promise<{
         id: string;
         email: string;
         role: import("@microloan/db").$Enums.Role;
     }>;
-    remove(tenantId: string, id: string): Promise<{
+    remove(tenantId: string, id: string, actorId?: string): Promise<{
         id: string;
         tenantId: string;
         email: string;
@@ -27,7 +29,7 @@ export declare class UsersService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    updateRole(tenantId: string, id: string, role: string): Promise<{
+    updateRole(tenantId: string, id: string, role: string, actorId?: string): Promise<{
         id: string;
         email: string;
         role: import("@microloan/db").$Enums.Role;

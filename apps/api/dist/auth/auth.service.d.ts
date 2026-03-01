@@ -3,11 +3,13 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 export declare class AuthService {
     private usersService;
     private jwtService;
     private prisma;
-    constructor(usersService: UsersService, jwtService: JwtService, prisma: PrismaService);
+    private audit;
+    constructor(usersService: UsersService, jwtService: JwtService, prisma: PrismaService, audit: AuditService);
     registerTenant(dto: RegisterTenantDto): Promise<{
         tenantId: string;
         tenantName: string;
@@ -33,10 +35,6 @@ export declare class AuthService {
     enableMfa(userId: string, code: string): Promise<{
         success: boolean;
     }>;
-    refreshToken(refreshToken: string): Promise<{
-        access_token: string;
-        refresh_token: string;
-    }>;
     promoteSuperadmin(email: string): Promise<{
         success: boolean;
         message: string;
@@ -59,5 +57,10 @@ export declare class AuthService {
         }[];
         count: number;
     }>;
+    refreshToken(refreshToken: string): Promise<{
+        access_token: string;
+        refresh_token: string;
+    }>;
+    private auditLoginFail;
     private generateTokens;
 }

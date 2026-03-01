@@ -45,11 +45,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const audit_service_1 = require("../audit/audit.service");
 const bcrypt = __importStar(require("bcrypt"));
 let UsersService = class UsersService {
     prisma;
-    constructor(prisma) {
+    audit;
+    constructor(prisma, audit) {
         this.prisma = prisma;
+        this.audit = audit;
     }
     async findOneByEmail(email) {
         return this.prisma.user.findUnique({ where: { email } });
@@ -71,43 +74,57 @@ let UsersService = class UsersService {
             orderBy: { createdAt: 'asc' },
         });
     }
-    async create(tenantId, data) {
+    async create(tenantId, data, actorId) {
         const existing = await this.findOneByEmail(data.email);
         if (existing) {
             throw new common_1.ConflictException('User already exists');
         }
         const salt = await bcrypt.genSalt();
         const hash = await bcrypt.hash(data.passwordHash, salt);
-        return this.prisma.user.create({
+        const user = await this.prisma.user.create({
             data: {
                 tenantId,
                 email: data.email,
                 passwordHash: hash,
                 role: data.role,
             },
-            select: {
-                id: true,
-                email: true,
-                role: true,
-            },
+            select: { id: true, email: true, role: true },
         });
-    }
-    async remove(tenantId, id) {
-        return this.prisma.user.delete({
-            where: { id, tenantId },
+        await this.audit.logAction(tenantId, actorId || user.id, 'CREATE', 'User', user.id, {
+            email: user.email,
+            role: user.role,
+            invitedBy: actorId,
         });
+        return user;
     }
-    async updateRole(tenantId, id, role) {
-        return this.prisma.user.update({
+    async remove(tenantId, id, actorId) {
+        const user = await this.prisma.user.findUnique({ where: { id, tenantId } });
+        const result = await this.prisma.user.delete({ where: { id, tenantId } });
+        await this.audit.logAction(tenantId, actorId || id, 'DELETE', 'User', id, {
+            email: user?.email,
+            role: user?.role,
+        });
+        return result;
+    }
+    async updateRole(tenantId, id, role, actorId) {
+        const before = await this.prisma.user.findUnique({ where: { id, tenantId }, select: { email: true, role: true } });
+        const user = await this.prisma.user.update({
             where: { id, tenantId },
             data: { role: role },
             select: { id: true, email: true, role: true },
         });
+        await this.audit.logAction(tenantId, actorId || id, 'UPDATE', 'User', id, {
+            email: user.email,
+            previousRole: before?.role,
+            newRole: role,
+        });
+        return user;
     }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        audit_service_1.AuditService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

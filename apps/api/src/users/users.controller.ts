@@ -25,18 +25,18 @@ export class UsersController {
             email: dto.email,
             passwordHash: dto.password,
             role: dto.role,
-        });
+        }, user.sub);
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-        return this.usersService.remove(user.tenantId, id);
+        return this.usersService.remove(user.tenantId, id, user.sub);
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Put(':id/role')
     updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: { role: string }) {
-        return this.usersService.updateRole(user.tenantId, id, body.role);
+        return this.usersService.updateRole(user.tenantId, id, body.role, user.sub);
     }
 }

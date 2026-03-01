@@ -1,7 +1,9 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 export declare class TenantsService {
     private readonly prisma;
-    constructor(prisma: PrismaService);
+    private readonly audit;
+    constructor(prisma: PrismaService, audit: AuditService);
     findAll(): Promise<({
         _count: {
             users: number;
@@ -36,7 +38,7 @@ export declare class TenantsService {
     }) | null>;
     create(data: {
         name: string;
-    }): Promise<{
+    }, actorId?: string): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -49,7 +51,7 @@ export declare class TenantsService {
         name?: string;
         plan?: string;
         status?: string;
-    }): Promise<{
+    }, actorId?: string): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -58,7 +60,7 @@ export declare class TenantsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED'): Promise<{
+    setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED', actorId?: string): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;
@@ -67,7 +69,7 @@ export declare class TenantsService {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    remove(id: string): Promise<{
+    remove(id: string, actorId?: string): Promise<{
         id: string;
         name: string;
         telegramBotToken: string | null;

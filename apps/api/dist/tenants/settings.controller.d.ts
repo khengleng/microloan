@@ -7,9 +7,9 @@ export declare class SettingsController {
     constructor(prisma: PrismaService, botService: BotService);
     getSettings(user: JwtPayload): Promise<{
         id: string;
+        createdAt: Date;
         name: string;
         telegramBotToken: string | null;
-        createdAt: Date;
     } | null>;
     updateSettings(user: JwtPayload, data: {
         name?: string;

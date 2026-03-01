@@ -48,6 +48,7 @@ const users_service_1 = require("../users/users.service");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = __importStar(require("bcrypt"));
 const prisma_service_1 = require("../prisma/prisma.service");
+const audit_service_1 = require("../audit/audit.service");
 const db_1 = require("@microloan/db");
 const otplib_1 = require("otplib");
 const qrcode = __importStar(require("qrcode"));
@@ -60,10 +61,12 @@ let AuthService = class AuthService {
     usersService;
     jwtService;
     prisma;
-    constructor(usersService, jwtService, prisma) {
+    audit;
+    constructor(usersService, jwtService, prisma, audit) {
         this.usersService = usersService;
         this.jwtService = jwtService;
         this.prisma = prisma;
+        this.audit = audit;
     }
     async registerTenant(dto) {
         const existing = await this.usersService.findOneByEmail(dto.adminEmail);
@@ -86,6 +89,12 @@ let AuthService = class AuthService {
                     role: role
                 }
             });
+            await this.audit.logAction(tenant.id, user.id, 'CREATE', 'Tenant', tenant.id, {
+                organizationName: dto.organizationName,
+                adminEmail: dto.adminEmail,
+                role,
+                event: 'TENANT_REGISTERED',
+            });
             return {
                 tenantId: tenant.id,
                 tenantName: tenant.name,
@@ -96,18 +105,32 @@ let AuthService = class AuthService {
     }
     async login(loginDto) {
         const user = await this.usersService.findOneByEmail(loginDto.email);
-        if (!user)
+        if (!user) {
+            await this.auditLoginFail(null, loginDto.email, 'USER_NOT_FOUND');
             throw new common_1.UnauthorizedException('Invalid credentials');
+        }
         const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
-        if (!isMatch)
+        if (!isMatch) {
+            await this.auditLoginFail(user.tenantId, loginDto.email, 'WRONG_PASSWORD', user.id);
             throw new common_1.UnauthorizedException('Invalid credentials');
+        }
         if (user.twoFactorEnabled) {
+            await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
+                email: user.email,
+                event: 'MFA_CHALLENGE_ISSUED',
+                role: user.role,
+            });
             return {
                 mfaRequired: true,
                 userId: user.id,
                 message: 'Please provide your TOTP code'
             };
         }
+        await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
+            email: user.email,
+            event: 'LOGIN_SUCCESS',
+            role: user.role,
+        });
         return this.generateTokens(user.id, user.email, user.role, user.tenantId);
     }
     async verifyMfa(userId, code) {
@@ -118,8 +141,18 @@ let AuthService = class AuthService {
             token: code,
             secret: user.twoFactorSecret
         });
-        if (!isValid)
+        if (!isValid) {
+            await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
+                email: user.email,
+                event: 'MFA_FAILED',
+            });
             throw new common_1.UnauthorizedException('Invalid MFA code');
+        }
+        await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
+            email: user.email,
+            event: 'MFA_SUCCESS',
+            role: user.role,
+        });
         return this.generateTokens(user.id, user.email, user.role, user.tenantId);
     }
     async generateMfaSecret(userId) {
@@ -132,6 +165,10 @@ let AuthService = class AuthService {
         await this.prisma.user.update({
             where: { id: userId },
             data: { twoFactorSecret: secret }
+        });
+        await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
+            email: user.email,
+            event: 'MFA_SETUP_INITIATED',
         });
         return { secret, qrCodeDataUrl };
     }
@@ -149,7 +186,34 @@ let AuthService = class AuthService {
             where: { id: userId },
             data: { twoFactorEnabled: true }
         });
+        await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
+            email: user.email,
+            event: 'MFA_ENABLED',
+        });
         return { success: true };
+    }
+    async promoteSuperadmin(email) {
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (!user)
+            throw new common_1.UnauthorizedException(`No user found with email: ${email}`);
+        const updated = await this.prisma.user.update({
+            where: { email },
+            data: { role: db_1.Role.SUPERADMIN },
+            select: { id: true, email: true, role: true, tenantId: true },
+        });
+        await this.audit.logAction(updated.tenantId, updated.id, 'UPDATE', 'User', updated.id, {
+            email: updated.email,
+            event: 'PROMOTED_TO_SUPERADMIN',
+            newRole: db_1.Role.SUPERADMIN,
+        });
+        return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
+    }
+    async listSuperadmins() {
+        const admins = await this.prisma.user.findMany({
+            where: { role: db_1.Role.SUPERADMIN },
+            select: { id: true, email: true, role: true, createdAt: true, tenant: { select: { name: true } } },
+        });
+        return { superadmins: admins, count: admins.length };
     }
     async refreshToken(refreshToken) {
         try {
@@ -162,23 +226,20 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid refresh token');
         }
     }
-    async promoteSuperadmin(email) {
-        const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user)
-            throw new common_1.UnauthorizedException(`No user found with email: ${email}`);
-        const updated = await this.prisma.user.update({
-            where: { email },
-            data: { role: db_1.Role.SUPERADMIN },
-            select: { id: true, email: true, role: true, tenantId: true },
-        });
-        return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
-    }
-    async listSuperadmins() {
-        const admins = await this.prisma.user.findMany({
-            where: { role: db_1.Role.SUPERADMIN },
-            select: { id: true, email: true, role: true, createdAt: true, tenant: { select: { name: true } } },
-        });
-        return { superadmins: admins, count: admins.length };
+    async auditLoginFail(tenantId, email, reason, userId) {
+        try {
+            if (!tenantId) {
+                const systemTenant = await this.prisma.tenant.findFirst();
+                tenantId = systemTenant?.id || 'unknown';
+            }
+            await this.audit.logAction(tenantId, userId || 'anonymous', 'LOGIN', 'User', userId || email, {
+                email,
+                event: 'LOGIN_FAILED',
+                reason,
+                timestamp: new Date().toISOString(),
+            });
+        }
+        catch { }
     }
     async generateTokens(userId, email, role, tenantId) {
         const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
@@ -198,6 +259,7 @@ exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [users_service_1.UsersService,
         jwt_1.JwtService,
-        prisma_service_1.PrismaService])
+        prisma_service_1.PrismaService,
+        audit_service_1.AuditService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map
