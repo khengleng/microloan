@@ -22,9 +22,11 @@ export class UsersService {
         id: true,
         email: true,
         role: true,
+        twoFactorEnabled: true,
         createdAt: true,
         updatedAt: true,
       },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
@@ -55,6 +57,14 @@ export class UsersService {
   async remove(tenantId: string, id: string) {
     return this.prisma.user.delete({
       where: { id, tenantId },
+    });
+  }
+
+  async updateRole(tenantId: string, id: string, role: string) {
+    return this.prisma.user.update({
+      where: { id, tenantId },
+      data: { role: role as Role },
+      select: { id: true, email: true, role: true },
     });
   }
 }

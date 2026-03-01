@@ -64,9 +64,11 @@ let UsersService = class UsersService {
                 id: true,
                 email: true,
                 role: true,
+                twoFactorEnabled: true,
                 createdAt: true,
                 updatedAt: true,
             },
+            orderBy: { createdAt: 'asc' },
         });
     }
     async create(tenantId, data) {
@@ -93,6 +95,13 @@ let UsersService = class UsersService {
     async remove(tenantId, id) {
         return this.prisma.user.delete({
             where: { id, tenantId },
+        });
+    }
+    async updateRole(tenantId, id, role) {
+        return this.prisma.user.update({
+            where: { id, tenantId },
+            data: { role: role },
+            select: { id: true, email: true, role: true },
         });
     }
 };

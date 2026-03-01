@@ -22,4 +22,11 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    updateRole(user: JwtPayload, id: string, body: {
+        role: string;
+    }): Promise<{
+        id: string;
+        email: string;
+        role: import("@prisma/client").$Enums.Role;
+    }>;
 }

@@ -127,7 +127,7 @@ let AuthService = class AuthService {
         if (!user)
             throw new common_1.UnauthorizedException();
         const secret = (0, otplib_1.generateSecret)();
-        const otpauthUrl = otpauth.keyuri(user.email, 'Microloan OS', secret);
+        const otpauthUrl = otpauth.keyuri(user.email, 'Magic Money', secret);
         const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
         await this.prisma.user.update({
             where: { id: userId },
@@ -162,8 +162,10 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid refresh token');
         }
     }
-    generateTokens(userId, email, role, tenantId) {
-        const payload = { sub: userId, email, role, tenantId };
+    async generateTokens(userId, email, role, tenantId) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+        const tenantName = tenant?.name || 'Magic Money';
+        const payload = { sub: userId, email, role, tenantId, tenantName };
         return {
             access_token: this.jwtService.sign(payload),
             refresh_token: this.jwtService.sign(payload, {

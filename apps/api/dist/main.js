@@ -6,11 +6,14 @@ const common_1 = require("@nestjs/common");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.enableCors({
-        origin: [
-            /\.railway\.app$/,
-            'http://localhost:3000',
-            'http://localhost:8080'
-        ],
+        origin: (origin, callback) => {
+            if (!origin)
+                return callback(null, true);
+            if (/\.railway\.app$/.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+                return callback(null, true);
+            }
+            callback(new Error(`CORS: origin ${origin} is not allowed`));
+        },
         credentials: true,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         allowedHeaders: 'Content-Type,Accept,Authorization',

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
-    Settings, Building, LogOut, ChevronRight, ShieldCheck
+    Settings, Building, LogOut, ChevronRight, ShieldCheck, AlertTriangle, UserCog
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -37,8 +37,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link
                 href={`/${locale}${href}`}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${active
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`}
             >
                 <Icon size={17} className="flex-shrink-0" />
@@ -85,12 +85,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
                             {(isSales || isFinance) && navItem('/loans', t('loans'), FileText)}
                             {isFinance && navItem('/repayments', t('repayments'), CreditCard)}
+                            {isFinance && navItem('/collections', 'Collections', AlertTriangle)}
                             {isFinance && navItem('/reports', t('reports'), BarChart2)}
                             {navItem('/products', 'Loan Products', BarChart2)}
 
                             {isAdmin && (
                                 <>
                                     <p className="text-[10px] uppercase text-slate-500 px-3 pt-4 pb-1 font-semibold tracking-widest">Admin</p>
+                                    {navItem('/users', 'Team Members', UserCog)}
                                     {navItem('/settings', 'Settings', Settings)}
                                 </>
                             )}

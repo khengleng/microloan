@@ -38,6 +38,9 @@ let UsersController = class UsersController {
     remove(user, id) {
         return this.usersService.remove(user.tenantId, id);
     }
+    updateRole(user, id, body) {
+        return this.usersService.updateRole(user.tenantId, id, body.role);
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -66,6 +69,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "remove", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Put)(':id/role'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "updateRole", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('users'),

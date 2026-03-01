@@ -27,4 +27,9 @@ export declare class UsersService {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    updateRole(tenantId: string, id: string, role: string): Promise<{
+        id: string;
+        email: string;
+        role: import("@microloan/db").$Enums.Role;
+    }>;
 }

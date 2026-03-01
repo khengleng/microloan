@@ -24,7 +24,7 @@ const openai_1 = __importDefault(require("openai"));
 const prisma_service_1 = require("../prisma/prisma.service");
 const borrowers_service_1 = require("../borrowers/borrowers.service");
 const loans_service_1 = require("../loans/loans.service");
-const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Microloan. 
+const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
 1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
 2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
@@ -86,7 +86,7 @@ let BotService = BotService_1 = class BotService {
             this.conversations[conversationId] = [
                 { role: 'system', content: SYSTEM_PROMPT }
             ];
-            ctx.reply('Welcome to Microloan! Need a loan? Just tell me how much you need or ask me for help applying!');
+            ctx.reply('Welcome to Magic Money! Need a loan? Just tell me how much you need or ask me for help applying!');
         });
         bot.on('text', async (ctx) => {
             const chatId = ctx.chat.id;
@@ -108,7 +108,7 @@ let BotService = BotService_1 = class BotService {
                             type: 'function',
                             function: {
                                 name: 'originate_loan',
-                                description: 'Creates a DRAFT loan in the Microloan system',
+                                description: 'Creates a DRAFT loan in the Magic Money system',
                                 parameters: {
                                     type: 'object',
                                     properties: {
