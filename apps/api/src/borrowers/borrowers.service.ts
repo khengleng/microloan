@@ -53,7 +53,7 @@ export class BorrowersService {
     });
     if (!b) throw new NotFoundException('Borrower not found');
     const updated = await this.prisma.borrower.update({
-      where: { id },
+      where: { id, tenantId },
       data: dto,
     });
     await this.audit.logAction(tenantId, userId, 'UPDATE', 'Borrower', b.id, {
@@ -73,7 +73,7 @@ export class BorrowersService {
       throw new Error('Cannot delete borrower with associated loans');
     }
 
-    await this.prisma.borrower.delete({ where: { id } });
+    await this.prisma.borrower.delete({ where: { id, tenantId } });
     await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id,
       maskBorrowerForAudit(b),   // ← masked, initials only
     );

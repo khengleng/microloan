@@ -155,7 +155,7 @@ export class LoansService {
     }
 
     const updated = await this.prisma.loan.update({
-      where: { id },
+      where: { id, tenantId },
       data: { status: dto.status as LoanStatus },
       include: { borrower: true },
     });
@@ -186,7 +186,7 @@ export class LoansService {
       throw new BadRequestException('Only draft loans can be deleted');
     }
 
-    await this.prisma.loan.delete({ where: { id } });
+    await this.prisma.loan.delete({ where: { id, tenantId } });
     await this.audit.logAction(tenantId, userId, 'DELETE', 'Loan', id, loan);
     return { success: true };
   }
@@ -224,7 +224,7 @@ export class LoansService {
     });
     if (!document) throw new NotFoundException('Document not found');
 
-    await this.prisma.document.delete({ where: { id: documentId } });
+    await this.prisma.document.delete({ where: { id: documentId, tenantId, loanId } });
     await this.audit.logAction(tenantId, userId, 'DELETE', 'Document', documentId, { loanId, name: document.name });
     return { success: true };
   }
