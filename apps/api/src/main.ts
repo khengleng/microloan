@@ -1,18 +1,18 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    // Suppress verbose NestJS logs that could expose internal details in production
+  // Use NestExpressApplication so we can access the underlying express instance
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: process.env.NODE_ENV === 'production'
       ? ['error', 'warn']
       : ['log', 'error', 'warn', 'debug'],
   });
 
-  // ── Security Headers (Helmet) ────────────────────────────────────────────
-  // Protects against XSS, clickjacking, MIME sniffing, info disclosure, etc.
+  // ── Security Headers (Helmet) ──────────────────────────────────────────────
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -26,24 +26,21 @@ async function bootstrap() {
         upgradeInsecureRequests: [],
       },
     },
-    crossOriginEmbedderPolicy: false, // Allow Railway health-check
-    hsts: {
-      maxAge: 31536000,        // 1 year
-      includeSubDomains: true,
-      preload: true,
-    },
-    xFrameOptions: { action: 'deny' },         // Clickjacking
-    xContentTypeOptions: true,                        // MIME sniffing
-    referrerPolicy: { policy: 'strict-origin' }, // Leaks prevention
+    crossOriginEmbedderPolicy: false,
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    xFrameOptions: { action: 'deny' },
+    xContentTypeOptions: true,
+    referrerPolicy: { policy: 'strict-origin' },
     permittedCrossDomainPolicies: false,
   }));
 
-  // ── Request body size limit ──────────────────────────────────────────────
-  // Prevent large-payload DoS attacks (5MB max)
-  app.use(require('express').json({ limit: '5mb' }));
-  app.use(require('express').urlencoded({ limit: '5mb', extended: true }));
+  // ── Body size limit (DoS protection — 5 MB max) ───────────────────────────
+  // NestExpressApplication exposes useBodyParser which uses
+  // the already-bundled express parser — no separate require() needed.
+  app.useBodyParser('json', { limit: '5mb' });
+  app.useBodyParser('urlencoded', { limit: '5mb', extended: true });
 
-  // ── CORS ─────────────────────────────────────────────────────────────────
+  // ── CORS ───────────────────────────────────────────────────────────────────
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
@@ -59,10 +56,10 @@ async function bootstrap() {
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Accept,Authorization',
-    maxAge: 86400, // Pre-flight cache 24h
+    maxAge: 86400,
   });
 
-  // ── Global prefix & pipes ────────────────────────────────────────────────
+  // ── Validation ────────────────────────────────────────────────────────────
   app.setGlobalPrefix('v1');
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,  // Strip unknown properties

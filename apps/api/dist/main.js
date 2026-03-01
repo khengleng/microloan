@@ -27,18 +27,14 @@ async function bootstrap() {
             },
         },
         crossOriginEmbedderPolicy: false,
-        hsts: {
-            maxAge: 31536000,
-            includeSubDomains: true,
-            preload: true,
-        },
+        hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
         xFrameOptions: { action: 'deny' },
         xContentTypeOptions: true,
         referrerPolicy: { policy: 'strict-origin' },
         permittedCrossDomainPolicies: false,
     }));
-    app.use(require('express').json({ limit: '5mb' }));
-    app.use(require('express').urlencoded({ limit: '5mb', extended: true }));
+    app.useBodyParser('json', { limit: '5mb' });
+    app.useBodyParser('urlencoded', { limit: '5mb', extended: true });
     app.enableCors({
         origin: (origin, callback) => {
             if (!origin)
