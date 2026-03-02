@@ -10,6 +10,20 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Sanitize a value for CSV output to prevent CSV Injection (OWASP).
+ * Formula-triggering characters at the start of a cell are prefixed with a
+ * single quote so spreadsheet apps treat them as text.
+ */
+function csvSafe(value: any): string {
+  const s = String(value ?? '');
+  // Characters that trigger formula execution in Excel / LibreOffice
+  if (s.length > 0 && ['=', '+', '-', '@', '\t', '\r'].includes(s[0])) {
+    return `'${s.replace(/"/g, '""')}`;
+  }
+  return s.replace(/"/g, '""');
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reports')
 export class ReportsController {
@@ -83,7 +97,7 @@ export class ReportsController {
     const rows = loans
       .map(
         (l) =>
-          `${l.id},${l.borrower.firstName} ${l.borrower.lastName},${l.principal},${l.annualInterestRate},${l.termMonths},${l.interestMethod},${l.status},${new Date(l.startDate).toISOString()}`,
+          `"${csvSafe(l.id)}","${csvSafe(l.borrower.firstName + ' ' + l.borrower.lastName)}",${l.principal},${l.annualInterestRate},${l.termMonths},"${csvSafe(l.interestMethod)}","${csvSafe(l.status)}",${new Date(l.startDate).toISOString()}`,
       )
       .join('\n');
 
@@ -109,7 +123,7 @@ export class ReportsController {
     const rows = repayments
       .map(
         (r) =>
-          `${r.id},${r.loanId},${r.loan.borrower.firstName} ${r.loan.borrower.lastName},${r.amount},${new Date(r.date).toISOString()}`,
+          `"${csvSafe(r.id)}","${csvSafe(r.loanId)}","${csvSafe(r.loan.borrower.firstName + ' ' + r.loan.borrower.lastName)}",${r.amount},${new Date(r.date).toISOString()}`,
       )
       .join('\n');
 

@@ -1,9 +1,9 @@
 "use client";
 import { useTranslations } from "next-intl";
 import Link from 'next/link';
-import Cookies from 'js-cookie';
 import { useParams, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
+
 import api from '@/lib/api';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         api.get('/auth/me')
             .then(res => setUser(res.data))
             .catch(() => {
-                Cookies.remove('access_token');
+                // Session invalid — redirect to login (server will clear cookies if needed)
                 window.location.href = `/${locale}/login`;
             });
     }, [locale]);
@@ -126,9 +126,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     )}
                     <div className="px-3 py-1 text-xs text-slate-500 truncate mb-1">{user?.email}</div>
                     <button
-                        onClick={() => {
-                            Cookies.remove('access_token');
-                            Cookies.remove('refresh_token');
+                        onClick={async () => {
+                            // Call the server route to clear HttpOnly cookies
+                            // (client JS cannot clear HttpOnly cookies directly)
+                            await fetch('/api/auth/logout', { method: 'POST' });
                             window.location.href = `/${locale}/login`;
                         }}
                         className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"

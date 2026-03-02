@@ -17,9 +17,12 @@ export type JwtPayload = {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private prisma: PrismaService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req) => req?.cookies?.['access_token'] || null,
+      ]),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_ACCESS_SECRET || 'secretKey',
+      secretOrKey: process.env.JWT_ACCESS_SECRET!, // startup guard guarantees this is set
     });
   }
 
@@ -44,6 +47,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         `Organization Suspended. Please contact support or upgrade your subscription.`
       );
     }
+
+    // ── ATOMIC USER GUARD ──────────────────────────────────────────────────
+    // Ensures that if a user is manually suspended, their JWT access is
+    // revoked INSTANTLY (next request), not when the 15min token expires.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User account is suspended or no longer exists.');
+    }
+
     return {
       id: payload.sub,
       sub: payload.sub,

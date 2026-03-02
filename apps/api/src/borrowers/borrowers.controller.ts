@@ -33,7 +33,7 @@ export class BorrowersController {
     @Query('idNumber') idNumber?: string,
     @Query('phone') phone?: string,
   ) {
-    return this.borrowersService.checkCrossTenantCredit(user.tenantId, { idNumber, phone });
+    return this.borrowersService.checkCrossTenantCredit(user.tenantId, user.sub, { idNumber, phone });
   }
 
   @Roles('ADMIN', 'OPERATOR', 'SALES')

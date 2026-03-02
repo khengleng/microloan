@@ -18,10 +18,19 @@ export class PenaltyCronService {
         this.logger.log('Starting daily penalty and late fee calculation...');
         const now = new Date();
 
+        // Build start-of-today boundary for idempotency check
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+
         const overdueSchedules = await this.prisma.repaymentSchedule.findMany({
             where: {
                 isPaid: false,
                 dueDate: { lt: now },
+                // Only grab schedules that have NOT yet been penalized today
+                OR: [
+                    { penaltyLastAppliedAt: null },
+                    { penaltyLastAppliedAt: { lt: todayStart } },
+                ],
             },
             include: {
                 loan: {
@@ -34,9 +43,7 @@ export class PenaltyCronService {
         for (const schedule of overdueSchedules) {
             if (schedule.loan.status === 'CLOSED') continue;
 
-            // Ensure we don't apply penalties more than once, or define specific logic.
-            // E.g., apply a flat late fee of $10, or 1% of the outstanding principal.
-            // This is a simple flat rate penalty for demonstration.
+            // Flat late fee of $10 per day overdue (applied once per calendar day)
             const penaltyAmount = 10.0;
 
             await this.prisma.repaymentSchedule.update({
@@ -44,6 +51,7 @@ export class PenaltyCronService {
                 data: {
                     penaltyAmount: { increment: penaltyAmount },
                     totalAmount: { increment: penaltyAmount },
+                    penaltyLastAppliedAt: now, // Mark as processed for today
                 },
             });
 

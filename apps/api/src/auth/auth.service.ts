@@ -15,7 +15,6 @@ import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
-import { RateLimiter } from '../common/rate-limiter';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
@@ -38,14 +37,6 @@ export class AuthService {
   ) { }
 
   async registerTenant(dto: RegisterTenantDto, ip?: string) {
-    // Rate limit: 5 registrations per IP per hour
-    if (ip) {
-      const rateCheck = RateLimiter.register(ip);
-      if (!rateCheck.allowed) {
-        throw new ForbiddenException('Too many registration attempts. Please try again later.');
-      }
-    }
-
     const existing = await this.usersService.findOneByEmail(dto.adminEmail);
     if (existing) {
       // Don't reveal that the email exists — return same error timing
@@ -89,15 +80,6 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto, ip?: string) {
-    // ── Rate limit by IP ─────────────────────────────────────────────────
-    if (ip) {
-      const rateCheck = RateLimiter.login(ip);
-      if (!rateCheck.allowed) {
-        await this.auditSecurityEvent(null, loginDto.email, 'LOGIN_RATE_LIMITED', ip);
-        throw new ForbiddenException('Too many login attempts. Please wait 15 minutes.');
-      }
-    }
-
     const user: any = await this.usersService.findOneByEmail(loginDto.email);
 
     // ── User not found — generic error, equal timing ─────────────────────
@@ -175,9 +157,17 @@ export class AuthService {
         role: user.role,
         ip: ip || 'unknown',
       });
+      // Issue a short-lived, single-purpose token — never expose the raw userId
+      const mfaToken = this.jwtService.sign(
+        { sub: user.id, mfaChallenge: true },
+        {
+          secret: process.env.JWT_ACCESS_SECRET!,
+          expiresIn: '5m',
+        },
+      );
       return {
         mfaRequired: true,
-        userId: user.id,
+        mfaToken,
         message: 'Please provide your TOTP code',
       };
     }
@@ -191,13 +181,18 @@ export class AuthService {
     return this.generateTokens(user.id, user.email, user.role, user.tenantId);
   }
 
-  async verifyMfa(userId: string, code: string, ip?: string) {
-    // Rate limit MFA attempts by IP
-    if (ip) {
-      const rateCheck = RateLimiter.mfa(ip);
-      if (!rateCheck.allowed) {
-        throw new ForbiddenException('Too many MFA attempts. Please wait 15 minutes.');
-      }
+  async verifyMfa(mfaToken: string, code: string, ip?: string) {
+    // Verify the short-lived MFA challenge token — never accept a raw userId directly
+    let userId: string;
+    try {
+      const payload = this.jwtService.verify<{ sub: string; mfaChallenge: boolean }>(
+        mfaToken,
+        { secret: process.env.JWT_ACCESS_SECRET! },
+      );
+      if (!payload.mfaChallenge) throw new Error('Not an MFA token');
+      userId = payload.sub;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired MFA session. Please log in again.');
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -290,7 +285,7 @@ export class AuthService {
   async refreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refreshSecret',
+        secret: process.env.JWT_REFRESH_SECRET!, // startup guard guarantees this is set
       });
       return this.generateTokens(payload.sub, payload.email, payload.role, payload.tenantId);
     } catch {
@@ -330,7 +325,7 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refreshSecret',
+        secret: process.env.JWT_REFRESH_SECRET,
         expiresIn: (process.env.JWT_REFRESH_TTL || '30d') as any,
       }),
     };

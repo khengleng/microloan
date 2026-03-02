@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -16,15 +18,22 @@ import { LoanProductsModule } from './loan-products/loan-products.module';
 import { HealthModule } from './health/health.module';
 import { BillingModule } from './billing/billing.module';
 import { DocumentVaultModule } from './document-vault/document-vault.module';
-import { PenaltyCronService } from './penalty-cron/penalty-cron.service';
-import { ExportsService } from './exports/exports.service';
 import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
-import { ExportsController } from './exports/exports.controller';
 import { ExportsModule } from './exports/exports.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    // ── Global rate limiting via @nestjs/throttler ─────────────────────────────────
+    // Works in-memory on a single instance (current Railway setup).
+    // To scale HA: add ThrottlerStorageRedisService + ioredis.
+    // Named throttlers allow @Throttle({ login: {} }) per-route customisation.
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 1_000, limit: 10 }, // 10 req/sec  — baseline DoS guard
+      { name: 'login', ttl: 15 * 60_000, limit: 10 }, // 10 logins / IP / 15 min
+      { name: 'register', ttl: 60 * 60_000, limit: 5 }, // 5 registrations / IP / hr
+      { name: 'mfa', ttl: 15 * 60_000, limit: 10 }, // 10 MFA attempts / IP / 15 min
+    ]),
     PrismaModule,
     TenantsModule,
     UsersModule,
@@ -42,7 +51,12 @@ import { ExportsModule } from './exports/exports.module';
     PenaltyCronModule,
     ExportsModule,
   ],
-  controllers: [AppController, ExportsController],
-  providers: [AppService, PenaltyCronService, ExportsService],
+  controllers: [AppController],
+  providers: [
+    AppService,
+    // Register ThrottlerGuard globally — applies to every route automatically.
+    // Use @SkipThrottle() on routes that should be exempt (e.g. health checks).
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule { }

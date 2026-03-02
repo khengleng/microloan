@@ -3,6 +3,21 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+
+// ── Required secrets guard — fail fast at startup, never use insecure fallbacks ──
+const REQUIRED_SECRETS = [
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'SETUP_SECRET',
+] as const;
+
+for (const key of REQUIRED_SECRETS) {
+  if (!process.env[key]) {
+    console.error(`FATAL: Required environment variable "${key}" is not set. Refusing to start.`);
+    process.exit(1);
+  }
+}
 
 async function bootstrap() {
   // Use NestExpressApplication so we can access the underlying express instance
@@ -11,6 +26,13 @@ async function bootstrap() {
       ? ['error', 'warn']
       : ['log', 'error', 'warn', 'debug'],
   });
+
+  // ── Trust Railway's proxy so req.ip is the real client IP ─────────────────
+  // Without this, X-Forwarded-For is client-controlled and can spoof rate limits.
+  app.set('trust proxy', 1);
+
+  // ── Parse cookies (needed for HttpOnly auth tokens) ────────────────────────
+  app.use(cookieParser());
 
   // ── Security Headers (Helmet) ──────────────────────────────────────────────
   app.use(helmet({

@@ -157,6 +157,7 @@ model RepaymentSchedule {
   paidInterest         Decimal  @default(0) @db.Decimal(10, 2)
   paidPenalty          Decimal  @default(0) @db.Decimal(10, 2)
   isPaid               Boolean  @default(false)
+  penaltyLastAppliedAt DateTime? // Guard: ensures penalty is applied at most once per day
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

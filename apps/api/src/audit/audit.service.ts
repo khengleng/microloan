@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { scrubSensitiveKeys } from '../common/mask';
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
   constructor(private prisma: PrismaService) { }
 
   async logAction(
@@ -39,7 +40,11 @@ export class AuditService {
         },
       });
     } catch (err) {
-      console.error('[AuditService] Failed to log audit action', err);
+      // Emit a structured error — never silently drop security events
+      this.logger.error(
+        `[AUDIT WRITE FAILURE] action=${action} entity=${entity} entityId=${entityId}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       // Never fail the main transaction due to an audit error
     }
   }

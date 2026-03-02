@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { maskBorrowerDto, maskBorrowerForAudit } from '../common/mask';
@@ -80,8 +80,19 @@ export class BorrowersService {
     return { success: true };
   }
 
-  async checkCrossTenantCredit(tenantId: string, query: { idNumber?: string; phone?: string }) {
-    // We search across ALL tenants but only return status summaries for privacy
+  async checkCrossTenantCredit(tenantId: string, userId: string, query: { idNumber?: string; phone?: string }) {
+    // SECURITY: Reject empty queries to avoid unintentional full scans or privacy leaks
+    if (!query.idNumber && !query.phone) {
+      throw new BadRequestException('Provide at least an ID Number or Phone to search.');
+    }
+
+    // AUDIT: This is a privacy-sensitive cross-org check, so we log WHO did it and WHAT they looked for.
+    await this.audit.logAction(tenantId, userId, 'SEARCH', 'Borrower', 'CROSS_ORG_SEARCH', {
+      event: 'CROSS_TENANT_CHECK',
+      query: { idNumber: query.idNumber ? '***' : null, phone: query.phone ? '***' : null },
+      action: 'Search across all organizations for credit risk'
+    });
+
     const borrowers = await this.prisma.borrower.findMany({
       where: {
         OR: [
@@ -97,13 +108,15 @@ export class BorrowersService {
       }
     });
 
-    return borrowers.map(b => ({
-      organization: b.tenantId === tenantId ? 'Your Organization' : 'Another Organization',
-      organizationName: b.tenantId === tenantId ? b.tenant.name : '***', // Mask name for external tenants if necessary, but user asked for "cross check"
-      loans: b.loans.map(l => ({
-        status: l.status,
-        date: l.createdAt
-      }))
-    }));
+    return borrowers.map(b => {
+      const isOwnTenant = b.tenantId === tenantId;
+      return {
+        organization: isOwnTenant ? 'Your Organization' : 'Another Organization',
+        // Never expose organization name or loan details for external tenants
+        loans: isOwnTenant
+          ? b.loans.map(l => ({ status: l.status, date: l.createdAt }))
+          : [{ summary: `${b.loans.length} loan(s) found at another lender` }],
+      };
+    });
   }
 }

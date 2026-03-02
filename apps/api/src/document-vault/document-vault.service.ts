@@ -27,6 +27,19 @@ export class DocumentVaultService {
         const loan = await this.prisma.loan.findFirst({ where: { id: loanId, tenantId } });
         if (!loan) throw new NotFoundException('Loan not found');
 
+        // ── File type allowlist (OWASP: reject unknown/dangerous types) ─────────────
+        const ALLOWED_MIME_TYPES = new Set([
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+        ]);
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            throw new BadRequestException(
+                `File type '${file.mimetype}' is not allowed. Accepted types: PDF, JPEG, PNG, WebP.`
+            );
+        }
+
         const key = `tenants/${tenantId}/loans/${loanId}/${Date.now()}_${file.originalname}`;
 
         try {
