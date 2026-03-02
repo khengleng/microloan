@@ -1,40 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
 
 /**
  * Next.js API Proxy Route
  * 
- * Since auth tokens are stored in HttpOnly cookies on this domain (magicmoney.cambobia.com),
- * client-side JavaScript cannot read them. The browser would only send them to the SAME domain.
- * 
- * This proxy route receives requests from the client, extracts the 'access_token' cookie,
- * and forwards the request to the real NestJS API with the token in the Authorization header.
+ * Bridging HttpOnly cookies from the browser to the NestJS API.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-    return proxy(req, await params);
+    const resolvedParams = await params;
+    console.log(`[Proxy] GET ${resolvedParams.path.join('/')}`);
+    return proxy(req, resolvedParams);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-    return proxy(req, await params);
+    const resolvedParams = await params;
+    console.log(`[Proxy] POST ${resolvedParams.path.join('/')}`);
+    return proxy(req, resolvedParams);
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-    return proxy(req, await params);
+    const resolvedParams = await params;
+    console.log(`[Proxy] PUT ${resolvedParams.path.join('/')}`);
+    return proxy(req, resolvedParams);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-    return proxy(req, await params);
+    const resolvedParams = await params;
+    console.log(`[Proxy] PATCH ${resolvedParams.path.join('/')}`);
+    return proxy(req, resolvedParams);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-    return proxy(req, await params);
+    const resolvedParams = await params;
+    console.log(`[Proxy] DELETE ${resolvedParams.path.join('/')}`);
+    return proxy(req, resolvedParams);
 }
 
 async function proxy(req: NextRequest, params: { path: string[] }) {
     const path = params.path.join('/');
     const url = new URL(req.url);
-    const targetUrl = `${API_BASE}/${path}${url.search}`;
+    const targetUrl = `${API_URL}/${path}${url.search}`;
 
     // 1. Extract tokens from cookies
     const accessToken = req.cookies.get('access_token')?.value;

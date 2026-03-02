@@ -20,9 +20,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     useEffect(() => {
         api.get('/auth/me')
             .then(res => setUser(res.data))
-            .catch(() => {
-                // Session invalid — redirect to login (server will clear cookies if needed)
-                window.location.href = `/${locale}/login`;
+            .catch((err) => {
+                // ONLY redirect on 401 Unauthorized. 
+                // Other errors (500, 502) should probably stay on page or show a retry.
+                if (err.response?.status === 401) {
+                    window.location.href = `/${locale}/login`;
+                } else {
+                    console.error('[Session Check Failed]', err.message);
+                }
             });
     }, [locale]);
 
