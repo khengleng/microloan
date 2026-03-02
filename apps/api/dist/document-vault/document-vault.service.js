@@ -37,6 +37,15 @@ let DocumentVaultService = DocumentVaultService_1 = class DocumentVaultService {
         const loan = await this.prisma.loan.findFirst({ where: { id: loanId, tenantId } });
         if (!loan)
             throw new common_1.NotFoundException('Loan not found');
+        const ALLOWED_MIME_TYPES = new Set([
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+        ]);
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            throw new common_1.BadRequestException(`File type '${file.mimetype}' is not allowed. Accepted types: PDF, JPEG, PNG, WebP.`);
+        }
         const key = `tenants/${tenantId}/loans/${loanId}/${Date.now()}_${file.originalname}`;
         try {
             await this.s3Client.send(new client_s3_1.PutObjectCommand({

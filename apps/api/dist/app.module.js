@@ -9,6 +9,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
+const core_1 = require("@nestjs/core");
+const throttler_1 = require("@nestjs/throttler");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const prisma_module_1 = require("./prisma/prisma.module");
@@ -25,10 +27,7 @@ const loan_products_module_1 = require("./loan-products/loan-products.module");
 const health_module_1 = require("./health/health.module");
 const billing_module_1 = require("./billing/billing.module");
 const document_vault_module_1 = require("./document-vault/document-vault.module");
-const penalty_cron_service_1 = require("./penalty-cron/penalty-cron.service");
-const exports_service_1 = require("./exports/exports.service");
 const penalty_cron_module_1 = require("./penalty-cron/penalty-cron.module");
-const exports_controller_1 = require("./exports/exports.controller");
 const exports_module_1 = require("./exports/exports.module");
 let AppModule = class AppModule {
 };
@@ -37,6 +36,12 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             schedule_1.ScheduleModule.forRoot(),
+            throttler_1.ThrottlerModule.forRoot([
+                { name: 'short', ttl: 1_000, limit: 10 },
+                { name: 'login', ttl: 15 * 60_000, limit: 10 },
+                { name: 'register', ttl: 60 * 60_000, limit: 5 },
+                { name: 'mfa', ttl: 15 * 60_000, limit: 10 },
+            ]),
             prisma_module_1.PrismaModule,
             tenants_module_1.TenantsModule,
             users_module_1.UsersModule,
@@ -54,8 +59,11 @@ exports.AppModule = AppModule = __decorate([
             penalty_cron_module_1.PenaltyCronModule,
             exports_module_1.ExportsModule,
         ],
-        controllers: [app_controller_1.AppController, exports_controller_1.ExportsController],
-        providers: [app_service_1.AppService, penalty_cron_service_1.PenaltyCronService, exports_service_1.ExportsService],
+        controllers: [app_controller_1.AppController],
+        providers: [
+            app_service_1.AppService,
+            { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

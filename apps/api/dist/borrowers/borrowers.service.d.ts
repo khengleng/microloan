@@ -56,15 +56,16 @@ export declare class BorrowersService {
     remove(tenantId: string, userId: string, id: string): Promise<{
         success: boolean;
     }>;
-    checkCrossTenantCredit(tenantId: string, query: {
+    checkCrossTenantCredit(tenantId: string, userId: string, query: {
         idNumber?: string;
         phone?: string;
     }): Promise<{
         organization: string;
-        organizationName: string;
         loans: {
             status: import("@prisma/client").$Enums.LoanStatus;
             date: Date;
+        }[] | {
+            summary: string;
         }[];
     }[]>;
 }

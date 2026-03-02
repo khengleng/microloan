@@ -1,192 +1,119 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
-import { useToast } from '@/components/ui/toast';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Eye, Phone, User, Calendar, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, CheckCircle, Search, Eye, Clock } from 'lucide-react';
-
-interface OverdueInstallment {
-    dueDate: string;
-    totalAmount: number;
-    paidPrincipal: number;
-    paidInterest: number;
-    installmentNumber: number;
-    isPaid: boolean;
-}
 
 interface OverdueLoan {
     id: string;
-    borrower: { firstName: string; lastName: string; phone: string; };
+    borrower: { firstName: string; lastName: string; phone: string };
     principal: number;
-    startDate: string;
-    status: string;
-    overdueInstallments: OverdueInstallment[];
-    daysOverdue: number;
-    totalOverdue: number;
+    schedules: Array<{
+        dueDate: string;
+        totalAmount: number;
+    }>;
 }
 
-export default function OverduePage() {
+export default function CollectionsPage() {
     const { locale } = useParams();
-    const { showToast } = useToast();
     const [loans, setLoans] = useState<OverdueLoan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        const fetchOverdue = async () => {
-            setLoading(true);
-            try {
-                const res = await api.get('/loans');
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                const overdue: OverdueLoan[] = [];
-                for (const loan of res.data) {
-                    if (loan.status !== 'DISBURSED') continue;
-                    const detail = await api.get(`/loans/${loan.id}`);
-                    const overdueInstallments = (detail.data.schedules || []).filter((s: any) =>
-                        !s.isPaid && new Date(s.dueDate) < today
-                    );
-                    if (overdueInstallments.length > 0) {
-                        const totalOverdue = overdueInstallments.reduce((sum: number, s: any) =>
-                            sum + (Number(s.totalAmount) - Number(s.paidPrincipal) - Number(s.paidInterest)), 0);
-                        const oldestDue = new Date(overdueInstallments[0].dueDate);
-                        const daysOverdue = Math.floor((today.getTime() - oldestDue.getTime()) / (1000 * 60 * 60 * 24));
-                        overdue.push({ ...loan, overdueInstallments, daysOverdue, totalOverdue });
-                    }
-                }
-                setLoans(overdue);
-            } catch {
-                showToast('Failed to load overdue loans', 'error');
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchOverdue();
+        api.get('/loans/overdue')
+            .then(res => setLoans(res.data))
+            .finally(() => setLoading(false));
     }, []);
-
-    const filtered = useMemo(() =>
-        loans.filter(l =>
-            `${l.borrower.firstName} ${l.borrower.lastName} ${l.borrower.phone}`
-                .toLowerCase().includes(searchQuery.toLowerCase())
-        ), [loans, searchQuery]);
-
-    const totalAtRisk = loans.reduce((sum, l) => sum + l.totalOverdue, 0);
-
-    const getDaysColor = (days: number) => {
-        if (days <= 7) return 'text-amber-600 bg-amber-50';
-        if (days <= 30) return 'text-orange-600 bg-orange-50';
-        return 'text-red-600 bg-red-50';
-    };
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        <AlertTriangle size={22} className="text-red-500" /> Collections & Overdue
+                        <AlertTriangle className="text-red-500" /> Collection Dashboard
                     </h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
-                        {loans.length} overdue loan{loans.length !== 1 ? 's' : ''} · At risk: <span className="font-semibold text-red-600">${totalAtRisk.toLocaleString()}</span>
-                    </p>
+                    <p className="text-sm text-slate-500 mt-0.5">Management for loans with overdue installments</p>
+                </div>
+                <div className="bg-red-50 px-4 py-2 rounded-lg border border-red-100">
+                    <span className="text-red-700 font-bold">{loans.length}</span>
+                    <span className="text-red-600 text-sm ml-1.5 font-medium uppercase tracking-wider">At Risk Loans</span>
                 </div>
             </div>
 
-            {/* Summary cards */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                    <div className="text-2xl font-bold text-amber-700">{loans.filter(l => l.daysOverdue <= 7).length}</div>
-                    <div className="text-xs text-amber-600 font-medium mt-0.5">1–7 days overdue</div>
+            {loading ? (
+                <div className="flex justify-center items-center py-20">
+                    <Loader2 className="animate-spin text-slate-300" size={40} />
                 </div>
-                <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
-                    <div className="text-2xl font-bold text-orange-700">{loans.filter(l => l.daysOverdue > 7 && l.daysOverdue <= 30).length}</div>
-                    <div className="text-xs text-orange-600 font-medium mt-0.5">8–30 days overdue</div>
+            ) : loans.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-100 p-20 text-center shadow-sm">
+                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <User className="text-emerald-500" size={30} />
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-800">Clean Portfolio!</h2>
+                    <p className="text-slate-500 mt-1">No loans currently have overdue installments.</p>
                 </div>
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                    <div className="text-2xl font-bold text-red-700">{loans.filter(l => l.daysOverdue > 30).length}</div>
-                    <div className="text-xs text-red-600 font-medium mt-0.5">30+ days overdue</div>
-                </div>
-            </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {loans.map(loan => {
+                        const oldestDue = new Date(loan.schedules[0]?.dueDate);
+                        const daysLate = Math.floor((Date.now() - oldestDue.getTime()) / (1000 * 60 * 60 * 24));
+                        const totalOverdue = loan.schedules.reduce((acc, s) => acc + Number(s.totalAmount), 0);
 
-            <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                    type="text"
-                    placeholder="Search by name or phone..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                />
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-                <table className="min-w-full">
-                    <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Borrower</th>
-                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Principal</th>
-                            <th className="px-5 py-3.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Overdue</th>
-                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount Due</th>
-                            <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {loading ? (
-                            Array.from({ length: 3 }).map((_, i) => (
-                                <tr key={i}>
-                                    {Array.from({ length: 5 }).map((_, j) => (
-                                        <td key={j} className="px-5 py-4">
-                                            <div className="h-4 bg-slate-100 rounded animate-pulse" style={{ width: `${55 + (i + j) * 7}%` }} />
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))
-                        ) : filtered.length === 0 ? (
-                            <tr>
-                                <td colSpan={5} className="px-5 py-16 text-center">
-                                    <CheckCircle size={40} className="mx-auto text-emerald-200 mb-3" />
-                                    <p className="text-slate-400 font-medium">
-                                        {searchQuery ? 'No results found' : 'No overdue loans! Great job. 🎉'}
-                                    </p>
-                                </td>
-                            </tr>
-                        ) : (
-                            filtered.map(loan => (
-                                <tr key={loan.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-5 py-4">
+                        return (
+                            <div key={loan.id} className="bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden">
+                                <div className="p-5 flex-1">
+                                    <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                                {loan.borrower.firstName.charAt(0)}{loan.borrower.lastName.charAt(0)}
+                                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                                                {loan.borrower.firstName[0]}{loan.borrower.lastName[0]}
                                             </div>
                                             <div>
-                                                <div className="text-sm font-medium text-slate-900">{loan.borrower.firstName} {loan.borrower.lastName}</div>
-                                                <div className="text-xs text-slate-400">{loan.borrower.phone}</div>
+                                                <h3 className="font-bold text-slate-900">{loan.borrower.firstName} {loan.borrower.lastName}</h3>
+                                                <p className="text-sm text-slate-500 flex items-center gap-1.5">
+                                                    <Phone size={12} /> {loan.borrower.phone}
+                                                </p>
                                             </div>
                                         </div>
-                                    </td>
-                                    <td className="px-5 py-4 text-right text-sm font-medium text-slate-700">${Number(loan.principal).toLocaleString()}</td>
-                                    <td className="px-5 py-4 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${getDaysColor(loan.daysOverdue)}`}>
-                                            <Clock size={10} />
-                                            {loan.daysOverdue}d · {loan.overdueInstallments.length} installment{loan.overdueInstallments.length !== 1 ? 's' : ''}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-4 text-right text-sm font-bold text-red-600">${loan.totalOverdue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                                    <td className="px-5 py-4 text-right">
-                                        <Link href={`/${locale}/loans/${loan.id}`}>
-                                            <button className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View Loan">
-                                                <Eye size={14} />
-                                            </button>
-                                        </Link>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                                        <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${daysLate > 30 ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                                            {daysLate} Days Late
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between text-sm py-2 border-b border-slate-50">
+                                            <span className="text-slate-500">Overdue Amount</span>
+                                            <span className="font-bold text-red-600">${totalOverdue.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm py-2 border-b border-slate-50">
+                                            <span className="text-slate-500">Total Principal</span>
+                                            <span className="font-medium text-slate-700">${loan.principal.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm py-2">
+                                            <span className="text-slate-500 flex items-center gap-1.5"><Calendar size={13} /> Oldest Due</span>
+                                            <span className="font-medium text-slate-700">{oldestDue.toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+                                    <Link href={`/${locale}/loans/${loan.id}`} className="flex-1">
+                                        <Button variant="outline" className="w-full text-xs h-9 gap-1.5">
+                                            <Eye size={14} /> Full Record
+                                        </Button>
+                                    </Link>
+                                    <Button className="flex-1 bg-slate-900 text-xs h-9 gap-1.5">
+                                        <Phone size={14} /> Logging Call
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

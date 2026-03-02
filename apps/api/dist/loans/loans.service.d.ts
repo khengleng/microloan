@@ -114,6 +114,7 @@ export declare class LoansService {
             paidInterest: import("@prisma/client/runtime/library").Decimal;
             paidPenalty: import("@prisma/client/runtime/library").Decimal;
             isPaid: boolean;
+            penaltyLastAppliedAt: Date | null;
             createdAt: Date;
             updatedAt: Date;
         }[];

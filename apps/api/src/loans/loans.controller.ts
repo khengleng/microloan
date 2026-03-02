@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
-import { CreateLoanDto, ChangeLoanStatusDto } from './dto/create-loan.dto';
+import { CreateLoanDto, ChangeLoanStatusDto, CreateInteractionDto } from './dto/create-loan.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -65,6 +65,22 @@ export class LoansController {
     @Body() dto: { name: string; content: string; type: string },
   ) {
     return this.loansService.addDocument(user.tenantId, user.sub, id, dto);
+  }
+
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+  @Get('overdue')
+  findOverdue(@CurrentUser() user: JwtPayload) {
+    return this.loansService.findOverdue(user.tenantId);
+  }
+
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+  @Post(':id/interactions')
+  addInteraction(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateInteractionDto,
+  ) {
+    return this.loansService.addInteraction(user.tenantId, user.sub, id, dto.notes, dto.title, dto.type);
   }
 
   @Roles('ADMIN', 'OPERATOR')

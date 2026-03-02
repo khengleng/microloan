@@ -25,7 +25,7 @@ exports.AuthModule = AuthModule = __decorate([
             users_module_1.UsersModule,
             passport_1.PassportModule,
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_ACCESS_SECRET || 'secretKey',
+                secret: process.env.JWT_ACCESS_SECRET,
                 signOptions: { expiresIn: (process.env.JWT_ACCESS_TTL || '15m') },
             }),
         ],

@@ -7,12 +7,26 @@ const core_1 = require("@nestjs/core");
 const app_module_1 = require("./app.module");
 const common_1 = require("@nestjs/common");
 const helmet_1 = __importDefault(require("helmet"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
+const REQUIRED_SECRETS = [
+    'JWT_ACCESS_SECRET',
+    'JWT_REFRESH_SECRET',
+    'SETUP_SECRET',
+];
+for (const key of REQUIRED_SECRETS) {
+    if (!process.env[key]) {
+        console.error(`FATAL: Required environment variable "${key}" is not set. Refusing to start.`);
+        process.exit(1);
+    }
+}
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule, {
         logger: process.env.NODE_ENV === 'production'
             ? ['error', 'warn']
             : ['log', 'error', 'warn', 'debug'],
     });
+    app.set('trust proxy', 1);
+    app.use((0, cookie_parser_1.default)());
     app.use((0, helmet_1.default)({
         contentSecurityPolicy: {
             directives: {

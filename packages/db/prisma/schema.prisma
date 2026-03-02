@@ -76,8 +76,9 @@ model Borrower {
 }
 
 enum LoanStatus {
-  DRAFT
+  PENDING
   APPROVED
+  REJECTED
   DISBURSED
   CLOSED
   DEFAULTED
@@ -126,7 +127,7 @@ model Loan {
   productId          String?
   product            LoanProduct?   @relation(fields: [productId], references: [id])
   creditRatingApplied String?
-  status             LoanStatus     @default(DRAFT)
+  status             LoanStatus     @default(PENDING)
   principal          Decimal        @db.Decimal(10, 2)
   annualInterestRate Decimal        @db.Decimal(5, 2)
   termMonths         Int
@@ -135,11 +136,56 @@ model Loan {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  schedules  RepaymentSchedule[]
-  repayments Repayment[]
-  documents  Document[]
+  schedules    RepaymentSchedule[]
+  repayments   Repayment[]
+  documents    Document[]
+  collaterals  Collateral[]
+  guarantors   Guarantor[]
+  interactions LoanInteraction[]
+
+  // Approval Workflow Fields
+  approvedBy   String?
+  approvedAt   DateTime?
+  rejectedBy   String?
+  rejectedAt   DateTime?
+  rejectionReason String?
 
   @@index([tenantId])
+}
+
+model Collateral {
+  id          String   @id @default(uuid())
+  loanId      String
+  loan        Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  type        String   // e.g., "LAND_TITLE", "VEHICLE", "GOLD", "OTHER"
+  description String
+  value       Decimal  @db.Decimal(10, 2)
+  idNumber    String?  // e.g., Land title number or license plate
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Guarantor {
+  id        String   @id @default(uuid())
+  loanId    String
+  loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  idNumber  String?
+  relation  String?  // e.g., "SPOUSE", "PARENT", "COLLEAGUE"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LoanInteraction {
+  id        String   @id @default(uuid())
+  loanId    String
+  loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  userId    String
+  title     String?  // e.g., "Follow-up Call", "Home Visit"
+  notes     String
+  type      String   @default("NOTE") // NOTE, CALL, VISIT, SYSTEM
+  createdAt DateTime @default(now())
 }
 
 model RepaymentSchedule {

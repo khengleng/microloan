@@ -21,10 +21,10 @@ export declare class AuthService {
         refresh_token: string;
     } | {
         mfaRequired: boolean;
-        userId: any;
+        mfaToken: string;
         message: string;
     }>;
-    verifyMfa(userId: string, code: string, ip?: string): Promise<{
+    verifyMfa(mfaToken: string, code: string, ip?: string): Promise<{
         access_token: string;
         refresh_token: string;
     }>;

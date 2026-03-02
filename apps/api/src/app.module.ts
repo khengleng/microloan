@@ -20,6 +20,7 @@ import { BillingModule } from './billing/billing.module';
 import { DocumentVaultModule } from './document-vault/document-vault.module';
 import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
 import { ExportsModule } from './exports/exports.module';
+import { ReminderModule } from './reminder/reminder.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ExportsModule } from './exports/exports.module';
     DocumentVaultModule,
     PenaltyCronModule,
     ExportsModule,
+    ReminderModule,
   ],
   controllers: [AppController],
   providers: [

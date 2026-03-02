@@ -27,7 +27,7 @@ let BorrowersController = class BorrowersController {
         this.borrowersService = borrowersService;
     }
     checkCrossTenant(user, idNumber, phone) {
-        return this.borrowersService.checkCrossTenantCredit(user.tenantId, { idNumber, phone });
+        return this.borrowersService.checkCrossTenantCredit(user.tenantId, user.sub, { idNumber, phone });
     }
     create(user, dto) {
         return this.borrowersService.create(user.tenantId, user.sub, dto);

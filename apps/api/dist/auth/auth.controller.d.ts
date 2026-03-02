@@ -16,7 +16,7 @@ export declare class AuthController {
         refresh_token: string;
     } | {
         mfaRequired: boolean;
-        userId: any;
+        mfaToken: string;
         message: string;
     }>;
     refresh(refreshDto: RefreshDto): Promise<{
@@ -25,7 +25,7 @@ export declare class AuthController {
     }>;
     getProfile(user: JwtPayload): JwtPayload;
     verifyMfa(dto: {
-        userId: string;
+        mfaToken: string;
         code: string;
     }, req: any): Promise<{
         access_token: string;
@@ -42,7 +42,6 @@ export declare class AuthController {
     }>;
     promoteSuperadmin(body: {
         email: string;
-        secret: string;
     }): Promise<{
         success: boolean;
         message: string;
@@ -53,9 +52,7 @@ export declare class AuthController {
             role: import("@prisma/client").$Enums.Role;
         };
     }>;
-    listSuperadmins(body: {
-        secret: string;
-    }): Promise<{
+    listSuperadmins(): Promise<{
         superadmins: {
             tenant: {
                 name: string;

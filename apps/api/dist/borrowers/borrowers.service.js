@@ -70,7 +70,15 @@ let BorrowersService = class BorrowersService {
         await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id, (0, mask_1.maskBorrowerForAudit)(b));
         return { success: true };
     }
-    async checkCrossTenantCredit(tenantId, query) {
+    async checkCrossTenantCredit(tenantId, userId, query) {
+        if (!query.idNumber && !query.phone) {
+            throw new common_1.BadRequestException('Provide at least an ID Number or Phone to search.');
+        }
+        await this.audit.logAction(tenantId, userId, 'SEARCH', 'Borrower', 'CROSS_ORG_SEARCH', {
+            event: 'CROSS_TENANT_CHECK',
+            query: { idNumber: query.idNumber ? '***' : null, phone: query.phone ? '***' : null },
+            action: 'Search across all organizations for credit risk'
+        });
         const borrowers = await this.prisma.borrower.findMany({
             where: {
                 OR: [
@@ -85,14 +93,15 @@ let BorrowersService = class BorrowersService {
                 }
             }
         });
-        return borrowers.map(b => ({
-            organization: b.tenantId === tenantId ? 'Your Organization' : 'Another Organization',
-            organizationName: b.tenantId === tenantId ? b.tenant.name : '***',
-            loans: b.loans.map(l => ({
-                status: l.status,
-                date: l.createdAt
-            }))
-        }));
+        return borrowers.map(b => {
+            const isOwnTenant = b.tenantId === tenantId;
+            return {
+                organization: isOwnTenant ? 'Your Organization' : 'Another Organization',
+                loans: isOwnTenant
+                    ? b.loans.map(l => ({ status: l.status, date: l.createdAt }))
+                    : [{ summary: `${b.loans.length} loan(s) found at another lender` }],
+            };
+        });
     }
 };
 exports.BorrowersService = BorrowersService;

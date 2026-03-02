@@ -52,7 +52,23 @@ export class LoansService {
           interestMethod: dto.interestMethod,
           productId: dto.productId,
           creditRatingApplied: dto.creditRatingApplied,
-          status: LoanStatus.DRAFT,
+          status: LoanStatus.PENDING,
+          collaterals: dto.collaterals ? {
+            create: dto.collaterals.map(c => ({
+              type: c.type,
+              description: c.description,
+              value: c.value,
+              idNumber: c.idNumber,
+            }))
+          } : undefined,
+          guarantors: dto.guarantors ? {
+            create: dto.guarantors.map(g => ({
+              name: g.name,
+              phone: g.phone,
+              idNumber: g.idNumber,
+              relation: g.relation,
+            }))
+          } : undefined,
         },
       });
 
@@ -100,6 +116,9 @@ export class LoansService {
         schedules: { orderBy: { installmentNumber: 'asc' } },
         repayments: { orderBy: { date: 'asc' } },
         documents: { orderBy: { createdAt: 'desc' } },
+        collaterals: true,
+        guarantors: true,
+        interactions: { orderBy: { createdAt: 'desc' } },
       },
     });
     if (!loan) throw new NotFoundException('Loan not found');
@@ -126,57 +145,95 @@ export class LoansService {
 
     if (currentStatus === targetStatus) return loan;
 
-    // Transition Rule 1: DRAFT -> APPROVED
-    if (currentStatus === LoanStatus.DRAFT && targetStatus === ('APPROVED' as any)) {
-      if (!['SUPERADMIN', 'ADMIN', 'FINANCE', 'OPERATOR'].includes(userRole)) {
-        throw new ForbiddenException(`Your role (${userRole}) is not authorized to APPROVE loans.`);
+    // ── Transition Rules ─────────────────────────────────────────────────────
+
+    // 1. PENDING -> APPROVED / REJECTED
+    if (currentStatus === LoanStatus.PENDING && [LoanStatus.APPROVED, LoanStatus.REJECTED].includes(targetStatus)) {
+      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
+        throw new ForbiddenException(`Only an ADMIN/SUPERADMIN can review loan applications.`);
       }
     }
 
-    // Transition Rule 2: APPROVED -> DISBURSED
-    if (currentStatus === ('APPROVED' as any) && targetStatus === LoanStatus.DISBURSED) {
+    // 2. APPROVED -> DISBURSED
+    if (currentStatus === LoanStatus.APPROVED && targetStatus === LoanStatus.DISBURSED) {
       if (!['SUPERADMIN', 'ADMIN', 'FINANCE'].includes(userRole)) {
         throw new ForbiddenException(`Your role (${userRole}) is not authorized to DISBURSE funds.`);
       }
     }
 
-    // Transition Rule 3: Mark as DEFAULTED
-    if (targetStatus === LoanStatus.DEFAULTED) {
-      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
-        throw new ForbiddenException(`Only an ADMIN can mark a loan as DEFAULTED.`);
-      }
-    }
+    // ── Update Logic ─────────────────────────────────────────────────────────
 
-    // Protection for backward transitions (e.g. DISBURSED -> DRAFT)
-    if (currentStatus === LoanStatus.DISBURSED && ['DRAFT', 'APPROVED'].includes(targetStatus)) {
-      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
-        throw new ForbiddenException(`Cannot reverse a disbursed loan without ADMIN privileges.`);
-      }
+    const data: any = { status: targetStatus };
+    if (targetStatus === LoanStatus.APPROVED) {
+      data.approvedBy = userId;
+      data.approvedAt = new Date();
+    } else if (targetStatus === LoanStatus.REJECTED) {
+      data.rejectedBy = userId;
+      data.rejectedAt = new Date();
+      data.rejectionReason = dto.reason;
     }
 
     const updated = await this.prisma.loan.update({
       where: { id, tenantId },
-      data: { status: dto.status as LoanStatus },
+      data,
       include: { borrower: true },
     });
 
+    // ── Side Effects (Alerts) ────────────────────────────────────────────────
     if (updated.status === LoanStatus.DISBURSED && loan.status !== LoanStatus.DISBURSED) {
-      // Send alert via telegram if they have a telegram chat mapped to them
       if (updated.borrower.telegramChatId) {
         try {
-          const msg = `🎉 Good news! Your loan of **$${updated.principal}** has been DISBURSED and is now ready. Please check the Magic Money portal for your repayment schedule.`;
+          const msg = `🎉 Your loan of **$${updated.principal}** has been DISBURSED. Check your schedule at the Magic Money portal.`;
           await this.bot.sendDisbursementAlert(tenantId, updated.borrower.telegramChatId, msg);
-        } catch (error) {
-          console.error('Failed to send telegram disbursement alert', error);
-        }
+        } catch { }
       }
     }
 
     await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {
       old: loan.status,
-      new: dto.status,
+      new: targetStatus,
+      reason: dto.reason,
     });
     return updated;
+  }
+
+  async findOverdue(tenantId: string) {
+    const today = new Date();
+    return this.prisma.loan.findMany({
+      where: {
+        tenantId,
+        status: LoanStatus.DISBURSED,
+        schedules: {
+          some: {
+            dueDate: { lt: today },
+            isPaid: false,
+          },
+        },
+      },
+      include: {
+        borrower: true,
+        schedules: {
+          where: { dueDate: { lt: today }, isPaid: false },
+        },
+      },
+    });
+  }
+
+  async addInteraction(tenantId: string, userId: string, loanId: string, notes: string, title?: string, type?: string) {
+    const loan = await this.prisma.loan.findUnique({ where: { id: loanId, tenantId } });
+    if (!loan) throw new NotFoundException('Loan not found');
+
+    const interaction = await this.prisma.loanInteraction.create({
+      data: {
+        loanId,
+        userId,
+        notes,
+        title,
+        type: type || 'NOTE',
+      },
+    });
+
+    return interaction;
   }
 
   async remove(tenantId: string, userId: string, id: string) {

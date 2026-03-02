@@ -14,17 +14,16 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
+const throttler_1 = require("@nestjs/throttler");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const register_tenant_dto_1 = require("./dto/register-tenant.dto");
 const jwt_auth_guard_1 = require("./jwt-auth.guard");
+const roles_guard_1 = require("./roles.guard");
+const roles_decorator_1 = require("./roles.decorator");
 const current_user_decorator_1 = require("./current-user.decorator");
 function getIp(req) {
-    const forwarded = req.headers?.['x-forwarded-for'];
-    if (forwarded) {
-        return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
-    }
-    return req.socket?.remoteAddress || req.ip || 'unknown';
+    return req.ip || 'unknown';
 }
 let AuthController = class AuthController {
     authService;
@@ -44,7 +43,7 @@ let AuthController = class AuthController {
         return user;
     }
     verifyMfa(dto, req) {
-        return this.authService.verifyMfa(dto.userId, dto.code, getIp(req));
+        return this.authService.verifyMfa(dto.mfaToken, dto.code, getIp(req));
     }
     generateMfaSecret(user) {
         return this.authService.generateMfaSecret(user.sub);
@@ -53,22 +52,15 @@ let AuthController = class AuthController {
         return this.authService.enableMfa(user.sub, dto.code);
     }
     async promoteSuperadmin(body) {
-        const setupSecret = process.env.SETUP_SECRET;
-        if (!setupSecret || body.secret !== setupSecret) {
-            throw new common_1.UnauthorizedException('Invalid setup secret');
-        }
         return this.authService.promoteSuperadmin(body.email);
     }
-    async listSuperadmins(body) {
-        const setupSecret = process.env.SETUP_SECRET;
-        if (!setupSecret || body.secret !== setupSecret) {
-            throw new common_1.UnauthorizedException('Invalid setup secret');
-        }
+    async listSuperadmins() {
         return this.authService.listSuperadmins();
     }
 };
 exports.AuthController = AuthController;
 __decorate([
+    (0, throttler_1.Throttle)({ register: {} }),
     (0, common_1.Post)('register-tenant'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -77,6 +69,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "register", null);
 __decorate([
+    (0, throttler_1.Throttle)({ login: {} }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('login'),
     __param(0, (0, common_1.Body)()),
@@ -86,6 +79,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
 __decorate([
+    (0, throttler_1.Throttle)({ login: {} }),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('refresh'),
     __param(0, (0, common_1.Body)()),
@@ -94,6 +88,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "refresh", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Get)('me'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -102,6 +97,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "getProfile", null);
 __decorate([
+    (0, throttler_1.Throttle)({ mfa: {} }),
     (0, common_1.Post)('mfa/authenticate'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
@@ -111,6 +107,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "verifyMfa", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('mfa/generate'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -119,6 +116,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "generateMfaSecret", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('mfa/enable'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -128,6 +126,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "enableMfa", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('promote-superadmin'),
     __param(0, (0, common_1.Body)()),
@@ -136,11 +137,13 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "promoteSuperadmin", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     (0, common_1.Post)('list-superadmins'),
-    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "listSuperadmins", null);
 exports.AuthController = AuthController = __decorate([

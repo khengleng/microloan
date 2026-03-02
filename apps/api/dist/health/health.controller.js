@@ -13,6 +13,10 @@ exports.HealthController = void 0;
 const common_1 = require("@nestjs/common");
 const terminus_1 = require("@nestjs/terminus");
 const prisma_health_1 = require("./prisma.health");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const throttler_1 = require("@nestjs/throttler");
 let HealthController = class HealthController {
     health;
     memory;
@@ -22,7 +26,10 @@ let HealthController = class HealthController {
         this.memory = memory;
         this.db = db;
     }
-    check() {
+    publicCheck() {
+        return { status: 'ok' };
+    }
+    detailedCheck() {
         return this.health.check([
             () => this.db.isHealthy('database'),
             () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
@@ -32,12 +39,21 @@ let HealthController = class HealthController {
 };
 exports.HealthController = HealthController;
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], HealthController.prototype, "publicCheck", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('SUPERADMIN'),
+    (0, common_1.Get)('detailed'),
     (0, terminus_1.HealthCheck)(),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
-], HealthController.prototype, "check", null);
+], HealthController.prototype, "detailedCheck", null);
 exports.HealthController = HealthController = __decorate([
     (0, common_1.Controller)('health'),
     __metadata("design:paramtypes", [terminus_1.HealthCheckService,

@@ -6,23 +6,34 @@
 
 [33m[1m⚠[22m[39m The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
 [37m[1m [22m[39m Creating an optimized production build ...
-[32m[1m✓[22m[39m Compiled successfully in 1586.1ms
-[?25l[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[1A[2K[1G[?25h[?25l[37m[1m [22m[39m Finished TypeScript in 1493.0ms  [36m.[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Finished TypeScript in 1493.0ms    [32m[1m✓[22m[39m Finished TypeScript in 1493.0ms 
-[?25l[37m[1m [22m[39m Collecting page data using 11 workers  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Collecting page data using 11 workers  [36m..[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Collecting page data using 11 workers in 249.2ms    [32m[1m✓[22m[39m Collecting page data using 11 workers in 249.2ms 
-[?25l[37m[1m [22m[39m Generating static pages using 11 workers (0/4)  [36m[    ][39m[2K[1G[1A[2K[1G[?25h[32m[1m✓[22m[39m Generating static pages using 11 workers (4/4) in 57.4ms
-[?25l[37m[1m [22m[39m Finalizing page optimization  [36m.[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Finalizing page optimization in 9.2ms    [32m[1m✓[22m[39m Finalizing page optimization in 9.2ms 
+[32m[1m✓[22m[39m Compiled successfully in 1764.7ms
+[?25l[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m.[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m..[39m[2K[1G[37m[1m [22m[39m Running TypeScript  [36m...[39m[2K[1G[?25h[?25l[37m[1m [22m[39m Finished TypeScript in 1793.0ms  [36m.[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Finished TypeScript in 1793.0ms    [32m[1m✓[22m[39m Finished TypeScript in 1793.0ms 
+[?25l[37m[1m [22m[39m Collecting page data using 11 workers  [36m.[39m[2K[1G[1A[2K[1G[37m[1m [22m[39m Collecting page data using 11 workers  [36m..[39m[2K[1G[1A[2K[1G[?25h[37m[1m [22m[39m Collecting page data using 11 workers in 266.8ms    [32m[1m✓[22m[39m Collecting page data using 11 workers in 266.8ms 
+[?25l[37m[1m [22m[39m Generating static pages using 11 workers (0/7)  [36m[    ][39m[2K[1G[1A[2K[1G[?25h[32m[1m✓[22m[39m Generating static pages using 11 workers (7/7) in 61.0ms
+[?25l[37m[1m [22m[39m Finalizing page optimization  [36m.[39m[2K[1G[?25h[37m[1m [22m[39m Finalizing page optimization in 6.6ms    [32m[1m✓[22m[39m Finalizing page optimization in 6.6ms 
 
 [4mRoute (app)[24m
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /[locale]
+├ ƒ /[locale]/audit
 ├ ƒ /[locale]/borrowers
+├ ƒ /[locale]/borrowers/[id]
+├ ƒ /[locale]/collections
 ├ ƒ /[locale]/dashboard
 ├ ƒ /[locale]/loans
 ├ ƒ /[locale]/loans/[id]
 ├ ƒ /[locale]/login
+├ ƒ /[locale]/products
+├ ƒ /[locale]/register
 ├ ƒ /[locale]/repayments
-└ ƒ /[locale]/reports
+├ ƒ /[locale]/reports
+├ ƒ /[locale]/settings
+├ ƒ /[locale]/tenants
+├ ƒ /[locale]/users
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+└ ƒ /api/auth/mfa
 
 
 ƒ Proxy (Middleware)

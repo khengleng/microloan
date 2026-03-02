@@ -29,10 +29,16 @@ let PenaltyCronService = PenaltyCronService_1 = class PenaltyCronService {
     async applyLatePenalties() {
         this.logger.log('Starting daily penalty and late fee calculation...');
         const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
         const overdueSchedules = await this.prisma.repaymentSchedule.findMany({
             where: {
                 isPaid: false,
                 dueDate: { lt: now },
+                OR: [
+                    { penaltyLastAppliedAt: null },
+                    { penaltyLastAppliedAt: { lt: todayStart } },
+                ],
             },
             include: {
                 loan: {
@@ -50,6 +56,7 @@ let PenaltyCronService = PenaltyCronService_1 = class PenaltyCronService {
                 data: {
                     penaltyAmount: { increment: penaltyAmount },
                     totalAmount: { increment: penaltyAmount },
+                    penaltyLastAppliedAt: now,
                 },
             });
             const daysOverdue = Math.floor((now.getTime() - schedule.dueDate.getTime()) / (1000 * 60 * 60 * 24));

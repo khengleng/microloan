@@ -10,6 +10,7 @@ import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download, ThumbsUp } 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { Input } from '@/components/ui/input';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -39,6 +40,31 @@ interface Document {
     createdAt: string;
 }
 
+interface Collateral {
+    id: string;
+    type: string;
+    description: string;
+    value: number;
+    idNumber: string;
+}
+
+interface Guarantor {
+    id: string;
+    name: string;
+    phone: string;
+    relation: string;
+    idNumber?: string;
+}
+
+interface Interaction {
+    id: string;
+    userId: string;
+    title: string;
+    notes: string;
+    type: string;
+    createdAt: string;
+}
+
 interface Loan {
     id: string;
     borrower: {
@@ -62,6 +88,12 @@ interface Loan {
     schedules: ScheduleItem[];
     repayments: Repayment[];
     documents: Document[];
+    collaterals: Collateral[];
+    guarantors: Guarantor[];
+    interactions: Interaction[];
+    approvedBy?: string;
+    approvedAt?: string;
+    rejectionReason?: string;
 }
 
 export default function LoanDetailsPage() {
@@ -84,18 +116,31 @@ export default function LoanDetailsPage() {
 
     const handleApprove = async () => {
         const ok = await confirm({
-            title: 'Approve Loan',
-            message: 'This loan will move to APPROVED status, awaiting disbursement.',
+            title: 'Approve Loan Application',
+            message: 'This loan will be marked as APPROVED. You will then be able to disburse funds.',
             confirmLabel: 'Approve',
             variant: 'default',
         });
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
-            showToast('Loan approved successfully', 'success');
+            showToast('Loan approved!', 'success');
             fetchLoan();
         } catch (error) {
-            showToast('Failed to approve loan', 'error');
+            showToast('Approve failed', 'error');
+        }
+    };
+
+    const handleReject = async () => {
+        const reason = window.prompt('Reason for rejection:');
+        if (reason === null) return;
+
+        try {
+            await api.put(`/loans/${id}/status`, { status: 'REJECTED', reason });
+            showToast('Loan applicant rejected', 'success');
+            fetchLoan();
+        } catch (error) {
+            showToast('Reject failed', 'error');
         }
     };
 
@@ -191,6 +236,18 @@ export default function LoanDetailsPage() {
             showToast('Delete failed', 'error');
         }
     };
+    const [newNote, setNewNote] = useState('');
+    const handleAddNote = async () => {
+        if (!newNote) return;
+        try {
+            await api.post(`/loans/${id}/interactions`, { notes: newNote, title: 'Follow-up Note' });
+            setNewNote('');
+            showToast('Note added', 'success');
+            fetchLoan();
+        } catch {
+            showToast('Failed to add note', 'error');
+        }
+    };
 
     useEffect(() => {
         fetchLoan();
@@ -214,25 +271,30 @@ export default function LoanDetailsPage() {
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    {loan.status === 'DRAFT' && (
+                    {loan.status === 'PENDING' && (
                         <>
-                            <Button onClick={handleDelete} variant="destructive" className="flex items-center gap-2">
-                                <Trash2 size={16} /> Delete Draft
+                            <Button onClick={handleReject} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
+                                Reject Application
                             </Button>
-                            <Button onClick={handleApprove} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-                                <ThumbsUp size={16} /> Approve
+                            <Button onClick={handleApprove} className="bg-blue-600 hover:bg-blue-700">
+                                Approve Application
                             </Button>
                         </>
                     )}
                     {loan.status === 'APPROVED' && (
                         <Button onClick={handleDisburse} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                            <CheckCircle size={16} /> Disburse Loan
+                            <CheckCircle size={16} /> Disburse Funds
                         </Button>
                     )}
                     {loan.status === 'DISBURSED' && (
-                        <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                            <Plus size={16} /> Make a Payment
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
+                                <Plus size={16} /> Make Payment
+                            </Button>
+                            {loan.status !== ('CLOSED' as string) && (
+                                <Button variant="outline" onClick={handleReject} className="text-red-500">Mark Defaulted</Button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -244,7 +306,14 @@ export default function LoanDetailsPage() {
                 defaultLoanId={loan.id}
             />
 
-            {loan.status === 'DRAFT' && loan.borrower.loans && loan.borrower.loans.length > 1 && (
+            {loan.status === 'REJECTED' && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                    <h3 className="text-sm font-bold text-red-800">Application Rejected</h3>
+                    <p className="text-sm text-red-700 mt-1">Reason: {loan.rejectionReason || 'No reason provided'}</p>
+                </div>
+            )}
+
+            {loan.status === 'PENDING' && loan.borrower.loans && loan.borrower.loans.length > 1 && (
                 <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-lg">
                     <div className="flex">
                         <div className="ml-3">
@@ -272,16 +341,54 @@ export default function LoanDetailsPage() {
                     <h2 className="text-lg font-semibold border-b pb-2">{t('summary')}</h2>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                         <span className="text-gray-500">{t('principal')}:</span>
-                        <span className="font-medium">${loan.principal.toLocaleString()}</span>
-                        <span className="text-gray-500">Interest Rate:</span>
-                        <span className="font-medium">{loan.annualInterestRate}%</span>
+                        <span className="font-bold text-lg text-slate-900">${loan.principal.toLocaleString()}</span>
+                        <span className="text-gray-500">Interest:</span>
+                        <span className="font-medium">{loan.annualInterestRate}% ({loan.interestMethod})</span>
                         <span className="text-gray-500">Term:</span>
                         <span className="font-medium">{loan.termMonths} Months</span>
-                        <span className="text-gray-500">Method:</span>
-                        <span className="font-medium">{loan.interestMethod}</span>
-                        <span className="text-gray-500">{t('status')}:</span>
-                        <span className="font-medium">{loan.status}</span>
+                        <span className="text-gray-500">Status:</span>
+                        <span className={`px-2 py-0.5 inline-flex text-[10px] font-extrabold rounded-full ${loan.status === 'DISBURSED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{loan.status}</span>
+                        {loan.approvedAt && (
+                            <>
+                                <span className="text-gray-500">Approved:</span>
+                                <span className="text-[10px] text-slate-600">{new Date(loan.approvedAt).toLocaleString()}</span>
+                            </>
+                        )}
                     </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow space-y-4">
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Collateral</h2>
+                    {loan.collaterals?.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">No collateral recorded.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {loan.collaterals?.map(c => (
+                                <div key={c.id} className="text-xs border-l-2 border-slate-200 pl-3">
+                                    <p className="font-bold text-slate-700">{c.type}: {c.idNumber || 'No ID'}</p>
+                                    <p className="text-slate-500">{c.description}</p>
+                                    <p className="font-bold text-blue-600 mt-1">${c.value.toLocaleString()}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow space-y-4">
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Guarantors</h2>
+                    {loan.guarantors?.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">No guarantors recorded.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {loan.guarantors?.map(g => (
+                                <div key={g.id} className="text-xs border-l-2 border-blue-200 pl-3">
+                                    <p className="font-bold text-slate-700">{g.name}</p>
+                                    <p className="text-slate-500">{g.relation || 'Relation N/A'} • {g.phone}</p>
+                                    {g.idNumber && <p className="text-[10px] text-slate-400 mt-1">ID: {g.idNumber}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="md:col-span-2 bg-white p-6 rounded-lg shadow overflow-hidden">
@@ -360,43 +467,32 @@ export default function LoanDetailsPage() {
                     </table>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
-                    <div className="flex justify-between items-center border-b pb-2 mb-4">
-                        <h2 className="text-lg font-semibold">Documents</h2>
-                        <div className="relative">
-                            <input
-                                type="file"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                onChange={handleFileUpload}
-                                disabled={uploadingDoc}
-                            />
-                            <Button size="sm" variant="outline" disabled={uploadingDoc}>
-                                {uploadingDoc ? 'Uploading...' : 'Upload File'}
-                            </Button>
-                        </div>
+                <div className="bg-white p-6 rounded-lg shadow overflow-hidden flex flex-col h-[400px]">
+                    <h2 className="text-lg font-semibold border-b pb-2 mb-4">Interaction History</h2>
+                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+                        {(!loan.interactions || loan.interactions.length === 0) ? (
+                            <div className="text-center py-8 text-slate-400 text-xs italic">No collection notes yet.</div>
+                        ) : (
+                            loan.interactions.map(it => (
+                                <div key={it.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 relative group">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{it.type} • {new Date(it.createdAt).toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-800 mb-0.5">{it.title}</p>
+                                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{it.notes}</p>
+                                </div>
+                            ))
+                        )}
                     </div>
-                    {(!loan.documents || loan.documents.length === 0) ? (
-                        <div className="text-center py-4 text-gray-500">No documents attached.</div>
-                    ) : (
-                        <ul className="divide-y divide-gray-100">
-                            {loan.documents.map(doc => (
-                                <li key={doc.id} className="py-3 flex justify-between items-center">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <FileText size={20} className="text-gray-400 shrink-0" />
-                                        <span className="truncate text-sm font-medium">{doc.name}</span>
-                                    </div>
-                                    <div className="flex gap-2 shrink-0">
-                                        <Button size="icon" variant="ghost" className="text-blue-600 h-8 w-8" onClick={() => handleDownloadDoc(doc.id, doc.name)}>
-                                            <Download size={16} />
-                                        </Button>
-                                        <Button size="icon" variant="ghost" className="text-red-500 h-8 w-8" onClick={() => handleDeleteDoc(doc.id)}>
-                                            <Trash2 size={16} />
-                                        </Button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    <div className="flex gap-2">
+                        <Input
+                            placeholder="Type a collection note or visit summary..."
+                            value={newNote}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewNote(e.target.value)}
+                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddNote()}
+                        />
+                        <Button onClick={handleAddNote}>Add</Button>
+                    </div>
                 </div>
             </div>
         </div>

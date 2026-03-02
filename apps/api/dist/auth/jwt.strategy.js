@@ -18,9 +18,12 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
     prisma;
     constructor(prisma) {
         super({
-            jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: passport_jwt_1.ExtractJwt.fromExtractors([
+                passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
+                (req) => req?.cookies?.['access_token'] || null,
+            ]),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_ACCESS_SECRET || 'secretKey',
+            secretOrKey: process.env.JWT_ACCESS_SECRET,
         });
         this.prisma = prisma;
     }
@@ -37,6 +40,13 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         }
         if (tenant.status !== 'ACTIVE') {
             throw new common_1.ForbiddenException(`Organization Suspended. Please contact support or upgrade your subscription.`);
+        }
+        const user = await this.prisma.user.findUnique({
+            where: { id: payload.sub },
+            select: { isActive: true },
+        });
+        if (!user || !user.isActive) {
+            throw new common_1.UnauthorizedException('User account is suspended or no longer exists.');
         }
         return {
             id: payload.sub,

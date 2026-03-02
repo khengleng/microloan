@@ -22,6 +22,13 @@ const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const current_user_decorator_1 = require("../auth/current-user.decorator");
 const prisma_service_1 = require("../prisma/prisma.service");
+function csvSafe(value) {
+    const s = String(value ?? '');
+    if (s.length > 0 && ['=', '+', '-', '@', '\t', '\r'].includes(s[0])) {
+        return `'${s.replace(/"/g, '""')}`;
+    }
+    return s.replace(/"/g, '""');
+}
 let ReportsController = class ReportsController {
     loansService;
     borrowersService;
@@ -79,7 +86,7 @@ let ReportsController = class ReportsController {
         const loans = await this.loansService.findAll(user.tenantId);
         const header = 'id,borrower,principal,interestRate,term,method,status,startDate\n';
         const rows = loans
-            .map((l) => `${l.id},${l.borrower.firstName} ${l.borrower.lastName},${l.principal},${l.annualInterestRate},${l.termMonths},${l.interestMethod},${l.status},${new Date(l.startDate).toISOString()}`)
+            .map((l) => `"${csvSafe(l.id)}","${csvSafe(l.borrower.firstName + ' ' + l.borrower.lastName)}",${l.principal},${l.annualInterestRate},${l.termMonths},"${csvSafe(l.interestMethod)}","${csvSafe(l.status)}",${new Date(l.startDate).toISOString()}`)
             .join('\n');
         const csv = header + rows;
         res.setHeader('Content-Type', 'text/csv');
@@ -90,7 +97,7 @@ let ReportsController = class ReportsController {
         const repayments = await this.repaymentsService.findAll(user.tenantId);
         const header = 'id,loanId,borrower,amount,date\n';
         const rows = repayments
-            .map((r) => `${r.id},${r.loanId},${r.loan.borrower.firstName} ${r.loan.borrower.lastName},${r.amount},${new Date(r.date).toISOString()}`)
+            .map((r) => `"${csvSafe(r.id)}","${csvSafe(r.loanId)}","${csvSafe(r.loan.borrower.firstName + ' ' + r.loan.borrower.lastName)}",${r.amount},${new Date(r.date).toISOString()}`)
             .join('\n');
         const csv = header + rows;
         res.setHeader('Content-Type', 'text/csv');

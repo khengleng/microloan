@@ -52,7 +52,6 @@ const audit_service_1 = require("../audit/audit.service");
 const db_1 = require("@microloan/db");
 const otplib_1 = require("otplib");
 const qrcode = __importStar(require("qrcode"));
-const rate_limiter_1 = require("../common/rate-limiter");
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 30 * 60 * 1000;
 const GENERIC_AUTH_ERROR = 'Invalid credentials';
@@ -73,12 +72,6 @@ let AuthService = class AuthService {
         this.audit = audit;
     }
     async registerTenant(dto, ip) {
-        if (ip) {
-            const rateCheck = rate_limiter_1.RateLimiter.register(ip);
-            if (!rateCheck.allowed) {
-                throw new common_1.ForbiddenException('Too many registration attempts. Please try again later.');
-            }
-        }
         const existing = await this.usersService.findOneByEmail(dto.adminEmail);
         if (existing) {
             throw new common_1.ConflictException('Registration failed. Please check your details.');
@@ -114,13 +107,6 @@ let AuthService = class AuthService {
         });
     }
     async login(loginDto, ip) {
-        if (ip) {
-            const rateCheck = rate_limiter_1.RateLimiter.login(ip);
-            if (!rateCheck.allowed) {
-                await this.auditSecurityEvent(null, loginDto.email, 'LOGIN_RATE_LIMITED', ip);
-                throw new common_1.ForbiddenException('Too many login attempts. Please wait 15 minutes.');
-            }
-        }
         const user = await this.usersService.findOneByEmail(loginDto.email);
         if (!user) {
             await this.auditSecurityEvent(null, loginDto.email, 'LOGIN_UNKNOWN_EMAIL', ip);
@@ -174,9 +160,13 @@ let AuthService = class AuthService {
                 role: user.role,
                 ip: ip || 'unknown',
             });
+            const mfaToken = this.jwtService.sign({ sub: user.id, mfaChallenge: true }, {
+                secret: process.env.JWT_ACCESS_SECRET,
+                expiresIn: '5m',
+            });
             return {
                 mfaRequired: true,
-                userId: user.id,
+                mfaToken,
                 message: 'Please provide your TOTP code',
             };
         }
@@ -187,12 +177,16 @@ let AuthService = class AuthService {
         });
         return this.generateTokens(user.id, user.email, user.role, user.tenantId);
     }
-    async verifyMfa(userId, code, ip) {
-        if (ip) {
-            const rateCheck = rate_limiter_1.RateLimiter.mfa(ip);
-            if (!rateCheck.allowed) {
-                throw new common_1.ForbiddenException('Too many MFA attempts. Please wait 15 minutes.');
-            }
+    async verifyMfa(mfaToken, code, ip) {
+        let userId;
+        try {
+            const payload = this.jwtService.verify(mfaToken, { secret: process.env.JWT_ACCESS_SECRET });
+            if (!payload.mfaChallenge)
+                throw new Error('Not an MFA token');
+            userId = payload.sub;
+        }
+        catch {
+            throw new common_1.UnauthorizedException('Invalid or expired MFA session. Please log in again.');
         }
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user || !user.twoFactorSecret)
@@ -269,7 +263,7 @@ let AuthService = class AuthService {
     async refreshToken(refreshToken) {
         try {
             const payload = this.jwtService.verify(refreshToken, {
-                secret: process.env.JWT_REFRESH_SECRET || 'refreshSecret',
+                secret: process.env.JWT_REFRESH_SECRET,
             });
             return this.generateTokens(payload.sub, payload.email, payload.role, payload.tenantId);
         }
@@ -300,7 +294,7 @@ let AuthService = class AuthService {
         return {
             access_token: this.jwtService.sign(payload),
             refresh_token: this.jwtService.sign(payload, {
-                secret: process.env.JWT_REFRESH_SECRET || 'refreshSecret',
+                secret: process.env.JWT_REFRESH_SECRET,
                 expiresIn: (process.env.JWT_REFRESH_TTL || '30d'),
             }),
         };
