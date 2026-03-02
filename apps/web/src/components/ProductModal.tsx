@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Package, ShieldCheck, Zap, ChevronDown, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 
 interface LoanPolicy {
@@ -53,7 +53,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
 
     const handleAddPolicy = () => {
         setPolicies([...policies, {
-            creditRating: 'GOOD',
+            creditRating: 'NEW',
             interestRate: 10,
             minTermMonths: 1,
             maxTermMonths: 36,
@@ -110,155 +110,176 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{productToEdit ? 'Edit Loan Product' : 'Create Loan Product'}</DialogTitle>
-                    <DialogDescription>
-                        Define the details of the loan product and link its interest rate policies.
-                    </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {error && (
-                        <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm">
-                            {error}
-                        </div>
-                    )}
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border-none glass p-0 shadow-2xl">
+                <div className="p-8 space-y-8">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                            <Package className="text-indigo-600" size={28} /> {productToEdit ? 'Configure Product Engine' : 'Engine New Credit Product'}
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-500 font-medium">
+                            Architect the automated financial logic and credit limit matrices for your organization.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Product Name (e.g., Daily Loan)</Label>
-                            <Input
-                                required
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="Name"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Description</Label>
-                            <Input
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Short description"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Interest Method</Label>
-                            <select
-                                required
-                                className="w-full border rounded-md p-2 text-sm"
-                                value={interestMethod}
-                                onChange={(e) => setInterestMethod(e.target.value)}
-                            >
-                                <option value="FLAT">Flat Rate</option>
-                                <option value="REDUCING_BALANCE">Reducing Balance</option>
-                            </select>
-                        </div>
-                        <div className="space-y-2 flex items-center pt-8">
-                            <input
-                                type="checkbox"
-                                id="isActive"
-                                checked={isActive}
-                                onChange={(e) => setIsActive(e.target.checked)}
-                                className="mr-2"
-                            />
-                            <Label htmlFor="isActive" className="cursor-pointer">Product is Active (can be applied for)</Label>
-                        </div>
-                    </div>
-
-                    <div className="border-t pt-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-semibold text-sm text-gray-700">Policies & Rating Bands</h3>
-                            <Button type="button" size="sm" variant="outline" onClick={handleAddPolicy} className="flex items-center gap-2">
-                                <Plus size={16} /> Add Policy
-                            </Button>
-                        </div>
-
-                        {policies.length === 0 ? (
-                            <div className="text-center p-4 bg-gray-50 border rounded text-gray-500 text-sm">
-                                You need to add at least one credit rating policy for this loan product to be functional.
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {policies.map((policy, idx) => (
-                                    <div key={idx} className="grid grid-cols-6 gap-2 items-end bg-gray-50 p-3 rounded border">
-                                        <div className="col-span-1 border-r pr-2 shadow-sm rounded p-2 bg-white">
-                                            <Label className="text-[10px] uppercase text-gray-500 block mb-1">Credit Rating</Label>
-                                            <Input
-                                                required
-                                                className="h-8 text-sm px-2 font-bold"
-                                                value={policy.creditRating}
-                                                onChange={(e) => handlePolicyChange(idx, 'creditRating', e.target.value)}
-                                                placeholder="e.g. A, GOOD"
-                                            />
-                                        </div>
-                                        <div className="col-span-1 border-r pr-2 shadow-sm rounded p-2 bg-white">
-                                            <Label className="text-[10px] uppercase text-gray-500 block mb-1">Int. Rate (%)</Label>
-                                            <Input
-                                                required
-                                                type="number"
-                                                step="0.01"
-                                                className="h-8 text-sm px-2 text-blue-600 font-bold"
-                                                value={policy.interestRate}
-                                                onChange={(e) => handlePolicyChange(idx, 'interestRate', e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="col-span-1 border-r shadow-sm rounded p-2 bg-white">
-                                            <Label className="text-[10px] uppercase text-gray-500 block mb-1">Term (Min-Max)</Label>
-                                            <div className="flex gap-1 items-center">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 text-xs px-1 w-full"
-                                                    value={policy.minTermMonths || ''}
-                                                    onChange={(e) => handlePolicyChange(idx, 'minTermMonths', e.target.value)}
-                                                />
-                                                <span className="text-gray-400">-</span>
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 text-xs px-1 w-full"
-                                                    value={policy.maxTermMonths || ''}
-                                                    onChange={(e) => handlePolicyChange(idx, 'maxTermMonths', e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="col-span-2 border-r shadow-sm rounded p-2 bg-white">
-                                            <Label className="text-[10px] uppercase text-gray-500 block mb-1">Princ. (Min-Max) $</Label>
-                                            <div className="flex gap-1 items-center">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 text-xs px-1 w-full"
-                                                    value={policy.minPrincipal || ''}
-                                                    onChange={(e) => handlePolicyChange(idx, 'minPrincipal', e.target.value)}
-                                                />
-                                                <span className="text-gray-400">-</span>
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 text-xs px-1 w-full"
-                                                    value={policy.maxPrincipal || ''}
-                                                    onChange={(e) => handlePolicyChange(idx, 'maxPrincipal', e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="col-span-1 flex justify-center pb-2">
-                                            <Button type="button" size="icon" variant="ghost" className="text-red-500 h-8 w-8 hover:bg-red-100" onClick={() => handleRemovePolicy(idx)}>
-                                                <Trash2 size={16} />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                        {error && (
+                            <div className="bg-rose-50 border border-rose-100/50 text-rose-600 p-4 rounded-2xl text-[11px] font-black uppercase tracking-widest animate-in shake duration-500">
+                                Logic Failure: {error}
                             </div>
                         )}
-                    </div>
 
-                    <div className="flex justify-end gap-2 pt-4">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={loading}>
-                            {loading ? 'Saving...' : 'Save Product'}
-                        </Button>
-                    </div>
-                </form>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Product Descriptor</Label>
+                                <Input
+                                    required
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="e.g. Enterprise Daily Liquidity"
+                                    className="h-12 rounded-xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-4"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Strategic Summary</Label>
+                                <Input
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="Short description for internal ops"
+                                    className="h-12 rounded-xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-4"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Calculation Engine</Label>
+                                <div className="relative">
+                                    <select
+                                        required
+                                        className="w-full h-12 rounded-xl border border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 bg-white px-4 text-xs font-black uppercase tracking-widest appearance-none cursor-pointer"
+                                        value={interestMethod}
+                                        onChange={(e) => setInterestMethod(e.target.value)}
+                                    >
+                                        <option value="FLAT">Flat Logical Rate</option>
+                                        <option value="REDUCING_BALANCE">Reducing Balance Engine</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                </div>
+                            </div>
+                            <div className="space-y-2 flex items-center pt-6">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className="relative">
+                                        <input
+                                            type="checkbox"
+                                            checked={isActive}
+                                            onChange={(e) => setIsActive(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-500/10 transition-all peer-checked:bg-emerald-500" />
+                                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-5 shadow-sm" />
+                                    </div>
+                                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors">Deployment Status (Active)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="mt-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                    <ShieldCheck size={16} className="text-indigo-600" /> Credit Risk Matrices
+                                </h3>
+                                <Button type="button" size="sm" variant="secondary" onClick={handleAddPolicy} className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-4 gap-2">
+                                    <Plus size={14} /> Add Policy
+                                </Button>
+                            </div>
+
+                            {policies.length === 0 ? (
+                                <div className="text-center p-12 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl">
+                                    <Zap size={32} className="mx-auto text-slate-300 mb-3" strokeWidth={1} />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Provision at least one risk tier to activate this product.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {policies.map((policy, idx) => (
+                                        <div key={idx} className="grid grid-cols-1 lg:grid-cols-6 gap-4 p-5 glass bg-white/50 rounded-2xl border border-slate-100/50 items-center animate-in slide-in-from-right-2 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                                            <div className="space-y-2">
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Risk Tier</Label>
+                                                <Input
+                                                    required
+                                                    className="h-10 text-xs font-black uppercase tracking-widest rounded-xl border-slate-200/50"
+                                                    value={policy.creditRating}
+                                                    onChange={(e) => handlePolicyChange(idx, 'creditRating', e.target.value)}
+                                                    placeholder="A+, GOV"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Rate %</Label>
+                                                <Input
+                                                    required
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="h-10 text-xs font-black text-indigo-600 rounded-xl border-slate-200/50"
+                                                    value={policy.interestRate}
+                                                    onChange={(e) => handlePolicyChange(idx, 'interestRate', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="lg:col-span-1 space-y-2">
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Term (Min-Max)</Label>
+                                                <div className="flex gap-2 items-center">
+                                                    <Input
+                                                        type="number"
+                                                        className="h-10 text-xs font-bold rounded-xl border-slate-200/50 px-2"
+                                                        value={policy.minTermMonths || ''}
+                                                        onChange={(e) => handlePolicyChange(idx, 'minTermMonths', e.target.value)}
+                                                        placeholder="1"
+                                                    />
+                                                    <Input
+                                                        type="number"
+                                                        className="h-10 text-xs font-bold rounded-xl border-slate-200/50 px-2"
+                                                        value={policy.maxTermMonths || ''}
+                                                        onChange={(e) => handlePolicyChange(idx, 'maxTermMonths', e.target.value)}
+                                                        placeholder="36"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="lg:col-span-2 space-y-2">
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Principal (Min-Max) $</Label>
+                                                <div className="flex gap-2 items-center">
+                                                    <Input
+                                                        type="number"
+                                                        className="h-10 text-xs font-bold rounded-xl border-slate-200/50 px-2"
+                                                        value={policy.minPrincipal || ''}
+                                                        onChange={(e) => handlePolicyChange(idx, 'minPrincipal', e.target.value)}
+                                                        placeholder="100"
+                                                    />
+                                                    <Input
+                                                        type="number"
+                                                        className="h-10 text-xs font-bold rounded-xl border-slate-200/50 px-2"
+                                                        value={policy.maxPrincipal || ''}
+                                                        onChange={(e) => handlePolicyChange(idx, 'maxPrincipal', e.target.value)}
+                                                        placeholder="10000"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end lg:justify-center pt-4 lg:pt-0">
+                                                <Button type="button" size="icon" variant="secondary" className="text-rose-500 h-10 w-10 rounded-xl hover:bg-rose-50" onClick={() => handleRemovePolicy(idx)}>
+                                                    <Trash2 size={16} />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-6 border-t border-slate-100/50">
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-12 px-6">
+                                Dismiss
+                            </Button>
+                            <Button type="submit" disabled={loading} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest h-12 px-8 shadow-lg shadow-indigo-600/20">
+                                {loading && <Loader2 className="animate-spin mr-2" size={16} />}
+                                {loading ? 'Commiting Logic...' : 'Deploy Product Engine'}
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </DialogContent>
         </Dialog>
     );

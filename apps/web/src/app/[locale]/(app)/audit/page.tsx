@@ -6,26 +6,27 @@ import { useToast } from '@/components/ui/toast';
 import {
     Shield, Search, Download, LogIn, LogOut, RefreshCcw,
     FileText, Users, Building2, CreditCard, ChevronLeft, ChevronRight,
-    AlertTriangle, CheckCircle, XCircle, Info, Calendar, Filter
+    AlertTriangle, CheckCircle, XCircle, Info, Calendar, Filter, Activity, Fingerprint
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const ACTION_META: Record<string, { color: string; bg: string; icon: any; label: string }> = {
-    LOGIN: { color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100', icon: LogIn, label: 'Auth' },
-    CREATE: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100', icon: CheckCircle, label: 'Create' },
-    UPDATE: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100', icon: RefreshCcw, label: 'Update' },
-    DELETE: { color: 'text-red-700', bg: 'bg-red-50 border-red-100', icon: XCircle, label: 'Delete' },
+    LOGIN: { color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-100/50', icon: LogIn, label: 'Auth' },
+    CREATE: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100/50', icon: CheckCircle, label: 'Create' },
+    UPDATE: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100/50', icon: RefreshCcw, label: 'Update' },
+    DELETE: { color: 'text-rose-700', bg: 'bg-rose-50 border-rose-100/50', icon: XCircle, label: 'Delete' },
 };
 
 const EVENT_COLORS: Record<string, string> = {
     LOGIN_SUCCESS: 'text-emerald-600',
     MFA_SUCCESS: 'text-emerald-600',
     MFA_ENABLED: 'text-emerald-600',
-    LOGIN_FAILED: 'text-red-600 font-semibold',
-    MFA_FAILED: 'text-red-600 font-semibold',
+    LOGIN_FAILED: 'text-rose-600 font-black',
+    MFA_FAILED: 'text-rose-600 font-black',
     LOGIN_CHALLENGE_ISSUED: 'text-amber-600',
-    TENANT_SUSPENDED: 'text-red-600',
-    TENANT_SOFT_DELETED: 'text-red-600',
-    PROMOTED_TO_SUPERADMIN: 'text-purple-600 font-semibold',
+    TENANT_SUSPENDED: 'text-rose-600',
+    TENANT_SOFT_DELETED: 'text-rose-600',
+    PROMOTED_TO_SUPERADMIN: 'text-indigo-600 font-black',
 };
 
 const ENTITIES = ['All', 'User', 'Borrower', 'Loan', 'Repayment', 'Document', 'Tenant', 'LoanProduct'];
@@ -104,10 +105,10 @@ export default function AuditPage() {
             const url = window.URL.createObjectURL(new Blob([r.data]));
             const a = document.createElement('a');
             a.href = url;
-            a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.download = `audit-vault-${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
             window.URL.revokeObjectURL(url);
-            showToast('Audit log exported', 'success');
+            showToast('Audit vault exported', 'success');
         } catch {
             showToast('Export failed', 'error');
         }
@@ -132,197 +133,190 @@ export default function AuditPage() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header Area */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        <Shield size={24} className="text-slate-400" /> Audit Trail
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                        <Fingerprint className="text-indigo-600" size={32} /> Security Audit Vault
                     </h1>
-                    <p className="text-sm text-slate-500 mt-0.5">Complete activity log for compliance and security review</p>
+                    <p className="text-slate-500 font-medium mt-1">Immutable activity ledger for platform governance and compliance</p>
                 </div>
-                <button
+                <Button
                     onClick={handleExportCsv}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition-colors flex-shrink-0"
+                    variant="secondary"
+                    className="rounded-2xl font-black px-8 h-12 shadow-sm flex items-center gap-2"
                 >
-                    <Download size={15} /> Export CSV
-                </button>
+                    <Download size={18} />
+                    Export Ledger
+                </Button>
             </div>
 
             {/* Summary KPIs */}
             {summary && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Events</div>
-                        <div className="text-3xl font-bold text-slate-900">{summary.totalEvents.toLocaleString()}</div>
-                        <div className="text-xs text-slate-400 mt-1">All time</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Total Events</div>
+                        <div className="text-3xl font-black text-slate-900 tracking-tight">{summary.totalEvents.toLocaleString()}</div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic">Historical Aggregate</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Today</div>
-                        <div className="text-3xl font-bold text-blue-600">{summary.today.toLocaleString()}</div>
-                        <div className="text-xs text-slate-400 mt-1">Events today</div>
+                    <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Daily Volume</div>
+                        <div className="text-3xl font-black text-indigo-600 tracking-tight">{summary.today.toLocaleString()}</div>
+                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2 italic">Events Ingested Today</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Auth Events</div>
-                        <div className="text-3xl font-bold text-slate-900">{summary.loginEvents.toLocaleString()}</div>
-                        <div className="text-xs text-slate-400 mt-1">Login attempts</div>
+                    <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Authentication</div>
+                        <div className="text-3xl font-black text-slate-900 tracking-tight">{summary.loginEvents.toLocaleString()}</div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic">Identity Verifications</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-emerald-100 shadow-sm p-5 bg-gradient-to-br from-white to-red-50">
-                        <div className="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">Failed Logins</div>
-                        <div className={`text-3xl font-bold ${summary.failedLogins > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                    <div className={`glass p-6 rounded-[2rem] premium-shadow border-rose-100/20 ${summary.failedLogins > 0 ? 'bg-rose-50/30' : ''}`}>
+                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <AlertTriangle size={12} strokeWidth={3} /> Security Alerts
+                        </div>
+                        <div className={`text-3xl font-black tracking-tight ${summary.failedLogins > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
                             {summary.failedLogins.toLocaleString()}
                         </div>
-                        {summary.failedLogins > 0 && (
-                            <div className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                                <AlertTriangle size={10} /> Security alert
-                            </div>
-                        )}
+                        <p className={`text-[10px] font-black uppercase tracking-widest mt-2 italic ${summary.failedLogins > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                            FAILED ACCESS ATTEMPTS
+                        </p>
                     </div>
                 </div>
             )}
 
             {/* Filters */}
-            <div className="bg-white border border-slate-100 rounded-xl p-4 space-y-3 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                    <Filter size={14} /> Filters
+            <div className="glass p-6 rounded-[2.5rem] premium-shadow border-indigo-100/10 space-y-6">
+                <div className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                    <Filter size={14} /> Vault Inspection Filters
                 </div>
-                <div className="flex flex-wrap gap-3">
-                    <div className="relative flex-1 min-w-48">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <div className="flex flex-wrap gap-4">
+                    <div className="relative flex-1 min-w-[280px] group">
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search user, entity, event..."
+                            placeholder="Universal search by user, entity or event hash..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full pl-12 pr-4 h-12 text-sm font-bold border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
                         />
                     </div>
-                    <select
-                        value={action}
-                        onChange={e => setAction(e.target.value)}
-                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                        {ACTIONS.map(a => <option key={a} value={a}>{a === 'All' ? 'All Actions' : a}</option>)}
-                    </select>
-                    <select
-                        value={entity}
-                        onChange={e => setEntity(e.target.value)}
-                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                        {ENTITIES.map(e => <option key={e} value={e}>{e === 'All' ? 'All Types' : e}</option>)}
-                    </select>
-                    <input
-                        type="date"
-                        value={from}
-                        onChange={e => setFrom(e.target.value)}
-                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        title="From date"
-                    />
-                    <input
-                        type="date"
-                        value={to}
-                        onChange={e => setTo(e.target.value)}
-                        className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        title="To date"
-                    />
-                    {(from || to || action !== 'All' || entity !== 'All') && (
-                        <button
-                            onClick={() => { setFrom(''); setTo(''); setAction('All'); setEntity('All'); }}
-                            className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50"
+                    <div className="flex flex-wrap gap-3">
+                        <select
+                            value={action}
+                            onChange={e => setAction(e.target.value)}
+                            className="px-5 h-12 text-[11px] font-black uppercase tracking-widest border border-slate-200/50 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 bg-white cursor-pointer"
                         >
-                            Clear
-                        </button>
-                    )}
+                            {ACTIONS.map(a => <option key={a} value={a}>{a === 'All' ? 'All Actions' : a}</option>)}
+                        </select>
+                        <select
+                            value={entity}
+                            onChange={e => setEntity(e.target.value)}
+                            className="px-5 h-12 text-[11px] font-black uppercase tracking-widest border border-slate-200/50 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 bg-white cursor-pointer"
+                        >
+                            {ENTITIES.map(e => <option key={e} value={e}>{e === 'All' ? 'All Types' : e}</option>)}
+                        </select>
+                        <div className="flex gap-2">
+                            <input
+                                type="date"
+                                value={from}
+                                onChange={e => setFrom(e.target.value)}
+                                className="px-4 h-12 text-xs font-bold border border-slate-200/50 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 bg-white"
+                                title="From date"
+                            />
+                            <input
+                                type="date"
+                                value={to}
+                                onChange={e => setTo(e.target.value)}
+                                className="px-4 h-12 text-xs font-bold border border-slate-200/50 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 bg-white"
+                                title="To date"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Log Table */}
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-700">
-                        {meta ? `${meta.total.toLocaleString()} events` : 'Loading...'}
+            {/* Log Register */}
+            <div className="glass rounded-[2.5rem] premium-shadow border-indigo-100/10 overflow-hidden">
+                <div className="px-8 py-5 border-b border-slate-100/50 flex items-center justify-between bg-slate-50/30">
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                        {meta ? `${meta.total.toLocaleString()} Registry Entries` : 'Accessing Vault...'}
                     </span>
                     {meta && meta.pages > 1 && (
-                        <span className="text-xs text-slate-400">
-                            Page {meta.page} of {meta.pages}
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full shadow-sm">
+                            Block {meta.page} of {meta.pages}
                         </span>
                     )}
                 </div>
 
                 {loading ? (
-                    <div className="divide-y divide-slate-50">
+                    <div className="divide-y divide-slate-100/30">
                         {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="px-5 py-4 flex gap-3 animate-pulse">
-                                <div className="w-20 h-6 bg-slate-100 rounded-full" />
-                                <div className="flex-1 space-y-2">
-                                    <div className="h-4 bg-slate-100 rounded w-1/3" />
-                                    <div className="h-3 bg-slate-50 rounded w-1/4" />
-                                </div>
-                            </div>
+                            <div key={i} className="px-8 py-6 h-20 bg-slate-50/20 animate-pulse" />
                         ))}
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div className="py-20 text-center">
-                        <Shield size={36} className="mx-auto text-slate-200 mb-3" />
-                        <p className="text-slate-400">No audit events found</p>
+                    <div className="py-32 text-center">
+                        <Activity size={48} strokeWidth={1} className="mx-auto text-slate-200 mb-4" />
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Vault Query Empty</h2>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">No historical events match the specified criteria.</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-slate-50">
+                    <div className="divide-y divide-slate-100/50">
                         {filtered.map(log => {
                             const am = ACTION_META[log.action] || ACTION_META.UPDATE;
                             const Icon = am.icon;
                             const isExpanded = expanded === log.id;
                             const evt = getEventLabel(log);
-                            const isSecurity = log.metadata?.event?.includes('FAILED') ||
+                            const isSecurityAlert = log.metadata?.event?.includes('FAILED') ||
                                 log.metadata?.event?.includes('SUSPENDED') ||
                                 log.metadata?.event?.includes('PROMOTED');
 
                             return (
                                 <div
                                     key={log.id}
-                                    className={`px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${isSecurity ? 'border-l-2 border-red-300' : ''}`}
+                                    className={`px-8 py-5 hover:bg-slate-50/50 cursor-pointer transition-all duration-300 relative group ${isSecurityAlert ? 'bg-rose-50/10' : ''}`}
                                     onClick={() => setExpanded(isExpanded ? null : log.id)}
                                 >
-                                    <div className="flex items-start gap-3">
-                                        {/* Action badge */}
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-full border flex-shrink-0 mt-0.5 ${am.bg} ${am.color}`}>
-                                            <Icon size={10} />
-                                            {log.action}
-                                        </span>
+                                    {isSecurityAlert && <div className="absolute left-0 top-0 w-1 h-full bg-rose-500" />}
 
-                                        {/* Content */}
+                                    <div className="flex items-start gap-6 relative">
+                                        {/* Action Icon Cluster */}
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border flex-shrink-0 transition-all ${am.bg} ${am.color} group-hover:scale-110`}>
+                                            <Icon size={18} />
+                                        </div>
+
+                                        {/* Content Cluster */}
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className={`text-sm font-semibold ${getEventColor(log)}`}>
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                <span className={`text-base font-black tracking-tight ${getEventColor(log)} transition-colors`}>
                                                     {evt}
                                                 </span>
-                                                <span className="text-xs text-slate-400">
-                                                    on <span className="font-medium text-slate-600">{log.entity}</span>
+                                                <span className="flex items-center gap-1 text-[10px] font-black text-slate-300 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">
+                                                    Target: {log.entity}
                                                 </span>
-                                                {log.metadata?.email && log.metadata.email !== log.user?.email && (
-                                                    <span className="text-xs text-slate-400">
-                                                        → <span className="font-medium">{log.metadata.email}</span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-3 mt-0.5 text-xs text-slate-400 flex-wrap">
-                                                <span className="flex items-center gap-1">
-                                                    <Users size={10} />
-                                                    {log.user?.email || log.userId}
-                                                    {log.user?.role && <span className="ml-1 px-1 py-0 bg-slate-100 text-slate-500 rounded text-[9px] font-bold">{log.user.role}</span>}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Calendar size={10} />
-                                                    {new Date(log.createdAt).toLocaleString()}
-                                                </span>
-                                                <span className="font-mono text-[10px] text-slate-300">{log.entityId?.slice(0, 8)}…</span>
                                             </div>
 
-                                            {/* Expanded metadata */}
+                                            <div className="flex gap-6 mt-2 text-[11px] font-bold text-slate-500 flex-wrap">
+                                                <span className="flex items-center gap-2 group/user">
+                                                    <Users size={13} className="text-slate-300" />
+                                                    <span className="group-hover/user:text-indigo-600 transition-colors">{log.user?.email || log.userId}</span>
+                                                    {log.user?.role && <span className="px-2 py-0.5 bg-slate-950 text-white rounded-lg text-[8px] font-black uppercase tracking-tighter">{log.user.role}</span>}
+                                                </span>
+                                                <span className="flex items-center gap-2">
+                                                    <Calendar size={13} className="text-slate-300" />
+                                                    {new Date(log.createdAt).toLocaleString()}
+                                                </span>
+                                                <span className="font-mono text-[10px] text-slate-300 bg-slate-50 px-2 rounded-lg border border-slate-100 uppercase">
+                                                    UUID: {log.entityId?.slice(0, 12)}
+                                                </span>
+                                            </div>
+
+                                            {/* Advanced Payload Exposure */}
                                             {isExpanded && log.metadata && (
-                                                <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Metadata</p>
-                                                    <pre className="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+                                                <div className="mt-5 p-5 glass rounded-3xl border border-indigo-100/10 bg-slate-950/90 text-indigo-400 font-mono text-xs overflow-hidden relative shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <div className="absolute top-0 right-0 p-3 opacity-20"><Fingerprint size={48} /></div>
+                                                    <p className="text-[9px] uppercase font-black tracking-[0.2em] mb-4 text-indigo-200/50">Cryptographic Metadata Payload</p>
+                                                    <pre className="whitespace-pre-wrap leading-relaxed">
                                                         {JSON.stringify(log.metadata, null, 2)}
                                                     </pre>
                                                 </div>
@@ -335,26 +329,28 @@ export default function AuditPage() {
                     </div>
                 )}
 
-                {/* Pagination */}
+                {/* Secure Pagination */}
                 {meta && meta.pages > 1 && (
-                    <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
-                        <button
+                    <div className="px-8 py-6 border-t border-slate-100/50 flex items-center justify-between bg-slate-50/20">
+                        <Button
                             onClick={() => { const p = Math.max(1, page - 1); setPage(p); fetchLogs(p); }}
                             disabled={page === 1}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            variant="secondary"
+                            className="rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-sm disabled:opacity-30"
                         >
-                            <ChevronLeft size={14} /> Previous
-                        </button>
-                        <span className="text-sm text-slate-500">
-                            {((page - 1) * meta.pageSize) + 1}–{Math.min(page * meta.pageSize, meta.total)} of {meta.total.toLocaleString()}
+                            <ChevronLeft size={16} className="mr-2" /> Prev Block
+                        </Button>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">
+                            Viewing block {((page - 1) * meta.pageSize) + 1}–{Math.min(page * meta.pageSize, meta.total)} of {meta.total.toLocaleString()}
                         </span>
-                        <button
+                        <Button
                             onClick={() => { const p = Math.min(meta.pages, page + 1); setPage(p); fetchLogs(p); }}
                             disabled={page === meta.pages}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            variant="secondary"
+                            className="rounded-2xl font-black text-[10px] uppercase tracking-widest h-11 px-6 shadow-sm disabled:opacity-30"
                         >
-                            Next <ChevronRight size={14} />
-                        </button>
+                            Next Block <ChevronRight size={16} className="ml-2" />
+                        </Button>
                     </div>
                 )}
             </div>

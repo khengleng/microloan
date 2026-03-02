@@ -39,8 +39,8 @@ export class AuthService {
   async registerTenant(dto: RegisterTenantDto, ip?: string) {
     const existing = await this.usersService.findOneByEmail(dto.adminEmail);
     if (existing) {
-      // Don't reveal that the email exists — return same error timing
-      throw new ConflictException('Registration failed. Please check your details.');
+      // While generic is safer, for UX we should indicate the identifier collision
+      throw new ConflictException('Registration failed. This email or identifier is already in use.');
     }
 
     const salt = await bcrypt.genSalt(12); // 12 rounds for stronger hashing

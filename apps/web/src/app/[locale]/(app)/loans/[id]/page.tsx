@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download, ThumbsUp } from 'lucide-react';
+import { ChevronLeft, Plus, CheckCircle, Trash2, FileText, Download, ThumbsUp, Wallet, Calendar, ShieldCheck, UserCheck, MessageSquare, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
@@ -32,39 +32,6 @@ interface Repayment {
     interestPaid: number;
 }
 
-interface Document {
-    id: string;
-    name: string;
-    content: string;
-    type: string;
-    createdAt: string;
-}
-
-interface Collateral {
-    id: string;
-    type: string;
-    description: string;
-    value: number;
-    idNumber: string;
-}
-
-interface Guarantor {
-    id: string;
-    name: string;
-    phone: string;
-    relation: string;
-    idNumber?: string;
-}
-
-interface Interaction {
-    id: string;
-    userId: string;
-    title: string;
-    notes: string;
-    type: string;
-    createdAt: string;
-}
-
 interface Loan {
     id: string;
     borrower: {
@@ -87,11 +54,9 @@ interface Loan {
     status: string;
     schedules: ScheduleItem[];
     repayments: Repayment[];
-    documents: Document[];
-    collaterals: Collateral[];
-    guarantors: Guarantor[];
-    interactions: Interaction[];
-    approvedBy?: string;
+    collaterals: any[];
+    guarantors: any[];
+    interactions: any[];
     approvedAt?: string;
     rejectionReason?: string;
 }
@@ -105,6 +70,7 @@ export default function LoanDetailsPage() {
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newNote, setNewNote] = useState('');
 
     const fetchLoan = useCallback(() => {
         setLoading(true);
@@ -113,6 +79,10 @@ export default function LoanDetailsPage() {
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
     }, [id]);
+
+    useEffect(() => {
+        fetchLoan();
+    }, [fetchLoan]);
 
     const handleApprove = async () => {
         const ok = await confirm({
@@ -126,7 +96,7 @@ export default function LoanDetailsPage() {
             await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
             showToast('Loan approved!', 'success');
             fetchLoan();
-        } catch (error) {
+        } catch {
             showToast('Approve failed', 'error');
         }
     };
@@ -134,12 +104,11 @@ export default function LoanDetailsPage() {
     const handleReject = async () => {
         const reason = window.prompt('Reason for rejection:');
         if (reason === null) return;
-
         try {
             await api.put(`/loans/${id}/status`, { status: 'REJECTED', reason });
             showToast('Loan applicant rejected', 'success');
             fetchLoan();
-        } catch (error) {
+        } catch {
             showToast('Reject failed', 'error');
         }
     };
@@ -154,93 +123,17 @@ export default function LoanDetailsPage() {
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
-            showToast('Loan disbursed — repayment schedule is now active', 'success');
+            showToast('Loan disbursed successfully', 'success');
             fetchLoan();
-        } catch (error) {
+        } catch {
             showToast('Failed to disburse loan', 'error');
         }
     };
 
-    const handleDelete = async () => {
-        const ok = await confirm({
-            title: 'Delete Draft Loan',
-            message: 'This draft loan will be permanently deleted. This cannot be undone.',
-            confirmLabel: 'Delete',
-            variant: 'danger',
-        });
-        if (!ok) return;
-        try {
-            await api.delete(`/loans/${id}`);
-            showToast('Loan deleted', 'success');
-            router.push(`/${locale}/loans`);
-        } catch (error) {
-            showToast('Failed to delete loan', 'error');
-        }
-    };
-
-    const [uploadingDoc, setUploadingDoc] = useState(false);
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('File too large. Limit is 5MB.', 'error');
-            return;
-        }
-        setUploadingDoc(true);
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            await api.post(`/documents/upload/${id}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            showToast('Document uploaded successfully to Vault', 'success');
-            fetchLoan();
-        } catch {
-            showToast('Upload failed', 'error');
-        } finally {
-            setUploadingDoc(false);
-        }
-    };
-
-    const handleDownloadDoc = async (docId: string, name: string) => {
-        try {
-            const res = await api.get(`/documents/download/${docId}`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', name);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch {
-            showToast('Download failed', 'error');
-        }
-    };
-
-    const handleDeleteDoc = async (docId: string) => {
-        const ok = await confirm({
-            title: 'Delete Document',
-            message: 'This document will be permanently removed from this loan.',
-            confirmLabel: 'Delete',
-            variant: 'danger',
-        });
-        if (!ok) return;
-        try {
-            await api.delete(`/loans/${id}/documents/${docId}`);
-            showToast('Document deleted', 'success');
-            fetchLoan();
-        } catch {
-            showToast('Delete failed', 'error');
-        }
-    };
-    const [newNote, setNewNote] = useState('');
     const handleAddNote = async () => {
         if (!newNote) return;
         try {
-            await api.post(`/loans/${id}/interactions`, { notes: newNote, title: 'Follow-up Note' });
+            await api.post(`/loans/${id}/interactions`, { notes: newNote, title: 'Follow-up Note', type: 'NOTE' });
             setNewNote('');
             showToast('Note added', 'success');
             fetchLoan();
@@ -249,249 +142,184 @@ export default function LoanDetailsPage() {
         }
     };
 
-    useEffect(() => {
-        fetchLoan();
-    }, [fetchLoan]);
-
-    if (loading) return <div>Loading...</div>;
-    if (!loan) return <div>Loan not found</div>;
+    if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">Loading Loan Data...</div>;
+    if (!loan) return <div className="text-center py-20 font-black text-rose-500">Loan not found</div>;
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header Area */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
                     <Link href={`/${locale}/loans`}>
-                        <Button variant="ghost" size="icon"><ChevronLeft size={24} /></Button>
+                        <div className="w-12 h-12 glass rounded-2xl flex items-center justify-center text-slate-600 hover:bg-white hover:text-indigo-600 transition-all shadow-sm">
+                            <ChevronLeft size={24} />
+                        </div>
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold">{t('title')}</h1>
-                        <Link href={`/${locale}/borrowers/${loan.borrower.id}`} className="text-sm text-blue-600 hover:underline">
-                            {loan.borrower.firstName} {loan.borrower.lastName} →
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Loan #{loan.id.slice(-6).toUpperCase()}</h1>
+                            <span className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full ${loan.status === 'DISBURSED' ? 'bg-emerald-100 text-emerald-700 shadow-sm' : 'bg-slate-200 text-slate-600'}`}>{loan.status}</span>
+                        </div>
+                        <p className="text-slate-500 font-medium mt-1">
+                            Borrower: <Link href={`/${locale}/borrowers/${loan.borrower.id}`} className="text-indigo-600 font-extrabold hover:underline">{loan.borrower.firstName} {loan.borrower.lastName}</Link>
+                        </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-3">
                     {loan.status === 'PENDING' && (
                         <>
-                            <Button onClick={handleReject} variant="outline" className="text-red-600 border-red-200 hover:bg-red-50">
-                                Reject Application
-                            </Button>
-                            <Button onClick={handleApprove} className="bg-blue-600 hover:bg-blue-700">
-                                Approve Application
-                            </Button>
+                            <Button onClick={handleReject} variant="secondary" className="rounded-2xl font-bold px-6 h-12 text-rose-600 hover:bg-rose-50 border-rose-100">Reject Application</Button>
+                            <Button onClick={handleApprove} className="rounded-2xl font-bold px-8 h-12 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02]">Approve Application</Button>
                         </>
                     )}
                     {loan.status === 'APPROVED' && (
-                        <Button onClick={handleDisburse} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                            <CheckCircle size={16} /> Disburse Funds
+                        <Button onClick={handleDisburse} className="rounded-2xl font-bold px-8 h-12 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100/20 transition-all hover:scale-[1.02] flex items-center gap-2">
+                            <CheckCircle size={18} /> Disburse Funds
                         </Button>
                     )}
                     {loan.status === 'DISBURSED' && (
-                        <div className="flex gap-2">
-                            <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
-                                <Plus size={16} /> Make Payment
-                            </Button>
-                            {loan.status !== ('CLOSED' as string) && (
-                                <Button variant="outline" onClick={handleReject} className="text-red-500">Mark Defaulted</Button>
-                            )}
-                        </div>
+                        <Button onClick={() => setIsModalOpen(true)} className="rounded-2xl font-bold px-8 h-12 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100/20 transition-all hover:scale-[1.02] flex items-center gap-2">
+                            <Plus size={18} /> Post Payment
+                        </Button>
                     )}
                 </div>
             </div>
 
-            <RepaymentModal
-                open={isModalOpen}
-                onOpenChange={setIsModalOpen}
-                onSuccess={fetchLoan}
-                defaultLoanId={loan.id}
-            />
+            <RepaymentModal open={isModalOpen} onOpenChange={setIsModalOpen} onSuccess={fetchLoan} defaultLoanId={loan.id} />
 
-            {loan.status === 'REJECTED' && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                    <h3 className="text-sm font-bold text-red-800">Application Rejected</h3>
-                    <p className="text-sm text-red-700 mt-1">Reason: {loan.rejectionReason || 'No reason provided'}</p>
-                </div>
-            )}
-
-            {loan.status === 'PENDING' && loan.borrower.loans && loan.borrower.loans.length > 1 && (
-                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-lg">
-                    <div className="flex">
-                        <div className="ml-3">
-                            <h3 className="text-sm font-medium text-amber-800">Review Existing Loans</h3>
-                            <div className="mt-2 text-sm text-amber-700">
-                                <p>Before approving this loan, please notice that this borrower has existing loan records:</p>
-                                <ul className="list-disc pl-5 mt-1 space-y-1">
-                                    {(loan.borrower?.loans || []).filter(l => l.id !== loan.id).map(l => (
-                                        <li key={l.id}>
-                                            <Link href={`/${locale}/loans/${l.id}`} className="font-semibold underline">
-                                                Loan ${l.principal?.toLocaleString()}
-                                            </Link>
-                                            {' '}- Status: <span className="font-bold">{l.status}</span> (Created {l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'N/A'})
-                                        </li>
-                                    ))}
-                                </ul>
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column: Summary and Collateral/Guarantors */}
+                <div className="lg:col-span-1 space-y-8">
+                    {/* Summary Card */}
+                    <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-12 -mt-12" />
+                        <h3 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-2">
+                            <Wallet size={20} className="text-indigo-500" /> Loan Summary
+                        </h3>
+                        <div className="space-y-5">
+                            <div className="flex justify-between items-end border-b border-slate-100/50 pb-4">
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Principal</span>
+                                <span className="text-2xl font-black text-slate-900 tracking-tight">${loan.principal.toLocaleString()}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-y-4 pt-1">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Interest Rate</p>
+                                    <p className="font-extrabold text-slate-800">{loan.annualInterestRate}% Annual</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Term Length</p>
+                                    <p className="font-extrabold text-slate-800">{loan.termMonths} Months</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Method</p>
+                                    <p className="font-extrabold text-slate-500 text-xs uppercase">{loan.interestMethod}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                    <p className="font-extrabold text-slate-800">{loan.status}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow space-y-4">
-                    <h2 className="text-lg font-semibold border-b pb-2">{t('summary')}</h2>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                        <span className="text-gray-500">{t('principal')}:</span>
-                        <span className="font-bold text-lg text-slate-900">${loan.principal.toLocaleString()}</span>
-                        <span className="text-gray-500">Interest:</span>
-                        <span className="font-medium">{loan.annualInterestRate}% ({loan.interestMethod})</span>
-                        <span className="text-gray-500">Term:</span>
-                        <span className="font-medium">{loan.termMonths} Months</span>
-                        <span className="text-gray-500">Status:</span>
-                        <span className={`px-2 py-0.5 inline-flex text-[10px] font-extrabold rounded-full ${loan.status === 'DISBURSED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{loan.status}</span>
-                        {loan.approvedAt && (
-                            <>
-                                <span className="text-gray-500">Approved:</span>
-                                <span className="text-[10px] text-slate-600">{new Date(loan.approvedAt).toLocaleString()}</span>
-                            </>
+                    {/* Risk Check / Secondary Info */}
+                    <div className="glass p-8 rounded-[2.5rem] premium-shadow border-amber-100/20 bg-amber-50/30">
+                        <h3 className="text-lg font-black text-amber-900 mb-4 flex items-center gap-2">
+                            <ShieldCheck size={20} /> Security & Collateral
+                        </h3>
+                        {loan.collaterals?.length === 0 ? (
+                            <p className="text-sm text-amber-800/60 font-medium italic">No collateral registered for this loan.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {loan.collaterals?.map((c, idx) => (
+                                    <div key={idx} className="p-4 bg-white/60 rounded-2xl border border-amber-200/50">
+                                        <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1">{c.type}</p>
+                                        <p className="font-bold text-slate-800 text-sm mb-1">{c.description}</p>
+                                        <p className="text-amber-600 font-black text-base">${c.value?.toLocaleString()}</p>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow space-y-4">
-                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Collateral</h2>
-                    {loan.collaterals?.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">No collateral recorded.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {loan.collaterals?.map(c => (
-                                <div key={c.id} className="text-xs border-l-2 border-slate-200 pl-3">
-                                    <p className="font-bold text-slate-700">{c.type}: {c.idNumber || 'No ID'}</p>
-                                    <p className="text-slate-500">{c.description}</p>
-                                    <p className="font-bold text-blue-600 mt-1">${c.value.toLocaleString()}</p>
-                                </div>
-                            ))}
+                {/* Right Column: Schedule and Interactions */}
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Repayment Schedule Table */}
+                    <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                                <Calendar size={22} className="text-indigo-500" /> Repayment Schedule
+                            </h3>
                         </div>
-                    )}
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow space-y-4">
-                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">Guarantors</h2>
-                    {loan.guarantors?.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">No guarantors recorded.</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {loan.guarantors?.map(g => (
-                                <div key={g.id} className="text-xs border-l-2 border-blue-200 pl-3">
-                                    <p className="font-bold text-slate-700">{g.name}</p>
-                                    <p className="text-slate-500">{g.relation || 'Relation N/A'} • {g.phone}</p>
-                                    {g.idNumber && <p className="text-[10px] text-slate-400 mt-1">ID: {g.idNumber}</p>}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="md:col-span-2 bg-white p-6 rounded-lg shadow overflow-hidden">
-                    <h2 className="text-lg font-semibold border-b pb-2 mb-4">{t('schedule')}</h2>
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead>
-                            <tr>
-                                <th className="text-left py-2 font-medium text-gray-500">{t('installment')}</th>
-                                <th className="text-left py-2 font-medium text-gray-500">{t('due_date')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">{t('principal')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">{t('interest')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">{t('total')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {loan.schedules.map((item) => (
-                                <tr key={item.installmentNumber}>
-                                    <td className="py-2">{item.installmentNumber}</td>
-                                    <td className="py-2">{new Date(item.dueDate).toLocaleDateString()}</td>
-                                    <td className="py-2 text-right">
-                                        <div className="flex flex-col text-right">
-                                            <span>${item.principalAmount.toLocaleString()}</span>
-                                            {Number(item.paidPrincipal) > 0 && <span className="text-[10px] text-blue-600">Paid: ${item.paidPrincipal.toLocaleString()}</span>}
-                                        </div>
-                                    </td>
-                                    <td className="py-2 text-right">
-                                        <div className="flex flex-col text-right">
-                                            <span>${item.interestAmount.toLocaleString()}</span>
-                                            {Number(item.paidInterest) > 0 && <span className="text-[10px] text-green-600">Paid: ${item.paidInterest.toLocaleString()}</span>}
-                                        </div>
-                                    </td>
-                                    <td className="py-2 text-right font-medium">${item.totalAmount.toLocaleString()}</td>
-                                    <td className="py-2 text-right">
-                                        {item.isPaid ? (
-                                            <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-[10px] font-bold">PAID</span>
-                                        ) : Number(item.paidPrincipal) + Number(item.paidInterest) > 0 ? (
-                                            <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">PARTIAL</span>
-                                        ) : (
-                                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 text-[10px] font-bold">DUE</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
-                    <h2 className="text-lg font-semibold border-b pb-2 mb-4">{t('ledger')}</h2>
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead>
-                            <tr>
-                                <th className="text-left py-2 font-medium text-gray-500">{t('due_date')}</th>
-                                <th className="text-right py-2 font-medium text-gray-500">Amount</th>
-                                <th className="text-right py-2 font-medium text-gray-500">Interest Paid</th>
-                                <th className="text-right py-2 font-medium text-gray-500">Principal Paid</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {(!loan.repayments || loan.repayments.length === 0) ? (
-                                <tr><td colSpan={4} className="py-4 text-center text-gray-500">No repayments yet.</td></tr>
-                            ) : (
-                                (loan.repayments || []).map((rp) => (
-                                    <tr key={rp.id}>
-                                        <td className="py-2">{new Date(rp.date).toLocaleDateString()}</td>
-                                        <td className="py-2 text-right font-medium">${Number(rp.amount || 0).toLocaleString()}</td>
-                                        <td className="py-2 text-right text-green-600">${Number(rp.interestPaid || 0).toLocaleString()}</td>
-                                        <td className="py-2 text-right text-blue-600">${Number(rp.principalPaid || 0).toLocaleString()}</td>
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100">
+                                        <th className="text-left py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">#</th>
+                                        <th className="text-left py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Due Date</th>
+                                        <th className="text-right py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Principal</th>
+                                        <th className="text-right py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Interest</th>
+                                        <th className="text-right py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Total</th>
+                                        <th className="text-right py-4 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
                                     </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {loan.schedules.map((item) => (
+                                        <tr key={item.installmentNumber} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-4 font-black text-slate-400 text-xs">{item.installmentNumber}</td>
+                                            <td className="py-4 font-bold text-slate-600 text-sm">{new Date(item.dueDate).toLocaleDateString()}</td>
+                                            <td className="py-4 text-right font-bold text-slate-700 text-sm">${item.principalAmount.toLocaleString()}</td>
+                                            <td className="py-4 text-right font-bold text-slate-700 text-sm">${item.interestAmount.toLocaleString()}</td>
+                                            <td className="py-4 text-right font-black text-slate-900 text-base">${item.totalAmount.toLocaleString()}</td>
+                                            <td className="py-4 text-right">
+                                                {item.isPaid ? (
+                                                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest">Paid</span>
+                                                ) : (
+                                                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">Active</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Interactions and Collection Notes */}
+                    <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10 flex flex-col h-[500px]">
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight mb-6 flex items-center gap-2">
+                            <MessageSquare size={22} className="text-indigo-500" /> Collection Logs & Activity
+                        </h3>
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-3 mb-6 no-scrollbar">
+                            {loan.interactions?.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3">
+                                    <AlertCircle size={48} strokeWidth={1} />
+                                    <p className="font-black text-xs uppercase tracking-widest">No activity recorded for this loan.</p>
+                                </div>
+                            ) : (
+                                loan.interactions?.map((it, idx) => (
+                                    <div key={idx} className="bg-slate-50/40 p-5 rounded-3xl border border-slate-100/50 relative">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{new Date(it.createdAt).toLocaleString()}</span>
+                                            <span className="text-[9px] font-black bg-white px-2 py-0.5 rounded-full text-slate-400 border border-slate-100 uppercase">{it.type}</span>
+                                        </div>
+                                        <p className="text-sm font-black text-slate-800 mb-1 leading-tight">{it.title}</p>
+                                        <p className="text-sm text-slate-500 font-medium leading-relaxed">{it.notes}</p>
+                                    </div>
                                 ))
                             )}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow overflow-hidden flex flex-col h-[400px]">
-                    <h2 className="text-lg font-semibold border-b pb-2 mb-4">Interaction History</h2>
-                    <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-                        {(!loan.interactions || loan.interactions.length === 0) ? (
-                            <div className="text-center py-8 text-slate-400 text-xs italic">No collection notes yet.</div>
-                        ) : (
-                            loan.interactions.map(it => (
-                                <div key={it.id} className="bg-slate-50 p-3 rounded-lg border border-slate-100 relative group">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{it.type} • {new Date(it.createdAt).toLocaleString()}</span>
-                                    </div>
-                                    <p className="text-sm font-bold text-slate-800 mb-0.5">{it.title}</p>
-                                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{it.notes}</p>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="Type a collection note or visit summary..."
-                            value={newNote}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewNote(e.target.value)}
-                            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAddNote()}
-                        />
-                        <Button onClick={handleAddNote}>Add</Button>
+                        </div>
+                        <div className="flex gap-3 bg-slate-50 p-3 rounded-[2rem] border border-slate-100 focus-within:border-indigo-200 transition-all">
+                            <Input
+                                placeholder="Add a follow-up note or visit summary..."
+                                value={newNote}
+                                onChange={(e) => setNewNote(e.target.value)}
+                                className="bg-transparent border-none shadow-none focus-visible:ring-0 placeholder:text-slate-400 font-bold"
+                            />
+                            <Button onClick={handleAddNote} className="bg-indigo-600 hover:bg-indigo-700 rounded-2xl px-6 font-black h-12 shadow-md shadow-indigo-600/20">Add Log</Button>
+                        </div>
                     </div>
                 </div>
             </div>

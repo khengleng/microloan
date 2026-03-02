@@ -148,7 +148,7 @@ export class LoansService {
     // ── Transition Rules ─────────────────────────────────────────────────────
 
     // 1. PENDING -> APPROVED / REJECTED
-    if (currentStatus === LoanStatus.PENDING && [LoanStatus.APPROVED, LoanStatus.REJECTED].includes(targetStatus)) {
+    if (currentStatus === LoanStatus.PENDING && ([LoanStatus.APPROVED, LoanStatus.REJECTED] as LoanStatus[]).includes(targetStatus)) {
       if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
         throw new ForbiddenException(`Only an ADMIN/SUPERADMIN can review loan applications.`);
       }
@@ -239,8 +239,8 @@ export class LoansService {
   async remove(tenantId: string, userId: string, id: string) {
     const loan = await this.prisma.loan.findUnique({ where: { id, tenantId } });
     if (!loan) throw new NotFoundException('Loan not found');
-    if (loan.status !== LoanStatus.DRAFT) {
-      throw new BadRequestException('Only draft loans can be deleted');
+    if (loan.status !== LoanStatus.PENDING) {
+      throw new BadRequestException('Only pending loans can be deleted');
     }
 
     await this.prisma.loan.delete({ where: { id, tenantId } });
