@@ -43,131 +43,125 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link
                 href={`/${locale}${href}`}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-300 ${active
-                    ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)] backdrop-blur-sm'
-                    : 'text-white/60 hover:bg-white/5 hover:text-white'
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-semibold transition-all ${active
+                    ? 'bg-[#F6F9FC] text-[#635BFF]'
+                    : 'text-[#4F566B] hover:bg-[#F6F9FC] hover:text-[#1A1F36]'
                     }`}
             >
-                <Icon size={18} className={`${active ? 'text-indigo-300' : 'text-white/40'} transition-colors`} />
-                <span className="tracking-wide">{label}</span>
-                {active && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 ml-auto shadow-[0_0_8px_#818cf8]" />}
+                <Icon size={16} className={`${active ? 'text-[#635BFF]' : 'text-[#AAB7C4]'} transition-colors`} />
+                <span className="tracking-tight">{label}</span>
             </Link>
         );
     };
 
 
     return (
-        <div className="flex h-screen bg-slate-50">
+        <div className="flex h-screen bg-[#F6F9FC]">
             {/* Mobile overlay */}
             {sidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+                    className="fixed inset-0 bg-black/5 z-20 lg:hidden backdrop-blur-[2px]"
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
 
             {/* Sidebar */}
-            <aside className={`fixed lg:relative inset-y-0 left-0 z-30 w-64 bg-slate-950 bg-gradient-to-b from-[#0F172A] to-[#1E1B4B] text-white flex flex-col flex-shrink-0 shadow-2xl transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+            <aside className={`fixed lg:relative inset-y-0 left-0 z-30 w-64 bg-white border-r border-[#E3E8EE] flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 }`}>
                 {/* Brand */}
-                <div className="p-6 border-b border-white/5">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white text-lg font-black shadow-lg shadow-indigo-500/20 flex-shrink-0">
+                <div className="h-16 flex items-center px-6 border-b border-[#E3E8EE]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 bg-[#635BFF] rounded-md flex items-center justify-center text-white text-sm font-bold shadow-[0_2px_4px_rgba(99,91,255,0.2)] flex-shrink-0">
                             {user?.tenantName ? user.tenantName.charAt(0).toUpperCase() : 'M'}
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-base font-extrabold text-white truncate leading-tight tracking-tight">{user?.tenantName || 'Magic Money'}</p>
-                            {role && (
-                                <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400/80">{role}</span>
-                            )}
-                        </div>
+                        <h2 className="text-[15px] font-bold text-[#1A1F36] truncate tracking-tight">{user?.tenantName || 'Magic Money'}</h2>
                     </div>
                 </div>
 
                 {/* Nav */}
-                <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto no-scrollbar">
                     {/* SUPERADMIN sees Platform + their team */}
                     {isSuperAdmin && (
-                        <>
-                            <p className="text-[11px] uppercase text-white/30 px-4 pt-4 pb-2 font-black tracking-[0.2em]">Platform</p>
+                        <div className="pb-4">
+                            <p className="text-[11px] uppercase text-[#AAB7C4] px-3 py-2 font-bold tracking-wider">Platform</p>
                             {navItem('/tenants', 'Organizations', Building)}
-                            <p className="text-[10px] uppercase text-slate-500 px-3 pt-4 pb-1 font-semibold tracking-widest">PaaS Admin</p>
                             {navItem('/users', 'My Team', UserCog)}
                             {navItem('/audit', 'Audit Log', Shield)}
-                        </>
+                        </div>
                     )}
 
                     {/* Tenant staff navigation */}
                     {!isSuperAdmin && (
-                        <>
-                            <p className="text-[11px] uppercase text-white/30 px-4 pt-4 pb-2 font-black tracking-[0.2em]">Operations</p>
-                            {navItem('/dashboard', t('dashboard'), LayoutDashboard)}
-                            {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
-                            {(isSales || isFinance) && navItem('/loans', t('loans'), FileText)}
-                            {isFinance && navItem('/repayments', t('repayments'), CreditCard)}
-                            {isFinance && navItem('/collections', 'Collections', AlertTriangle)}
-                            {isFinance && navItem('/reports', t('reports'), BarChart2)}
-                            {navItem('/products', 'Loan Products', BarChart2)}
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-[11px] uppercase text-[#AAB7C4] px-3 py-2 font-bold tracking-wider">Operations</p>
+                                {navItem('/dashboard', 'Home', LayoutDashboard)}
+                                {(isSales || isFinance) && navItem('/borrowers', 'Customers', Users)}
+                                {(isSales || isFinance) && navItem('/loans', 'Payments', FileText)}
+                                {isFinance && navItem('/repayments', 'Balances', CreditCard)}
+                                {isFinance && navItem('/collections', 'Radar', AlertTriangle)}
+                                {isFinance && navItem('/reports', 'Reports', BarChart2)}
+                                {navItem('/products', 'Products', BarChart2)}
+                            </div>
 
                             {isAdmin && (
-                                <>
-                                    <p className="text-[10px] uppercase text-slate-500 px-3 pt-4 pb-1 font-semibold tracking-widest">Admin</p>
-                                    {navItem('/users', 'Team Members', UserCog)}
-                                    {navItem('/audit', 'Audit Log', Shield)}
+                                <div>
+                                    <p className="text-[11px] uppercase text-[#AAB7C4] px-3 py-2 font-bold tracking-wider">Management</p>
+                                    {navItem('/users', 'Team', UserCog)}
+                                    {navItem('/audit', 'Activity', Shield)}
                                     {navItem('/settings', 'Settings', Settings)}
-                                </>
+                                </div>
                             )}
-                        </>
+                        </div>
                     )}
                 </nav>
 
                 {/* User footer */}
-                <div className="p-4 border-t border-white/5 bg-black/20">
-                    {user?.twoFactorEnabled && (
-                        <div className="flex items-center gap-2 px-4 py-1.5 mb-3 text-[10px] text-emerald-400 font-black bg-emerald-400/10 rounded-full w-fit">
-                            <ShieldCheck size={12} />
-                            MFA PROTECTED
+                <div className="p-4 border-t border-[#E3E8EE] bg-[#F7FAFC]">
+                    <div className="flex items-center gap-2 mb-4 px-3">
+                        <div className="w-8 h-8 rounded-full bg-[#E3E8EE] flex items-center justify-center text-[10px] font-bold text-[#4F566B]">
+                            {user?.email?.charAt(0).toUpperCase()}
                         </div>
-                    )}
-                    <div className="px-4 py-1 text-xs text-white/40 truncate mb-2 font-medium">{user?.email}</div>
+                        <div className="min-w-0">
+                            <p className="text-[12px] font-bold text-[#1A1F36] truncate">{user?.email?.split('@')[0]}</p>
+                            <p className="text-[10px] text-[#697386] font-medium truncate">{user?.role}</p>
+                        </div>
+                    </div>
                     <button
                         onClick={async () => {
-                            // Call the server route to clear HttpOnly cookies
-                            // (client JS cannot clear HttpOnly cookies directly)
                             await fetch('/api/auth/logout', { method: 'POST' });
                             window.location.href = `/${locale}/login`;
                         }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm font-bold text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] font-bold text-[#697386] hover:text-[#1A1F36] transition-colors"
                     >
-                        <LogOut size={16} className="text-white/40" />
-                        {t('logout')}
+                        <LogOut size={14} />
+                        Sign Out
                     </button>
                 </div>
             </aside>
 
             {/* Main */}
-            <main className="flex-1 overflow-auto min-w-0 bg-[#F8FAFC]">
+            <main className="flex-1 overflow-auto flex flex-col min-w-0">
                 {/* Topbar */}
-                <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-6 py-4 flex justify-between items-center sticky top-0 z-20">
+                <header className="h-16 bg-white border-b border-[#E3E8EE] px-8 flex justify-between items-center sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                     <div className="flex items-center gap-4">
-                        {/* Hamburger — mobile only */}
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="lg:hidden p-2 rounded-2xl text-slate-600 hover:bg-slate-100 transition-colors"
+                            className="lg:hidden p-2 rounded-md text-[#4F566B] hover:bg-[#F6F9FC] transition-colors"
                         >
-                            <Menu size={24} />
+                            <Menu size={20} />
                         </button>
-                        <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-lg text-white hidden sm:flex shadow-lg shadow-indigo-600/20">
-                            {user?.tenantName ? user.tenantName.charAt(0).toUpperCase() : 'M'}
+                        <div className="h-4 w-[1px] bg-[#E3E8EE] hidden lg:block" />
+                        <div className="text-[13px] font-bold text-[#697386] hidden sm:block">
+                            MicroLend <span className="text-[#AAB7C4] mx-1">/</span> {pathname.split('/').pop()?.toUpperCase()}
                         </div>
-                        <span className="text-xl font-black tracking-tight text-slate-900 leading-none">{user?.tenantName || 'Magic Money'}</span>
                     </div>
-                    <div className="flex gap-2">
-                        <Link href={`/en/dashboard`} className={`px-4 py-1.5 text-xs rounded-full font-black tracking-widest transition-all ${locale === 'en' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>EN</Link>
-                        <Link href={`/km/dashboard`} className={`px-4 py-1.5 text-xs rounded-full font-black tracking-widest transition-all ${locale === 'km' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>ខ្មែរ</Link>
+                    <div className="flex items-center gap-1 bg-[#F6F9FC] p-0.5 rounded-md border border-[#E3E8EE]">
+                        <Link href={`/en/dashboard`} className={`px-3 py-1 text-[11px] rounded-sm font-bold transition-all ${locale === 'en' ? 'bg-white text-[#1A1F36] shadow-sm' : 'text-[#697386] hover:text-[#1A1F36]'}`}>EN</Link>
+                        <Link href={`/km/dashboard`} className={`px-3 py-1 text-[11px] rounded-sm font-bold transition-all ${locale === 'km' ? 'bg-white text-[#1A1F36] shadow-sm' : 'text-[#697386] hover:text-[#1A1F36]'}`}>KM</Link>
                     </div>
                 </header>
-                <div className="p-6 max-w-7xl mx-auto">
+                <div className="p-8 max-w-7xl w-full mx-auto">
                     {children}
                 </div>
             </main>

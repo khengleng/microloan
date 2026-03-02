@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit2, Trash2, Package, ShieldCheck, Zap, Info } from 'lucide-react';
+import { Plus, Package, Zap, Info, Loader2 } from 'lucide-react';
 import { ProductModal } from '@/components/ProductModal';
 
 interface LoanPolicy {
@@ -54,25 +54,27 @@ export default function ProductsPage() {
         }
     };
 
-    if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">Loading Financial Products...</div>;
+    if (loading) return (
+        <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
+            <Loader2 className="animate-spin text-[#635BFF]" size={40} />
+            <p className="text-[#697386] font-medium">Loading products...</p>
+        </div>
+    );
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
             {/* Header Area */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Package className="text-indigo-600" size={32} /> Credit Product Catalog
-                    </h1>
-                    <p className="text-slate-500 font-medium mt-1">Configure automated loan policies and interest engines</p>
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Loan Products</h1>
+                    <p className="text-[#697386] text-[14px]">Configure your credit offerings and automated risk policies.</p>
                 </div>
-                <Button
+                <button
                     onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
-                    className="rounded-2xl font-black px-8 h-12 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] flex items-center gap-2"
+                    className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                 >
-                    <Plus size={18} />
-                    Engine New Product
-                </Button>
+                    <Plus size={16} /> New Product
+                </button>
             </div>
 
             <ProductModal
@@ -82,93 +84,95 @@ export default function ProductsPage() {
                 productToEdit={editingProduct}
             />
 
-            <div className="grid grid-cols-1 gap-8">
+            <div className="grid grid-cols-1 gap-6">
                 {products.length === 0 ? (
-                    <div className="glass p-20 text-center rounded-[2.5rem] premium-shadow border-slate-100/10">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                            <Zap size={32} />
+                    <div className="bg-white border border-[#E3E8EE] rounded-lg p-16 text-center shadow-sm">
+                        <div className="w-16 h-16 bg-[#F7FAFC] text-[#AAB7C4] rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Package size={32} />
                         </div>
-                        <h2 className="text-slate-900 font-black text-xl mb-1 italic">No logic engines found.</h2>
-                        <p className="text-slate-400 font-medium text-sm">Create your first credit product to begin originating loans.</p>
+                        <h2 className="text-[18px] font-bold text-[#1A1F36]">No products found</h2>
+                        <p className="text-[#697386] text-[14px] mt-1">Create your first loan product to start originating loans.</p>
                     </div>
                 ) : (
                     products.map(product => (
-                        <div key={product.id} className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10 relative overflow-hidden group">
-                            <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">{product.name}</h2>
-                                        {!product.isActive && <span className="text-[10px] font-black bg-rose-100 text-rose-600 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">Suspended</span>}
-                                        {product.isActive && <span className="text-[10px] font-black bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">Active Engine</span>}
-                                    </div>
-                                    <p className="text-slate-500 font-medium text-sm leading-relaxed max-w-2xl">{product.description || 'Enterprise-grade automated credit logic engine.'}</p>
-                                    <div className="flex items-center gap-4 mt-6">
-                                        <div className="flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-full border border-indigo-100/50">
-                                            <Zap size={14} className="text-indigo-600" />
-                                            <span className="text-[11px] font-black text-indigo-700 uppercase tracking-widest">{product.interestMethod}</span>
+                        <div key={product.id} className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
+                            <div className="p-8">
+                                <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <h2 className="text-[20px] font-bold text-[#1A1F36] tracking-tight">{product.name}</h2>
+                                            {!product.isActive ? (
+                                                <span className="px-2 py-0.5 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[11px] font-bold">Inactive</span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[11px] font-bold">Active</span>
+                                            )}
+                                        </div>
+                                        <p className="text-[#697386] text-[14px] leading-relaxed max-w-2xl">{product.description || 'Professional credit offering with automated policy enforcement.'}</p>
+
+                                        <div className="flex items-center gap-4 mt-6">
+                                            <div className="flex items-center gap-2 px-3 py-1 bg-[#F7FAFC] rounded border border-[#E3E8EE]">
+                                                <Zap size={14} className="text-[#635BFF]" />
+                                                <span className="text-[12px] font-bold text-[#4F566B] uppercase tracking-wider">{product.interestMethod}</span>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="px-4 py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#4F566B] hover:bg-slate-50 transition-colors">
+                                            Edit
+                                        </button>
+                                        <button onClick={() => handleDelete(product.id, product.name)} className="px-4 py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#FF5D5D] hover:bg-[#FFF8F8] transition-colors">
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-3">
-                                    <Button size="lg" variant="secondary" onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="rounded-2xl font-bold h-11 px-6 shadow-sm">
-                                        <Edit2 size={16} className="mr-2" /> Modify
-                                    </Button>
-                                    <Button size="lg" variant="secondary" onClick={() => handleDelete(product.id, product.name)} className="rounded-2xl font-bold h-11 px-4 text-rose-500 hover:bg-rose-50 border-rose-100/50">
-                                        <Trash2 size={18} />
-                                    </Button>
-                                </div>
-                            </div>
 
-                            <div className="mt-10 pt-8 border-t border-slate-100/50">
-                                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                                    <ShieldCheck size={14} className="text-slate-400" /> Automated Risk Policies ({product.policies.length})
-                                </h3>
-                                {product.policies.length === 0 ? (
-                                    <div className="p-10 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                                        <p className="text-xs font-black text-slate-300 uppercase tracking-widest italic">Zero policies defined for this matrix.</p>
-                                    </div>
-                                ) : (
-                                    <div className="overflow-x-auto no-scrollbar">
-                                        <table className="min-w-full border-collapse">
-                                            <thead>
-                                                <tr>
-                                                    <th className="text-left pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Risk Tier</th>
-                                                    <th className="text-right pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rate</th>
-                                                    <th className="text-right pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Term Logic</th>
-                                                    <th className="text-right pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Principal Logic</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100/50">
-                                                {product.policies.map(p => (
-                                                    <tr key={p.id} className="group/row hover:bg-slate-50/50 transition-colors">
-                                                        <td className="py-5 font-black text-base text-slate-900 tracking-tight">{p.creditRating}</td>
-                                                        <td className="py-5 text-right font-black text-indigo-600 text-base">{p.interestRate}%</td>
-                                                        <td className="py-5 text-right text-slate-500 font-bold text-xs uppercase tracking-tighter">
-                                                            {p.minTermMonths || 0}m <span className="mx-1 text-slate-200">→</span> {p.maxTermMonths || '∞'}m
-                                                        </td>
-                                                        <td className="py-5 text-right text-slate-500 font-black text-xs">
-                                                            ${p.minPrincipal ? p.minPrincipal.toLocaleString() : '0'} <span className="mx-1 text-slate-200">→</span> ${p.maxPrincipal ? p.maxPrincipal.toLocaleString() : '∞'}
-                                                        </td>
+                                <div className="mt-10 pt-8 border-t border-[#F7FAFC]">
+                                    <h3 className="text-[12px] font-bold text-[#AAB7C4] uppercase tracking-wider mb-6">Risk Policies ({product.policies.length})</h3>
+
+                                    {product.policies.length === 0 ? (
+                                        <div className="p-8 text-center bg-[#F7FAFC] rounded border border-dashed border-[#E3E8EE]">
+                                            <p className="text-[13px] text-[#697386] font-medium italic">No specific risk tiers defined.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto no-scrollbar">
+                                            <table className="min-w-full border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-[#F7FAFC]">
+                                                        <th className="text-left pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Tier</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Interest Rate</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Term Range</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Principal limit</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
+                                                </thead>
+                                                <tbody className="divide-y divide-[#F7FAFC]">
+                                                    {product.policies.map(p => (
+                                                        <tr key={p.id} className="hover:bg-[#F7FAFC]/50 transition-colors">
+                                                            <td className="py-4 text-[14px] font-bold text-[#1A1F36]">{p.creditRating}</td>
+                                                            <td className="py-4 text-right text-[14px] font-bold text-[#635BFF]">{p.interestRate}%</td>
+                                                            <td className="py-4 text-right text-[13px] text-[#4F566B] font-medium">
+                                                                {p.minTermMonths || 0}m – {p.maxTermMonths || '∞'}m
+                                                            </td>
+                                                            <td className="py-4 text-right text-[13px] text-[#4F566B] font-medium">
+                                                                ${p.minPrincipal ? p.minPrincipal.toLocaleString() : '0'} – ${p.maxPrincipal ? p.maxPrincipal.toLocaleString() : '∞'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))
                 )}
             </div>
 
-            <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100/50 flex flex-col md:flex-row items-center gap-6">
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-indigo-500 shadow-sm shrink-0">
-                    <Info size={24} />
-                </div>
-                <div>
-                    <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-1">Policy Enforcement Engine</h4>
-                    <p className="text-sm text-indigo-700/60 font-medium">Changes to these products will only affect new loan applications. Existing loans will maintain their original originated terms as per regulatory compliance.</p>
-                </div>
+            <div className="bg-[#F0F5FF] p-6 rounded-lg border border-[#E3E8EE] flex gap-4">
+                <Info size={20} className="text-[#635BFF] shrink-0 mt-0.5" />
+                <p className="text-[14px] text-[#4F566B] leading-relaxed">
+                    Changes to product availability or policy terms will only apply to future loan originations. Existing active loans will continue under their original terms.
+                </p>
             </div>
         </div>
     );

@@ -21,13 +21,13 @@ interface Loan {
     status: string;
 }
 
-const STATUS_CONFIG: Record<string, { bg: string, text: string, ring: string, label: string }> = {
-    PENDING: { bg: 'bg-amber-50/50', text: 'text-amber-600', ring: 'border-amber-100', label: 'Analysis' },
-    APPROVED: { bg: 'bg-indigo-50/50', text: 'text-indigo-600', ring: 'border-indigo-100', label: 'Committed' },
-    REJECTED: { bg: 'bg-red-50/50', text: 'text-red-600', ring: 'border-red-100', label: 'Declined' },
-    DISBURSED: { bg: 'bg-emerald-50/50', text: 'text-emerald-600', ring: 'border-emerald-100', label: 'Active Capital' },
-    CLOSED: { bg: 'bg-slate-50/50', text: 'text-slate-500', ring: 'border-slate-100', label: 'Matured' },
-    DEFAULTED: { bg: 'bg-rose-50/50', text: 'text-rose-600', ring: 'border-rose-100', label: 'Exposed' },
+const STATUS_CONFIG: Record<string, { bg: string, text: string, border: string, dot: string }> = {
+    PENDING: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', border: 'border-[#FEF3C7]', dot: 'bg-[#F59E0B]' },
+    APPROVED: { bg: 'bg-[#F0F5FF]', text: 'text-[#635BFF]', border: 'border-[#E0E7FF]', dot: 'bg-[#635BFF]' },
+    REJECTED: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', border: 'border-[#FEE2E2]', dot: 'bg-[#EF4444]' },
+    DISBURSED: { bg: 'bg-[#ECFDF5]', text: 'text-[#10B981]', border: 'border-[#D1FAE5]', dot: 'bg-[#10B981]' },
+    CLOSED: { bg: 'bg-[#F9FAFB]', text: 'text-[#6B7280]', border: 'border-[#F3F4F6]', dot: 'bg-[#6B7280]' },
+    DEFAULTED: { bg: 'bg-[#FFF1F2]', text: 'text-[#BE123C]', border: 'border-[#FFE4E6]', dot: 'bg-[#BE123C]' },
 };
 
 export default function LoansPage() {
@@ -46,7 +46,7 @@ export default function LoansPage() {
             const res = await api.get('/loans');
             setLoans(res.data);
         } catch {
-            showToast('Failed to load asset ledger', 'error');
+            showToast('Failed to load payment ledger', 'error');
         } finally {
             setLoading(false);
         }
@@ -64,7 +64,7 @@ export default function LoansPage() {
         });
     }, [loans, searchQuery, statusFilter]);
 
-    const statuses = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
+    const statuses = ['ALL', 'PENDING', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
 
     const exportToExcel = async () => {
         try {
@@ -72,160 +72,138 @@ export default function LoansPage() {
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `asset_origination_ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+            link.setAttribute('download', `payment_ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
-            showToast('Asset ledger exported successfully', 'success');
+            showToast('Ledger exported successfully', 'success');
         } catch {
-            showToast('Failed to export asset data', 'error');
+            showToast('Failed to export data', 'error');
         }
     };
 
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 font-urbanist pb-10">
-            {/* Elite Asset Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-indigo-600 rounded-[0.8rem] flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-                            <Landmark size={22} />
-                        </div>
-                        <h1 className="text-4xl font-black text-slate-950 tracking-tighter">Asset Portfolio Matrix</h1>
-                    </div>
-                    <p className="text-slate-500 font-bold ml-1">
-                        Monitoring <span className="text-indigo-600 font-black">{loans.length}</span> individual financial instruments under active management.
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Payment Portfolio</h1>
+                    <p className="text-[#697386] text-[14px]">
+                        Monitoring {loans.length} active financial instruments and schedules.
                     </p>
                 </div>
-                <div className="flex items-center gap-4">
-                    <Button
+                <div className="flex items-center gap-3">
+                    <button
                         onClick={exportToExcel}
-                        variant="ghost"
-                        className="flex items-center gap-2 rounded-2xl font-black text-[11px] uppercase tracking-widest px-6 h-12 bg-white/50 border border-slate-200/50 hover:bg-white shadow-sm transition-all"
+                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
                     >
-                        <Download size={16} /> Export Portfolio
-                    </Button>
-                    <Button
+                        <Download size={14} /> Export
+                    </button>
+                    <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 bg-slate-950 text-white hover:bg-slate-800 shadow-xl shadow-slate-950/20 rounded-2xl font-black text-[11px] uppercase tracking-widest px-8 h-12 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                     >
-                        <Plus size={18} />
-                        Originate New Asset
-                    </Button>
+                        <Plus size={16} />
+                        New Loan
+                    </button>
                 </div>
             </div>
 
-            {/* Logical Filtration */}
-            <div className="flex flex-col gap-6 max-w-5xl">
-                <div className="relative group">
-                    <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors duration-300" />
-                    <input
-                        type="text"
-                        placeholder="Filter by digital identity name or instrument ID..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-16 pr-6 h-16 text-sm font-bold border-white bg-white/40 glass premium-shadow rounded-[1.8rem] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300 text-slate-950 placeholder:text-slate-400"
-                    />
-                </div>
-                <div className="flex gap-2 p-1.5 bg-slate-950/5 rounded-[2rem] w-fit overflow-x-auto no-scrollbar max-w-full glass">
+            {/* Filters */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-6 border-b border-[#E3E8EE] overflow-x-auto no-scrollbar">
                     {statuses.map(s => (
                         <button
                             key={s}
                             onClick={() => setStatusFilter(s)}
-                            className={`px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] rounded-full transition-all duration-300 whitespace-nowrap ${statusFilter === s
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 -translate-y-0.5'
-                                : 'text-slate-500 hover:text-indigo-600'
+                            className={`pb-3 text-[13px] font-semibold transition-all whitespace-nowrap relative ${statusFilter === s
+                                ? 'text-[#635BFF]'
+                                : 'text-[#697386] hover:text-[#1A1F36]'
                                 }`}
                         >
-                            {s === 'ALL' ? 'Total Portfolio' : s}
+                            {s === 'ALL' ? 'All Loans' : s.charAt(0) + s.slice(1).toLowerCase()}
+                            {statusFilter === s && (
+                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#635BFF]" />
+                            )}
                         </button>
                     ))}
                 </div>
+
+                <div className="relative group max-w-md">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
+                    <input
+                        type="text"
+                        placeholder="Filter by customer name..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-white border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
+                    />
+                </div>
             </div>
 
-            {/* High-Fidelity Asset Ledger */}
-            <div className="glass rounded-[3.5rem] premium-shadow border-white/40 overflow-hidden bg-white/40">
+            {/* Table */}
+            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse">
-                        <thead>
-                            <tr className="bg-slate-950/5">
-                                <th className="pl-10 pr-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Validated Identity</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Principal (Par)</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden md:table-cell">Logic Rate</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden sm:table-cell">Duration</th>
-                                <th className="px-5 py-6 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Protocol Status</th>
-                                <th className="pl-5 pr-10 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Control</th>
+                    <table className="min-w-full divide-y divide-[#E3E8EE]">
+                        <thead className="bg-[#F7FAFC]">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-3 text-right text-[11px) font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Rate</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden sm:table-cell">Term</th>
+                                <th className="px-6 py-3 text-center text-[11px] font-bold text-[#697386] uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100/50">
+                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
                             {loading ? (
-                                Array.from({ length: 6 }).map((_, i) => (
-                                    <tr key={i}>
-                                        <td className="pl-10 pr-5 py-8"><div className="h-10 w-48 bg-slate-100/50 rounded-2xl animate-pulse" /></td>
-                                        <td className="px-5 py-8"><div className="h-6 w-24 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8 hidden md:table-cell"><div className="h-4 w-12 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8 hidden sm:table-cell"><div className="h-4 w-12 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8"><div className="h-8 w-24 bg-slate-100/50 rounded-full animate-pulse mx-auto" /></td>
-                                        <td className="pl-5 pr-10 py-8"><div className="h-10 w-24 bg-slate-100/50 rounded-2xl animate-pulse float-right" /></td>
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td colSpan={6} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-32 text-center">
-                                        <div className="relative inline-block mb-4">
-                                            <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200">
-                                                <FileText size={48} />
-                                            </div>
-                                            <Activity className="absolute -bottom-2 -right-2 text-slate-300" size={24} />
-                                        </div>
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Zero Asset Re-matches Identified</h3>
-                                        <p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-widest">No matching financial instruments found in central portfolio</p>
+                                    <td colSpan={6} className="px-6 py-20 text-center">
+                                        <div className="text-[#AAB7C4] mb-2"><FileText size={40} className="mx-auto opacity-20" /></div>
+                                        <p className="text-[14px] font-medium text-[#1A1F36]">No loans found</p>
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map(loan => (
-                                    <tr key={loan.id} className="hover:bg-white/60 transition-all duration-300 group">
-                                        <td className="pl-10 pr-5 py-7">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-[1.4rem] bg-indigo-600 flex items-center justify-center text-white text-base font-black shadow-lg shadow-indigo-600/10 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                    <tr key={loan.id} className="hover:bg-[#F6F9FC] transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-[#F0F5FF] flex items-center justify-center text-[#635BFF] text-[11px] font-bold">
                                                     {loan.borrower.firstName.charAt(0)}{loan.borrower.lastName.charAt(0)}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-extrabold text-slate-950 text-base tracking-tighter leading-tight group-hover:text-indigo-600 transition-colors">{loan.borrower.firstName} {loan.borrower.lastName}</span>
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Primary Obligor</span>
+                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{loan.borrower.firstName} {loan.borrower.lastName}</span>
+                                                    <span className="text-[11px] text-[#697386] font-medium">#{loan.id.slice(-6).toUpperCase()}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-7 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xl font-black text-slate-950 tracking-tighter">${loan.principal.toLocaleString()}</span>
-                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Gross Disbursement</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className="text-[13px] font-bold text-[#1A1F36]">${loan.principal.toLocaleString()}</span>
                                         </td>
-                                        <td className="px-5 py-7 text-right hidden md:table-cell">
-                                            <div className="flex items-center justify-end gap-1.5 px-3 py-1 bg-white/60 rounded-xl border border-white inline-flex font-mono">
-                                                <Percent size={10} className="text-slate-400" />
-                                                <span className="text-sm font-black text-slate-900 tracking-tight">{loan.annualInterestRate}</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right hidden md:table-cell">
+                                            <span className="text-[13px] text-[#4F566B]">{loan.annualInterestRate}%</span>
                                         </td>
-                                        <td className="px-5 py-7 text-right hidden sm:table-cell">
-                                            <div className="flex items-center justify-end gap-1.5 px-3 py-1 bg-white/60 rounded-xl border border-white inline-flex font-mono">
-                                                <Calendar size={10} className="text-slate-400" />
-                                                <span className="text-sm font-black text-slate-900 tracking-tight">{loan.termMonths}M</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right hidden sm:table-cell">
+                                            <span className="text-[13px] text-[#4F566B]">{loan.termMonths} mo</span>
                                         </td>
-                                        <td className="px-5 py-7 text-center">
-                                            <div className="flex flex-col items-center">
-                                                <div className={`px-4 py-2 rounded-2xl border ${STATUS_CONFIG[loan.status]?.ring || 'border-slate-100'} ${STATUS_CONFIG[loan.status]?.bg || 'bg-slate-50/50'} ${STATUS_CONFIG[loan.status]?.text || 'text-slate-400'} text-[10px] font-black uppercase tracking-widest shadow-sm`}>
-                                                    {STATUS_CONFIG[loan.status]?.label || loan.status}
+                                        <td className="px-6 py-4">
+                                            <div className="flex justify-center">
+                                                <div className={`px-2.5 py-0.5 rounded-full border ${STATUS_CONFIG[loan.status]?.bg} ${STATUS_CONFIG[loan.status]?.text} ${STATUS_CONFIG[loan.status]?.border} text-[11px] font-bold flex items-center gap-1.5`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${STATUS_CONFIG[loan.status]?.dot}`} />
+                                                    {loan.status}
                                                 </div>
-                                                <span className="text-[8px] font-black text-slate-300 uppercase mt-1 tracking-widest">{loan.status} Protocol</span>
                                             </div>
                                         </td>
-                                        <td className="pl-5 pr-10 py-7 text-right">
+                                        <td className="px-6 py-4 text-right">
                                             <Link href={`/${locale}/loans/${loan.id}`}>
-                                                <button className="flex items-center gap-2 pr-2 pl-5 py-2.5 bg-slate-950 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-indigo-600 transition-all shadow-xl shadow-slate-950/20 active:scale-95 group-hover:-translate-x-1 duration-500">
-                                                    Audit Instrument <ArrowRightCircle size={14} className="text-white/50" />
+                                                <button className="bg-white border border-[#E3E8EE] text-[#4F566B] hover:text-[#1A1F36] text-[12px] font-bold py-1 px-3 rounded shadow-sm hover:bg-[#F6F9FC] transition-all">
+                                                    View
                                                 </button>
                                             </Link>
                                         </td>
@@ -240,7 +218,7 @@ export default function LoansPage() {
             <LoanModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchLoans(); showToast('Asset origination committed', 'success'); }}
+                onSuccess={() => { fetchLoans(); showToast('Loan created', 'success'); }}
             />
         </div>
     );

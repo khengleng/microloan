@@ -70,169 +70,117 @@ export default function RepaymentsPage() {
     };
 
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 font-urbanist pb-10">
-            {/* Elite Recovery Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-emerald-600 rounded-[0.8rem] flex items-center justify-center text-white shadow-lg shadow-emerald-600/20">
-                            <Receipt size={22} />
-                        </div>
-                        <h1 className="text-4xl font-black text-slate-950 tracking-tighter">Capital Recovery Ledger</h1>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-500 font-bold ml-1">
-                        Total Recovery Inflow: <span className="text-emerald-600 font-black tracking-tight">${totalCollected.toLocaleString()}</span> across {repayments.length} transactions
-                    </div>
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Balance Ledger</h1>
+                    <p className="text-[#697386] text-[14px]">
+                        Total collections: <span className="text-[#1A1F36] font-bold">${totalCollected.toLocaleString()}</span> across {repayments.length} transactions.
+                    </p>
                 </div>
-                <div className="flex items-center gap-4">
-                    <Button
+                <div className="flex items-center gap-3">
+                    <button
                         onClick={exportToExcel}
-                        variant="ghost"
-                        className="flex items-center gap-2 rounded-2xl font-black text-[11px] uppercase tracking-widest px-6 h-12 bg-white/50 border border-slate-200/50 hover:bg-white shadow-sm transition-all"
+                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
                     >
-                        <Download size={16} /> Export Intelligence
-                    </Button>
-                    <Button
+                        <Download size={14} /> Export
+                    </button>
+                    <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xl shadow-emerald-600/20 rounded-2xl font-black text-[11px] uppercase tracking-widest px-8 h-12 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                     >
-                        <Plus size={18} />
-                        Post Recovery Entry
-                    </Button>
+                        <Plus size={16} />
+                        Add Repayment
+                    </button>
                 </div>
             </div>
 
-            {/* Recovery Highlights */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="glass p-6 rounded-[2.5rem] premium-shadow border-white/60 bg-gradient-to-br from-emerald-50/50 to-white/80">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Verified Recovery</span>
-                        <div className="text-3xl font-black text-slate-950 tracking-tighter">${totalCollected.toLocaleString()}</div>
-                    </div>
-                </div>
-                <div className="glass p-6 rounded-[2.5rem] premium-shadow border-white/60 bg-white/80">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Transaction Velocity</span>
-                        <div className="text-3xl font-black text-slate-950 tracking-tighter">{repayments.length} <span className="text-slate-300 font-medium text-lg">POSTS</span></div>
-                    </div>
-                </div>
-                <div className="glass p-6 rounded-[2.5rem] premium-shadow border-white/60 bg-white/80">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Average Liquidation</span>
-                        <div className="text-3xl font-black text-slate-950 tracking-tighter">${repayments.length ? (totalCollected / repayments.length).toFixed(0) : 0}</div>
-                    </div>
-                </div>
-                <div className="glass p-6 rounded-[2.5rem] premium-shadow border-white/60 bg-indigo-50/30">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">System Health</span>
-                        <div className="flex items-center gap-2">
-                            <span className="text-2xl font-black text-slate-950 tracking-tighter uppercase whitespace-nowrap">Immutable Alpha</span>
-                            <CheckCircle2 size={24} className="text-emerald-500" />
+            {/* Metric Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                    { label: 'Total Volume', value: `$${totalCollected.toLocaleString()}`, icon: Wallet, color: 'text-[#635BFF]', bg: 'bg-[#F0F5FF]' },
+                    { label: 'Avg Payment', value: `$${repayments.length ? (totalCollected / repayments.length).toFixed(0) : 0}`, icon: Activity, color: 'text-[#00D4FF]', bg: 'bg-[#E0FAFF]' },
+                    { label: 'Ledger Audit', value: 'Verified', icon: CheckCircle2, color: 'text-[#3ECF8E]', bg: 'bg-[#E6F9F1]' },
+                ].map((m, i) => (
+                    <div key={i} className="bg-white border border-[#E3E8EE] p-5 rounded-lg shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className={`p-1.5 rounded ${m.bg} ${m.color}`}>
+                                <m.icon size={16} />
+                            </div>
+                            <span className="text-[12px] font-semibold text-[#697386] uppercase tracking-wider">{m.label}</span>
                         </div>
+                        <div className="text-2xl font-bold text-[#1A1F36]">{m.value}</div>
                     </div>
-                </div>
+                ))}
             </div>
 
-            {/* Industrial Ledger Filter */}
-            <div className="relative group max-w-4xl">
-                <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors duration-300" />
+            {/* Toolbar */}
+            <div className="relative group max-w-md">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
                 <input
                     type="text"
-                    placeholder="Filter recovery events by validated identity name or transaction ID..."
+                    placeholder="Search by customer name..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-16 pr-6 h-16 text-sm font-bold border-white bg-white/40 glass premium-shadow rounded-[1.8rem] focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all duration-300 text-slate-950 placeholder:text-slate-400"
+                    className="w-full pl-10 pr-4 py-2 bg-white border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
                 />
             </div>
 
-            {/* High-Contrast Liquidation Ledger */}
-            <div className="glass rounded-[3.5rem] premium-shadow border-white/40 overflow-hidden bg-white/40">
+            {/* Table */}
+            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse">
-                        <thead>
-                            <tr className="bg-emerald-950/5">
-                                <th className="pl-10 pr-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Validated Identity</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Gross Recovery</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden md:table-cell">Logic (Interest)</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden md:table-cell">Capital (Principal)</th>
-                                <th className="px-5 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden md:table-cell">Deviation (Penalty)</th>
-                                <th className="pl-5 pr-10 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Execution Event</th>
+                    <table className="min-w-full divide-y divide-[#E3E8EE]">
+                        <thead className="bg-[#F7FAFC]">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Interest</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Principal</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Date</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100/50">
+                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
                             {loading ? (
-                                Array.from({ length: 6 }).map((_, i) => (
-                                    <tr key={i}>
-                                        <td className="pl-10 pr-5 py-8"><div className="h-10 w-48 bg-slate-100/50 rounded-2xl animate-pulse" /></td>
-                                        <td className="px-5 py-8"><div className="h-6 w-24 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8 hidden md:table-cell"><div className="h-4 w-20 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8 hidden md:table-cell"><div className="h-4 w-20 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="px-5 py-8 hidden md:table-cell"><div className="h-4 w-20 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
-                                        <td className="pl-5 pr-10 py-8"><div className="h-4 w-32 bg-slate-100/50 rounded-lg animate-pulse float-right" /></td>
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td colSpan={5} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-32 text-center">
-                                        <div className="relative inline-block mb-4">
-                                            <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200">
-                                                <CreditCard size={48} />
-                                            </div>
-                                            <Activity className="absolute -bottom-2 -right-2 text-slate-300" size={24} />
-                                        </div>
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Zero Recovery Events Identified</h3>
-                                        <p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-widest">No matching liquidation records found in central ledger</p>
+                                    <td colSpan={5} className="px-6 py-20 text-center">
+                                        <div className="text-[#AAB7C4] mb-2"><CreditCard size={40} className="mx-auto opacity-20" /></div>
+                                        <p className="text-[14px] font-medium text-[#1A1F36]">No payments found</p>
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map(rp => (
-                                    <tr key={rp.id} className="hover:bg-white/60 transition-all duration-300 group">
-                                        <td className="pl-10 pr-5 py-7">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-[1.4rem] bg-emerald-600 flex items-center justify-center text-white text-base font-black shadow-lg shadow-emerald-600/10 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                    <tr key={rp.id} className="hover:bg-[#F6F9FC] transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-[#E6F9F1] flex items-center justify-center text-[#3ECF8E] text-[11px] font-bold">
                                                     {rp.loan.borrower.firstName.charAt(0)}{rp.loan.borrower.lastName.charAt(0)}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-extrabold text-slate-950 text-lg tracking-tighter leading-tight group-hover:text-emerald-600 transition-colors">{rp.loan.borrower.firstName} {rp.loan.borrower.lastName}</span>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Digital Payer</span>
-                                                        <ArrowUpRight size={10} className="text-emerald-500" />
-                                                    </div>
+                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{rp.loan.borrower.firstName} {rp.loan.borrower.lastName}</span>
+                                                    <span className="text-[11px] text-[#697386] font-medium">#{rp.id.slice(-6).toUpperCase()}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-7 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xl font-black text-emerald-700 tracking-tighter">${Number(rp.amount).toLocaleString()}</span>
-                                                <span className="text-[9px] font-extrabold text-emerald-500 uppercase tracking-widest">Gross Liquidation</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className="text-[13px] font-bold text-[#3ECF8E]">${Number(rp.amount).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-5 py-7 text-right hidden md:table-cell">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-sm font-black text-slate-800 tracking-tight">${Number(rp.interestPaid).toLocaleString()}</span>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Interest Recovery</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right hidden md:table-cell">
+                                            <span className="text-[13px] text-[#697386]">${Number(rp.interestPaid).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-5 py-7 text-right hidden md:table-cell">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-sm font-black text-slate-800 tracking-tight">${Number(rp.principalPaid).toLocaleString()}</span>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Principal Recall</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right hidden md:table-cell">
+                                            <span className="text-[13px] text-[#697386]">${Number(rp.principalPaid).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-5 py-7 text-right hidden md:table-cell">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-sm font-black text-slate-400 tracking-tight">${Number(rp.penaltyPaid || 0).toLocaleString()}</span>
-                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Penalty Injection</span>
-                                            </div>
-                                        </td>
-                                        <td className="pl-5 pr-10 py-7 text-right">
-                                            <div className="flex flex-col items-end">
-                                                <div className="flex items-center gap-2 px-3 py-1 bg-white/60 rounded-xl border border-white shadow-sm group-hover:bg-emerald-50 transition-all">
-                                                    <DollarSign size={10} className="text-emerald-600" />
-                                                    <span className="text-xs font-black text-slate-700 tracking-widest font-mono uppercase">{new Date(rp.date).toISOString().split('T')[0]}</span>
-                                                </div>
-                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">Validated ledger entry</span>
-                                            </div>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className="text-[12px] font-mono text-[#4F566B] bg-[#F6F9FC] px-2 py-0.5 rounded border border-[#E3E8EE]">
+                                                {new Date(rp.date).toISOString().split('T')[0]}
+                                            </span>
                                         </td>
                                     </tr>
                                 ))
@@ -245,7 +193,7 @@ export default function RepaymentsPage() {
             <RepaymentModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchRepayments(); showToast('Recovery injection verified and posted', 'success'); }}
+                onSuccess={() => { fetchRepayments(); showToast('Repayment recorded', 'success'); }}
             />
         </div>
     );

@@ -81,146 +81,123 @@ export default function BorrowersPage() {
         ), [borrowers, searchQuery]);
 
     return (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 font-urbanist pb-10">
-            {/* Elite Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-indigo-600 rounded-[0.8rem] flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-                            <Fingerprint size={22} />
-                        </div>
-                        <h1 className="text-4xl font-black text-slate-950 tracking-tighter">{t('title')}</h1>
-                    </div>
-                    <p className="text-slate-500 font-bold ml-1">
-                        Managing <span className="text-indigo-600 font-black">{borrowers.length}</span> verified individual digital identities.
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{t('title')}</h1>
+                    <p className="text-[#697386] text-[14px]">
+                        Manage and verify yours customers and their financial profiles.
                     </p>
                 </div>
-                <div className="flex items-center gap-4">
-                    <Button
+                <div className="flex items-center gap-3">
+                    <button
                         onClick={() => setIsCrossCheckOpen(true)}
-                        variant="ghost"
-                        className="flex items-center gap-2 rounded-2xl font-black text-[11px] uppercase tracking-widest px-6 h-12 bg-white/50 border border-slate-200/50 hover:bg-white shadow-sm transition-all"
+                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
                     >
-                        <ShieldAlert size={16} className="text-amber-500" />
-                        Intelligence Cross-Check
-                    </Button>
-                    <Button
+                        <ShieldAlert size={14} className="text-[#F59E0B]" />
+                        Cross-Check
+                    </button>
+                    <button
                         onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }}
-                        className="flex items-center gap-2 bg-slate-950 text-white hover:bg-slate-800 shadow-xl shadow-slate-950/20 rounded-2xl font-black text-[11px] uppercase tracking-widest px-8 h-12 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                     >
-                        <Plus size={18} />
-                        Register Core Identity
-                    </Button>
+                        <Plus size={16} />
+                        Add Customer
+                    </button>
                 </div>
             </div>
 
-            {/* Industrial Search Logic */}
-            <div className="relative group max-w-4xl">
-                <Search size={22} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors duration-300" />
-                <input
-                    type="text"
-                    placeholder="Search by identity name, validated phone, or legal ID number..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-16 pr-6 h-16 text-sm font-bold border-white bg-white/40 glass premium-shadow rounded-[1.8rem] focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300 text-slate-950 placeholder:text-slate-400 placeholder:font-medium"
-                />
-                {searchQuery && (
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-indigo-50 px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-                        {filtered.length} Re-matches
-                    </div>
-                )}
+            {/* Toolbar */}
+            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative flex-1 w-full">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
+                    <input
+                        type="text"
+                        placeholder="Search by name, phone, or ID..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-[#F6F9FC] border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
+                    />
+                </div>
+                <div className="flex items-center gap-2 text-[#697386] text-[13px] font-medium whitespace-nowrap">
+                    <span>{filtered.length} customers found</span>
+                </div>
             </div>
 
-            {/* High-Contrast Identity Ledger */}
-            <div className="glass rounded-[3.5rem] premium-shadow border-white/40 overflow-hidden bg-white/40">
+            {/* Table */}
+            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse">
-                        <thead>
-                            <tr className="bg-slate-950/5">
-                                <th className="pl-10 pr-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Validated Identity</th>
-                                <th className="px-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Comms Protocol</th>
-                                <th className="px-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden md:table-cell">Legal Identifier</th>
-                                <th className="px-5 py-6 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.25em] hidden lg:table-cell">Physical Vector</th>
-                                <th className="pl-5 pr-10 py-6 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">Governance</th>
+                    <table className="min-w-full divide-y divide-[#E3E8EE]">
+                        <thead className="bg-[#F7FAFC]">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Contact</th>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">ID Number</th>
+                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden lg:table-cell">Address</th>
+                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100/50">
+                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
                             {loading ? (
-                                Array.from({ length: 6 }).map((_, i) => (
-                                    <tr key={i}>
-                                        <td className="pl-10 pr-5 py-8"><div className="h-10 w-48 bg-slate-100/50 rounded-2xl animate-pulse" /></td>
-                                        <td className="px-5 py-8"><div className="h-4 w-32 bg-slate-100/50 rounded-lg animate-pulse" /></td>
-                                        <td className="px-5 py-8 hidden md:table-cell"><div className="h-4 w-24 bg-slate-100/50 rounded-lg animate-pulse" /></td>
-                                        <td className="px-5 py-8 hidden lg:table-cell"><div className="h-4 w-40 bg-slate-100/50 rounded-lg animate-pulse" /></td>
-                                        <td className="pl-5 pr-10 py-8"><div className="h-10 w-24 bg-slate-100/50 rounded-2xl animate-pulse float-right" /></td>
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td colSpan={5} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-32 text-center">
-                                        <div className="relative inline-block mb-4">
-                                            <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center text-slate-200">
-                                                <User size={48} />
-                                            </div>
-                                            <Activity className="absolute -bottom-2 -right-2 text-slate-300" size={24} />
-                                        </div>
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Zero Re-matches Identified</h3>
-                                        <p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-widest">No matching digital identities found in central ledger</p>
+                                    <td colSpan={5} className="px-6 py-20 text-center">
+                                        <div className="text-[#AAB7C4] mb-2"><User size={40} className="mx-auto opacity-20" /></div>
+                                        <p className="text-[14px] font-medium text-[#1A1F36]">No customers found</p>
+                                        <p className="text-[12px] text-[#697386] mt-1">Try adjusting your search query</p>
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map(borrower => (
-                                    <tr key={borrower.id} className="hover:bg-white/60 transition-all duration-300 group">
-                                        <td className="pl-10 pr-5 py-7">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-14 h-14 rounded-[1.4rem] bg-indigo-600 flex items-center justify-center text-white text-base font-black shadow-lg shadow-indigo-600/10 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                    <tr key={borrower.id} className="hover:bg-[#F6F9FC] transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-[#F0F5FF] flex items-center justify-center text-[#635BFF] text-[11px] font-bold">
                                                     {borrower.firstName.charAt(0)}{borrower.lastName.charAt(0)}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-extrabold text-slate-950 text-lg tracking-tighter leading-tight group-hover:text-indigo-600 transition-colors">{borrower.firstName} {borrower.lastName}</span>
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Verified Identity</span>
+                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{borrower.firstName} {borrower.lastName}</span>
+                                                    <span className="text-[11px] text-[#697386] font-medium">Verified Account</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-7">
-                                            <div className="px-4 py-2 bg-white/60 rounded-xl border border-white inline-flex items-center gap-2 group-hover:border-indigo-100 transition-all">
-                                                <Phone size={12} className="text-indigo-500" />
-                                                <span className="text-sm font-black text-slate-900 tracking-tight">{borrower.phone}</span>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2 text-[#4F566B] text-[13px]">
+                                                <Phone size={12} className="text-[#AAB7C4]" />
+                                                <span>{borrower.phone}</span>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-7 hidden md:table-cell">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-black text-slate-500 tracking-widest font-mono uppercase">{borrower.idNumber}</span>
-                                                <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider">Credential ID</span>
-                                            </div>
+                                        <td className="px-6 py-4 hidden md:table-cell">
+                                            <span className="text-[12px] font-mono text-[#697386] bg-[#F6F9FC] px-1.5 py-0.5 rounded border border-[#E3E8EE]">{borrower.idNumber}</span>
                                         </td>
-                                        <td className="px-5 py-7 hidden lg:table-cell max-w-[220px]">
-                                            <div className="flex items-start gap-2">
-                                                <MapPin size={14} className="text-slate-300 mt-1 flex-shrink-0" />
-                                                <span className="text-sm font-bold text-slate-400 leading-tight truncate">{borrower.address}</span>
-                                            </div>
+                                        <td className="px-6 py-4 hidden lg:table-cell max-w-[200px]">
+                                            <span className="text-[13px] text-[#697386] truncate block">{borrower.address}</span>
                                         </td>
-                                        <td className="pl-5 pr-10 py-7 text-right">
-                                            <div className="flex items-center justify-end gap-3 translate-x-2 opacity-80 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-500">
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
                                                 <Link href={`/${locale}/borrowers/${borrower.id}`}>
-                                                    <button className="flex items-center gap-2 pr-2 pl-5 py-2.5 bg-slate-950 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-indigo-600 transition-all shadow-xl shadow-slate-950/20 active:scale-95">
-                                                        Deep Intelligence <ArrowRightCircle size={14} className="text-white/50" />
+                                                    <button className="text-[#635BFF] hover:text-[#5D55EF] font-bold text-[12px] px-2 py-1 transition-colors">
+                                                        Details
                                                     </button>
                                                 </Link>
                                                 <button
                                                     onClick={() => handleEdit(borrower)}
-                                                    className="p-3 rounded-2xl text-slate-400 hover:text-indigo-600 hover:bg-white transition-all shadow-sm hover:premium-shadow"
-                                                    title="Modify Identity"
+                                                    className="p-1.5 text-[#AAB7C4] hover:text-[#1A1F36] hover:bg-[#E3E8EE] rounded transition-all"
                                                 >
-                                                    <Pencil size={18} />
+                                                    <Pencil size={14} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(borrower.id)}
                                                     disabled={deletingId === borrower.id}
-                                                    className="p-3 rounded-2xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-50"
-                                                    title="Expunge Hub"
+                                                    className="p-1.5 text-[#AAB7C4] hover:text-[#EF4444] hover:bg-[#FEE2E2] rounded transition-all"
                                                 >
-                                                    {deletingId === borrower.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                                                    {deletingId === borrower.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                                                 </button>
                                             </div>
                                         </td>
@@ -235,7 +212,7 @@ export default function BorrowersPage() {
             <BorrowerModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchBorrowers(); showToast('Identity state synchronized', 'success'); }}
+                onSuccess={() => { fetchBorrowers(); showToast('Customer updated', 'success'); }}
                 borrower={selectedBorrower}
             />
             <CrossCheckModal open={isCrossCheckOpen} onOpenChange={setIsCrossCheckOpen} />
