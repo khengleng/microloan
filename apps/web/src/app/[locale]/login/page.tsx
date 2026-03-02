@@ -83,7 +83,11 @@ export default function LoginPage() {
             <Card className="w-full max-w-md shadow-xl border-slate-200">
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold text-center flex items-center justify-center gap-2 text-slate-900">
-                        {mfaStep ? <ShieldCheck className="text-blue-600" /> : <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white text-xs">M</div>}
+                        {mfaStep ? (
+                            <ShieldCheck className="text-blue-600" />
+                        ) : (
+                            <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded" />
+                        )}
                         Magic Money
                     </CardTitle>
                     <CardDescription className="text-center">
