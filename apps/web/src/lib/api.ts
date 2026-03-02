@@ -2,14 +2,14 @@ import axios from 'axios';
 
 /**
  * Axios instance for the NestJS API.
- *
- * Tokens are stored in HttpOnly cookies (set server-side by /api/auth/login).
- * The browser sends them automatically — we never read them from JS.
- * `withCredentials: true` is required for cross-origin requests to include cookies.
+ * 
+ * IMPORTANT: We now call our LOCAL Next.js proxy (/api/proxy).
+ * This is because auth tokens are HttpOnly cookies on this domain.
+ * The Next.js proxy will receive the cookie, extract the token,
+ * and forward it to the NestJS API server-side.
  */
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1',
-    withCredentials: true, // send HttpOnly cookies on every request
+    baseURL: '/api/proxy',
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
     },
@@ -20,9 +20,13 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401 && typeof window !== 'undefined') {
+            // Detect current locale from URL
+            const segments = window.location.pathname.split('/');
+            const locale = segments[1] || 'en';
+
             // Clear cookies server-side then redirect
             fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
-                window.location.href = '/en/login';
+                window.location.href = `/${locale}/login`;
             });
         }
         return Promise.reject(error);

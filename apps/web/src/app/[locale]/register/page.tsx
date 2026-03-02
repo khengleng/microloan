@@ -24,8 +24,8 @@ export default function RegisterTenantPage() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
-            const res = await fetch(`${apiBase}/auth/register-tenant`, {
+            // Calls our local proxy to keep requests unified
+            const res = await fetch(`/api/proxy/auth/register-tenant`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
