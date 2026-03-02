@@ -163,9 +163,9 @@ export default function DashboardPage() {
                                     <TrendingUp className="text-indigo-600" size={20} />
                                 </div>
                             </div>
-                            <div className="h-[350px] w-full">
+                            <div className="h-[350px] w-full relative">
                                 {isMounted && chartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minHeight={350}>
                                         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="colorDis" x1="0" y1="0" x2="0" y2="1">
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="h-full w-full flex items-center justify-center text-slate-300 font-black text-xs uppercase tracking-[0.3em]">No Velocity Data</div>
+                                    <div className="h-full w-full flex items-center justify-center text-slate-300 font-black text-xs uppercase tracking-[0.3em] bg-slate-50/30 rounded-3xl border border-dashed border-slate-200">No Velocity Data</div>
                                 )}
                             </div>
                         </div>
@@ -201,9 +201,9 @@ export default function DashboardPage() {
                                     <Zap className="text-amber-500" size={20} />
                                 </div>
                             </div>
-                            <div className="h-[350px] w-full">
+                            <div className="h-[350px] w-full relative">
                                 {isMounted && chartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minHeight={350}>
                                         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" strokeOpacity={0.5} />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 800 }} dy={10} />
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                                         </BarChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="h-full w-full flex items-center justify-center text-slate-300 font-black text-xs uppercase tracking-[0.3em]">No Deployment Data</div>
+                                    <div className="h-full w-full flex items-center justify-center text-slate-300 font-black text-xs uppercase tracking-[0.3em] bg-slate-50/30 rounded-3xl border border-dashed border-slate-200">No Deployment Data</div>
                                 )}
                             </div>
                         </div>

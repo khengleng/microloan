@@ -51,32 +51,32 @@
   --radius: 1.5rem;
   --background: #F8FAFC;
   --foreground: #0F172A;
-  
+
   --card: #FFFFFF;
   --card-foreground: #0F172A;
-  
+
   --popover: #FFFFFF;
   --popover-foreground: #0F172A;
-  
+
   --primary: #6366F1;
   --primary-foreground: #FFFFFF;
-  
+
   --secondary: #F1F5F9;
   --secondary-foreground: #475569;
-  
+
   --muted: #F1F5F9;
   --muted-foreground: #64748B;
-  
+
   --accent: #EEF2FF;
   --accent-foreground: #6366F1;
-  
+
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-  
+
   --border: #E2E8F0;
   --input: #E2E8F0;
   --ring: #6366F1;
-  
+
   --sidebar: #FFFFFF;
   --sidebar-foreground: #1E293B;
   --sidebar-primary: #6366F1;
@@ -123,15 +123,36 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-xl;
   }
-  
+
+  .glass-impact {
+    @apply bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_32px_64px_-16px_rgba(0, 0, 0, 0.08)];
+  }
+
   .glass-dark {
-    @apply bg-slate-900/70 backdrop-blur-md border border-white/10 shadow-xl;
+    @apply bg-slate-950/70 backdrop-blur-2xl border border-white/10 shadow-2xl;
   }
 
   .premium-shadow {
     box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.15);
+  }
+
+  .massive-shadow {
+    box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.12), 0 20px 50px -10px rgba(99, 102, 241, 0.05);
+  }
+
+  .industrial-gradient {
+    background: radial-gradient(circle at 0% 0%, #F8FAFC 0%, #F1F5F9 100%);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 
   .gradient-border {
@@ -139,11 +160,14 @@
     border: 1px solid transparent;
     background-clip: padding-box;
   }
-  
+
   .gradient-border::before {
     content: '';
     position: absolute;
-    top: 0; right: 0; bottom: 0; left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: -1;
     margin: -1px;
     border-radius: inherit;
@@ -154,12 +178,22 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground industrial-gradient;
+    overflow-x: hidden;
   }
-  h1, h2, h3, h4, h5, h6 {
-    @apply tracking-tight font-extrabold;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tighter font-black;
   }
 }

@@ -35,6 +35,12 @@ export class LoansController {
     return this.loansService.findAll(user.tenantId);
   }
 
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+  @Get('overdue')
+  findOverdue(@CurrentUser() user: JwtPayload) {
+    return this.loansService.findOverdue(user.tenantId);
+  }
+
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get(':id')
   findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
@@ -65,12 +71,6 @@ export class LoansController {
     @Body() dto: { name: string; content: string; type: string },
   ) {
     return this.loansService.addDocument(user.tenantId, user.sub, id, dto);
-  }
-
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
-  @Get('overdue')
-  findOverdue(@CurrentUser() user: JwtPayload) {
-    return this.loansService.findOverdue(user.tenantId);
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
