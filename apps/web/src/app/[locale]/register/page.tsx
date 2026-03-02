@@ -13,6 +13,7 @@ export default function RegisterTenantPage() {
     const { locale } = useParams();
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [error, setError] = useState('');
     const [formData, setFormData] = useState({
         organizationName: '',
         adminEmail: '',
@@ -40,7 +41,7 @@ export default function RegisterTenantPage() {
                 router.push(`/${locale}/login`);
             }, 3000);
         } catch (err: any) {
-            alert(err.message || 'An error occurred during registration.');
+            setError(err.message || 'An error occurred during registration.');
         } finally {
             setSubmitting(false);
         }
@@ -75,7 +76,7 @@ export default function RegisterTenantPage() {
             <div className="hidden lg:flex flex-col justify-between bg-slate-900 p-12 text-white relative overflow-hidden">
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-12">
-                        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">M</div>
+                        <img src="/logo.png" alt="Logo" className="w-10 h-10 rounded-lg" />
                         <span className="text-2xl font-bold tracking-tight">Magic Money</span>
                     </div>
                     <h2 className="text-5xl font-extrabold leading-tight mb-6">
@@ -144,6 +145,7 @@ export default function RegisterTenantPage() {
                                 <Input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="admin@example.com"
                                     className="pl-10 h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
                                     required
@@ -160,6 +162,7 @@ export default function RegisterTenantPage() {
                                 <Input
                                     id="pass"
                                     type="password"
+                                    autoComplete="new-password"
                                     placeholder="••••••••"
                                     className="pl-10 h-12 border-slate-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
                                     required
@@ -169,7 +172,11 @@ export default function RegisterTenantPage() {
                             </div>
                             <p className="text-[10px] text-slate-400">At least 6 characters required.</p>
                         </div>
-
+                        {error && (
+                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm animate-in fade-in slide-in-from-top-2">
+                                {error}
+                            </div>
+                        )}
                         <Button
                             type="submit"
                             className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-all shadow-md active:scale-[0.98]"
