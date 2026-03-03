@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { UserPlus, UserCheck, Phone, CreditCard, MapPin, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
 
 interface Borrower {
@@ -22,6 +19,9 @@ interface BorrowerModalProps {
     onSuccess: () => void;
     borrower?: Borrower | null;
 }
+
+const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
+const labelCls = "block text-sm font-medium text-foreground mb-1";
 
 export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: BorrowerModalProps) {
     const t = useTranslations('Borrowers');
@@ -44,13 +44,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                 address: borrower.address || ''
             });
         } else {
-            setFormData({
-                firstName: '',
-                lastName: '',
-                phone: '',
-                idNumber: '',
-                address: ''
-            });
+            setFormData({ firstName: '', lastName: '', phone: '', idNumber: '', address: '' });
         }
     }, [borrower, open]);
 
@@ -75,102 +69,58 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl rounded-[32px] border-border bg-card/90 backdrop-blur-2xl p-0 shadow-2xl overflow-hidden border shadow-[0_0_50px_rgba(0,0,0,0.5)] font-sans">
-                <div className="p-10 space-y-10">
-                    <DialogHeader>
-                        <DialogTitle className="text-3xl font-black text-foreground tracking-tighter flex items-center gap-4">
-                            <div className="p-3 bg-primary/10 rounded-2xl">
-                                <UserPlus className="text-primary" size={32} />
-                            </div>
-                            Digital <span className="text-primary italic">Identity</span>
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-bold text-[15px]">
-                            {borrower ? 'Update and re-verify client identifiers in the organizational ledger.' : 'Register new KYC-compliant client identifiers into the organizational ledger.'}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                                <Label htmlFor="firstName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">First Name</Label>
-                                <Input
-                                    id="firstName"
-                                    value={formData.firstName}
-                                    onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                                    required
-                                    className="h-14 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary font-black px-5 text-foreground transition-all"
-                                />
-                            </div>
-                            <div className="space-y-3">
-                                <Label htmlFor="lastName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Last Name</Label>
-                                <Input
-                                    id="lastName"
-                                    value={formData.lastName}
-                                    onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                                    required
-                                    className="h-14 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary font-black px-5 text-foreground transition-all"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="space-y-3">
-                                <Label htmlFor="phone" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Contact Anchor</Label>
-                                <div className="relative group">
-                                    <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                                    <Input
-                                        id="phone"
-                                        value={formData.phone}
-                                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                        required
-                                        className="h-14 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary font-black pl-14 pr-6 text-foreground shadow-inner transition-all"
-                                        placeholder="+855 ..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <Label htmlFor="idNumber" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Identity Serial</Label>
-                                <div className="relative group">
-                                    <CreditCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                                    <Input
-                                        id="idNumber"
-                                        value={formData.idNumber}
-                                        onChange={e => setFormData({ ...formData, idNumber: e.target.value })}
-                                        required
-                                        className="h-14 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary font-black pl-14 pr-6 text-foreground shadow-inner transition-all"
-                                        placeholder="National ID / Passport Hash"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <Label htmlFor="address" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Geographic Node</Label>
-                                <div className="relative group">
-                                    <MapPin size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                                    <Input
-                                        id="address"
-                                        value={formData.address}
-                                        onChange={e => setFormData({ ...formData, address: e.target.value })}
-                                        required
-                                        className="h-14 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary font-black pl-14 pr-6 text-foreground shadow-inner transition-all"
-                                        placeholder="Primary Residence Address"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-4 pt-8 border-t border-border/50">
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl font-black h-14 px-8 text-muted-foreground hover:text-foreground hover:bg-border/20 uppercase tracking-widest text-[12px]">
-                                Discard
-                            </Button>
-                            <Button type="submit" disabled={loading} className="premium-button h-14 px-10 group uppercase tracking-[0.2em] text-[12px]">
-                                {loading ? <Loader2 className="animate-spin mr-3" size={18} /> : <UserCheck className="mr-3 group-hover:scale-110 transition-transform" size={18} />}
-                                {loading ? 'Committing...' : borrower ? 'Update Registry' : 'Provision Identity'}
-                            </Button>
-                        </div>
-                    </form>
+            <DialogContent className="max-w-lg bg-white border border-border rounded-lg p-0 shadow-lg overflow-hidden" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-border">
+                    <DialogTitle className="text-base font-bold text-foreground">
+                        {borrower ? 'Edit Borrower' : 'Add New Borrower'}
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {borrower ? 'Update borrower information.' : 'Enter the borrower\'s details to register them.'}
+                    </p>
                 </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit}>
+                    <div className="px-6 py-5 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="firstName" className={labelCls}>First Name <span className="text-destructive">*</span></label>
+                                <input id="firstName" className={fieldCls} value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label htmlFor="lastName" className={labelCls}>Last Name <span className="text-destructive">*</span></label>
+                                <input id="lastName" className={fieldCls} value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} required />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="phone" className={labelCls}>Phone Number <span className="text-destructive">*</span></label>
+                            <input id="phone" type="tel" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} required />
+                        </div>
+
+                        <div>
+                            <label htmlFor="idNumber" className={labelCls}>National ID / Passport <span className="text-destructive">*</span></label>
+                            <input id="idNumber" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => setFormData({ ...formData, idNumber: e.target.value })} required />
+                        </div>
+
+                        <div>
+                            <label htmlFor="address" className={labelCls}>Address <span className="text-destructive">*</span></label>
+                            <input id="address" className={fieldCls} placeholder="Street, City" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required />
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 border-t border-border bg-muted/40 flex justify-end gap-2">
+                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={loading} className="btn-primary">
+                            {loading && <Loader2 size={14} className="animate-spin" />}
+                            {loading ? 'Saving...' : borrower ? 'Save Changes' : 'Add Borrower'}
+                        </button>
+                    </div>
+                </form>
             </DialogContent>
         </Dialog>
     );
