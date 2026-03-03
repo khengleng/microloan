@@ -110,7 +110,7 @@ export default function SettingsPage() {
                                         type="password"
                                         value={settings.telegramBotToken || ''}
                                         onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
-                                        className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-6 shadow-sm font-mono tracking-widest"
+                                        className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-6 shadow-sm tracking-widest"
                                         placeholder="••••••••••••••••••••••••••••"
                                     />
                                     <div className="flex items-center gap-2 mt-3 ml-1">

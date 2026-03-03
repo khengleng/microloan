@@ -178,7 +178,7 @@ export default function BorrowersPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-6 hidden md:table-cell">
-                                            <span className="text-[12px] font-mono font-black text-muted-foreground bg-border/30 px-3 py-1.5 rounded-xl border border-border/50">{borrower.idNumber}</span>
+                                            <span className="text-[12px] font-black text-muted-foreground bg-border/30 px-3 py-1.5 rounded-xl border border-border/50">{borrower.idNumber}</span>
                                         </td>
                                         <td className="px-8 py-6 hidden lg:table-cell max-w-[240px]">
                                             <div className="flex items-center gap-2 text-muted-foreground text-[13px] font-medium">

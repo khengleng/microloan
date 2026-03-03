@@ -17,7 +17,7 @@ export default async function LocaleLayout({
 
     return (
         <html lang={locale}>
-            <body className="font-sans antialiased bg-background text-foreground" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <body className="antialiased bg-background text-foreground">
                 <NextIntlClientProvider messages={messages}>
                     <ConfirmProvider>
                         <ToastProvider>

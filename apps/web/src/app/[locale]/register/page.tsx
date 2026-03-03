@@ -49,7 +49,7 @@ export default function RegisterTenantPage() {
 
     if (success) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <div className="w-full max-w-[360px] px-4">
                     <div className="bg-card border border-border rounded-lg p-8 text-center">
                         <div className="w-12 h-12 bg-[#26a69a]/15 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -72,7 +72,7 @@ export default function RegisterTenantPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+        <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-full max-w-[360px] px-4">
                 {/* Logo */}
                 <div className="flex items-center gap-2 mb-8">

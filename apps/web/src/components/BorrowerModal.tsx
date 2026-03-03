@@ -69,7 +69,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg bg-white border border-border rounded-lg p-0 shadow-lg overflow-hidden" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <DialogContent className="max-w-lg bg-white border border-border rounded-lg p-0 shadow-lg overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
                     <DialogTitle className="text-base font-bold text-foreground">

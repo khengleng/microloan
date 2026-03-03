@@ -122,7 +122,7 @@ export default function BorrowerProfilePage() {
                                 </div>
                             )}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-6 text-[10px] font-black text-slate-300 uppercase tracking-widest italic font-mono">
+                        <div className="flex items-center gap-1.5 mt-6 text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
                             <Calendar size={12} /> Originated in system {new Date(borrower.createdAt).toLocaleDateString()}
                         </div>
                     </div>

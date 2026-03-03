@@ -178,7 +178,7 @@ export default function RepaymentsPage() {
                                             <span className="text-[13px] text-[#697386]">${Number(rp.principalPaid).toLocaleString()}</span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <span className="text-[12px] font-mono text-[#4F566B] bg-[#F6F9FC] px-2 py-0.5 rounded border border-[#E3E8EE]">
+                                            <span className="text-[12px] text-[#4F566B] bg-[#F6F9FC] px-2 py-0.5 rounded border border-[#E3E8EE]">
                                                 {new Date(rp.date).toISOString().split('T')[0]}
                                             </span>
                                         </td>

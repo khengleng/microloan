@@ -313,7 +313,7 @@ export default function AuditPage() {
 
                                             {/* Advanced Payload Exposure */}
                                             {isExpanded && log.metadata && (
-                                                <div className="mt-5 p-5 glass rounded-3xl border border-indigo-100/10 bg-slate-950/90 text-indigo-400 font-mono text-xs overflow-hidden relative shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <div className="mt-5 p-5 glass rounded-3xl border border-indigo-100/10 bg-slate-950/90 text-indigo-400 text-xs overflow-hidden relative shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300">
                                                     <div className="absolute top-0 right-0 p-3 opacity-20"><Fingerprint size={48} /></div>
                                                     <p className="text-[9px] uppercase font-black tracking-[0.2em] mb-4 text-indigo-200/50">Cryptographic Metadata Payload</p>
                                                     <pre className="whitespace-pre-wrap leading-relaxed">

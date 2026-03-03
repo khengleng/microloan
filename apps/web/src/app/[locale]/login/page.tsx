@@ -74,7 +74,7 @@ export default function LoginPage() {
     const labelClass = "block text-[12px] font-semibold text-muted-foreground mb-1.5";
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+        <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-full max-w-[360px] px-4">
                 {/* Logo */}
                 <div className="flex items-center gap-2 mb-8">
