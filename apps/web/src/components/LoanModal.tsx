@@ -122,51 +122,54 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] border-none glass p-0 shadow-2xl no-scrollbar font-urbanist">
-                <div className="p-8 space-y-10">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[32px] border-border bg-card/90 backdrop-blur-2xl p-0 shadow-2xl no-scrollbar font-sans border shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                <div className="p-10 space-y-10">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                            <FilePlus className="text-indigo-600" size={28} /> Capital Disbursement Protocol
+                        <DialogTitle className="text-3xl font-black text-foreground tracking-tighter flex items-center gap-4">
+                            <div className="p-3 bg-primary/10 rounded-2xl">
+                                <FilePlus className="text-primary" size={32} />
+                            </div>
+                            Capital <span className="text-primary italic">Disbursement</span>
                         </DialogTitle>
-                        <DialogDescription className="text-slate-500 font-medium">
-                            Originate a new financial instrument and bind it to a validated digital client identity.
+                        <DialogDescription className="text-muted-foreground font-bold text-[15px] opacity-70">
+                            Originate a new financial instrument and bind it to a validated digital client identity node.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleSubmit} className="space-y-10">
+                    <form onSubmit={handleSubmit} className="space-y-12">
                         {/* Primary Configuration */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-3">
-                                <Label htmlFor="borrowerId" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Identity</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="borrowerId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Target Identity</Label>
                                 <div className="relative group">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <User className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select
                                         id="borrowerId"
-                                        className="w-full h-14 pl-12 pr-6 rounded-2xl border border-slate-200/50 bg-white font-bold text-sm appearance-none focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer"
+                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-background/50 font-black text-[14px] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
                                         value={formData.borrowerId}
                                         onChange={e => setFormData({ ...formData, borrowerId: e.target.value })}
                                         required
                                     >
-                                        <option value="">Select Validated Client</option>
+                                        <option value="" className="bg-card">Select Identity Node</option>
                                         {borrowers.map(b => (
-                                            <option key={b.id} value={b.id}>{b.firstName} {b.lastName}</option>
+                                            <option key={b.id} value={b.id} className="bg-card font-bold">{b.firstName} {b.lastName}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                <Label htmlFor="productId" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Product Template</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="productId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Product Protocol</Label>
                                 <div className="relative group">
-                                    <Package className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <Package className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select
                                         id="productId"
-                                        className="w-full h-14 pl-12 pr-6 rounded-2xl border border-slate-200/50 bg-white font-bold text-sm appearance-none focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer"
+                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-background/50 font-black text-[14px] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
                                         value={formData.productId}
                                         onChange={e => handleProductChange(e.target.value)}
                                     >
-                                        <option value="">Manual Logical Entry</option>
+                                        <option value="" className="bg-card">Manual Parameter Overload</option>
                                         {products.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                            <option key={p.id} value={p.id} className="bg-card font-bold">{p.name}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -174,45 +177,45 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                         </div>
 
                         {/* Financial Parameters */}
-                        <div className="p-8 glass bg-slate-50/50 rounded-[2rem] border border-slate-100/50 grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="space-y-3">
-                                <Label htmlFor="principal" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Principal (USD)</Label>
+                        <div className="p-8 bg-background/50 rounded-[32px] border border-border/50 grid grid-cols-1 md:grid-cols-3 gap-8 shadow-inner">
+                            <div className="space-y-4">
+                                <Label htmlFor="principal" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Principal USD</Label>
                                 <div className="relative group">
-                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
                                         id="principal"
                                         type="number"
                                         step="0.01"
-                                        className="h-14 pl-12 pr-6 rounded-2xl border-slate-200/50 bg-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-lg"
+                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-foreground"
                                         value={formData.principal}
                                         onChange={e => setFormData({ ...formData, principal: e.target.value })}
                                         required
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                <Label htmlFor="annualInterestRate" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Logic Rate %</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="annualInterestRate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Annual Rate %</Label>
                                 <div className="relative group">
-                                    <Percent className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <Percent className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
                                         id="annualInterestRate"
                                         type="number"
                                         step="0.01"
-                                        className="h-14 pl-12 pr-6 rounded-2xl border-slate-200/50 bg-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-lg text-indigo-600"
+                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-primary"
                                         value={formData.annualInterestRate}
                                         onChange={e => setFormData({ ...formData, annualInterestRate: e.target.value })}
                                         required
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-3">
-                                <Label htmlFor="termMonths" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Duration (Months)</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="termMonths" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Term (Months)</Label>
                                 <div className="relative group">
-                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
                                         id="termMonths"
                                         type="number"
-                                        className="h-14 pl-12 pr-6 rounded-2xl border-slate-200/50 bg-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 transition-all font-black text-lg"
+                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-foreground"
                                         value={formData.termMonths}
                                         onChange={e => setFormData({ ...formData, termMonths: e.target.value })}
                                         required
@@ -223,111 +226,114 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
                         {/* Schedule Logic */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-3">
-                                <Label htmlFor="startDate" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Origination Date</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="startDate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Origination Date</Label>
                                 <Input
                                     id="startDate"
                                     type="date"
-                                    className="h-14 px-6 rounded-2xl border-slate-200/50 bg-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold"
+                                    className="h-16 px-6 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-foreground"
                                     value={formData.startDate}
                                     onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                                     required
                                 />
                             </div>
-                            <div className="space-y-3">
-                                <Label htmlFor="interestMethod" className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Calculation Method</Label>
+                            <div className="space-y-4">
+                                <Label htmlFor="interestMethod" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Logic Model</Label>
                                 <div className="relative group">
-                                    <Settings2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                    <Settings2 className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select
                                         id="interestMethod"
-                                        className="w-full h-14 pl-12 pr-6 rounded-2xl border border-slate-200/50 bg-white font-black text-xs uppercase tracking-[0.1em] appearance-none focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer"
+                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-card/50 font-black text-xs uppercase tracking-[0.2em] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
                                         value={formData.interestMethod}
                                         onChange={e => setFormData({ ...formData, interestMethod: e.target.value })}
                                         required
                                     >
-                                        <option value="FLAT">Flat Logical Amortization</option>
-                                        <option value="REDUCING_BALANCE">Reducing Balance Protocol</option>
+                                        <option value="FLAT" className="bg-card">Flat Amortization</option>
+                                        <option value="REDUCING_BALANCE" className="bg-card">Reducing Balance</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
 
                         {/* Governance (Collateral & Guarantors) */}
-                        <div className="pt-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <ShieldCheck size={18} className="text-indigo-600" /> System Governance & Security
+                        <div className="space-y-8">
+                            <div className="flex justify-between items-end border-b border-border/50 pb-4">
+                                <h3 className="text-[13px] font-black text-foreground uppercase tracking-[0.2em] flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-emerald-400/10 rounded-lg flex items-center justify-center">
+                                        <ShieldCheck size={18} className="text-emerald-400" />
+                                    </div>
+                                    Risk Mitigation Assets
                                 </h3>
                                 <div className="flex gap-3">
-                                    <Button type="button" variant="secondary" size="sm" onClick={addCollateral} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-9 shadow-sm">+ Collateral</Button>
-                                    <Button type="button" variant="secondary" size="sm" onClick={addGuarantor} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-9 shadow-sm">+ Guarantor</Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={addCollateral} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-10 border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all">+ Collateral</Button>
+                                    <Button type="button" variant="outline" size="sm" onClick={addGuarantor} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-10 border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all">+ Guarantor</Button>
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 {formData.collaterals.map((c, i) => (
-                                    <div key={i} className="p-5 glass bg-white/50 border border-slate-100/50 rounded-2xl flex flex-col md:flex-row gap-4 items-center animate-in slide-in-from-right-4 duration-300">
-                                        <div className="w-full md:w-32 flex flex-col items-center md:items-start">
-                                            <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Asset #{i + 1}</span>
-                                            <div className="text-[10px] font-black text-slate-400 uppercase">Collateral</div>
+                                    <div key={i} className="p-6 bg-white/[0.02] border border-border/50 rounded-2xl flex flex-col md:flex-row gap-6 items-center animate-in slide-in-from-right-4 duration-500">
+                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary text-xs font-black">#{i + 1}</div>
+                                            <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Asset</span>
                                         </div>
-                                        <select className="flex-1 h-11 px-4 border-slate-200/50 rounded-xl text-xs font-bold uppercase tracking-widest bg-white" value={c.type} onChange={e => {
+                                        <select className="flex-1 h-14 px-5 border-border/50 rounded-2xl text-[13px] font-black uppercase tracking-widest bg-card/50 text-foreground" value={c.type} onChange={e => {
                                             const next = [...formData.collaterals];
                                             next[i].type = e.target.value;
                                             setFormData({ ...formData, collaterals: next });
                                         }}>
-                                            <option value="LAND_TITLE">Land Title Matrix</option>
-                                            <option value="VEHICLE">Automotive Asset</option>
-                                            <option value="GOLD">Commodity (Gold)</option>
-                                            <option value="ID_CARD">Personal Identifier</option>
-                                            <option value="OTHER">Diversified Asset</option>
+                                            <option value="LAND_TITLE" className="bg-card">Land Title Matrix</option>
+                                            <option value="VEHICLE" className="bg-card">Automotive Asset</option>
+                                            <option value="GOLD" className="bg-card">Commodity (Gold)</option>
+                                            <option value="ID_CARD" className="bg-card">Identity Key</option>
+                                            <option value="OTHER" className="bg-card">Misc Asset</option>
                                         </select>
-                                        <Input placeholder="Market Value (USD)" type="number" className="flex-1 h-11 px-4 border-slate-200/50 rounded-xl font-black" value={c.value} onChange={e => {
+                                        <Input placeholder="Asset Value (USD)" type="number" className="flex-1 h-14 px-5 border-border/50 rounded-2xl font-black bg-card/50 text-foreground" value={c.value} onChange={e => {
                                             const next = [...formData.collaterals];
                                             next[i].value = e.target.value;
                                             setFormData({ ...formData, collaterals: next });
                                         }} />
-                                        <Button type="button" size="icon" variant="ghost" className="text-rose-500 hover:bg-rose-50 rounded-xl" onClick={() => {
+                                        <Button type="button" size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10 rounded-xl" onClick={() => {
                                             const next = [...formData.collaterals];
                                             next.splice(i, 1);
                                             setFormData({ ...formData, collaterals: next });
-                                        }}><Trash2 size={16} /></Button>
+                                        }}><Trash2 size={20} /></Button>
                                     </div>
                                 ))}
 
                                 {formData.guarantors.map((g, i) => (
-                                    <div key={i} className="p-5 glass bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex flex-col md:flex-row gap-4 items-center animate-in slide-in-from-right-4 duration-300">
-                                        <div className="w-full md:w-32 flex flex-col items-center md:items-start">
-                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-1">Entity #{i + 1}</span>
-                                            <div className="text-[10px] font-black text-indigo-400 uppercase">Guarantor</div>
+                                    <div key={i} className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex flex-col md:flex-row gap-6 items-center animate-in slide-in-from-right-4 duration-500">
+                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                            <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary text-xs font-black">#{i + 1}</div>
+                                            <span className="text-[11px] font-black text-primary uppercase tracking-widest">Co-Signer</span>
                                         </div>
-                                        <Input placeholder="Legal Identity Name" className="flex-1 h-11 px-4 border-indigo-100/50 rounded-xl font-bold bg-white" value={g.name} onChange={e => {
+                                        <Input placeholder="Full Legal Name" className="flex-1 h-14 px-5 border-primary/20 rounded-2xl font-black bg-card/50 text-foreground" value={g.name} onChange={e => {
                                             const next = [...formData.guarantors];
                                             next[i].name = e.target.value;
                                             setFormData({ ...formData, guarantors: next });
                                         }} />
-                                        <Input placeholder="Verified Phone Num" className="flex-1 h-11 px-4 border-indigo-100/50 rounded-xl font-bold bg-white" value={g.phone} onChange={e => {
+                                        <Input placeholder="Validated Phone" className="flex-1 h-14 px-5 border-primary/20 rounded-2xl font-black bg-card/50 text-foreground" value={g.phone} onChange={e => {
                                             const next = [...formData.guarantors];
                                             next[i].phone = e.target.value;
                                             setFormData({ ...formData, guarantors: next });
                                         }} />
-                                        <Button type="button" size="icon" variant="ghost" className="text-rose-500 hover:bg-rose-50 rounded-xl" onClick={() => {
+                                        <Button type="button" size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10 rounded-xl" onClick={() => {
                                             const next = [...formData.guarantors];
                                             next.splice(i, 1);
                                             setFormData({ ...formData, guarantors: next });
-                                        }}><Trash2 size={16} /></Button>
+                                        }}><Trash2 size={20} /></Button>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-6 border-t border-slate-100/50">
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-12 rounded-xl font-bold px-8">
-                                Dismiss
+                        <div className="flex justify-end gap-4 pt-10 border-t border-border/50">
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-14 rounded-2xl font-black px-10 text-muted-foreground hover:text-foreground hover:bg-border/20 uppercase tracking-widest text-[13px]">
+                                Abort
                             </Button>
-                            <Button type="submit" disabled={loading} className="h-12 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest px-10 shadow-xl shadow-slate-950/20 active:scale-[0.98]">
-                                {loading ? <Activity className="animate-spin mr-2" size={16} /> : <FilePlus className="mr-2" size={16} />}
-                                {loading ? 'Committing...' : 'Originate Loan Instrument'}
+                            <Button type="submit" disabled={loading} className="premium-button h-16 px-12 group uppercase tracking-[0.2em] text-[13px]">
+                                {loading ? <Activity className="animate-spin mr-3" size={20} /> : <FilePlus className="mr-3 group-hover:scale-110 transition-transform" size={20} />}
+                                {loading ? 'Binding Instrument...' : 'Commit Origination'}
                             </Button>
                         </div>
                     </form>

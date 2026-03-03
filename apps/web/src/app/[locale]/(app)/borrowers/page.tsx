@@ -81,123 +81,130 @@ export default function BorrowersPage() {
         ), [borrowers, searchQuery]);
 
     return (
-        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
+        <div className="max-w-[1200px] mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{t('title')}</h1>
-                    <p className="text-[#697386] text-[14px]">
-                        Manage and verify yours customers and their financial profiles.
+                    <h1 className="text-4xl font-black text-foreground tracking-tighter mb-2">Customer <span className="text-primary italic">Registry</span></h1>
+                    <p className="text-muted-foreground text-[15px] font-medium max-w-md">
+                        Financial profile management and credit-worthiness verification database.
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                     <button
                         onClick={() => setIsCrossCheckOpen(true)}
-                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
+                        className="px-5 py-3 bg-card border border-border text-foreground text-[13px] font-black rounded-2xl shadow-sm hover:bg-sidebar-accent transition-all flex items-center gap-3 active:scale-95"
                     >
-                        <ShieldAlert size={14} className="text-[#F59E0B]" />
-                        Cross-Check
+                        <ShieldAlert size={16} className="text-orange-400" />
+                        Verification Protocol
                     </button>
                     <button
                         onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }}
-                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
+                        className="premium-button text-[14px] flex items-center gap-2"
                     >
-                        <Plus size={16} />
-                        Add Customer
+                        <Plus size={18} />
+                        Register Client
                     </button>
                 </div>
             </div>
 
             {/* Toolbar */}
-            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center">
-                <div className="relative flex-1 w-full">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
+            <div className="premium-card p-6 flex flex-col md:flex-row gap-6 items-center">
+                <div className="relative flex-1 w-full group">
+                    <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                     <input
                         type="text"
-                        placeholder="Search by name, phone, or ID..."
+                        placeholder="Search identities by name, phone, or bio-ID..."
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-[#F6F9FC] border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
+                        className="w-full pl-12 pr-6 py-4 bg-background/50 border border-border rounded-2xl text-[14px] font-bold text-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:opacity-50"
                     />
                 </div>
-                <div className="flex items-center gap-2 text-[#697386] text-[13px] font-medium whitespace-nowrap">
-                    <span>{filtered.length} customers found</span>
+                <div className="flex items-center gap-3 text-muted-foreground text-[13px] font-black whitespace-nowrap bg-border/20 px-4 py-2 rounded-xl">
+                    <Activity size={14} className="text-primary" />
+                    <span className="uppercase tracking-widest">{filtered.length} Indexed Nodes</span>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
+            <div className="premium-card overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-[#E3E8EE]">
-                        <thead className="bg-[#F7FAFC]">
+                    <table className="min-w-full">
+                        <thead className="bg-white/[0.02] border-b border-border/50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Contact</th>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">ID Number</th>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden lg:table-cell">Address</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Actions</th>
+                                <th className="px-8 py-5 text-left text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Customer Entity</th>
+                                <th className="px-8 py-5 text-left text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Contact Anchor</th>
+                                <th className="px-8 py-5 text-left text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] hidden md:table-cell">Identity ID</th>
+                                <th className="px-8 py-5 text-left text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] hidden lg:table-cell">Geographic Node</th>
+                                <th className="px-8 py-5 text-right text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Control</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
+                        <tbody className="divide-y divide-border/50">
                             {loading ? (
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <tr key={i} className="animate-pulse">
-                                        <td colSpan={5} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
+                                        <td colSpan={5} className="px-8 py-6 h-20 bg-white/[0.01]" />
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-20 text-center">
-                                        <div className="text-[#AAB7C4] mb-2"><User size={40} className="mx-auto opacity-20" /></div>
-                                        <p className="text-[14px] font-medium text-[#1A1F36]">No customers found</p>
-                                        <p className="text-[12px] text-[#697386] mt-1">Try adjusting your search query</p>
+                                    <td colSpan={5} className="px-8 py-24 text-center">
+                                        <div className="text-muted-foreground/20 mb-4"><User size={60} className="mx-auto" /></div>
+                                        <p className="text-lg font-black text-foreground">Zero Identities Located</p>
+                                        <p className="text-[13px] text-muted-foreground mt-2 max-w-xs mx-auto font-medium">Verify your search criteria or register a new financial node to start tracking.</p>
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map(borrower => (
-                                    <tr key={borrower.id} className="hover:bg-[#F6F9FC] transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-[#F0F5FF] flex items-center justify-center text-[#635BFF] text-[11px] font-bold">
+                                    <tr key={borrower.id} className="hover:bg-primary/[0.03] transition-colors group">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary text-sm font-black shadow-inner border border-primary/5">
                                                     {borrower.firstName.charAt(0)}{borrower.lastName.charAt(0)}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{borrower.firstName} {borrower.lastName}</span>
-                                                    <span className="text-[11px] text-[#697386] font-medium">Verified Account</span>
+                                                    <span className="text-[15px] font-black text-foreground tracking-tight">{borrower.firstName} {borrower.lastName}</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                        <span className="text-[11px] text-muted-foreground font-black uppercase tracking-wider">Active Portfolio</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-[#4F566B] text-[13px]">
-                                                <Phone size={12} className="text-[#AAB7C4]" />
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3 text-foreground/80 text-[14px] font-bold">
+                                                <Phone size={14} className="text-primary/60" />
                                                 <span>{borrower.phone}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 hidden md:table-cell">
-                                            <span className="text-[12px] font-mono text-[#697386] bg-[#F6F9FC] px-1.5 py-0.5 rounded border border-[#E3E8EE]">{borrower.idNumber}</span>
+                                        <td className="px-8 py-6 hidden md:table-cell">
+                                            <span className="text-[12px] font-mono font-black text-muted-foreground bg-border/30 px-3 py-1.5 rounded-xl border border-border/50">{borrower.idNumber}</span>
                                         </td>
-                                        <td className="px-6 py-4 hidden lg:table-cell max-w-[200px]">
-                                            <span className="text-[13px] text-[#697386] truncate block">{borrower.address}</span>
+                                        <td className="px-8 py-6 hidden lg:table-cell max-w-[240px]">
+                                            <div className="flex items-center gap-2 text-muted-foreground text-[13px] font-medium">
+                                                <MapPin size={14} className="flex-shrink-0 opacity-50" />
+                                                <span className="truncate">{borrower.address}</span>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Link href={`/${locale}/borrowers/${borrower.id}`}>
-                                                    <button className="text-[#635BFF] hover:text-[#5D55EF] font-bold text-[12px] px-2 py-1 transition-colors">
-                                                        Details
+                                                    <button className="bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-black text-[12px] px-4 py-2 rounded-xl transition-all uppercase tracking-widest shadow-sm">
+                                                        Data
                                                     </button>
                                                 </Link>
                                                 <button
                                                     onClick={() => handleEdit(borrower)}
-                                                    className="p-1.5 text-[#AAB7C4] hover:text-[#1A1F36] hover:bg-[#E3E8EE] rounded transition-all"
+                                                    className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-card border border-transparent hover:border-border rounded-xl transition-all"
                                                 >
-                                                    <Pencil size={14} />
+                                                    <Pencil size={18} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(borrower.id)}
                                                     disabled={deletingId === borrower.id}
-                                                    className="p-1.5 text-[#AAB7C4] hover:text-[#EF4444] hover:bg-[#FEE2E2] rounded transition-all"
+                                                    className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 rounded-xl transition-all"
                                                 >
-                                                    {deletingId === borrower.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                                    {deletingId === borrower.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
                                                 </button>
                                             </div>
                                         </td>

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -45,61 +44,76 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-neon-lime: #D9EB77;
+  --color-olive-dark: #12130C;
+  --color-olive-card: #1B1D14;
+  --color-olive-border: #25281A;
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Stripe uses 8px typically */
-  --background: #F6F9FC;
-  --foreground: #1A1F36;
+  --radius: 1.5rem;
 
-  --card: #FFFFFF;
-  --card-foreground: #1A1F36;
+  --background: #12130C;
+  --foreground: #F8F8F8;
 
-  --popover: #FFFFFF;
-  --popover-foreground: #1A1F36;
+  --card: #1B1D14;
+  --card-foreground: #F8F8F8;
 
-  --primary: #635BFF;
-  /* Stripe Blue */
-  --primary-foreground: #FFFFFF;
+  --popover: #1B1D14;
+  --popover-foreground: #F8F8F8;
 
-  --secondary: #E3E8EE;
-  --secondary-foreground: #4F566B;
+  --primary: #D9EB77;
+  --primary-foreground: #12130C;
 
-  --muted: #F7FAFC;
-  --muted-foreground: #697386;
+  --secondary: #25281A;
+  --secondary-foreground: #A1A17A;
 
-  --accent: #F6F9FC;
-  --accent-foreground: #635BFF;
+  --muted: #1B1D14;
+  --muted-foreground: #71717A;
 
-  --destructive: #FF5D5D;
+  --accent: #25281A;
+  --accent-foreground: #D9EB77;
+
+  --destructive: #FD878E;
   --destructive-foreground: #FFFFFF;
 
-  --border: #E3E8EE;
-  --input: #E3E8EE;
-  --ring: #635BFF;
+  --border: #25281A;
+  --input: #25281A;
+  --ring: #D9EB77;
 
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #3C4257;
-  --sidebar-primary: #635BFF;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F6F9FC;
-  --sidebar-accent-foreground: #635BFF;
-  --sidebar-border: #E3E8EE;
-  --sidebar-ring: #635BFF;
+  --sidebar: #12130C;
+  --sidebar-foreground: #A1A17A;
+  --sidebar-primary: #D9EB77;
+  --sidebar-primary-foreground: #12130C;
+  --sidebar-accent: #1B1D14;
+  --sidebar-accent-foreground: #F8F8F8;
+  --sidebar-border: #25281A;
+  --sidebar-ring: #D9EB77;
 }
 
 @layer utilities {
-  .stripe-card {
-    @apply bg-white border border-[#E3E8EE] shadow-[0_2px_5px_0_rgba(60, 66, 87, 0.08), 0_1px_1px_0_rgba(0, 0, 0, 0.12)] rounded-lg transition-all;
+  .premium-card {
+    @apply bg-card border border-border rounded-[32px] backdrop-blur-sm transition-all hover:border-primary/20;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   }
 
-  .stripe-button {
-    @apply bg-[#635BFF] hover:bg-[#5D55EF] text-white font-semibold py-2 px-4 rounded shadow-[0_2px_4px_rgba(0, 0, 0, 0.1)] transition-all active:translate-y-[1px];
+  .neon-card {
+    @apply bg-primary text-primary-foreground rounded-[32px] p-8;
+    box-shadow: 0 20px 60px rgba(217, 235, 119, 0.15);
+  }
+
+  .premium-button {
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground font-black py-4 px-8 rounded-full transition-all active:scale-95 inline-flex items-center justify-center;
+    box-shadow: 0 0 20px rgba(217, 235, 119, 0.15);
   }
 
   .premium-shadow {
-    box-shadow: 0 7px 14px 0 rgba(60, 66, 87, 0.08), 0 3px 6px 0 rgba(0, 0, 0, 0.12);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-effect {
+    @apply bg-card/80 backdrop-blur-xl border border-white/5;
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -120,8 +134,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
-    background-color: #F6F9FC;
+    @apply bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground;
     overflow-x: hidden;
   }
 
@@ -131,6 +144,10 @@
   h4,
   h5,
   h6 {
-    @apply tracking-tight font-bold text-[#1A1F36];
+    @apply tracking-tight font-bold text-foreground;
+  }
+
+  ::selection {
+    @apply bg-primary text-primary-foreground;
   }
 }
