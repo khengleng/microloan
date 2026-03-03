@@ -99,7 +99,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                             </div>
                             Asset <span className="text-primary italic">Recovery</span>
                         </DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-bold text-[15px] opacity-70">
+                        <DialogDescription className="text-muted-foreground font-bold text-[15px]">
                             Execute a principal or interest recovery transaction against an active financial asset.
                         </DialogDescription>
                     </DialogHeader>
@@ -123,7 +123,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
                     <form onSubmit={handleSubmit} className="space-y-8">
                         <div className="space-y-3">
-                            <Label htmlFor="loanId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Target Asset Instrument</Label>
+                            <Label htmlFor="loanId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Target Asset Instrument</Label>
                             <div className="relative group">
                                 <FileText className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors transition-all" size={18} />
                                 <select
@@ -145,7 +145,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
-                                <Label htmlFor="amount" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Recovery Amount (USD)</Label>
+                                <Label htmlFor="amount" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Recovery Amount (USD)</Label>
                                 <div className="relative group">
                                     <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors transition-all" size={18} />
                                     <Input
@@ -162,7 +162,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="date" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Execution Date</Label>
+                                <Label htmlFor="date" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Execution Date</Label>
                                 <div className="relative group">
                                     <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors transition-all" size={18} />
                                     <Input
@@ -179,7 +179,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
                         <div className="px-6 py-4 glass bg-primary/5 rounded-2xl border border-primary/20 flex items-center gap-4">
                             <ShieldCheck className="text-primary" size={20} />
-                            <div className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.15em] opacity-80">Validated Ledger Transaction. Immutable Protocol Entry.</div>
+                            <div className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.15em]">Validated Ledger Transaction. Immutable Protocol Entry.</div>
                         </div>
 
                         <div className="flex justify-end gap-4 pt-8 border-t border-border/50">

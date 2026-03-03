@@ -56,7 +56,7 @@ export default function RegisterTenantPage() {
                     </div>
                     <div>
                         <h1 className="text-3xl font-black text-foreground tracking-tighter mb-3">Node Provisioned</h1>
-                        <p className="text-muted-foreground text-[15px] font-medium leading-relaxed opacity-70">
+                        <p className="text-muted-foreground text-[15px] font-medium leading-relaxed">
                             Organization <strong className="text-primary">{formData.organizationName}</strong> has been registered. Redirecting to login...
                         </p>
                     </div>
@@ -89,7 +89,7 @@ export default function RegisterTenantPage() {
                     <div>
                         <h1 className="text-3xl font-black text-foreground tracking-tighter mb-2 leading-tight">Create Your</h1>
                         <h2 className="text-3xl font-black text-primary italic tracking-tighter">Organization.</h2>
-                        <p className="text-muted-foreground text-[14px] font-medium mt-3 opacity-70">
+                        <p className="text-muted-foreground text-[14px] font-medium mt-3">
                             Launch your microfinance portfolio with professional-grade tools.
                         </p>
                     </div>
@@ -97,7 +97,7 @@ export default function RegisterTenantPage() {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-5">
                             <div className="space-y-3">
-                                <Label htmlFor="org" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Organization Name</Label>
+                                <Label htmlFor="org" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Organization Name</Label>
                                 <div className="relative group">
                                     <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
                                     <Input
@@ -112,7 +112,7 @@ export default function RegisterTenantPage() {
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Admin Email</Label>
+                                <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Admin Email</Label>
                                 <div className="relative group">
                                     <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
                                     <Input
@@ -129,7 +129,7 @@ export default function RegisterTenantPage() {
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="pass" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Password</Label>
+                                <Label htmlFor="pass" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Password</Label>
                                 <div className="relative group">
                                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
                                     <Input
@@ -143,7 +143,7 @@ export default function RegisterTenantPage() {
                                         onChange={e => setFormData({ ...formData, adminPassword: e.target.value })}
                                     />
                                 </div>
-                                <p className="text-[12px] text-muted-foreground ml-2 opacity-50">Use a strong, unique password for your admin account.</p>
+                                <p className="text-[12px] text-muted-foreground ml-2">Use a strong, unique password for your admin account.</p>
                             </div>
                         </div>
 

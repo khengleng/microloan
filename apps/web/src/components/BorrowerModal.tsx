@@ -84,7 +84,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                             </div>
                             Digital <span className="text-primary italic">Identity</span>
                         </DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-bold text-[15px] opacity-70">
+                        <DialogDescription className="text-muted-foreground font-bold text-[15px]">
                             {borrower ? 'Update and re-verify client identifiers in the organizational ledger.' : 'Register new KYC-compliant client identifiers into the organizational ledger.'}
                         </DialogDescription>
                     </DialogHeader>
@@ -92,7 +92,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                     <form onSubmit={handleSubmit} className="space-y-8">
                         <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-3">
-                                <Label htmlFor="firstName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">First Name</Label>
+                                <Label htmlFor="firstName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">First Name</Label>
                                 <Input
                                     id="firstName"
                                     value={formData.firstName}
@@ -102,7 +102,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                                 />
                             </div>
                             <div className="space-y-3">
-                                <Label htmlFor="lastName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Last Name</Label>
+                                <Label htmlFor="lastName" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Last Name</Label>
                                 <Input
                                     id="lastName"
                                     value={formData.lastName}
@@ -115,7 +115,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
 
                         <div className="space-y-6">
                             <div className="space-y-3">
-                                <Label htmlFor="phone" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Contact Anchor</Label>
+                                <Label htmlFor="phone" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Contact Anchor</Label>
                                 <div className="relative group">
                                     <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <Input
@@ -130,7 +130,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="idNumber" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Identity Serial</Label>
+                                <Label htmlFor="idNumber" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Identity Serial</Label>
                                 <div className="relative group">
                                     <CreditCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <Input
@@ -145,7 +145,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                             </div>
 
                             <div className="space-y-3">
-                                <Label htmlFor="address" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Geographic Node</Label>
+                                <Label htmlFor="address" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Geographic Node</Label>
                                 <div className="relative group">
                                     <MapPin size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <Input

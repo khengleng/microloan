@@ -6,8 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-urbanist), var(--font-khmer), sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,41 +54,41 @@
 :root {
   --radius: 1.5rem;
 
-  --background: #12130C;
-  --foreground: #F8F8F8;
+  --background: #14160E;
+  --foreground: #F2F2EC;
 
-  --card: #1B1D14;
-  --card-foreground: #F8F8F8;
+  --card: #1E2118;
+  --card-foreground: #F2F2EC;
 
-  --popover: #1B1D14;
-  --popover-foreground: #F8F8F8;
+  --popover: #1E2118;
+  --popover-foreground: #F2F2EC;
 
   --primary: #D9EB77;
   --primary-foreground: #12130C;
 
-  --secondary: #25281A;
-  --secondary-foreground: #A1A17A;
+  --secondary: #2A2E1E;
+  --secondary-foreground: #C8C8A0;
 
-  --muted: #1B1D14;
-  --muted-foreground: #71717A;
+  --muted: #1E2118;
+  --muted-foreground: #A8A890;
 
-  --accent: #25281A;
+  --accent: #2A2E1E;
   --accent-foreground: #D9EB77;
 
   --destructive: #FD878E;
   --destructive-foreground: #FFFFFF;
 
-  --border: #25281A;
-  --input: #25281A;
+  --border: #323620;
+  --input: #2A2E1E;
   --ring: #D9EB77;
 
-  --sidebar: #12130C;
-  --sidebar-foreground: #A1A17A;
+  --sidebar: #14160E;
+  --sidebar-foreground: #C0C098;
   --sidebar-primary: #D9EB77;
   --sidebar-primary-foreground: #12130C;
-  --sidebar-accent: #1B1D14;
-  --sidebar-accent-foreground: #F8F8F8;
-  --sidebar-border: #25281A;
+  --sidebar-accent: #1E2118;
+  --sidebar-accent-foreground: #F2F2EC;
+  --sidebar-border: #2A2E1E;
   --sidebar-ring: #D9EB77;
 }
 
@@ -134,7 +134,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground;
+    @apply bg-background text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
     overflow-x: hidden;
   }
 

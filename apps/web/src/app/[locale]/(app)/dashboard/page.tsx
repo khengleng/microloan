@@ -77,7 +77,7 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                 <div>
                     <h1 className="text-5xl font-black text-foreground tracking-tighter mb-3 leading-none">Market <span className="text-primary italic">Dynamics</span></h1>
-                    <p className="text-muted-foreground text-[16px] font-medium max-w-lg leading-relaxed opacity-80">
+                    <p className="text-muted-foreground text-[16px] font-medium max-w-lg leading-relaxed">
                         Real-time capital velocity and organizational health metrics across all active high-yield portfolios.
                     </p>
                 </div>
@@ -122,7 +122,7 @@ export default function DashboardPage() {
                     <div className="px-10 py-8 border-b border-border/50 flex items-center justify-between bg-white/[0.01]">
                         <div>
                             <h3 className="text-[18px] font-black text-foreground">Liquidity Flow</h3>
-                            <p className="text-[13px] text-muted-foreground font-bold opacity-60">Comparative inflow vs disbursement vector analysis</p>
+                            <p className="text-[13px] text-muted-foreground font-bold">Comparative inflow vs disbursement vector analysis</p>
                         </div>
                         <div className="flex items-center gap-6">
                             <div className="flex items-center gap-2">

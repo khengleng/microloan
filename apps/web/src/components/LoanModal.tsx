@@ -131,7 +131,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             </div>
                             Capital <span className="text-primary italic">Disbursement</span>
                         </DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-bold text-[15px] opacity-70">
+                        <DialogDescription className="text-muted-foreground font-bold text-[15px]">
                             Originate a new financial instrument and bind it to a validated digital client identity node.
                         </DialogDescription>
                     </DialogHeader>
@@ -140,7 +140,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                         {/* Primary Configuration */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
-                                <Label htmlFor="borrowerId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Target Identity</Label>
+                                <Label htmlFor="borrowerId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Target Identity</Label>
                                 <div className="relative group">
                                     <User className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select
@@ -158,7 +158,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <Label htmlFor="productId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Product Protocol</Label>
+                                <Label htmlFor="productId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Product Protocol</Label>
                                 <div className="relative group">
                                     <Package className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select
@@ -179,7 +179,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                         {/* Financial Parameters */}
                         <div className="p-8 bg-background/50 rounded-[32px] border border-border/50 grid grid-cols-1 md:grid-cols-3 gap-8 shadow-inner">
                             <div className="space-y-4">
-                                <Label htmlFor="principal" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Principal USD</Label>
+                                <Label htmlFor="principal" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Principal USD</Label>
                                 <div className="relative group">
                                     <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
@@ -194,7 +194,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <Label htmlFor="annualInterestRate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Annual Rate %</Label>
+                                <Label htmlFor="annualInterestRate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Annual Rate %</Label>
                                 <div className="relative group">
                                     <Percent className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
@@ -209,7 +209,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <Label htmlFor="termMonths" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Term (Months)</Label>
+                                <Label htmlFor="termMonths" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Term (Months)</Label>
                                 <div className="relative group">
                                     <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
@@ -227,7 +227,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                         {/* Schedule Logic */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
-                                <Label htmlFor="startDate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Origination Date</Label>
+                                <Label htmlFor="startDate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Origination Date</Label>
                                 <Input
                                     id="startDate"
                                     type="date"
@@ -238,7 +238,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                 />
                             </div>
                             <div className="space-y-4">
-                                <Label htmlFor="interestMethod" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2 opacity-50">Logic Model</Label>
+                                <Label htmlFor="interestMethod" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Logic Model</Label>
                                 <div className="relative group">
                                     <Settings2 className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <select

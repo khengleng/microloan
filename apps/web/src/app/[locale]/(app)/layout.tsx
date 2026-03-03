@@ -44,11 +44,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={`/${locale}${href}`}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-bold transition-all duration-200 ${active
-                    ? 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(217,233,84,0.1)]'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
                     }`}
             >
-                <Icon size={18} className={`${active ? 'text-primary-foreground' : 'text-muted-foreground'} transition-colors`} />
+                <Icon size={18} className={`${active ? 'text-primary-foreground' : 'text-sidebar-foreground'} transition-colors flex-shrink-0`} />
                 <span className="tracking-tight">{label}</span>
             </Link>
         );
@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {/* SUPERADMIN sees Platform + their team */}
                     {isSuperAdmin && (
                         <div className="pb-6">
-                            <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest opacity-50">Platform</p>
+                            <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest">Platform</p>
                             {navItem('/tenants', 'Organizations', Building)}
                             {navItem('/users', 'My Team', UserCog)}
                             {navItem('/audit', 'Audit Log', Shield)}
@@ -94,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {!isSuperAdmin && (
                         <div className="space-y-6">
                             <div>
-                                <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest opacity-50">Operations</p>
+                                <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest">Operations</p>
                                 {navItem('/dashboard', 'Home', LayoutDashboard)}
                                 {(isSales || isFinance) && navItem('/borrowers', 'Customers', Users)}
                                 {(isSales || isFinance) && navItem('/loans', 'Payments', FileText)}
@@ -106,7 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                             {isAdmin && (
                                 <div>
-                                    <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest opacity-50">Management</p>
+                                    <p className="text-[10px] uppercase text-muted-foreground px-4 py-2 font-black tracking-widest">Management</p>
                                     {navItem('/users', 'Team', UserCog)}
                                     {navItem('/audit', 'Activity', Shield)}
                                     {navItem('/settings', 'Settings', Settings)}
@@ -124,7 +124,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </div>
                         <div className="min-w-0">
                             <p className="text-[13px] font-black text-foreground truncate capitalize">{user?.email?.split('@')[0]}</p>
-                            <p className="text-[10px] text-muted-foreground font-bold truncate opacity-60">{user?.role}</p>
+                            <p className="text-[11px] text-muted-foreground font-bold truncate uppercase tracking-widest">{user?.role}</p>
                         </div>
                     </div>
                     <button

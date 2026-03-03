@@ -91,7 +91,7 @@ export default function LoginPage() {
                             {mfaStep ? 'Identity Verification' : 'Access Your'}
                         </h1>
                         {!mfaStep && <h2 className="text-3xl font-black text-primary italic tracking-tighter">Portfolio.</h2>}
-                        <p className="text-muted-foreground text-[14px] font-medium mt-3 opacity-70">
+                        <p className="text-muted-foreground text-[14px] font-medium mt-3">
                             {mfaStep
                                 ? 'Enter the 6-digit code from your authenticator app.'
                                 : 'Sign in to manage your microfinance operations.'}
@@ -102,7 +102,7 @@ export default function LoginPage() {
                         <form onSubmit={handleLogin} className="space-y-6">
                             <div className="space-y-5">
                                 <div className="space-y-3">
-                                    <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Email Address</Label>
+                                    <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Email Address</Label>
                                     <div className="relative group">
                                         <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
                                         <Input
@@ -118,7 +118,7 @@ export default function LoginPage() {
                                 </div>
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center">
-                                        <Label htmlFor="password" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Password</Label>
+                                        <Label htmlFor="password" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Password</Label>
                                         <button type="button" className="text-[12px] font-black text-primary hover:text-primary/80 transition-colors uppercase tracking-widest">Forgot?</button>
                                     </div>
                                     <div className="relative group">
@@ -156,7 +156,7 @@ export default function LoginPage() {
                     ) : (
                         <form onSubmit={handleMfaVerify} className="space-y-6 animate-in slide-in-from-bottom-2">
                             <div className="space-y-3">
-                                <Label htmlFor="mfaCode" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-60">Verification Code</Label>
+                                <Label htmlFor="mfaCode" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Verification Code</Label>
                                 <div className="relative group">
                                     <Fingerprint className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
                                     <Input
