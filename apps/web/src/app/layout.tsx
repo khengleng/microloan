@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Magic Money - MicroLend OS",
+  title: "Magic Money - MicroLoan OS",
   description: "Modern Microfinance Operating System for Cambodia",
 };
 

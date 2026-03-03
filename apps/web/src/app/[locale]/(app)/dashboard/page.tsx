@@ -143,7 +143,7 @@ export default function DashboardPage() {
             {/* Charts + Actions */}
             <div className="grid lg:grid-cols-3 gap-4">
                 {/* Cash Flow Chart */}
-                <div className="lg:col-span-2 tv-card">
+                <div className="lg:col-span-2 tv-card min-w-0">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                         <div>
                             <h3 className="text-[14px] font-bold text-foreground">Cash Flow</h3>
@@ -161,7 +161,7 @@ export default function DashboardPage() {
                         </div>
                     </div>
                     <div className="p-4">
-                        <div className="h-[280px]">
+                        <div className="h-[280px] w-full">
                             {isMounted && chartData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
                                                 <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#2a2e39" />
+                                        <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#DFE1E6" />
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} dy={8} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} tickFormatter={(v) => `$${v / 1000}k`} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2a2e39', strokeWidth: 1 }} />

@@ -72,7 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             {user?.tenantName?.charAt(0)?.toUpperCase() ?? 'M'}
                         </div>
                         <span className="text-[14px] font-bold text-white truncate">
-                            {user?.tenantName ?? 'MicroLend'}
+                            {user?.tenantName ?? 'MicroLoan'}
                         </span>
                     </div>
                     <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-sidebar-foreground/60 hover:text-white">
@@ -153,7 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </button>
                         {/* Breadcrumb */}
                         <nav className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
-                            <span>MicroLend</span>
+                            <span>MicroLoan</span>
                             <ChevronRight size={14} />
                             <span className="text-foreground font-medium capitalize">
                                 {pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ')}

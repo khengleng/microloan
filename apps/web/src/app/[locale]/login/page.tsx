@@ -79,7 +79,7 @@ export default function LoginPage() {
                 {/* Logo */}
                 <div className="flex items-center gap-2 mb-8">
                     <div className="w-7 h-7 bg-primary rounded flex items-center justify-center text-white text-xs font-bold">M</div>
-                    <span className="text-[16px] font-bold text-foreground">MicroLend</span>
+                    <span className="text-[16px] font-bold text-foreground">MicroLoan</span>
                 </div>
 
                 <div className="bg-card border border-border rounded-lg p-7">
@@ -191,7 +191,7 @@ export default function LoginPage() {
                 </p>
 
                 <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
-                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLend</span>
+                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
                     <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</button>
                     <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</button>
                 </div>
