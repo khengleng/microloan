@@ -42,78 +42,105 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
 
-  --color-neon-lime: #D9EB77;
-  --color-olive-dark: #12130C;
-  --color-olive-card: #1B1D14;
-  --color-olive-border: #25281A;
+  /* TradingView-style brand colors */
+  --color-positive: #26a69a;
+  --color-negative: #ef5350;
+  --color-tv-blue: #2962FF;
 }
 
+/* ── TradingView-inspired dark navy palette ── */
 :root {
-  --radius: 1.5rem;
+  --radius: 0.375rem;
+  /* 6px — compact TradingView style */
 
-  --background: #14160E;
-  --foreground: #F2F2EC;
+  --background: #131722;
+  /* dark navy-charcoal */
+  --foreground: #d1d4dc;
+  /* soft off-white, easy on eyes */
 
-  --card: #1E2118;
-  --card-foreground: #F2F2EC;
+  --card: #1e222d;
+  /* slightly lighter than bg */
+  --card-foreground: #d1d4dc;
 
-  --popover: #1E2118;
-  --popover-foreground: #F2F2EC;
+  --popover: #1e222d;
+  --popover-foreground: #d1d4dc;
 
-  --primary: #D9EB77;
-  --primary-foreground: #12130C;
+  --primary: #2962FF;
+  /* TradingView signature blue */
+  --primary-foreground: #ffffff;
 
-  --secondary: #2A2E1E;
-  --secondary-foreground: #C8C8A0;
+  --secondary: #2a2e39;
+  /* subtle containers */
+  --secondary-foreground: #d1d4dc;
 
-  --muted: #1E2118;
-  --muted-foreground: #A8A890;
+  --muted: #2a2e39;
+  --muted-foreground: #787b86;
+  /* TradingView secondary text */
 
-  --accent: #2A2E1E;
-  --accent-foreground: #D9EB77;
+  --accent: #2a2e39;
+  --accent-foreground: #2962FF;
 
-  --destructive: #FD878E;
-  --destructive-foreground: #FFFFFF;
+  --destructive: #ef5350;
+  /* TradingView red */
+  --destructive-foreground: #ffffff;
 
-  --border: #323620;
-  --input: #2A2E1E;
-  --ring: #D9EB77;
+  --border: #2a2e39;
+  --input: #2a2e39;
+  --ring: #2962FF;
 
-  --sidebar: #14160E;
-  --sidebar-foreground: #C0C098;
-  --sidebar-primary: #D9EB77;
-  --sidebar-primary-foreground: #12130C;
-  --sidebar-accent: #1E2118;
-  --sidebar-accent-foreground: #F2F2EC;
-  --sidebar-border: #2A2E1E;
-  --sidebar-ring: #D9EB77;
+  --sidebar: #1e222d;
+  --sidebar-foreground: #b2b5be;
+  --sidebar-primary: #2962FF;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2e39;
+  --sidebar-accent-foreground: #d1d4dc;
+  --sidebar-border: #2a2e39;
+  --sidebar-ring: #2962FF;
 }
 
+/* ── Utility classes (TradingView style) ── */
 @layer utilities {
+  .tv-card {
+    @apply bg-card border border-border rounded-md transition-all;
+  }
+
+  /* alias kept for backwards-compat */
   .premium-card {
-    @apply bg-card border border-border rounded-[32px] backdrop-blur-sm transition-all hover:border-primary/20;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    @apply bg-card border border-border rounded-md transition-all;
   }
 
-  .neon-card {
-    @apply bg-primary text-primary-foreground rounded-[32px] p-8;
-    box-shadow: 0 20px 60px rgba(217, 235, 119, 0.15);
+  .tv-button {
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded text-sm transition-all active:scale-95 inline-flex items-center justify-center;
   }
 
+  /* alias kept for backwards-compat */
   .premium-button {
-    @apply bg-primary hover:bg-primary/90 text-primary-foreground font-black py-4 px-8 rounded-full transition-all active:scale-95 inline-flex items-center justify-center;
-    box-shadow: 0 0 20px rgba(217, 235, 119, 0.15);
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded text-sm transition-all active:scale-95 inline-flex items-center justify-center;
   }
 
-  .premium-shadow {
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  .tv-positive {
+    color: #26a69a;
+  }
+
+  .tv-negative {
+    color: #ef5350;
+  }
+
+  .tv-badge-positive {
+    @apply text-xs font-bold px-1.5 py-0.5 rounded;
+    color: #26a69a;
+    background: rgba(38, 166, 154, 0.12);
+  }
+
+  .tv-badge-negative {
+    @apply text-xs font-bold px-1.5 py-0.5 rounded;
+    color: #ef5350;
+    background: rgba(239, 83, 80, 0.12);
   }
 
   .glass-effect {
-    @apply bg-card/80 backdrop-blur-xl border border-white/5;
+    @apply bg-card/80 backdrop-blur-xl border border-border;
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -124,8 +151,18 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* keep these for any remaining references */
+  .neon-card {
+    @apply bg-primary text-primary-foreground rounded-md p-6;
+  }
+
+  .premium-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
 }
 
+/* ── Base styles ── */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -136,6 +173,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
     overflow-x: hidden;
   }
 
@@ -145,10 +183,30 @@
   h4,
   h5,
   h6 {
-    @apply tracking-tight font-bold text-foreground;
+    @apply font-bold text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
   }
 
   ::selection {
     @apply bg-primary text-primary-foreground;
+  }
+
+  /* Clean scrollbars like TradingView */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--background);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
   }
 }

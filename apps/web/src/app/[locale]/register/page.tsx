@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Building2, Mail, Lock, CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RegisterTenantPage() {
@@ -46,148 +44,124 @@ export default function RegisterTenantPage() {
         }
     };
 
+    const inputClass = "w-full h-10 px-3 bg-secondary border border-border rounded text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors";
+    const labelClass = "block text-[12px] font-semibold text-muted-foreground mb-1.5";
+
     if (success) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 animate-in fade-in zoom-in duration-700 relative overflow-hidden">
-                <div className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px]" />
-                <div className="w-full max-w-[440px] premium-card p-12 text-center relative z-10 space-y-8">
-                    <div className="mx-auto w-24 h-24 bg-primary/10 text-primary rounded-[32px] flex items-center justify-center shadow-[0_0_40px_rgba(217,235,119,0.2)]">
-                        <CheckCircle2 size={48} />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-foreground tracking-tighter mb-3">Node Provisioned</h1>
-                        <p className="text-muted-foreground text-[15px] font-medium leading-relaxed">
-                            Organization <strong className="text-primary">{formData.organizationName}</strong> has been registered. Redirecting to login...
+            <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                <div className="w-full max-w-[360px] px-4">
+                    <div className="bg-card border border-border rounded-lg p-8 text-center">
+                        <div className="w-12 h-12 bg-[#26a69a]/15 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle2 size={24} className="text-[#26a69a]" />
+                        </div>
+                        <h1 className="text-[18px] font-bold text-foreground mb-2">Account created</h1>
+                        <p className="text-[13px] text-muted-foreground mb-6">
+                            <strong className="text-foreground">{formData.organizationName}</strong> has been registered. Redirecting to login...
                         </p>
+                        <button
+                            onClick={() => router.push(`/${locale}/login`)}
+                            className="tv-button w-full h-10 text-[13px]"
+                        >
+                            Sign in now
+                        </button>
                     </div>
-                    <button
-                        onClick={() => router.push(`/${locale}/login`)}
-                        className="premium-button w-full h-14 flex items-center justify-center gap-3 text-[12px] uppercase tracking-[0.2em]"
-                    >
-                        <ArrowRight size={20} /> Sign In Now
-                    </button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 animate-in fade-in duration-700 relative overflow-hidden">
-            {/* Ambient glow */}
-            <div className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px]" />
-
-            <div className="w-full max-w-[440px] space-y-10 relative z-10">
-                {/* Brand Logo */}
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground text-[15px] font-black shadow-lg">
-                        M
-                    </div>
-                    <span className="text-[22px] font-black text-foreground tracking-tighter">MicroLend <span className="text-primary italic">OS</span></span>
+        <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <div className="w-full max-w-[360px] px-4">
+                {/* Logo */}
+                <div className="flex items-center gap-2 mb-8">
+                    <div className="w-7 h-7 bg-primary rounded flex items-center justify-center text-white text-xs font-bold">M</div>
+                    <span className="text-[16px] font-bold text-foreground">MicroLend</span>
                 </div>
 
-                <div className="premium-card p-10 space-y-8">
-                    <div>
-                        <h1 className="text-3xl font-black text-foreground tracking-tighter mb-2 leading-tight">Create Your</h1>
-                        <h2 className="text-3xl font-black text-primary italic tracking-tighter">Organization.</h2>
-                        <p className="text-muted-foreground text-[14px] font-medium mt-3">
-                            Launch your microfinance portfolio with professional-grade tools.
-                        </p>
-                    </div>
+                <div className="bg-card border border-border rounded-lg p-7">
+                    <h1 className="text-[18px] font-bold text-foreground mb-1">Create your account</h1>
+                    <p className="text-[13px] text-muted-foreground mb-6">
+                        Set up your organization to start managing your portfolio.
+                    </p>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="space-y-5">
-                            <div className="space-y-3">
-                                <Label htmlFor="org" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Organization Name</Label>
-                                <div className="relative group">
-                                    <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
-                                    <Input
-                                        id="org"
-                                        placeholder="Acme Microfinance"
-                                        className="h-14 pl-14 pr-6 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground font-bold transition-all"
-                                        required
-                                        value={formData.organizationName}
-                                        onChange={e => setFormData({ ...formData, organizationName: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label htmlFor="org" className={labelClass}>Organization name</label>
+                            <input
+                                id="org"
+                                placeholder="Acme Microfinance"
+                                className={inputClass}
+                                required
+                                value={formData.organizationName}
+                                onChange={e => setFormData({ ...formData, organizationName: e.target.value })}
+                            />
+                        </div>
 
-                            <div className="space-y-3">
-                                <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Admin Email</Label>
-                                <div className="relative group">
-                                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        autoComplete="email"
-                                        placeholder="you@example.com"
-                                        className="h-14 pl-14 pr-6 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground font-bold transition-all"
-                                        required
-                                        value={formData.adminEmail}
-                                        onChange={e => setFormData({ ...formData, adminEmail: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+                        <div>
+                            <label htmlFor="email" className={labelClass}>Admin email</label>
+                            <input
+                                id="email"
+                                type="email"
+                                autoComplete="email"
+                                placeholder="you@company.com"
+                                className={inputClass}
+                                required
+                                value={formData.adminEmail}
+                                onChange={e => setFormData({ ...formData, adminEmail: e.target.value })}
+                            />
+                        </div>
 
-                            <div className="space-y-3">
-                                <Label htmlFor="pass" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Password</Label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
-                                    <Input
-                                        id="pass"
-                                        type="password"
-                                        autoComplete="new-password"
-                                        placeholder="Min. 8 characters"
-                                        className="h-14 pl-14 pr-6 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground font-bold transition-all"
-                                        required
-                                        value={formData.adminPassword}
-                                        onChange={e => setFormData({ ...formData, adminPassword: e.target.value })}
-                                    />
-                                </div>
-                                <p className="text-[12px] text-muted-foreground ml-2">Use a strong, unique password for your admin account.</p>
-                            </div>
+                        <div>
+                            <label htmlFor="pass" className={labelClass}>Password</label>
+                            <input
+                                id="pass"
+                                type="password"
+                                autoComplete="new-password"
+                                placeholder="Minimum 8 characters"
+                                className={inputClass}
+                                required
+                                value={formData.adminPassword}
+                                onChange={e => setFormData({ ...formData, adminPassword: e.target.value })}
+                            />
                         </div>
 
                         {error && (
-                            <div className="text-[13px] font-black text-destructive bg-destructive/10 border border-destructive/20 px-5 py-3 rounded-2xl">
+                            <div className="text-[12px] text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded">
                                 {error}
                             </div>
                         )}
 
-                        <div className="space-y-5">
-                            <button
-                                type="submit"
-                                className="premium-button w-full h-14 flex items-center justify-center gap-3 group"
-                                disabled={submitting}
-                            >
-                                {submitting ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
-                                <span className="uppercase tracking-[0.2em] text-[12px]">
-                                    {submitting ? 'Provisioning...' : 'Create Account'}
-                                </span>
-                            </button>
+                        <button
+                            type="submit"
+                            className="tv-button w-full h-10 text-[13px]"
+                            disabled={submitting}
+                        >
+                            {submitting && <Loader2 size={14} className="animate-spin mr-2" />}
+                            {submitting ? 'Creating account...' : 'Create account'}
+                        </button>
 
-                            <p className="text-center text-[12px] text-muted-foreground font-medium opacity-60 leading-relaxed">
-                                By signing up, you agree to our{' '}
-                                <Link href="#" className="text-primary hover:underline font-black">Terms</Link>
-                                {' '}and{' '}
-                                <Link href="#" className="text-primary hover:underline font-black">Privacy Policy</Link>.
-                            </p>
-                        </div>
+                        <p className="text-center text-[12px] text-muted-foreground leading-relaxed">
+                            By creating an account you agree to our{' '}
+                            <Link href="#" className="text-primary hover:text-primary/80 transition-colors">Terms</Link>
+                            {' '}and{' '}
+                            <Link href="#" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
+                        </p>
                     </form>
                 </div>
 
-                <div className="text-center">
-                    <p className="text-[13px] text-muted-foreground font-medium">
-                        Already have an account?{' '}
-                        <Link href={`/${locale}/login`} className="text-primary font-black hover:text-primary/80 transition-colors">
-                            Sign In
-                        </Link>
-                    </p>
-                </div>
+                <p className="text-center text-[13px] text-muted-foreground mt-5">
+                    Already have an account?{' '}
+                    <Link href={`/${locale}/login`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
+                        Sign in
+                    </Link>
+                </p>
 
-                <div className="flex items-center justify-center gap-6 border-t border-border/50 pt-6">
-                    <span className="text-[11px] font-black text-muted-foreground opacity-40">© MicroLend OS</span>
-                    <button className="text-[11px] font-black text-muted-foreground opacity-40 hover:opacity-80 transition-opacity uppercase tracking-widest">Support</button>
-                    <button className="text-[11px] font-black text-muted-foreground opacity-40 hover:opacity-80 transition-opacity uppercase tracking-widest">Contact</button>
+                <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
+                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLend</span>
+                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</button>
+                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</button>
                 </div>
             </div>
         </div>

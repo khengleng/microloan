@@ -3,9 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useParams } from 'next/navigation';
-import { ShieldCheck, Lock, Mail, Loader2, Zap, ArrowRight, Fingerprint } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -13,6 +11,7 @@ export default function LoginPage() {
     const { locale } = useParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [mfaStep, setMfaStep] = useState(false);
     const [mfaCode, setMfaCode] = useState('');
     const [mfaToken, setMfaToken] = useState('');
@@ -71,143 +70,130 @@ export default function LoginPage() {
         }
     };
 
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 animate-in fade-in duration-700 relative overflow-hidden">
-            {/* Ambient glow */}
-            <div className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px]" />
+    const inputClass = "w-full h-10 px-3 bg-secondary border border-border rounded text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors";
+    const labelClass = "block text-[12px] font-semibold text-muted-foreground mb-1.5";
 
-            <div className="w-full max-w-[440px] space-y-10 relative z-10">
-                {/* Brand Logo */}
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground text-[15px] font-black shadow-lg">
-                        M
-                    </div>
-                    <span className="text-[22px] font-black text-foreground tracking-tighter">MicroLend <span className="text-primary italic">OS</span></span>
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-background" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <div className="w-full max-w-[360px] px-4">
+                {/* Logo */}
+                <div className="flex items-center gap-2 mb-8">
+                    <div className="w-7 h-7 bg-primary rounded flex items-center justify-center text-white text-xs font-bold">M</div>
+                    <span className="text-[16px] font-bold text-foreground">MicroLend</span>
                 </div>
 
-                <div className="premium-card p-10 space-y-8">
-                    <div>
-                        <h1 className="text-3xl font-black text-foreground tracking-tighter mb-2 leading-tight">
-                            {mfaStep ? 'Identity Verification' : 'Access Your'}
-                        </h1>
-                        {!mfaStep && <h2 className="text-3xl font-black text-primary italic tracking-tighter">Portfolio.</h2>}
-                        <p className="text-muted-foreground text-[14px] font-medium mt-3">
-                            {mfaStep
-                                ? 'Enter the 6-digit code from your authenticator app.'
-                                : 'Sign in to manage your microfinance operations.'}
-                        </p>
-                    </div>
+                <div className="bg-card border border-border rounded-lg p-7">
+                    <h1 className="text-[18px] font-bold text-foreground mb-1">
+                        {mfaStep ? 'Two-factor authentication' : 'Sign in'}
+                    </h1>
+                    <p className="text-[13px] text-muted-foreground mb-6">
+                        {mfaStep
+                            ? 'Enter the 6-digit code from your authenticator app.'
+                            : 'Enter your credentials to access your dashboard.'}
+                    </p>
 
                     {!mfaStep ? (
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            <div className="space-y-5">
-                                <div className="space-y-3">
-                                    <Label htmlFor="email" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Email Address</Label>
-                                    <div className="relative group">
-                                        <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
-                                        <Input
-                                            id="email"
-                                            type="email"
-                                            placeholder="you@example.com"
-                                            className="h-14 pl-14 pr-6 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground font-bold transition-all"
-                                            required
-                                            value={email}
-                                            onChange={e => setEmail(e.target.value)}
-                                        />
-                                    </div>
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <div>
+                                <label htmlFor="email" className={labelClass}>Email</label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    placeholder="name@company.com"
+                                    className={inputClass}
+                                    required
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label htmlFor="password" className="text-[12px] font-semibold text-muted-foreground">Password</label>
+                                    <button type="button" className="text-[12px] text-primary hover:text-primary/80 transition-colors">Forgot password?</button>
                                 </div>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <Label htmlFor="password" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Password</Label>
-                                        <button type="button" className="text-[12px] font-black text-primary hover:text-primary/80 transition-colors uppercase tracking-widest">Forgot?</button>
-                                    </div>
-                                    <div className="relative group">
-                                        <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
-                                        <Input
-                                            id="password"
-                                            type="password"
-                                            placeholder="••••••••"
-                                            className="h-14 pl-14 pr-6 rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground font-bold transition-all"
-                                            required
-                                            value={password}
-                                            onChange={e => setPassword(e.target.value)}
-                                        />
-                                    </div>
+                                <div className="relative">
+                                    <input
+                                        id="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        placeholder="••••••••"
+                                        className={`${inputClass} pr-10`}
+                                        required
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                    </button>
                                 </div>
                             </div>
 
                             {error && (
-                                <div className="text-[13px] font-black text-destructive bg-destructive/10 border border-destructive/20 px-5 py-3 rounded-2xl">
+                                <div className="text-[12px] text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded">
                                     {error}
                                 </div>
                             )}
 
                             <button
                                 type="submit"
-                                className="premium-button w-full h-14 flex items-center justify-center gap-3 group text-[14px]"
+                                className="tv-button w-full h-10 text-[13px]"
                                 disabled={loading}
                             >
-                                {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />}
-                                <span className="uppercase tracking-[0.2em] font-black text-[12px]">
-                                    {loading ? 'Signing In...' : 'Continue'}
-                                </span>
+                                {loading && <Loader2 size={14} className="animate-spin mr-2" />}
+                                {loading ? 'Signing in...' : 'Sign in'}
                             </button>
                         </form>
                     ) : (
-                        <form onSubmit={handleMfaVerify} className="space-y-6 animate-in slide-in-from-bottom-2">
-                            <div className="space-y-3">
-                                <Label htmlFor="mfaCode" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Verification Code</Label>
-                                <div className="relative group">
-                                    <Fingerprint className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <Input
-                                        id="mfaCode"
-                                        placeholder="000 000"
-                                        maxLength={6}
-                                        className="h-16 pl-14 text-center text-3xl font-black tracking-[0.3em] rounded-2xl border-border/50 bg-background/50 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground transition-all"
-                                        value={mfaCode}
-                                        onChange={e => setMfaCode(e.target.value)}
-                                        required
-                                        autoFocus
-                                    />
-                                </div>
+                        <form onSubmit={handleMfaVerify} className="space-y-4">
+                            <div>
+                                <label htmlFor="mfaCode" className={labelClass}>Verification code</label>
+                                <input
+                                    id="mfaCode"
+                                    placeholder="000000"
+                                    maxLength={6}
+                                    className={`${inputClass} text-center text-[20px] font-bold tracking-[0.25em]`}
+                                    value={mfaCode}
+                                    onChange={e => setMfaCode(e.target.value)}
+                                    required
+                                    autoFocus
+                                />
                             </div>
 
                             {error && (
-                                <div className="text-[13px] font-black text-destructive bg-destructive/10 border border-destructive/20 px-5 py-3 rounded-2xl">
+                                <div className="text-[12px] text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded">
                                     {error}
                                 </div>
                             )}
 
-                            <div className="space-y-4">
-                                <button type="submit" disabled={loading} className="premium-button w-full h-14 flex items-center justify-center gap-3 text-[12px] uppercase tracking-[0.2em]">
-                                    {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                                    {loading ? 'Verifying...' : 'Confirm Identity'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setMfaStep(false)}
-                                    className="w-full text-center text-[12px] font-black text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest"
-                                >
-                                    Use Different Method
-                                </button>
-                            </div>
+                            <button type="submit" disabled={loading} className="tv-button w-full h-10 text-[13px]">
+                                {loading ? <Loader2 size={14} className="animate-spin mr-2" /> : <ShieldCheck size={14} className="mr-2" />}
+                                {loading ? 'Verifying...' : 'Confirm'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMfaStep(false)}
+                                className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                Try another method
+                            </button>
                         </form>
                     )}
                 </div>
 
-                <div className="text-center">
-                    <p className="text-[13px] text-muted-foreground font-medium">
-                        Don&apos;t have an account?{' '}
-                        <Link href={`/${locale}/register`} className="text-primary font-black hover:text-primary/80 transition-colors">
-                            Create Account
-                        </Link>
-                    </p>
-                </div>
+                <p className="text-center text-[13px] text-muted-foreground mt-5">
+                    Don&apos;t have an account?{' '}
+                    <Link href={`/${locale}/register`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
+                        Create account
+                    </Link>
+                </p>
 
-                <div className="flex items-center justify-center gap-6 border-t border-border/50 pt-6">
-                    <span className="text-[11px] font-black text-muted-foreground opacity-40">© MicroLend OS</span>
-                    <button className="text-[11px] font-black text-muted-foreground opacity-40 hover:opacity-80 transition-opacity uppercase tracking-widest">Terms</button>
-                    <button className="text-[11px] font-black text-muted-foreground opacity-40 hover:opacity-80 transition-opacity uppercase tracking-widest">Privacy</button>
+                <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
+                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLend</span>
+                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</button>
+                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</button>
                 </div>
             </div>
         </div>
