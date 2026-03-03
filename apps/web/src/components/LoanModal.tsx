@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { FilePlus, User, Package, DollarSign, Percent, Calendar, Settings2, ShieldCheck, Plus, Trash2, Loader2, Activity } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Trash2, Loader2, Plus, ShieldCheck } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
 
 interface LoanModalProps {
@@ -14,35 +12,24 @@ interface LoanModalProps {
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
 }
-
-interface Borrower {
-    id: string;
-    firstName: string;
-    lastName: string;
-}
-
+interface Borrower { id: string; firstName: string; lastName: string; }
 interface LoanProduct {
-    id: string;
-    name: string;
-    interestMethod: string;
-    policies: Array<{
-        interestRate: number;
-        minTermMonths: number;
-        maxTermMonths: number;
-    }>;
+    id: string; name: string; interestMethod: string;
+    policies: Array<{ interestRate: number; minTermMonths: number; maxTermMonths: number; }>;
 }
+
+const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
+const labelCls = "block text-sm font-medium text-foreground mb-1";
+const selectCls = `${fieldCls} appearance-none`;
 
 export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
-    const t = useTranslations('Loans');
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [products, setProducts] = useState<LoanProduct[]>([]);
     const [formData, setFormData] = useState({
-        borrowerId: '',
-        productId: '',
-        principal: '',
-        annualInterestRate: '',
-        termMonths: '',
+        borrowerId: '', productId: '', principal: '',
+        annualInterestRate: '', termMonths: '',
         startDate: new Date().toISOString().split('T')[0],
         interestMethod: 'FLAT',
         collaterals: [] as any[],
@@ -51,13 +38,11 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
     useEffect(() => {
         if (open) {
-            Promise.all([
-                api.get('/borrowers'),
-                api.get('/loan-products')
-            ]).then(([bRes, pRes]) => {
-                setBorrowers(bRes.data);
-                setProducts(pRes.data);
-            });
+            Promise.all([api.get('/borrowers'), api.get('/loan-products')])
+                .then(([bRes, pRes]) => {
+                    setBorrowers(bRes.data);
+                    setProducts(pRes.data);
+                });
         }
     }, [open]);
 
@@ -65,8 +50,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
         const product = products.find(p => p.id === productId);
         if (product) {
             setFormData({
-                ...formData,
-                productId,
+                ...formData, productId,
                 interestMethod: product.interestMethod,
                 annualInterestRate: product.policies[0]?.interestRate.toString() || '',
             });
@@ -88,256 +72,170 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
             onSuccess();
             onOpenChange(false);
             setFormData({
-                borrowerId: '',
-                productId: '',
-                principal: '',
-                annualInterestRate: '',
-                termMonths: '',
+                borrowerId: '', productId: '', principal: '',
+                annualInterestRate: '', termMonths: '',
                 startDate: new Date().toISOString().split('T')[0],
-                interestMethod: 'FLAT',
-                collaterals: [],
-                guarantors: []
+                interestMethod: 'FLAT', collaterals: [], guarantors: []
             });
-        } catch (error) {
-            console.error('Failed to issue loan', error);
-            alert('Failed to issue loan');
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Failed to create loan';
+            showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const addCollateral = () => {
-        setFormData({
-            ...formData,
-            collaterals: [...formData.collaterals, { type: 'LAND_TITLE', description: '', value: '0', idNumber: '' }]
-        });
-    };
-
-    const addGuarantor = () => {
-        setFormData({
-            ...formData,
-            guarantors: [...formData.guarantors, { name: '', phone: '', relation: '', idNumber: '' }]
-        });
-    };
+    const addCollateral = () => setFormData({
+        ...formData, collaterals: [...formData.collaterals, { type: 'LAND_TITLE', description: '', value: '0', idNumber: '' }]
+    });
+    const addGuarantor = () => setFormData({
+        ...formData, guarantors: [...formData.guarantors, { name: '', phone: '', relation: '', idNumber: '' }]
+    });
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[32px] border-border bg-card/90 backdrop-blur-2xl p-0 shadow-2xl no-scrollbar font-sans border shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                <div className="p-10 space-y-10">
-                    <DialogHeader>
-                        <DialogTitle className="text-3xl font-black text-foreground tracking-tighter flex items-center gap-4">
-                            <div className="p-3 bg-primary/10 rounded-2xl">
-                                <FilePlus className="text-primary" size={32} />
-                            </div>
-                            Capital <span className="text-primary italic">Disbursement</span>
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-bold text-[15px]">
-                            Originate a new financial instrument and bind it to a validated digital client identity node.
-                        </DialogDescription>
-                    </DialogHeader>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white border border-border rounded-lg p-0 shadow-lg overflow-x-hidden">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-border sticky top-0 bg-white z-10">
+                    <DialogTitle className="text-base font-bold text-foreground">New Loan</DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-0.5">Create a loan and bind it to a registered borrower.</p>
+                </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-12">
-                        {/* Primary Configuration */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <Label htmlFor="borrowerId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Target Identity</Label>
-                                <div className="relative group">
-                                    <User className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <select
-                                        id="borrowerId"
-                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-background/50 font-black text-[14px] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
-                                        value={formData.borrowerId}
-                                        onChange={e => setFormData({ ...formData, borrowerId: e.target.value })}
-                                        required
-                                    >
-                                        <option value="" className="bg-card">Select Identity Node</option>
-                                        {borrowers.map(b => (
-                                            <option key={b.id} value={b.id} className="bg-card font-bold">{b.firstName} {b.lastName}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                <form onSubmit={handleSubmit}>
+                    <div className="px-6 py-5 space-y-5">
+                        {/* Borrower + Product */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="borrowerId" className={labelCls}>Borrower <span className="text-destructive">*</span></label>
+                                <select id="borrowerId" className={selectCls} value={formData.borrowerId} onChange={e => setFormData({ ...formData, borrowerId: e.target.value })} required>
+                                    <option value="">Select borrower...</option>
+                                    {borrowers.map(b => <option key={b.id} value={b.id}>{b.firstName} {b.lastName}</option>)}
+                                </select>
                             </div>
-                            <div className="space-y-4">
-                                <Label htmlFor="productId" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Product Protocol</Label>
-                                <div className="relative group">
-                                    <Package className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <select
-                                        id="productId"
-                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-background/50 font-black text-[14px] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
-                                        value={formData.productId}
-                                        onChange={e => handleProductChange(e.target.value)}
-                                    >
-                                        <option value="" className="bg-card">Manual Parameter Overload</option>
-                                        {products.map(p => (
-                                            <option key={p.id} value={p.id} className="bg-card font-bold">{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            <div>
+                                <label htmlFor="productId" className={labelCls}>Loan Product <span className="text-muted-foreground text-xs">(optional)</span></label>
+                                <select id="productId" className={selectCls} value={formData.productId} onChange={e => handleProductChange(e.target.value)}>
+                                    <option value="">Manual / custom parameters</option>
+                                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
                             </div>
                         </div>
 
                         {/* Financial Parameters */}
-                        <div className="p-8 bg-background/50 rounded-[32px] border border-border/50 grid grid-cols-1 md:grid-cols-3 gap-8 shadow-inner">
-                            <div className="space-y-4">
-                                <Label htmlFor="principal" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Principal USD</Label>
-                                <div className="relative group">
-                                    <DollarSign className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <Input
-                                        id="principal"
-                                        type="number"
-                                        step="0.01"
-                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-foreground"
-                                        value={formData.principal}
-                                        onChange={e => setFormData({ ...formData, principal: e.target.value })}
-                                        required
-                                    />
-                                </div>
+                        <div className="p-4 bg-muted rounded border border-border grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label htmlFor="principal" className={labelCls}>Principal (USD) <span className="text-destructive">*</span></label>
+                                <input id="principal" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.principal} onChange={e => setFormData({ ...formData, principal: e.target.value })} required />
                             </div>
-                            <div className="space-y-4">
-                                <Label htmlFor="annualInterestRate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Annual Rate %</Label>
-                                <div className="relative group">
-                                    <Percent className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <Input
-                                        id="annualInterestRate"
-                                        type="number"
-                                        step="0.01"
-                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-primary"
-                                        value={formData.annualInterestRate}
-                                        onChange={e => setFormData({ ...formData, annualInterestRate: e.target.value })}
-                                        required
-                                    />
-                                </div>
+                            <div>
+                                <label htmlFor="annualInterestRate" className={labelCls}>Annual Interest Rate (%) <span className="text-destructive">*</span></label>
+                                <input id="annualInterestRate" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.annualInterestRate} onChange={e => setFormData({ ...formData, annualInterestRate: e.target.value })} required />
                             </div>
-                            <div className="space-y-4">
-                                <Label htmlFor="termMonths" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Term (Months)</Label>
-                                <div className="relative group">
-                                    <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <Input
-                                        id="termMonths"
-                                        type="number"
-                                        className="h-16 pl-14 pr-8 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-xl text-foreground"
-                                        value={formData.termMonths}
-                                        onChange={e => setFormData({ ...formData, termMonths: e.target.value })}
-                                        required
-                                    />
-                                </div>
+                            <div>
+                                <label htmlFor="termMonths" className={labelCls}>Term (months) <span className="text-destructive">*</span></label>
+                                <input id="termMonths" type="number" min="1" className={fieldCls} placeholder="12" value={formData.termMonths} onChange={e => setFormData({ ...formData, termMonths: e.target.value })} required />
                             </div>
                         </div>
 
-                        {/* Schedule Logic */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <Label htmlFor="startDate" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Origination Date</Label>
-                                <Input
-                                    id="startDate"
-                                    type="date"
-                                    className="h-16 px-6 rounded-2xl border-border/50 bg-card/50 shadow-sm focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-black text-foreground"
-                                    value={formData.startDate}
-                                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                                    required
-                                />
+                        {/* Schedule */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="startDate" className={labelCls}>Start Date <span className="text-destructive">*</span></label>
+                                <input id="startDate" type="date" className={fieldCls} value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} required />
                             </div>
-                            <div className="space-y-4">
-                                <Label htmlFor="interestMethod" className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] ml-2">Logic Model</Label>
-                                <div className="relative group">
-                                    <Settings2 className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={20} />
-                                    <select
-                                        id="interestMethod"
-                                        className="w-full h-16 pl-14 pr-8 rounded-2xl border border-border/50 bg-card/50 font-black text-xs uppercase tracking-[0.2em] appearance-none focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer text-foreground"
-                                        value={formData.interestMethod}
-                                        onChange={e => setFormData({ ...formData, interestMethod: e.target.value })}
-                                        required
-                                    >
-                                        <option value="FLAT" className="bg-card">Flat Amortization</option>
-                                        <option value="REDUCING_BALANCE" className="bg-card">Reducing Balance</option>
-                                    </select>
-                                </div>
+                            <div>
+                                <label htmlFor="interestMethod" className={labelCls}>Interest Method <span className="text-destructive">*</span></label>
+                                <select id="interestMethod" className={selectCls} value={formData.interestMethod} onChange={e => setFormData({ ...formData, interestMethod: e.target.value })} required>
+                                    <option value="FLAT">Flat Rate</option>
+                                    <option value="REDUCING_BALANCE">Reducing Balance</option>
+                                </select>
                             </div>
                         </div>
 
-                        {/* Governance (Collateral & Guarantors) */}
-                        <div className="space-y-8">
-                            <div className="flex justify-between items-end border-b border-border/50 pb-4">
-                                <h3 className="text-[13px] font-black text-foreground uppercase tracking-[0.2em] flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-emerald-400/10 rounded-lg flex items-center justify-center">
-                                        <ShieldCheck size={18} className="text-emerald-400" />
-                                    </div>
-                                    Risk Mitigation Assets
-                                </h3>
-                                <div className="flex gap-3">
-                                    <Button type="button" variant="outline" size="sm" onClick={addCollateral} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-10 border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all">+ Collateral</Button>
-                                    <Button type="button" variant="outline" size="sm" onClick={addGuarantor} className="rounded-xl font-black text-[10px] uppercase tracking-widest px-4 h-10 border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all">+ Guarantor</Button>
-                                </div>
+                        {/* Collaterals */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-foreground">Collaterals</span>
+                                <button type="button" onClick={addCollateral} className="btn-ghost text-xs px-3 py-1 h-auto">
+                                    <Plus size={13} /> Add
+                                </button>
                             </div>
-
-                            <div className="space-y-6">
+                            {formData.collaterals.length === 0 && (
+                                <p className="text-sm text-muted-foreground py-2">No collaterals added.</p>
+                            )}
+                            <div className="space-y-2">
                                 {formData.collaterals.map((c, i) => (
-                                    <div key={i} className="p-6 bg-white/[0.02] border border-border/50 rounded-2xl flex flex-col md:flex-row gap-6 items-center animate-in slide-in-from-right-4 duration-500">
-                                        <div className="flex items-center gap-4 w-full md:w-auto">
-                                            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary text-xs font-black">#{i + 1}</div>
-                                            <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Asset</span>
-                                        </div>
-                                        <select className="flex-1 h-14 px-5 border-border/50 rounded-2xl text-[13px] font-black uppercase tracking-widest bg-card/50 text-foreground" value={c.type} onChange={e => {
-                                            const next = [...formData.collaterals];
-                                            next[i].type = e.target.value;
+                                    <div key={i} className="flex gap-2 items-center p-3 bg-muted rounded border border-border">
+                                        <span className="text-xs text-muted-foreground w-5 text-center">{i + 1}</span>
+                                        <select className={`${selectCls} flex-1`} value={c.type} onChange={e => {
+                                            const next = [...formData.collaterals]; next[i].type = e.target.value;
                                             setFormData({ ...formData, collaterals: next });
                                         }}>
-                                            <option value="LAND_TITLE" className="bg-card">Land Title Matrix</option>
-                                            <option value="VEHICLE" className="bg-card">Automotive Asset</option>
-                                            <option value="GOLD" className="bg-card">Commodity (Gold)</option>
-                                            <option value="ID_CARD" className="bg-card">Identity Key</option>
-                                            <option value="OTHER" className="bg-card">Misc Asset</option>
+                                            <option value="LAND_TITLE">Land Title</option>
+                                            <option value="VEHICLE">Vehicle</option>
+                                            <option value="GOLD">Gold</option>
+                                            <option value="ID_CARD">ID Card</option>
+                                            <option value="OTHER">Other</option>
                                         </select>
-                                        <Input placeholder="Asset Value (USD)" type="number" className="flex-1 h-14 px-5 border-border/50 rounded-2xl font-black bg-card/50 text-foreground" value={c.value} onChange={e => {
-                                            const next = [...formData.collaterals];
-                                            next[i].value = e.target.value;
+                                        <input type="number" placeholder="Value (USD)" className={`${fieldCls} flex-1`} value={c.value} onChange={e => {
+                                            const next = [...formData.collaterals]; next[i].value = e.target.value;
                                             setFormData({ ...formData, collaterals: next });
                                         }} />
-                                        <Button type="button" size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10 rounded-xl" onClick={() => {
-                                            const next = [...formData.collaterals];
-                                            next.splice(i, 1);
+                                        <button type="button" onClick={() => {
+                                            const next = [...formData.collaterals]; next.splice(i, 1);
                                             setFormData({ ...formData, collaterals: next });
-                                        }}><Trash2 size={20} /></Button>
-                                    </div>
-                                ))}
-
-                                {formData.guarantors.map((g, i) => (
-                                    <div key={i} className="p-6 bg-primary/5 border border-primary/20 rounded-2xl flex flex-col md:flex-row gap-6 items-center animate-in slide-in-from-right-4 duration-500">
-                                        <div className="flex items-center gap-4 w-full md:w-auto">
-                                            <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary text-xs font-black">#{i + 1}</div>
-                                            <span className="text-[11px] font-black text-primary uppercase tracking-widest">Co-Signer</span>
-                                        </div>
-                                        <Input placeholder="Full Legal Name" className="flex-1 h-14 px-5 border-primary/20 rounded-2xl font-black bg-card/50 text-foreground" value={g.name} onChange={e => {
-                                            const next = [...formData.guarantors];
-                                            next[i].name = e.target.value;
-                                            setFormData({ ...formData, guarantors: next });
-                                        }} />
-                                        <Input placeholder="Validated Phone" className="flex-1 h-14 px-5 border-primary/20 rounded-2xl font-black bg-card/50 text-foreground" value={g.phone} onChange={e => {
-                                            const next = [...formData.guarantors];
-                                            next[i].phone = e.target.value;
-                                            setFormData({ ...formData, guarantors: next });
-                                        }} />
-                                        <Button type="button" size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10 rounded-xl" onClick={() => {
-                                            const next = [...formData.guarantors];
-                                            next.splice(i, 1);
-                                            setFormData({ ...formData, guarantors: next });
-                                        }}><Trash2 size={20} /></Button>
+                                        }} className="text-destructive hover:text-destructive/80 p-1">
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-4 pt-10 border-t border-border/50">
-                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="h-14 rounded-2xl font-black px-10 text-muted-foreground hover:text-foreground hover:bg-border/20 uppercase tracking-widest text-[13px]">
-                                Abort
-                            </Button>
-                            <Button type="submit" disabled={loading} className="premium-button h-16 px-12 group uppercase tracking-[0.2em] text-[13px]">
-                                {loading ? <Activity className="animate-spin mr-3" size={20} /> : <FilePlus className="mr-3 group-hover:scale-110 transition-transform" size={20} />}
-                                {loading ? 'Binding Instrument...' : 'Commit Origination'}
-                            </Button>
+                        {/* Guarantors */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-foreground">Guarantors</span>
+                                <button type="button" onClick={addGuarantor} className="btn-ghost text-xs px-3 py-1 h-auto">
+                                    <Plus size={13} /> Add
+                                </button>
+                            </div>
+                            {formData.guarantors.length === 0 && (
+                                <p className="text-sm text-muted-foreground py-2">No guarantors added.</p>
+                            )}
+                            <div className="space-y-2">
+                                {formData.guarantors.map((g, i) => (
+                                    <div key={i} className="flex gap-2 items-center p-3 bg-muted rounded border border-border">
+                                        <span className="text-xs text-muted-foreground w-5 text-center">{i + 1}</span>
+                                        <input placeholder="Full name" className={`${fieldCls} flex-1`} value={g.name} onChange={e => {
+                                            const next = [...formData.guarantors]; next[i].name = e.target.value;
+                                            setFormData({ ...formData, guarantors: next });
+                                        }} />
+                                        <input placeholder="Phone" className={`${fieldCls} flex-1`} value={g.phone} onChange={e => {
+                                            const next = [...formData.guarantors]; next[i].phone = e.target.value;
+                                            setFormData({ ...formData, guarantors: next });
+                                        }} />
+                                        <button type="button" onClick={() => {
+                                            const next = [...formData.guarantors]; next.splice(i, 1);
+                                            setFormData({ ...formData, guarantors: next });
+                                        }} className="text-destructive hover:text-destructive/80 p-1">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </form>
-                </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 border-t border-border bg-muted/40 flex justify-end gap-2">
+                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">Cancel</button>
+                        <button type="submit" disabled={loading} className="btn-primary">
+                            {loading && <Loader2 size={14} className="animate-spin" />}
+                            {loading ? 'Creating...' : 'Create Loan'}
+                        </button>
+                    </div>
+                </form>
             </DialogContent>
         </Dialog>
     );

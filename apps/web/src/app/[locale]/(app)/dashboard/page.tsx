@@ -7,6 +7,7 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Wallet, Users, PiggyBank, ArrowUpRight, BarChart2, Plus } from 'lucide-react';
+import { LoanModal } from '@/components/LoanModal';
 
 interface DashboardStats {
     activeLoans: number;
@@ -22,6 +23,7 @@ export default function DashboardPage() {
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
+    const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -112,7 +114,7 @@ export default function DashboardPage() {
                     <h1 className="text-[18px] font-bold text-foreground">Financial Dashboard</h1>
                     <p className="text-[13px] text-muted-foreground mt-0.5">Portfolio overview and capital metrics</p>
                 </div>
-                <button className="tv-button gap-1.5 text-[12px]">
+                <button onClick={() => setIsLoanModalOpen(true)} className="tv-button gap-1.5 text-[12px]">
                     <Plus size={14} /> New Loan
                 </button>
             </div>
@@ -254,6 +256,12 @@ export default function DashboardPage() {
                     ))}
                 </div>
             </div>
+
+            <LoanModal
+                open={isLoanModalOpen}
+                onOpenChange={setIsLoanModalOpen}
+                onSuccess={() => { setIsLoanModalOpen(false); }}
+            />
         </div>
     );
 }

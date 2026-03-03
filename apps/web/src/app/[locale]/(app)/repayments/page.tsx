@@ -25,6 +25,8 @@ export default function RepaymentsPage() {
     const [repayments, setRepayments] = useState<Repayment[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchRepayments = async () => {
@@ -33,7 +35,7 @@ export default function RepaymentsPage() {
             const res = await api.get('/repayments');
             setRepayments(res.data);
         } catch {
-            showToast('Failed to load recovery ledger', 'error');
+            showToast('Failed to load repayments', 'error');
         } finally {
             setLoading(false);
         }
@@ -43,11 +45,15 @@ export default function RepaymentsPage() {
 
     const filtered = useMemo(() => {
         if (!Array.isArray(repayments)) return [];
-        return repayments.filter(r =>
-            `${r.loan?.borrower?.firstName || ''} ${r.loan?.borrower?.lastName || ''}`
-                .toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [repayments, searchQuery]);
+        return repayments.filter(r => {
+            const nameMatch = `${r.loan?.borrower?.firstName || ''} ${r.loan?.borrower?.lastName || ''}`
+                .toLowerCase().includes(searchQuery.toLowerCase());
+            const date = r.date?.split('T')[0] ?? '';
+            const fromMatch = !dateFrom || date >= dateFrom;
+            const toMatch = !dateTo || date <= dateTo;
+            return nameMatch && fromMatch && toMatch;
+        });
+    }, [repayments, searchQuery, dateFrom, dateTo]);
 
     const totalCollected = Array.isArray(repayments)
         ? repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0)
@@ -116,15 +122,37 @@ export default function RepaymentsPage() {
             </div>
 
             {/* Toolbar */}
-            <div className="relative group max-w-md">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
-                <input
-                    type="text"
-                    placeholder="Search by customer name..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
-                />
+            <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
+                    <input
+                        type="text"
+                        placeholder="Search by customer name..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-4 h-9 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    />
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={e => setDateFrom(e.target.value)}
+                        className="h-9 px-3 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        title="From date"
+                    />
+                    <span className="text-xs text-muted-foreground">to</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={e => setDateTo(e.target.value)}
+                        className="h-9 px-3 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        title="To date"
+                    />
+                    {(dateFrom || dateTo) && (
+                        <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs text-muted-foreground hover:text-foreground">Clear</button>
+                    )}
+                </div>
             </div>
 
             {/* Table */}

@@ -1,131 +1,185 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, Eye, Phone, User, Calendar, Loader2, MessageSquare, TrendingDown, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Eye, Phone, Loader2, MessageSquare, CheckCircle2, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { RepaymentModal } from '@/components/RepaymentModal';
+import { useToast } from '@/components/ui/toast';
 
 interface OverdueLoan {
     id: string;
     borrower: { firstName: string; lastName: string; phone: string };
     principal: number;
-    schedules: Array<{
-        dueDate: string;
-        totalAmount: number;
-    }>;
+    schedules: Array<{ dueDate: string; totalAmount: number; }>;
 }
+
+const AGING_BRACKETS = [
+    { label: '1–30 days', min: 1, max: 30, badgeCls: 'badge-warning' },
+    { label: '31–60 days', min: 31, max: 60, badgeCls: 'badge-danger' },
+    { label: '61–90 days', min: 61, max: 90, badgeCls: 'badge-danger' },
+    { label: '90+ days', min: 91, max: Infinity, badgeCls: 'badge-danger' },
+];
 
 export default function CollectionsPage() {
     const { locale } = useParams();
+    const { showToast } = useToast();
     const [loans, setLoans] = useState<OverdueLoan[]>([]);
     const [loading, setLoading] = useState(true);
+    const [repaymentLoanId, setRepaymentLoanId] = useState<string | undefined>(undefined);
+    const [repaymentOpen, setRepaymentOpen] = useState(false);
 
-    useEffect(() => {
+    const fetchLoans = () => {
+        setLoading(true);
         api.get('/loans/overdue')
             .then(res => setLoans(res.data))
-            .catch(err => console.error(err))
+            .catch(() => showToast('Failed to load overdue loans', 'error'))
             .finally(() => setLoading(false));
-    }, []);
+    };
+
+    useEffect(() => { fetchLoans(); }, []);
 
     if (loading) return (
-        <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
-            <Loader2 className="animate-spin text-[#635BFF]" size={40} />
-            <p className="text-[#697386] font-medium">Loading collection data...</p>
+        <div className="flex h-64 items-center justify-center text-muted-foreground text-sm gap-2">
+            <Loader2 className="animate-spin" size={16} /> Loading collections...
         </div>
     );
 
+    if (loans.length === 0) return (
+        <div className="max-w-3xl space-y-4">
+            <div>
+                <h1 className="text-xl font-bold text-foreground">Collections</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Overdue accounts requiring follow-up.</p>
+            </div>
+            <div className="bg-white border border-border rounded-md p-12 text-center">
+                <CheckCircle2 size={36} className="mx-auto text-[#006644] mb-3" />
+                <h2 className="text-base font-bold text-foreground">Portfolio is current</h2>
+                <p className="text-sm text-muted-foreground mt-1">No overdue accounts at this time.</p>
+            </div>
+        </div>
+    );
+
+    // Group loans by aging bracket
+    const bucketed = AGING_BRACKETS.map(bracket => ({
+        ...bracket,
+        loans: loans.filter(loan => {
+            const oldest = new Date(loan.schedules[0]?.dueDate);
+            const days = Math.floor((Date.now() - oldest.getTime()) / 86400000);
+            return days >= bracket.min && days <= bracket.max;
+        })
+    })).filter(b => b.loans.length > 0);
+
     return (
-        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="max-w-5xl space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Overdue Collections</h1>
-                    <p className="text-[#697386] text-[14px]">Identify and manage accounts requiring immediate attention.</p>
+                    <h1 className="text-xl font-bold text-foreground">Collections</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {loans.length} overdue account{loans.length !== 1 ? 's' : ''} requiring attention.
+                    </p>
                 </div>
-                {loans.length > 0 && (
-                    <div className="px-4 py-2 bg-white border border-[#E3E8EE] rounded-lg shadow-sm flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-[#FF5D5D] animate-pulse" />
-                        <span className="text-[13px] font-semibold text-[#1A1F36]">{loans.length} active delinquencies</span>
-                    </div>
-                )}
+                <span className="badge-danger text-xs">{loans.length} delinquent</span>
             </div>
 
-            {loans.length === 0 ? (
-                <div className="bg-white border border-[#E3E8EE] rounded-lg p-16 text-center shadow-sm">
-                    <div className="w-16 h-16 bg-[#F0F5FF] text-[#635BFF] rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 size={32} />
+            {/* Aging summary bar */}
+            <div className="bg-white border border-border rounded-md p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                {AGING_BRACKETS.map(bracket => {
+                    const count = loans.filter(loan => {
+                        const days = Math.floor((Date.now() - new Date(loan.schedules[0]?.dueDate).getTime()) / 86400000);
+                        return days >= bracket.min && days <= bracket.max;
+                    }).length;
+                    return (
+                        <div key={bracket.label} className="text-center">
+                            <p className="text-xs text-muted-foreground mb-1">{bracket.label}</p>
+                            <p className={`text-lg font-bold ${count > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{count}</p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Bucketed tables */}
+            {bucketed.map(bucket => (
+                <div key={bucket.label} className="bg-white border border-border rounded-md overflow-hidden">
+                    <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-muted/40">
+                        <AlertTriangle size={14} className="text-destructive" />
+                        <span className="text-sm font-bold text-foreground">{bucket.label}</span>
+                        <span className={`${bucket.badgeCls} ml-1`}>{bucket.loans.length}</span>
                     </div>
-                    <h2 className="text-[18px] font-bold text-[#1A1F36]">Portfolio is healthy</h2>
-                    <p className="text-[#697386] text-[14px] mt-1">There are no overdue payments currently requiring collection.</p>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-border">
+                            <thead className="bg-muted/30">
+                                <tr>
+                                    <th className="table-header px-4 py-2.5 text-left">Borrower</th>
+                                    <th className="table-header px-4 py-2.5 text-left">Phone</th>
+                                    <th className="table-header px-4 py-2.5 text-right">Overdue Amount</th>
+                                    <th className="table-header px-4 py-2.5 text-right">Days Late</th>
+                                    <th className="table-header px-4 py-2.5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {bucket.loans.map(loan => {
+                                    const oldest = new Date(loan.schedules[0]?.dueDate);
+                                    const daysLate = Math.floor((Date.now() - oldest.getTime()) / 86400000);
+                                    const totalOverdue = loan.schedules.reduce((acc, s) => acc + Number(s.totalAmount), 0);
+                                    return (
+                                        <tr key={loan.id} className="hover:bg-muted/20 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground flex-shrink-0">
+                                                        {loan.borrower.firstName[0]}{loan.borrower.lastName[0]}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">{loan.borrower.firstName} {loan.borrower.lastName}</p>
+                                                        <p className="text-xs text-muted-foreground">#{loan.id.slice(-6).toUpperCase()}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Phone size={12} /> {loan.borrower.phone}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-sm font-bold text-destructive">
+                                                ${totalOverdue.toLocaleString()}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <span className={daysLate > 30 ? 'badge-danger' : 'badge-warning'}>{daysLate}d</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => { setRepaymentLoanId(loan.id); setRepaymentOpen(true); }}
+                                                        className="btn-primary text-xs px-3 py-1 h-auto"
+                                                    >
+                                                        <CreditCard size={12} /> Record Payment
+                                                    </button>
+                                                    <Link href={`/${locale}/loans/${loan.id}`}>
+                                                        <button className="btn-ghost text-xs px-3 py-1 h-auto">
+                                                            <Eye size={12} /> View
+                                                        </button>
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {loans.map(loan => {
-                        const oldestDue = new Date(loan.schedules[0]?.dueDate);
-                        const daysLate = Math.floor((Date.now() - oldestDue.getTime()) / (1000 * 60 * 60 * 24));
-                        const totalOverdue = loan.schedules.reduce((acc, s) => acc + Number(s.totalAmount), 0);
+            ))}
 
-                        return (
-                            <div key={loan.id} className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col group overflow-hidden">
-                                <div className="p-6 flex-1">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded bg-[#F7FAFC] border border-[#E3E8EE] flex items-center justify-center text-[#4F566B] font-bold text-sm">
-                                                {loan.borrower.firstName[0]}{loan.borrower.lastName[0]}
-                                            </div>
-                                            <div>
-                                                <h3 className="text-[14px] font-bold text-[#1A1F36] transition-colors">{loan.borrower.firstName} {loan.borrower.lastName}</h3>
-                                                <p className="text-[12px] text-[#697386] font-medium">#{loan.id.slice(-6).toUpperCase()}</p>
-                                            </div>
-                                        </div>
-                                        <div className={`px-2 py-0.5 rounded text-[11px] font-bold ${daysLate > 30 ? 'bg-[#FFF0F0] text-[#FF5D5D]' : 'bg-[#FFF9E6] text-[#946C00]'}`}>
-                                            {daysLate}d late
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-6 space-y-4">
-                                        <div>
-                                            <p className="text-[11px] font-bold text-[#697386] uppercase tracking-wider mb-1">Total Overdue</p>
-                                            <p className="text-[20px] font-bold text-[#1A1F36] tracking-tight">${totalOverdue.toLocaleString()}</p>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-[#F7FAFC]">
-                                            <div>
-                                                <p className="text-[11px] font-bold text-[#AAB7C4] uppercase mb-0.5">Oldest Due</p>
-                                                <p className="text-[13px] font-semibold text-[#4F566B]">{oldestDue.toLocaleDateString()}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[11px] font-bold text-[#AAB7C4] uppercase mb-0.5">Principal</p>
-                                                <p className="text-[13px] font-semibold text-[#4F566B]">${loan.principal.toLocaleString()}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-[13px] text-[#4F566B] font-medium pt-1">
-                                            <Phone size={14} className="text-[#697386]" />
-                                            {loan.borrower.phone}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-[#F7FAFC] border-t border-[#E3E8EE] flex gap-2">
-                                    <Link href={`/${locale}/loans/${loan.id}`} className="flex-1">
-                                        <button className="w-full py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#4F566B] hover:bg-slate-50 transition-colors">
-                                            View Loan
-                                        </button>
-                                    </Link>
-                                    <button className="flex-1 py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#4F566B] hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                                        <MessageSquare size={14} className="text-[#697386]" />
-                                        Log Call
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            <RepaymentModal
+                open={repaymentOpen}
+                onOpenChange={setRepaymentOpen}
+                defaultLoanId={repaymentLoanId}
+                onSuccess={() => {
+                    showToast('Payment recorded successfully', 'success');
+                    fetchLoans();
+                }}
+            />
         </div>
     );
 }

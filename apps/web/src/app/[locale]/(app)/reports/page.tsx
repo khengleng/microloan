@@ -1,92 +1,140 @@
 "use client";
 
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
-import { Download, FileBarChart, PieChart, Activity, ShieldCheck } from 'lucide-react';
+import { Download, FileText, BarChart2, Users, ShieldCheck, Activity } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
+
+const EXPORTS = [
+    {
+        title: 'Loan Portfolio',
+        description: 'All active and closed loans with principal, interest rate, term, method, and status.',
+        endpoint: 'loan-book',
+        filename: 'loan_book.csv',
+        Icon: FileText,
+        iconCls: 'text-primary bg-primary/10',
+    },
+    {
+        title: 'Collections & Repayments',
+        description: 'Full repayment history — principal recovered, interest paid, and dates for every transaction.',
+        endpoint: 'repayments',
+        filename: 'repayments.csv',
+        Icon: Activity,
+        iconCls: 'text-[#006644] bg-[#E3FCEF]',
+    },
+];
+
+const EXCEL_EXPORTS = [
+    {
+        title: 'Loans (Excel)',
+        description: 'Loan portfolio in Excel format for spreadsheet analysis.',
+        endpoint: '/exports/loans/excel',
+        filename: 'loans.xlsx',
+        Icon: BarChart2,
+        iconCls: 'text-[#006644] bg-[#E3FCEF]',
+    },
+    {
+        title: 'Borrowers (Excel)',
+        description: 'Full borrower registry with contact details and ID numbers.',
+        endpoint: '/exports/borrowers',
+        filename: 'borrowers.xlsx',
+        Icon: Users,
+        iconCls: 'text-[#974F0C] bg-[#FFFAE6]',
+    },
+];
 
 export default function ReportsPage() {
-    const t = useTranslations('Reports');
+    const { showToast } = useToast();
 
-    const handleDownload = async (endpoint: string, filename: string) => {
+    const handleCsvDownload = async (endpoint: string, filename: string) => {
         try {
-            const res = await api.get(`/reports/${endpoint}`, {
-                responseType: 'blob'
-            });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (error) {
-            console.error('Failed to download report', error);
-            alert('Failed to download report');
-        }
+            const res = await api.get(`/reports/${endpoint}`, { responseType: 'blob' });
+            trigger(res.data, filename);
+            showToast(`${filename} downloaded`, 'success');
+        } catch { showToast('Download failed', 'error'); }
+    };
+
+    const handleExcelDownload = async (endpoint: string, filename: string) => {
+        try {
+            const res = await api.get(endpoint, { responseType: 'blob' });
+            trigger(res.data, filename);
+            showToast(`${filename} downloaded`, 'success');
+        } catch { showToast('Download failed', 'error'); }
+    };
+
+    const trigger = (data: Blob, filename: string) => {
+        const url = window.URL.createObjectURL(new Blob([data]));
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        window.URL.revokeObjectURL(url);
     };
 
     return (
-        <div className="max-w-[1000px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Reporting & Exports</h1>
-                    <p className="text-[#697386] text-[14px] mt-1">Export financial data and operational insights for your business.</p>
-                </div>
-                <div className="flex items-center gap-2 text-[#697386] text-[12px] font-semibold bg-[#F6F9FC] px-3 py-1.5 rounded-md border border-[#E3E8EE]">
-                    <ShieldCheck size={14} className="text-[#AAB7C4]" />
-                    <span>Verified Audit Data</span>
+        <div className="max-w-4xl space-y-6">
+            <div>
+                <h1 className="text-xl font-bold text-foreground">Reports & Exports</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">Download financial data for analysis, auditing, or reporting.</p>
+            </div>
+
+            {/* CSV Reports */}
+            <div>
+                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">CSV Reports</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {EXPORTS.map(exp => (
+                        <div key={exp.endpoint} className="bg-white border border-border rounded-md p-5 flex flex-col gap-3">
+                            <div className="flex items-start gap-3">
+                                <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${exp.iconCls}`}>
+                                    <exp.Icon size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-foreground">{exp.title}</h3>
+                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{exp.description}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleCsvDownload(exp.endpoint, exp.filename)}
+                                className="btn-ghost text-sm w-full justify-center"
+                            >
+                                <Download size={14} /> Download CSV
+                            </button>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Loan Portfolio Card */}
-                <div className="bg-white border border-[#E3E8EE] p-6 rounded-lg shadow-sm hover:shadow-md transition-all">
-                    <div className="w-10 h-10 bg-[#F0F5FF] rounded-md flex items-center justify-center text-[#635BFF] mb-4">
-                        <PieChart size={20} />
-                    </div>
-                    <h2 className="text-[16px] font-bold text-[#1A1F36] mb-2 tracking-tight">Loan Portfolio Masterbook</h2>
-                    <p className="text-[#697386] text-[14px] leading-relaxed mb-6 h-[60px]">
-                        A complete record of all active and closed loan assets, including principal breakdown and interest metrics.
-                    </p>
-                    <button
-                        onClick={() => handleDownload('loan-book', 'loan_book.csv')}
-                        className="w-full bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2.5 px-4 rounded shadow-sm transition-all flex items-center justify-center gap-2"
-                    >
-                        <Download size={14} />
-                        Download Portfolio CSV
-                    </button>
-                </div>
-
-                {/* Repayments Ledger Card */}
-                <div className="bg-white border border-[#E3E8EE] p-6 rounded-lg shadow-sm hover:shadow-md transition-all">
-                    <div className="w-10 h-10 bg-[#E6F9F1] rounded-md flex items-center justify-center text-[#3ECF8E] mb-4">
-                        <Activity size={20} />
-                    </div>
-                    <h2 className="text-[16px] font-bold text-[#1A1F36] mb-2 tracking-tight">Collections & Cash Flow</h2>
-                    <p className="text-[#697386] text-[14px] leading-relaxed mb-6 h-[60px]">
-                        Detailed history of all repayments, principal recalls, and interest recovery events across all time periods.
-                    </p>
-                    <button
-                        onClick={() => handleDownload('repayments', 'repayments.csv')}
-                        className="w-full bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2.5 px-4 rounded shadow-sm transition-all flex items-center justify-center gap-2"
-                    >
-                        <Download size={14} />
-                        Download Repayments CSV
-                    </button>
+            {/* Excel Reports */}
+            <div>
+                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">Excel Reports</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {EXCEL_EXPORTS.map(exp => (
+                        <div key={exp.endpoint} className="bg-white border border-border rounded-md p-5 flex flex-col gap-3">
+                            <div className="flex items-start gap-3">
+                                <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${exp.iconCls}`}>
+                                    <exp.Icon size={16} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-foreground">{exp.title}</h3>
+                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{exp.description}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleExcelDownload(exp.endpoint, exp.filename)}
+                                className="btn-primary text-sm w-full justify-center"
+                            >
+                                <Download size={14} /> Download Excel
+                            </button>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Info Box */}
-            <div className="bg-[#F6F9FC] border border-[#E3E8EE] p-6 rounded-lg flex items-start gap-4">
-                <div className="text-[#AAB7C4] mt-0.5">
-                    <FileBarChart size={20} />
-                </div>
+            {/* Info */}
+            <div className="bg-white border border-border rounded-md p-4 flex items-start gap-3">
+                <ShieldCheck size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
                 <div>
-                    <h4 className="text-[13px] font-bold text-[#1A1F36] mb-1">Custom Reports</h4>
-                    <p className="text-[13px] text-[#697386] leading-relaxed">
-                        Looking for something specific? Monthly performance summaries and risk exposure reports are automatically generated on the 1st of every month. For custom data requests, please contact support.
+                    <h4 className="text-sm font-bold text-foreground mb-0.5">Scheduled Reports</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        Monthly performance summaries and risk exposure reports are generated automatically on the 1st of each month. For custom data requests, contact your administrator.
                     </p>
                 </div>
             </div>
