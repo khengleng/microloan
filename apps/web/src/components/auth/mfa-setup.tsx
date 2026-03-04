@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldAlert, ShieldCheck, Loader2, Key } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 export function MfaSetup() {
+    const { showToast } = useToast();
     const [step, setStep] = useState<'IDLE' | 'GENERATING' | 'VERIFYING'>('IDLE');
     const [mfaData, setMfaData] = useState<{ secret: string; qrCodeDataUrl: string } | null>(null);
     const [code, setCode] = useState('');
@@ -21,7 +23,7 @@ export function MfaSetup() {
             setMfaData(res.data);
             setStep('VERIFYING');
         } catch (err) {
-            alert('Failed to initiate MFA setup');
+            showToast('Failed to initiate MFA setup', 'error');
             setStep('IDLE');
         }
     };
@@ -31,9 +33,9 @@ export function MfaSetup() {
             await api.post('/auth/mfa/enable', { code });
             setEnabled(true);
             setStep('IDLE');
-            alert('MFA enabled successfully!');
+            showToast('MFA enabled successfully!', 'success');
         } catch (err) {
-            alert('Invalid code. Please try again.');
+            showToast('Invalid code. Please try again.', 'error');
         }
     };
 

@@ -98,6 +98,7 @@ export default function SettingsPage() {
                                     <input
                                         id="tgToken"
                                         type="password"
+                                        autoComplete="off"
                                         className={fieldCls}
                                         placeholder="Paste your bot token..."
                                         value={settings.telegramBotToken || ''}

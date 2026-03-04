@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { Plus, Package, Zap, Info, Loader2 } from 'lucide-react';
 import { ProductModal } from '@/components/ProductModal';
+import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface LoanPolicy {
     id: string;
@@ -26,6 +27,8 @@ interface LoanProduct {
 }
 
 export default function ProductsPage() {
+    const { showToast } = useToast();
+    const confirm = useConfirm();
     const [products, setProducts] = useState<LoanProduct[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,13 +47,19 @@ export default function ProductsPage() {
     }, [fetchProducts]);
 
     const handleDelete = async (id: string, name: string) => {
-        if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+        const ok = await confirm({
+            title: 'Delete Product',
+            message: `Are you sure you want to delete "${name}"? This cannot be undone.`,
+            confirmLabel: 'Delete',
+            variant: 'danger',
+        });
+        if (!ok) return;
         try {
             await api.delete(`/loan-products/${id}`);
+            showToast('Product deleted', 'success');
             fetchProducts();
-        } catch (error) {
-            console.error('Failed to delete product', error);
-            alert('Failed to delete product (It may be in use by existing loans).');
+        } catch {
+            showToast('Failed to delete product (it may be in use by existing loans)', 'error');
         }
     };
 

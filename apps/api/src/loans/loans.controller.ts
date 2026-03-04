@@ -7,6 +7,7 @@ import {
   Put,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto, ChangeLoanStatusDto, CreateInteractionDto } from './dto/create-loan.dto';
@@ -31,8 +32,20 @@ export class LoansController {
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get()
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.loansService.findAll(user.tenantId);
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.loansService.findAll(
+      user.tenantId,
+      search,
+      status,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')

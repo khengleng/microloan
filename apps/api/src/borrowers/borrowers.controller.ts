@@ -26,7 +26,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class BorrowersController {
   constructor(private readonly borrowersService: BorrowersService) { }
 
-  @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get('cross-check')
   checkCrossTenant(
     @CurrentUser() user: JwtPayload,
@@ -43,10 +43,20 @@ export class BorrowersController {
     return this.borrowersService.create(user.tenantId, user.sub, dto);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get()
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.borrowersService.findAll(user.tenantId);
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.borrowersService.findAll(
+      user.tenantId,
+      search,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
   }
 
   @Roles('ADMIN', 'OPERATOR', 'SALES', 'CX')

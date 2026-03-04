@@ -151,11 +151,36 @@ export class RepaymentsService {
     return repayment;
   }
 
-  async findAll(tenantId: string, loanId?: string) {
-    return this.prisma.repayment.findMany({
-      where: loanId ? { tenantId, loanId } : { tenantId },
-      include: { loan: { include: { borrower: true } } },
-      orderBy: { date: 'desc' },
-    });
+  async findAll(
+    tenantId: string,
+    loanId?: string,
+    startDate?: string,
+    endDate?: string,
+    page = 1,
+    limit = 50,
+  ) {
+    const where: any = { tenantId };
+    if (loanId) where.loanId = loanId;
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.date.lte = end;
+      }
+    }
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.prisma.repayment.findMany({
+        where,
+        include: { loan: { include: { borrower: true } } },
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.repayment.count({ where }),
+    ]);
+    return { data, total, page, limit, pages: Math.ceil(total / limit) };
   }
 }

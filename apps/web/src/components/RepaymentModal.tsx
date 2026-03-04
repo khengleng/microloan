@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 
 interface RepaymentModalProps {
     open: boolean;
@@ -23,7 +23,7 @@ const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm 
 const labelCls = "block text-sm font-medium text-foreground mb-1";
 
 export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }: RepaymentModalProps) {
-    const t = useTranslations('Repayments');
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loanDetails, setLoanDetails] = useState<any>(null);
@@ -35,8 +35,9 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
     useEffect(() => {
         if (open) {
-            api.get('/loans').then(res => {
-                setLoans(res.data.filter((l: any) => l.status === 'DISBURSED'));
+            api.get('/loans', { params: { status: 'DISBURSED', limit: 200 } }).then(res => {
+                const data = res.data.data || res.data;
+                setLoans(Array.isArray(data) ? data.filter((l: any) => l.status === 'DISBURSED') : []);
             });
             if (defaultLoanId) setFormData(prev => ({ ...prev, loanId: defaultLoanId }));
         }
@@ -69,7 +70,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
             setFormData({ loanId: '', amount: '', date: new Date().toISOString().split('T')[0] });
         } catch (error: any) {
             const msg = error.response?.data?.message || 'Failed to post repayment';
-            alert(Array.isArray(msg) ? msg[0] : msg);
+            showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
             setLoading(false);
         }
@@ -81,7 +82,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
                     <DialogTitle className="text-base font-bold text-foreground">Record Repayment</DialogTitle>
-                    <p className="text-sm text-muted-foreground mt-0.5">Post a payment against an active loan.</p>
+                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">Post a payment against an active loan.</DialogDescription>
                 </div>
 
                 {/* Outstanding balance info */}

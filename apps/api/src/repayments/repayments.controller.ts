@@ -20,7 +20,21 @@ export class RepaymentsController {
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX')
   @Get()
-  findAll(@CurrentUser() user: JwtPayload, @Query('loanId') loanId?: string) {
-    return this.repaymentsService.findAll(user.tenantId, loanId);
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('loanId') loanId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.repaymentsService.findAll(
+      user.tenantId,
+      loanId,
+      startDate,
+      endDate,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
   }
 }

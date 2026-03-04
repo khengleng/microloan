@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Search, CreditCard, Loader2, Download, Receipt, Wallet, ArrowUpRight, CheckCircle2, DollarSign, Activity, FileStack } from 'lucide-react';
+import { Plus, Search, CreditCard, Loader2, Download, ChevronLeft, ChevronRight, Wallet, Activity, CheckCircle2 } from 'lucide-react';
 import { RepaymentModal } from '@/components/RepaymentModal';
 
 interface Repayment {
@@ -19,194 +17,237 @@ interface Repayment {
     penaltyPaid?: number;
 }
 
+interface PageMeta { total: number; page: number; limit: number; pages: number; }
+
+const LIMIT = 50;
+
 export default function RepaymentsPage() {
-    const t = useTranslations('Repayments');
     const { showToast } = useToast();
     const [repayments, setRepayments] = useState<Repayment[]>([]);
+    const [meta, setMeta] = useState<PageMeta | null>(null);
+    const [totalCollected, setTotalCollected] = useState(0);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchRepayments = async () => {
+    const fetchRepayments = useCallback(async (pg: number, from: string, to: string) => {
         setLoading(true);
         try {
-            const res = await api.get('/repayments');
-            setRepayments(res.data);
+            const params: any = { page: pg, limit: LIMIT };
+            if (from) params.startDate = from;
+            if (to) params.endDate = to;
+            const res = await api.get('/repayments', { params });
+            setRepayments(res.data.data);
+            setMeta(res.data);
+            // Compute total from this page slice; for a grand total we'd need a separate API call
+            // but keeping it simple for now: for page 1 without filters this is the full total
+            if (pg === 1 && !from && !to) {
+                // Use the full sum endpoint or just sum visible — we'll just show page total
+            }
         } catch {
             showToast('Failed to load repayments', 'error');
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    // Also fetch unfiltered total for the KPI card
+    const fetchTotal = useCallback(async () => {
+        try {
+            const res = await api.get('/repayments', { params: { page: 1, limit: 1 } });
+            // Use the summary from reports endpoint instead
+            const rptRes = await api.get('/reports/dashboard');
+            setTotalCollected(rptRes.data.repaymentsThisMonth || 0);
+        } catch { }
+    }, []);
+
+    useEffect(() => {
+        fetchRepayments(1, '', '');
+        fetchTotal();
+    }, [fetchRepayments, fetchTotal]);
+
+    const handleDateChange = (from: string, to: string) => {
+        setPage(1);
+        fetchRepayments(1, from, to);
     };
 
-    useEffect(() => { fetchRepayments(); }, []);
+    const handlePageChange = (pg: number) => {
+        setPage(pg);
+        fetchRepayments(pg, dateFrom, dateTo);
+    };
 
-    const filtered = useMemo(() => {
-        if (!Array.isArray(repayments)) return [];
-        return repayments.filter(r => {
-            const nameMatch = `${r.loan?.borrower?.firstName || ''} ${r.loan?.borrower?.lastName || ''}`
-                .toLowerCase().includes(searchQuery.toLowerCase());
-            const date = r.date?.split('T')[0] ?? '';
-            const fromMatch = !dateFrom || date >= dateFrom;
-            const toMatch = !dateTo || date <= dateTo;
-            return nameMatch && fromMatch && toMatch;
-        });
-    }, [repayments, searchQuery, dateFrom, dateTo]);
+    // Client-side search filter on the current page
+    const filtered = searchQuery
+        ? repayments.filter(r =>
+            `${r.loan?.borrower?.firstName || ''} ${r.loan?.borrower?.lastName || ''}`
+                .toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        : repayments;
 
-    const totalCollected = Array.isArray(repayments)
-        ? repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0)
-        : 0;
+    const pageTotal = repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
     const exportToExcel = async () => {
         try {
-            const res = await api.get('/exports/repayments/excel', { responseType: 'blob' });
+            const params: any = {};
+            if (dateFrom) params.startDate = dateFrom;
+            if (dateTo) params.endDate = dateTo;
+            const res = await api.get('/exports/repayments/excel', { responseType: 'blob', params });
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `repayment_ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+            link.setAttribute('download', `repayments_${new Date().toISOString().split('T')[0]}.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
-            showToast('Ledger exported successfully', 'success');
+            showToast('Repayments exported', 'success');
         } catch {
-            showToast('Failed to export recovery data', 'error');
+            showToast('Failed to export', 'error');
         }
     };
 
     return (
-        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="max-w-6xl space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Balance Ledger</h1>
-                    <p className="text-[#697386] text-[14px]">
-                        Total collections: <span className="text-[#1A1F36] font-bold">${totalCollected.toLocaleString()}</span> across {repayments.length} transactions.
+                    <h1 className="text-xl font-bold text-foreground">Repayments</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {meta ? `${meta.total.toLocaleString()} transactions` : 'Full repayment history and ledger.'}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={exportToExcel}
-                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
-                    >
+                <div className="flex items-center gap-2">
+                    <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> Export
                     </button>
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Plus size={16} />
-                        Add Repayment
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+                        <Plus size={14} /> Record Payment
                     </button>
                 </div>
             </div>
 
-            {/* Metric Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* KPI Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
-                    { label: 'Total Volume', value: `$${totalCollected.toLocaleString()}`, icon: Wallet, color: 'text-[#635BFF]', bg: 'bg-[#F0F5FF]' },
-                    { label: 'Avg Payment', value: `$${repayments.length ? (totalCollected / repayments.length).toFixed(0) : 0}`, icon: Activity, color: 'text-[#00D4FF]', bg: 'bg-[#E0FAFF]' },
-                    { label: 'Ledger Audit', value: 'Verified', icon: CheckCircle2, color: 'text-[#3ECF8E]', bg: 'bg-[#E6F9F1]' },
+                    { label: 'This Month', value: `$${totalCollected.toLocaleString()}`, icon: Wallet, cls: 'text-primary' },
+                    { label: 'Average Payment', value: meta && meta.total > 0 ? `$${(pageTotal / repayments.length || 0).toFixed(0)}` : '—', icon: Activity, cls: 'text-foreground' },
+                    { label: 'Verified Ledger', value: 'Audited', icon: CheckCircle2, cls: 'text-[#006644]' },
                 ].map((m, i) => (
-                    <div key={i} className="bg-white border border-[#E3E8EE] p-5 rounded-lg shadow-sm">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className={`p-1.5 rounded ${m.bg} ${m.color}`}>
-                                <m.icon size={16} />
-                            </div>
-                            <span className="text-[12px] font-semibold text-[#697386] uppercase tracking-wider">{m.label}</span>
+                    <div key={i} className="bg-white border border-border rounded-md px-4 py-3 flex items-center gap-3">
+                        <m.icon size={16} className={`${m.cls} flex-shrink-0`} />
+                        <div>
+                            <p className="text-xs text-muted-foreground">{m.label}</p>
+                            <p className={`text-lg font-bold ${m.cls}`}>{m.value}</p>
                         </div>
-                        <div className="text-2xl font-bold text-[#1A1F36]">{m.value}</div>
                     </div>
                 ))}
             </div>
 
-            {/* Toolbar */}
-            <div className="flex flex-wrap gap-2 items-center">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
-                    <input
-                        type="text"
-                        placeholder="Search by customer name..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-4 h-9 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    />
-                </div>
-                <div className="flex items-center gap-1.5">
-                    <input
-                        type="date"
-                        value={dateFrom}
-                        onChange={e => setDateFrom(e.target.value)}
-                        className="h-9 px-3 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                        title="From date"
-                    />
-                    <span className="text-xs text-muted-foreground">to</span>
-                    <input
-                        type="date"
-                        value={dateTo}
-                        onChange={e => setDateTo(e.target.value)}
-                        className="h-9 px-3 bg-white border border-[#E3E8EE] rounded text-[13px] text-[#1A1F36] focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                        title="To date"
-                    />
-                    {(dateFrom || dateTo) && (
-                        <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs text-muted-foreground hover:text-foreground">Clear</button>
-                    )}
+            {/* Filters */}
+            <div className="bg-white border border-border rounded-md p-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search by borrower name..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full pl-8 pr-4 h-9 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={e => { setDateFrom(e.target.value); handleDateChange(e.target.value, dateTo); }}
+                            className="h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                            title="From date"
+                        />
+                        <span className="text-xs text-muted-foreground">to</span>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            onChange={e => { setDateTo(e.target.value); handleDateChange(dateFrom, e.target.value); }}
+                            className="h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                            title="To date"
+                        />
+                        {(dateFrom || dateTo) && (
+                            <button
+                                onClick={() => { setDateFrom(''); setDateTo(''); handleDateChange('', ''); }}
+                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white border border-border rounded-md overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {meta ? `${meta.total.toLocaleString()} transactions` : 'Loading...'}
+                    </span>
+                    {meta && meta.pages > 1 && (
+                        <span className="text-xs text-muted-foreground">Page {page} of {meta.pages}</span>
+                    )}
+                </div>
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-[#E3E8EE]">
-                        <thead className="bg-[#F7FAFC]">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead className="bg-muted/30">
                             <tr>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Amount</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Interest</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Principal</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Date</th>
+                                <th className="table-header px-4 py-2.5 text-left">Borrower</th>
+                                <th className="table-header px-4 py-2.5 text-right">Amount</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Interest</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Principal</th>
+                                <th className="table-header px-4 py-2.5 text-right">Date</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
+                        <tbody className="divide-y divide-border">
                             {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
+                                Array.from({ length: 8 }).map((_, i) => (
                                     <tr key={i} className="animate-pulse">
-                                        <td colSpan={5} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
+                                        <td colSpan={5} className="px-4 py-4 h-14 bg-muted/20" />
                                     </tr>
                                 ))
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-20 text-center">
-                                        <div className="text-[#AAB7C4] mb-2"><CreditCard size={40} className="mx-auto opacity-20" /></div>
-                                        <p className="text-[14px] font-medium text-[#1A1F36]">No payments found</p>
+                                    <td colSpan={5} className="px-4 py-20 text-center">
+                                        <CreditCard size={32} className="mx-auto text-muted-foreground/20 mb-3" />
+                                        <p className="text-sm font-medium text-foreground">No repayments found</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters.</p>
                                     </td>
                                 </tr>
                             ) : (
                                 filtered.map(rp => (
-                                    <tr key={rp.id} className="hover:bg-[#F6F9FC] transition-colors">
-                                        <td className="px-6 py-4">
+                                    <tr key={rp.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-[#E6F9F1] flex items-center justify-center text-[#3ECF8E] text-[11px] font-bold">
+                                                <div className="w-8 h-8 rounded bg-[#E3FCEF] flex items-center justify-center text-[#006644] text-xs font-bold flex-shrink-0">
                                                     {rp.loan.borrower.firstName.charAt(0)}{rp.loan.borrower.lastName.charAt(0)}
                                                 </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{rp.loan.borrower.firstName} {rp.loan.borrower.lastName}</span>
-                                                    <span className="text-[11px] text-[#697386] font-medium">#{rp.id.slice(-6).toUpperCase()}</span>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-foreground">{rp.loan.borrower.firstName} {rp.loan.borrower.lastName}</p>
+                                                    <p className="text-xs text-muted-foreground">#{rp.id.slice(-6).toUpperCase()}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="text-[13px] font-bold text-[#3ECF8E]">${Number(rp.amount).toLocaleString()}</span>
+                                        <td className="px-4 py-3 text-right">
+                                            <span className="text-sm font-bold text-[#006644]">${Number(rp.amount).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-right hidden md:table-cell">
-                                            <span className="text-[13px] text-[#697386]">${Number(rp.interestPaid).toLocaleString()}</span>
+                                        <td className="px-4 py-3 text-right hidden md:table-cell">
+                                            <span className="text-sm text-muted-foreground">${Number(rp.interestPaid).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-right hidden md:table-cell">
-                                            <span className="text-[13px] text-[#697386]">${Number(rp.principalPaid).toLocaleString()}</span>
+                                        <td className="px-4 py-3 text-right hidden md:table-cell">
+                                            <span className="text-sm text-muted-foreground">${Number(rp.principalPaid).toLocaleString()}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="text-[12px] text-[#4F566B] bg-[#F6F9FC] px-2 py-0.5 rounded border border-[#E3E8EE]">
+                                        <td className="px-4 py-3 text-right">
+                                            <span className="badge-neutral text-[11px]">
                                                 {new Date(rp.date).toISOString().split('T')[0]}
                                             </span>
                                         </td>
@@ -216,12 +257,34 @@ export default function RepaymentsPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {meta && meta.pages > 1 && (
+                    <div className="px-4 py-3 border-t border-border flex items-center justify-between bg-muted/30">
+                        <button
+                            onClick={() => handlePageChange(Math.max(1, page - 1))}
+                            disabled={page === 1}
+                            className="btn-ghost text-sm disabled:opacity-40"
+                        >
+                            <ChevronLeft size={14} /> Previous
+                        </button>
+                        <span className="text-xs text-muted-foreground">
+                            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
+                        </span>
+                        <button
+                            onClick={() => handlePageChange(Math.min(meta.pages, page + 1))}
+                            disabled={page === meta.pages}
+                            className="btn-ghost text-sm disabled:opacity-40"
+                        >
+                            Next <ChevronRight size={14} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <RepaymentModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchRepayments(); showToast('Repayment recorded', 'success'); }}
+                onSuccess={() => { fetchRepayments(page, dateFrom, dateTo); showToast('Repayment recorded', 'success'); }}
             />
         </div>
     );

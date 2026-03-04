@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Trash2, Loader2, Plus, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
@@ -109,7 +109,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border sticky top-0 bg-white z-10">
                     <DialogTitle className="text-base font-bold text-foreground">New Loan</DialogTitle>
-                    <p className="text-sm text-muted-foreground mt-0.5">Create a loan and bind it to a registered borrower.</p>
+                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">Fill in the details to originate a new loan for a borrower.</DialogDescription>
                 </div>
 
                 {fetchError ? (

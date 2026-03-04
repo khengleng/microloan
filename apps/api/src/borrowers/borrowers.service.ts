@@ -27,11 +27,27 @@ export class BorrowersService {
     return b;
   }
 
-  async findAll(tenantId: string) {
-    return this.prisma.borrower.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(tenantId: string, search?: string, page = 1, limit = 50) {
+    const where: any = { tenantId };
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { idNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.prisma.borrower.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.borrower.count({ where }),
+    ]);
+    return { data, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   async findOne(tenantId: string, id: string) {

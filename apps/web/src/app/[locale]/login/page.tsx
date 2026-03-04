@@ -99,6 +99,7 @@ export default function LoginPage() {
                                 <input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="name@company.com"
                                     className={inputClass}
                                     required
@@ -115,6 +116,7 @@ export default function LoginPage() {
                                     <input
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
+                                        autoComplete="current-password"
                                         placeholder="••••••••"
                                         className={`${inputClass} pr-10`}
                                         required

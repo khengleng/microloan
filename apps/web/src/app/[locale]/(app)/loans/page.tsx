@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import { useTranslations } from 'next-intl';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Search, Eye, FileText, Loader2, Download, Landmark, Percent, Calendar, Activity, ArrowRightCircle } from 'lucide-react';
+import { Plus, Search, FileText, Loader2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LoanModal } from '@/components/LoanModal';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -21,50 +19,69 @@ interface Loan {
     status: string;
 }
 
-const STATUS_CONFIG: Record<string, { bg: string, text: string, border: string, dot: string }> = {
-    PENDING: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', border: 'border-[#FEF3C7]', dot: 'bg-[#F59E0B]' },
-    APPROVED: { bg: 'bg-[#F0F5FF]', text: 'text-[#635BFF]', border: 'border-[#E0E7FF]', dot: 'bg-[#635BFF]' },
-    REJECTED: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', border: 'border-[#FEE2E2]', dot: 'bg-[#EF4444]' },
-    DISBURSED: { bg: 'bg-[#ECFDF5]', text: 'text-[#10B981]', border: 'border-[#D1FAE5]', dot: 'bg-[#10B981]' },
-    CLOSED: { bg: 'bg-[#F9FAFB]', text: 'text-[#6B7280]', border: 'border-[#F3F4F6]', dot: 'bg-[#6B7280]' },
-    DEFAULTED: { bg: 'bg-[#FFF1F2]', text: 'text-[#BE123C]', border: 'border-[#FFE4E6]', dot: 'bg-[#BE123C]' },
+interface PageMeta { total: number; page: number; limit: number; pages: number; }
+
+const STATUS_BADGE: Record<string, string> = {
+    PENDING: 'badge-warning',
+    APPROVED: 'badge-info',
+    REJECTED: 'badge-danger',
+    DISBURSED: 'badge-success',
+    CLOSED: 'badge-neutral',
+    DEFAULTED: 'badge-danger',
 };
+
+const STATUSES = ['ALL', 'PENDING', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
+const LIMIT = 50;
 
 export default function LoansPage() {
     const { locale } = useParams();
-    const t = useTranslations('Loans');
     const { showToast } = useToast();
     const [loans, setLoans] = useState<Loan[]>([]);
+    const [meta, setMeta] = useState<PageMeta | null>(null);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [page, setPage] = useState(1);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchLoans = async () => {
+    const fetchLoans = useCallback(async (pg: number, search: string, status: string) => {
         setLoading(true);
         try {
-            const res = await api.get('/loans');
-            setLoans(res.data);
+            const params: any = { page: pg, limit: LIMIT };
+            if (search) params.search = search;
+            if (status !== 'ALL') params.status = status;
+            const res = await api.get('/loans', { params });
+            setLoans(res.data.data);
+            setMeta(res.data);
         } catch {
-            showToast('Failed to load payment ledger', 'error');
+            showToast('Failed to load loans', 'error');
         } finally {
             setLoading(false);
         }
+    }, []);
+
+    useEffect(() => { fetchLoans(1, '', 'ALL'); }, [fetchLoans]);
+
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchLoans(1, value, statusFilter);
+        }, 350);
     };
 
-    useEffect(() => { fetchLoans(); }, []);
+    const handleStatusChange = (status: string) => {
+        setStatusFilter(status);
+        setPage(1);
+        fetchLoans(1, searchQuery, status);
+    };
 
-    const filtered = useMemo(() => {
-        if (!Array.isArray(loans)) return [];
-        return loans.filter(l => {
-            const matchSearch = `${l.borrower?.firstName || ''} ${l.borrower?.lastName || ''}`
-                .toLowerCase().includes(searchQuery.toLowerCase());
-            const matchStatus = statusFilter === 'ALL' || l.status === statusFilter;
-            return matchSearch && matchStatus;
-        });
-    }, [loans, searchQuery, statusFilter]);
-
-    const statuses = ['ALL', 'PENDING', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
+    const handlePageChange = (pg: number) => {
+        setPage(pg);
+        fetchLoans(pg, searchQuery, statusFilter);
+    };
 
     const exportToExcel = async () => {
         try {
@@ -72,139 +89,131 @@ export default function LoansPage() {
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `payment_ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+            link.setAttribute('download', `loans_${new Date().toISOString().split('T')[0]}.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
-            showToast('Ledger exported successfully', 'success');
+            showToast('Loans exported', 'success');
         } catch {
-            showToast('Failed to export data', 'error');
+            showToast('Failed to export', 'error');
         }
     };
 
     return (
-        <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="max-w-6xl space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Payment Portfolio</h1>
-                    <p className="text-[#697386] text-[14px]">
-                        Monitoring {loans.length} active financial instruments and schedules.
+                    <h1 className="text-xl font-bold text-foreground">Loans</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {meta ? `${meta.total.toLocaleString()} total loans` : 'Manage your loan portfolio.'}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={exportToExcel}
-                        className="bg-white border border-[#E3E8EE] text-[#4F566B] text-[13px] font-semibold py-2 px-4 rounded shadow-sm hover:bg-[#F6F9FC] transition-all flex items-center gap-2"
-                    >
+                <div className="flex items-center gap-2">
+                    <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> Export
                     </button>
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
-                    >
-                        <Plus size={16} />
-                        New Loan
+                    <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+                        <Plus size={14} /> New Loan
                     </button>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-6 border-b border-[#E3E8EE] overflow-x-auto no-scrollbar">
-                    {statuses.map(s => (
+            {/* Status Tabs + Search */}
+            <div className="bg-white border border-border rounded-md">
+                {/* Status tabs */}
+                <div className="flex items-center border-b border-border overflow-x-auto no-scrollbar px-2 pt-1">
+                    {STATUSES.map(s => (
                         <button
                             key={s}
-                            onClick={() => setStatusFilter(s)}
-                            className={`pb-3 text-[13px] font-semibold transition-all whitespace-nowrap relative ${statusFilter === s
-                                ? 'text-[#635BFF]'
-                                : 'text-[#697386] hover:text-[#1A1F36]'
+                            onClick={() => handleStatusChange(s)}
+                            className={`pb-3 pt-1 px-3 text-[13px] font-semibold transition-all whitespace-nowrap relative ${statusFilter === s
+                                ? 'text-primary'
+                                : 'text-muted-foreground hover:text-foreground'
                                 }`}
                         >
                             {s === 'ALL' ? 'All Loans' : s.charAt(0) + s.slice(1).toLowerCase()}
                             {statusFilter === s && (
-                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#635BFF]" />
+                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
                             )}
                         </button>
                     ))}
                 </div>
-
-                <div className="relative group max-w-md">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#AAB7C4]" />
-                    <input
-                        type="text"
-                        placeholder="Filter by customer name..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white border border-[#E3E8EE] rounded-md text-[13px] font-medium text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/10 focus:border-[#635BFF] transition-all"
-                    />
+                {/* Search */}
+                <div className="p-3">
+                    <div className="relative">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Filter by borrower name..."
+                            value={searchQuery}
+                            onChange={e => handleSearchChange(e.target.value)}
+                            className="w-full pl-8 pr-4 h-9 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white border border-border rounded-md overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-[#E3E8EE]">
-                        <thead className="bg-[#F7FAFC]">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead className="bg-muted/30">
                             <tr>
-                                <th className="px-6 py-3 text-left text-[11px] font-bold text-[#697386] uppercase tracking-wider">Customer</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Amount</th>
-                                <th className="px-6 py-3 text-right text-[11px) font-bold text-[#697386] uppercase tracking-wider hidden md:table-cell">Rate</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider hidden sm:table-cell">Term</th>
-                                <th className="px-6 py-3 text-center text-[11px] font-bold text-[#697386] uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-[11px] font-bold text-[#697386] uppercase tracking-wider">Actions</th>
+                                <th className="table-header px-4 py-2.5 text-left">Borrower</th>
+                                <th className="table-header px-4 py-2.5 text-right">Amount</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Rate</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden sm:table-cell">Term</th>
+                                <th className="table-header px-4 py-2.5 text-center">Status</th>
+                                <th className="table-header px-4 py-2.5 text-right">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-[#E3E8EE]">
+                        <tbody className="divide-y divide-border">
                             {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
+                                Array.from({ length: 8 }).map((_, i) => (
                                     <tr key={i} className="animate-pulse">
-                                        <td colSpan={6} className="px-6 py-4 h-16 bg-[#F7FAFC]/30" />
+                                        <td colSpan={6} className="px-4 py-4 h-14 bg-muted/20" />
                                     </tr>
                                 ))
-                            ) : filtered.length === 0 ? (
+                            ) : loans.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-20 text-center">
-                                        <div className="text-[#AAB7C4] mb-2"><FileText size={40} className="mx-auto opacity-20" /></div>
-                                        <p className="text-[14px] font-medium text-[#1A1F36]">No loans found</p>
+                                    <td colSpan={6} className="px-4 py-20 text-center">
+                                        <FileText size={32} className="mx-auto text-muted-foreground/20 mb-3" />
+                                        <p className="text-sm font-medium text-foreground">No loans found</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters.</p>
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map(loan => (
-                                    <tr key={loan.id} className="hover:bg-[#F6F9FC] transition-colors">
-                                        <td className="px-6 py-4">
+                                loans.map(loan => (
+                                    <tr key={loan.id} className="hover:bg-muted/20 transition-colors">
+                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-[#F0F5FF] flex items-center justify-center text-[#635BFF] text-[11px] font-bold">
-                                                    {loan.borrower.firstName.charAt(0)}{loan.borrower.lastName.charAt(0)}
+                                                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">
+                                                    {loan.borrower.firstName[0]}{loan.borrower.lastName[0]}
                                                 </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[13px] font-bold text-[#1A1F36]">{loan.borrower.firstName} {loan.borrower.lastName}</span>
-                                                    <span className="text-[11px] text-[#697386] font-medium">#{loan.id.slice(-6).toUpperCase()}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="text-[13px] font-bold text-[#1A1F36]">${loan.principal.toLocaleString()}</span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right hidden md:table-cell">
-                                            <span className="text-[13px] text-[#4F566B]">{loan.annualInterestRate}%</span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right hidden sm:table-cell">
-                                            <span className="text-[13px] text-[#4F566B]">{loan.termMonths} mo</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center">
-                                                <div className={`px-2.5 py-0.5 rounded-full border ${STATUS_CONFIG[loan.status]?.bg} ${STATUS_CONFIG[loan.status]?.text} ${STATUS_CONFIG[loan.status]?.border} text-[11px] font-bold flex items-center gap-1.5`}>
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${STATUS_CONFIG[loan.status]?.dot}`} />
-                                                    {loan.status}
+                                                <div>
+                                                    <p className="text-sm font-semibold text-foreground">{loan.borrower.firstName} {loan.borrower.lastName}</p>
+                                                    <p className="text-xs text-muted-foreground">#{loan.id.slice(-6).toUpperCase()}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-3 text-right">
+                                            <span className="text-sm font-bold text-foreground">${Number(loan.principal).toLocaleString()}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right hidden md:table-cell">
+                                            <span className="text-sm text-muted-foreground">{loan.annualInterestRate}%</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right hidden sm:table-cell">
+                                            <span className="text-sm text-muted-foreground">{loan.termMonths} mo</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>
+                                                {loan.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
                                             <Link href={`/${locale}/loans/${loan.id}`}>
-                                                <button className="bg-white border border-[#E3E8EE] text-[#4F566B] hover:text-[#1A1F36] text-[12px] font-bold py-1 px-3 rounded shadow-sm hover:bg-[#F6F9FC] transition-all">
-                                                    View
-                                                </button>
+                                                <button className="btn-ghost text-xs px-2.5 py-1 h-auto">View</button>
                                             </Link>
                                         </td>
                                     </tr>
@@ -213,12 +222,34 @@ export default function LoansPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {meta && meta.pages > 1 && (
+                    <div className="px-4 py-3 border-t border-border flex items-center justify-between bg-muted/30">
+                        <button
+                            onClick={() => handlePageChange(Math.max(1, page - 1))}
+                            disabled={page === 1}
+                            className="btn-ghost text-sm disabled:opacity-40"
+                        >
+                            <ChevronLeft size={14} /> Previous
+                        </button>
+                        <span className="text-xs text-muted-foreground">
+                            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
+                        </span>
+                        <button
+                            onClick={() => handlePageChange(Math.min(meta.pages, page + 1))}
+                            disabled={page === meta.pages}
+                            className="btn-ghost text-sm disabled:opacity-40"
+                        >
+                            Next <ChevronRight size={14} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <LoanModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchLoans(); showToast('Loan created', 'success'); }}
+                onSuccess={() => { fetchLoans(page, searchQuery, statusFilter); showToast('Loan created', 'success'); }}
             />
         </div>
     );

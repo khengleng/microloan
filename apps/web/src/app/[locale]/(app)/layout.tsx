@@ -8,6 +8,7 @@ import {
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
     Menu, X, ChevronRight
 } from 'lucide-react';
+import { ApiErrorListener } from '@/components/ApiErrorListener';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
@@ -38,8 +39,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={`/${locale}${href}`}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${active
-                        ? 'bg-sidebar-accent text-white font-semibold'
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-white'
+                    ? 'bg-sidebar-accent text-white font-semibold'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-white'
                     }`}
             >
                 <Icon size={15} className={active ? 'text-sidebar-primary' : 'text-sidebar-foreground/70'} />
@@ -180,6 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {children}
                 </main>
             </div>
+            <ApiErrorListener />
         </div>
     );
 }

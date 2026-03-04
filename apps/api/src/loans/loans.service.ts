@@ -100,12 +100,29 @@ export class LoansService {
     return loan;
   }
 
-  async findAll(tenantId: string) {
-    return this.prisma.loan.findMany({
-      where: { tenantId },
-      include: { borrower: true },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(tenantId: string, search?: string, status?: string, page = 1, limit = 50) {
+    const where: any = { tenantId };
+    if (status && status !== 'ALL') where.status = status;
+    if (search) {
+      where.borrower = {
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.prisma.loan.findMany({
+        where,
+        include: { borrower: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.loan.count({ where }),
+    ]);
+    return { data, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   async findOne(tenantId: string, id: string) {

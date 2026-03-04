@@ -8,6 +8,9 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Wallet, Users, PiggyBank, ArrowUpRight, BarChart2, Plus } from 'lucide-react';
 import { LoanModal } from '@/components/LoanModal';
+import { BorrowerModal } from '@/components/BorrowerModal';
+import { RepaymentModal } from '@/components/RepaymentModal';
+import { useRouter, useParams } from 'next/navigation';
 
 interface DashboardStats {
     activeLoans: number;
@@ -18,12 +21,16 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+    const router = useRouter();
+    const { locale } = useParams();
     const t = useTranslations('Dashboard');
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
     const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
+    const [isBorrowerModalOpen, setIsBorrowerModalOpen] = useState(false);
+    const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -145,7 +152,7 @@ export default function DashboardPage() {
             {/* Charts + Actions */}
             <div className="grid lg:grid-cols-3 gap-4">
                 {/* Cash Flow Chart */}
-                <div className="lg:col-span-2 tv-card min-w-0">
+                <div className="lg:col-span-2 tv-card min-w-0 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                         <div>
                             <h3 className="text-[14px] font-bold text-foreground">Cash Flow</h3>
@@ -153,7 +160,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-center gap-4 text-[12px]">
                             <div className="flex items-center gap-1.5">
-                                <span className="w-3 h-px bg-[#2962FF] inline-block" style={{ height: 2 }} />
+                                <span className="inline-block" style={{ width: 12, height: 2, background: '#2962FF' }} />
                                 <span className="text-muted-foreground">Collections</span>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -163,34 +170,36 @@ export default function DashboardPage() {
                         </div>
                     </div>
                     <div className="p-4">
-                        <div className="h-[280px] w-full">
-                            {isMounted && chartData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#2962FF" stopOpacity={0.15} />
-                                                <stop offset="95%" stopColor="#2962FF" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorDisbursements" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#ef5350" stopOpacity={0.1} />
-                                                <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#DFE1E6" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} dy={8} />
-                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} tickFormatter={(v) => `$${v / 1000}k`} />
-                                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2a2e39', strokeWidth: 1 }} />
-                                        <Area type="monotone" dataKey="collections" name="Collections" stroke="#2962FF" strokeWidth={2} fillOpacity={1} fill="url(#colorCollections)" />
-                                        <Area type="monotone" dataKey="disbursements" name="Disbursements" stroke="#ef5350" strokeWidth={2} strokeDasharray="4 2" fillOpacity={1} fill="url(#colorDisbursements)" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-[13px] gap-2 border border-dashed border-border rounded">
-                                    <BarChart2 size={24} className="opacity-30" />
-                                    No cashflow data available
-                                </div>
-                            )}
+                        <div className="h-[280px] w-full min-w-0">
+                            {isMounted ? (
+                                chartData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2962FF" stopOpacity={0.15} />
+                                                    <stop offset="95%" stopColor="#2962FF" stopOpacity={0} />
+                                                </linearGradient>
+                                                <linearGradient id="colorDisbursements" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#ef5350" stopOpacity={0.1} />
+                                                    <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#DFE1E6" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} dy={8} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} tickFormatter={(v) => `$${v / 1000}k`} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2a2e39', strokeWidth: 1 }} />
+                                            <Area type="monotone" dataKey="collections" name="Collections" stroke="#2962FF" strokeWidth={2} fillOpacity={1} fill="url(#colorCollections)" />
+                                            <Area type="monotone" dataKey="disbursements" name="Disbursements" stroke="#ef5350" strokeWidth={2} strokeDasharray="4 2" fillOpacity={1} fill="url(#colorDisbursements)" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-[13px] gap-2 border border-dashed border-border rounded">
+                                        <BarChart2 size={24} className="opacity-30" />
+                                        No cashflow data available
+                                    </div>
+                                )
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -204,12 +213,12 @@ export default function DashboardPage() {
                         </div>
                         <div className="p-3 space-y-1">
                             {[
-                                { label: 'Create New Loan', icon: Plus },
-                                { label: 'Add Borrower', icon: Users },
-                                { label: 'Record Repayment', icon: PiggyBank },
-                                { label: 'View Reports', icon: BarChart2 },
+                                { label: 'Create New Loan', icon: Plus, action: () => setIsLoanModalOpen(true) },
+                                { label: 'Add Borrower', icon: Users, action: () => setIsBorrowerModalOpen(true) },
+                                { label: 'Record Repayment', icon: PiggyBank, action: () => setIsRepaymentModalOpen(true) },
+                                { label: 'View Reports', icon: BarChart2, action: () => router.push(`/${locale}/reports`) },
                             ].map((action, i) => (
-                                <button key={i} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded text-[13px] text-foreground hover:bg-secondary transition-colors text-left">
+                                <button key={i} onClick={action.action} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded text-[13px] text-foreground hover:bg-secondary transition-colors text-left">
                                     <action.icon size={15} className="text-primary flex-shrink-0" />
                                     {action.label}
                                     <ArrowUpRight size={12} className="ml-auto text-muted-foreground" />
@@ -261,6 +270,17 @@ export default function DashboardPage() {
                 open={isLoanModalOpen}
                 onOpenChange={setIsLoanModalOpen}
                 onSuccess={() => { setIsLoanModalOpen(false); }}
+            />
+            <BorrowerModal
+                open={isBorrowerModalOpen}
+                onOpenChange={setIsBorrowerModalOpen}
+                onSuccess={() => setIsBorrowerModalOpen(false)}
+                borrower={null}
+            />
+            <RepaymentModal
+                open={isRepaymentModalOpen}
+                onOpenChange={setIsRepaymentModalOpen}
+                onSuccess={() => setIsRepaymentModalOpen(false)}
             />
         </div>
     );

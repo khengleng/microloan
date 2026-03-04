@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ServiceUnavailableException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import Stripe from 'stripe';
@@ -19,7 +19,7 @@ export class BillingService {
 
     async createSubscriptionCheckout(tenantId: string, actorId: string, plan: string) {
         if (!process.env.STRIPE_SECRET_KEY) {
-            throw new BadRequestException('Stripe is not fully configured on this server.');
+            throw new ServiceUnavailableException('Online billing is not yet configured for this platform. Please contact your administrator.');
         }
 
         const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });

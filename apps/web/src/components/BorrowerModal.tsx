@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
+
 
 interface Borrower {
     id: string;
@@ -25,6 +27,7 @@ const labelCls = "block text-sm font-medium text-foreground mb-1";
 
 export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: BorrowerModalProps) {
     const t = useTranslations('Borrowers');
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         firstName: '',
@@ -59,9 +62,8 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
             }
             onSuccess();
             onOpenChange(false);
-        } catch (error) {
-            console.error('Failed to save borrower', error);
-            alert('Failed to save borrower');
+        } catch (error: any) {
+            showToast(error.response?.data?.message || 'Failed to save borrower', 'error');
         } finally {
             setLoading(false);
         }
@@ -75,9 +77,9 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                     <DialogTitle className="text-base font-bold text-foreground">
                         {borrower ? 'Edit Borrower' : 'Add New Borrower'}
                     </DialogTitle>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        {borrower ? 'Update borrower information.' : 'Enter the borrower\'s details to register them.'}
-                    </p>
+                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                        {borrower ? 'Update borrower information.' : "Enter the borrower's details to register them."}
+                    </DialogDescription>
                 </div>
 
                 {/* Form */}

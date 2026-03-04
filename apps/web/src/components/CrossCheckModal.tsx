@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, Loader2, AlertCircle, CheckCircle2, Building2 } from 'lucide-react';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 interface CrossCheckResult {
     organization: string;
@@ -18,6 +19,7 @@ interface CrossCheckResult {
 }
 
 export function CrossCheckModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+    const { showToast } = useToast();
     const [idNumber, setIdNumber] = useState('');
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
@@ -33,8 +35,7 @@ export function CrossCheckModal({ open, onOpenChange }: { open: boolean; onOpenC
             });
             setResults(res.data);
         } catch (err) {
-            console.error(err);
-            alert('Failed to perform credit check');
+            showToast('Failed to perform credit check', 'error');
         } finally {
             setLoading(false);
         }
