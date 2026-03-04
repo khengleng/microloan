@@ -41,10 +41,11 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
     useEffect(() => {
         if (open) {
             setFetchError(null);
-            Promise.all([api.get('/borrowers'), api.get('/loan-products')])
+            Promise.all([api.get('/borrowers', { params: { limit: 500 } }), api.get('/loan-products')])
                 .then(([bRes, pRes]) => {
-                    setBorrowers(bRes.data);
-                    setProducts(pRes.data);
+                    const borrowerList = bRes.data.data || bRes.data;
+                    setBorrowers(Array.isArray(borrowerList) ? borrowerList : []);
+                    setProducts(Array.isArray(pRes.data) ? pRes.data : (pRes.data.data || []));
                 })
                 .catch((err) => {
                     const status = err.response?.status;
