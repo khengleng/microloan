@@ -89,7 +89,8 @@ export class ReportsController {
   @Roles('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE')
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {
-    const loans = await this.loansService.findAll(user.tenantId);
+    const result = await this.loansService.findAll(user.tenantId, undefined, undefined, 1, 10000);
+    const loans = result.data;
 
     // Simple CSV Generation
     const header =
@@ -117,7 +118,8 @@ export class ReportsController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
-    const repayments = await this.repaymentsService.findAll(user.tenantId);
+    const result = await this.repaymentsService.findAll(user.tenantId, undefined, undefined, undefined, 1, 10000);
+    const repayments = result.data;
 
     const header = 'id,loanId,borrower,amount,date\n';
     const rows = repayments
