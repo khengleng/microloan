@@ -1,8 +1,8 @@
 "use client";
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import api from '@/lib/api';
+import { useState } from 'react';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
@@ -10,21 +10,11 @@ import {
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
     const pathname = usePathname();
-    const [user, setUser] = useState<any>(null);
+    const { user } = useAuth(); // single /auth/me — no per-page duplicate calls
     const [sidebarOpen, setSidebarOpen] = useState(false);
-
-    useEffect(() => {
-        api.get('/auth/me')
-            .then(res => setUser(res.data))
-            .catch((err) => {
-                if (err.response?.status === 401) {
-                    window.location.href = `/${locale}/login`;
-                }
-            });
-    }, [locale]);
 
     const role = user?.role;
     const isSuperAdmin = role === 'SUPERADMIN';
@@ -185,5 +175,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <ApiErrorListener />
         </div>
+    );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <AuthProvider>
+            <AppShell>{children}</AppShell>
+        </AuthProvider>
     );
 }

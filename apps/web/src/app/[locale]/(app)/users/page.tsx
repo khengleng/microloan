@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
 // Platform team can hold any tenant-equivalent role; they operate against platform data
@@ -31,7 +32,7 @@ interface TeamMember {
 
 export default function UsersPage() {
     const { showToast } = useToast();
-    const [currentUserRole, setCurrentUserRole] = useState<string>('');
+    const { user, loading: authLoading } = useAuth();
     const [users, setUsers] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -39,18 +40,14 @@ export default function UsersPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
 
-    const isSuperAdmin = currentUserRole === 'SUPERADMIN';
+    const isSuperAdmin = user?.role === 'SUPERADMIN';
     const ROLES = isSuperAdmin ? PLATFORM_ROLES : TENANT_ROLES;
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            const [meRes, usersRes] = await Promise.all([
-                api.get('/auth/me'),
-                api.get('/users'),
-            ]);
-            setCurrentUserRole(meRes.data.role);
-            setUsers(usersRes.data);
+            const res = await api.get('/users');
+            setUsers(res.data);
         } catch {
             showToast('Failed to load team members', 'error');
         } finally {
@@ -99,6 +96,12 @@ export default function UsersPage() {
             showToast('Failed to update role', 'error');
         }
     };
+
+    if (authLoading) return (
+        <div className="flex h-[50vh] items-center justify-center">
+            <Loader2 className="animate-spin text-primary" />
+        </div>
+    );
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { Input } from '@/components/ui/input';
 import {
     Building2, MessageSquare, Save, Loader2, CreditCard,
@@ -301,19 +302,15 @@ function TenantSettings() {
     );
 }
 
-/** ── Root: detect role and render the right panel ─────────────────────── */
+/** ── Root: detect role from AuthProvider and render the right panel ───────── */
 export default function SettingsPage() {
-    const [role, setRole] = useState<string | null>(null);
+    const { user, loading } = useAuth(); // single /auth/me from AuthProvider
 
-    useEffect(() => {
-        api.get('/auth/me').then(res => setRole(res.data.role));
-    }, []);
-
-    if (!role) return (
+    if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
             <Loader2 className="animate-spin mr-2" size={16} /> Loading...
         </div>
     );
 
-    return role === 'SUPERADMIN' ? <PlatformSettings /> : <TenantSettings />;
+    return user?.role === 'SUPERADMIN' ? <PlatformSettings /> : <TenantSettings />;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -24,6 +25,7 @@ export default function DashboardPage() {
     const router = useRouter();
     const { locale } = useParams();
     const t = useTranslations('Dashboard');
+    const { user } = useAuth(); // from AuthProvider — no extra /auth/me call
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,6 +38,14 @@ export default function DashboardPage() {
         setIsMounted(true);
         const fetchData = async () => {
             try {
+                // Guard: SUPERADMIN has no tenant data — redirect to platform view
+                if (user?.role === 'SUPERADMIN') {
+                    router.replace(`/${locale}/tenants`);
+                    return;
+                }
+                // user is null while AuthProvider is loading — wait before fetching
+                if (!user) return;
+
                 const [statsRes, cashflowRes] = await Promise.all([
                     api.get('/reports/dashboard'),
                     api.get('/reports/cashflow')
@@ -43,14 +53,14 @@ export default function DashboardPage() {
                 setStats(statsRes.data);
                 setChartData(Array.isArray(cashflowRes.data) ? cashflowRes.data : []);
             } catch (err) {
-                console.error("Failed to load dashboard data", err);
+                console.error('Failed to load dashboard data', err);
                 setChartData([]);
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, []);
+    }, [user, locale]);
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
