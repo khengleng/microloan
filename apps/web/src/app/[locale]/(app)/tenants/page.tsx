@@ -452,6 +452,7 @@ export default function TenantsPage() {
                                             value={form.adminEmail}
                                             onChange={e => setForm({ ...form, adminEmail: e.target.value })}
                                             placeholder="admin@tenant.com"
+                                            autoComplete="email"
                                             className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
                                             required={!editTenant}
                                         />
@@ -463,6 +464,7 @@ export default function TenantsPage() {
                                             value={form.adminPassword}
                                             onChange={e => setForm({ ...form, adminPassword: e.target.value })}
                                             placeholder="••••••••"
+                                            autoComplete="new-password"
                                             className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
                                             required={!editTenant}
                                         />

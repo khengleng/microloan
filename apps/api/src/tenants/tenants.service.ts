@@ -64,26 +64,37 @@ export class TenantsService {
     }
 
     async create(data: { name: string; adminEmail?: string; adminPassword?: string }, actorId?: string) {
-        const tenant = await this.prisma.tenant.create({ data: { name: data.name } });
-
-        if (data.adminEmail && data.adminPassword) {
-            const salt = await bcrypt.genSalt();
-            const hash = await bcrypt.hash(data.adminPassword, salt);
-            await this.prisma.user.create({
-                data: {
-                    tenantId: tenant.id,
-                    email: data.adminEmail,
-                    passwordHash: hash,
-                    role: 'ADMIN',
-                }
+        if (data.adminEmail) {
+            const existing = await this.prisma.user.findUnique({
+                where: { email: data.adminEmail }
             });
+            if (existing) {
+                throw new BadRequestException('Email address is already registered in the platform (even if suspended). Please use a unique organizational email or purge the old account first.');
+            }
         }
 
-        await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
-            name: tenant.name,
-            event: 'TENANT_CREATED',
+        return this.prisma.$transaction(async (tx) => {
+            const tenant = await tx.tenant.create({ data: { name: data.name } });
+
+            if (data.adminEmail && data.adminPassword) {
+                const salt = await bcrypt.genSalt();
+                const hash = await bcrypt.hash(data.adminPassword, salt);
+                await tx.user.create({
+                    data: {
+                        tenantId: tenant.id,
+                        email: data.adminEmail,
+                        passwordHash: hash,
+                        role: 'ADMIN',
+                    }
+                });
+            }
+
+            await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
+                name: tenant.name,
+                event: 'TENANT_CREATED',
+            });
+            return tenant;
         });
-        return tenant;
     }
 
     async update(id: string, data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number }, actorId?: string) {
