@@ -79,7 +79,11 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto, ip?: string) {
-    const user: any = await this.usersService.findOneByEmail(loginDto.email);
+    const user: any = await this.prisma.user.findUnique({
+      where: { email: loginDto.email },
+      include: { tenant: { select: { status: true, name: true } } }
+    });
+    console.log('[DEBUG] Login attempt:', { email: loginDto.email, found: !!user, isActive: user?.isActive, tenantStatus: user?.tenant?.status });
 
     // ── User not found — generic error, equal timing ─────────────────────
     if (!user) {
@@ -89,10 +93,15 @@ export class AuthService {
       throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
+    // ── Organization Suspended check ─────────────────────────────────────
+    if (user.tenant?.status !== 'ACTIVE') {
+      throw new ForbiddenException(`Organization ${user.tenant?.name || 'Isolated Environment'} has been suspended or is pending data erasure. Please contact platform support.`);
+    }
+
     // ── User Suspended check ────────────────────────────────────────────
     if (user.isActive === false) {
       await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_SUSPENDED', ip, user.id);
-      throw new ForbiddenException('Your account has been suspended. Please contact your administrator.');
+      throw new ForbiddenException('Your staff account has been suspended by your administrator.');
     }
 
     // ── Account lockout check ────────────────────────────────────────────
