@@ -10,8 +10,9 @@ export class TenantsService {
         private readonly audit: AuditService,
     ) { }
 
-    async findAll() {
+    async findAll(includeArchived = false) {
         const tenants = await this.prisma.tenant.findMany({
+            where: (includeArchived ? {} : { deletedAt: null }) as any,
             include: {
                 _count: {
                     select: {
@@ -146,15 +147,20 @@ export class TenantsService {
             );
         }
 
-        // Rely on DB Cascades for atomic, high-performance destruction
-        // This resolves 500 errors caused by timeouts from manual anonymization of thousands of records
-        await this.prisma.tenant.delete({ where: { id } });
+        // NUCLEAR CLEANUP: Manually wipe tables that have dual dependencies (User + Tenant) 
+        // to avoid Postgres Cascade race conditions/FK blocks.
+        await this.prisma.$transaction([
+            this.prisma.auditLog.deleteMany({ where: { tenantId: id } }),
+            this.prisma.repayment.deleteMany({ where: { tenantId: id } }),
+            this.prisma.document.deleteMany({ where: { tenantId: id } }),
+            this.prisma.tenant.delete({ where: { id } }),
+        ]);
 
-        // Best-effort audit after deletion — own tenant row is now destroyed
+        // Best-effort post-purge audit
         await this.audit.logAction('system', actorId, 'DELETE', 'Tenant', id, {
             event: 'TENANT_HARD_DELETED',
             name: tenant.name,
-        }).catch(() => { /* row and its audit logs may have been cascaded already */ });
+        }).catch(() => { });
 
         return {
             success: true,

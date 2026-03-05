@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException, Query } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -21,8 +21,8 @@ export class TenantsController {
 
     @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
     @Get()
-    findAll() {
-        return this.tenantsService.findAll();
+    findAll(@Query('archived') archived?: string) {
+        return this.tenantsService.findAll(archived === 'true');
     }
 
     @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')

@@ -64,13 +64,14 @@ export default function TenantsPage() {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [isUsersModalOpen, setUsersModalOpen] = useState(false);
     const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
+    const [showArchived, setShowArchived] = useState(false);
 
     const fetchAll = async () => {
         setLoading(true);
         try {
             const [statsRes, tenantsRes] = await Promise.all([
                 api.get('/tenants/stats/platform'),
-                api.get('/tenants'),
+                api.get(`/tenants?archived=${showArchived}`),
             ]);
             setStats(statsRes.data);
             setTenants(tenantsRes.data);
@@ -81,7 +82,7 @@ export default function TenantsPage() {
         }
     };
 
-    useEffect(() => { fetchAll(); }, []);
+    useEffect(() => { fetchAll(); }, [showArchived]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -282,6 +283,16 @@ export default function TenantsPage() {
                             {s}
                         </button>
                     ))}
+                </div>
+
+                <div className="flex gap-2 p-1.5 glass bg-slate-100/50 rounded-2xl border-slate-200/50">
+                    <button
+                        onClick={() => setShowArchived(!showArchived)}
+                        className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 ${showArchived ? 'bg-rose-500 text-white' : 'bg-white text-slate-400'}`}
+                    >
+                        <Trash2 size={12} />
+                        {showArchived ? 'Hide Trash' : 'Show Trash'}
+                    </button>
                 </div>
             </div>
 
