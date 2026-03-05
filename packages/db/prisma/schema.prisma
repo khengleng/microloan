@@ -43,7 +43,7 @@ enum Role {
 model User {
   id               String    @id @default(uuid())
   tenantId         String
-  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   email            String    @unique
   passwordHash     String
   twoFactorSecret  String?   // For MFA
@@ -66,7 +66,7 @@ model User {
 model Borrower {
   id             String   @id @default(uuid())
   tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   firstName      String
   lastName       String
   phone          String?
@@ -96,7 +96,7 @@ enum InterestMethod {
 model LoanProduct {
   id               String           @id @default(uuid())
   tenantId         String
-  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name             String           // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
   description      String?
   interestMethod   InterestMethod
@@ -127,11 +127,11 @@ model LoanPolicy {
 model Loan {
   id                 String         @id @default(uuid())
   tenantId           String
-  tenant             Tenant         @relation(fields: [tenantId], references: [id])
+  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   borrowerId         String
-  borrower           Borrower       @relation(fields: [borrowerId], references: [id])
+  borrower           Borrower       @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
   productId          String?
-  product            LoanProduct?   @relation(fields: [productId], references: [id])
+  product            LoanProduct?   @relation(fields: [productId], references: [id], onDelete: Cascade)
   creditRatingApplied String?
   status             LoanStatus     @default(PENDING)
   principal          Decimal        @db.Decimal(10, 2)
@@ -197,7 +197,7 @@ model LoanInteraction {
 model RepaymentSchedule {
   id                   String   @id @default(uuid())
   loanId               String
-  loan                 Loan     @relation(fields: [loanId], references: [id])
+  loan                 Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   installmentNumber    Int
   dueDate              DateTime
   principalAmount      Decimal  @db.Decimal(10, 2)
@@ -217,9 +217,9 @@ model RepaymentSchedule {
 model Repayment {
   id            String   @id @default(uuid())
   tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   loanId        String
-  loan          Loan     @relation(fields: [loanId], references: [id])
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   amount        Decimal  @db.Decimal(10, 2)
   principalPaid Decimal  @default(0) @db.Decimal(10, 2)
   interestPaid  Decimal  @default(0) @db.Decimal(10, 2)
@@ -232,9 +232,9 @@ model Repayment {
 model AuditLog {
   id        String   @id @default(uuid())
   tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId    String?  // Nullable  — allows anonymous security events (e.g. unknown email login)
-  user      User?    @relation(fields: [userId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String   // CREATE, UPDATE, DELETE, LOGIN
   entity    String   // Borrower, Loan, Repayment, User, Tenant
   entityId  String
@@ -249,9 +249,9 @@ model AuditLog {
 model Document {
   id        String   @id @default(uuid())
   tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   loanId    String
-  loan      Loan     @relation(fields: [loanId], references: [id])
+  loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   name      String
   content   String   @db.Text // Base64 content or public URL
   type      String // e.g., "application/pdf", "image/png", or "url"
