@@ -166,14 +166,14 @@ export class LoansService {
 
     // 1. PENDING -> APPROVED / REJECTED
     if (currentStatus === LoanStatus.PENDING && ([LoanStatus.APPROVED, LoanStatus.REJECTED] as LoanStatus[]).includes(targetStatus)) {
-      if (!['SUPERADMIN', 'ADMIN'].includes(userRole)) {
-        throw new ForbiddenException(`Only an ADMIN/SUPERADMIN can review loan applications.`);
+      if (!['ADMIN'].includes(userRole)) {
+        throw new ForbiddenException(`Only an ADMIN can review loan applications.`);
       }
     }
 
     // 2. APPROVED -> DISBURSED
     if (currentStatus === LoanStatus.APPROVED && targetStatus === LoanStatus.DISBURSED) {
-      if (!['SUPERADMIN', 'ADMIN', 'FINANCE'].includes(userRole)) {
+      if (!['ADMIN', 'FINANCE'].includes(userRole)) {
         throw new ForbiddenException(`Your role (${userRole}) is not authorized to DISBURSE funds.`);
       }
     }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -70,12 +70,12 @@ export class TenantsService {
         return tenant;
     }
 
-    async update(id: string, data: { name?: string; plan?: string; status?: string }, actorId?: string) {
+    async update(id: string, data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number }, actorId?: string) {
         const before = await this.prisma.tenant.findUnique({ where: { id } });
         const tenant = await this.prisma.tenant.update({ where: { id }, data });
         await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
-            before: { name: before?.name, plan: before?.status, status: before?.status },
-            after: { name: data.name, plan: data.plan, status: data.status },
+            before: { name: before?.name, plan: before?.plan, status: before?.status },
+            after: { name: data.name, plan: data.plan, status: data.status, penaltyRatePerDay: data.penaltyRatePerDay },
             event: 'TENANT_UPDATED',
         });
         return tenant;
@@ -94,17 +94,95 @@ export class TenantsService {
         return tenant;
     }
 
+    /**
+     * Fix 9 – Phase 1: GDPR soft-delete / erasure request.
+     * Suspends the tenant and marks deletedAt. A SUPERADMIN (or background job)
+     * calls hardDelete() after the required retention period (e.g. 30 days).
+     */
     async remove(id: string, actorId?: string) {
         const tenant = await this.prisma.tenant.findUnique({ where: { id } });
         const result = await this.prisma.tenant.update({
             where: { id },
-            data: { status: 'SUSPENDED' },
+            data: { status: 'SUSPENDED', deletedAt: new Date() },
         });
         await this.audit.logAction(id, actorId || 'system', 'DELETE', 'Tenant', id, {
             name: tenant?.name,
-            event: 'TENANT_SOFT_DELETED',
+            event: 'TENANT_ERASURE_REQUESTED',
+            scheduledPurgeAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         });
         return result;
+    }
+
+    /**
+     * Fix 9 – Phase 2: GDPR hard-delete / right to erasure.
+     * Anonymizes all PII for this tenant's users and borrowers, then
+     * hard-deletes the tenant row (cascading to all child entities).
+     * SUPERADMIN only. Irreversible.
+     */
+    async hardDelete(id: string, actorId: string) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+        if (!tenant) throw new BadRequestException('Tenant not found');
+        if (!tenant.deletedAt) {
+            throw new BadRequestException(
+                'Tenant must be soft-deleted first (erasure requested) before hard-delete.'
+            );
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            // 1. Anonymize user PII
+            const users = await tx.user.findMany({ where: { tenantId: id }, select: { id: true } });
+            await Promise.all(users.map(u =>
+                tx.user.update({
+                    where: { id: u.id },
+                    data: {
+                        email: `deleted_${u.id}@purged.invalid`,
+                        passwordHash: '[PURGED]',
+                        twoFactorSecret: null,
+                        telegramChatId: null,
+                        lastLoginIp: null,
+                    },
+                })
+            ));
+
+            // 2. Anonymize borrower PII
+            const borrowers = await tx.borrower.findMany({ where: { tenantId: id }, select: { id: true } });
+            await Promise.all(borrowers.map(b =>
+                tx.borrower.update({
+                    where: { id: b.id },
+                    data: {
+                        firstName: '[PURGED]',
+                        lastName: '[PURGED]',
+                        phone: null,
+                        address: null,
+                        idNumber: null,
+                        telegramChatId: null,
+                    },
+                })
+            ));
+
+            // 3. Anonymize loan interaction notes (may contain free-text PII)
+            const loans = await tx.loan.findMany({ where: { tenantId: id }, select: { id: true } });
+            await Promise.all(loans.map(l =>
+                tx.loanInteraction.updateMany({
+                    where: { loanId: l.id },
+                    data: { notes: '[PURGED]', title: '[PURGED]' },
+                })
+            ));
+
+            // 4. Hard-delete the tenant (cascades via DB foreign keys)
+            await tx.tenant.delete({ where: { id } });
+        });
+
+        // Best-effort audit after deletion — own tenant row is gone
+        await this.audit.logAction('system', actorId, 'DELETE', 'Tenant', id, {
+            event: 'TENANT_HARD_DELETED',
+            name: tenant.name,
+        }).catch(() => { /* swallow — row no longer exists */ });
+
+        return {
+            success: true,
+            message: `Tenant "${tenant.name}" and all associated PII have been permanently deleted.`,
+        };
     }
 
     async getTenantUsers(tenantId: string) {

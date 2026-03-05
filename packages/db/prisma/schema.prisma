@@ -15,6 +15,10 @@ model Tenant {
   status               String   @default("ACTIVE") // ACTIVE, SUSPENDED
   stripeCustomerId     String?
   stripeSubscriptionId String?
+  // Fix 5: configurable late penalty in $USD per overdue installment per day
+  penaltyRatePerDay    Decimal  @default(10.00) @db.Decimal(8, 2)
+  // Fix 9: GDPR soft-delete — set when erasure is requested, hard-delete job runs after 30 days
+  deletedAt            DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -90,18 +94,20 @@ enum InterestMethod {
 }
 
 model LoanProduct {
-  id             String           @id @default(uuid())
-  tenantId       String
-  tenant         Tenant           @relation(fields: [tenantId], references: [id])
-  name           String           // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
-  description    String?
-  interestMethod InterestMethod
-  isActive       Boolean          @default(true)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id               String           @id @default(uuid())
+  tenantId         String
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  name             String           // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
+  description      String?
+  interestMethod   InterestMethod
+  isActive         Boolean          @default(true)
+  // Fix 5: per-product penalty override (null = use tenant default)
+  penaltyRatePerDay Decimal?        @db.Decimal(8, 2)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  policies       LoanPolicy[]
-  loans          Loan[]
+  policies         LoanPolicy[]
+  loans            Loan[]
 }
 
 model LoanPolicy {

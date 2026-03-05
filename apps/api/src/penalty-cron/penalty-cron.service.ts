@@ -34,7 +34,13 @@ export class PenaltyCronService {
             },
             include: {
                 loan: {
-                    include: { borrower: true }
+                    include: {
+                        borrower: true,
+                        // Fix 5: load product for per-product penalty override
+                        product: { select: { penaltyRatePerDay: true } },
+                        // Fix 5: load tenant for platform-wide default
+                        tenant: { select: { penaltyRatePerDay: true } },
+                    }
                 }
             },
         });
@@ -43,8 +49,12 @@ export class PenaltyCronService {
         for (const schedule of overdueSchedules) {
             if (schedule.loan.status === 'CLOSED') continue;
 
-            // Flat late fee of $10 per day overdue (applied once per calendar day)
-            const penaltyAmount = 10.0;
+            // Fix 5: resolve penalty rate from product override → tenant default → hard fallback
+            const penaltyAmount = Number(
+                schedule.loan.product?.penaltyRatePerDay
+                ?? schedule.loan.tenant?.penaltyRatePerDay
+                ?? 10.0,
+            );
 
             await this.prisma.repaymentSchedule.update({
                 where: { id: schedule.id },

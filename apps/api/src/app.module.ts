@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -30,8 +31,12 @@ import { ReminderModule } from './reminder/reminder.module';
     // To scale HA: add ThrottlerStorageRedisService + ioredis.
     // Named throttlers allow @Throttle({ login: {} }) per-route customisation.
     ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1_000, limit: 10 }, // 10 req/sec  — baseline DoS guard
-      { name: 'login', ttl: 15 * 60_000, limit: 10 }, // 10 logins / IP / 15 min
+      // Per-user bucket for authenticated routes (keyed on user ID by UserAwareThrottlerGuard).
+      // 120 req/sec gives a single user plenty of room for page navigation with
+      // parallel API calls (dashboard, sidebar, modals all fire at once).
+      { name: 'short', ttl: 1_000, limit: 120 },
+      // Unauthenticated endpoints — these still key on IP (see guard).
+      { name: 'login', ttl: 15 * 60_000, limit: 10 }, // 10 attempts / IP / 15 min
       { name: 'register', ttl: 60 * 60_000, limit: 5 }, // 5 registrations / IP / hr
       { name: 'mfa', ttl: 15 * 60_000, limit: 10 }, // 10 MFA attempts / IP / 15 min
     ]),
@@ -56,9 +61,10 @@ import { ReminderModule } from './reminder/reminder.module';
   controllers: [AppController],
   providers: [
     AppService,
-    // Register ThrottlerGuard globally — applies to every route automatically.
-    // Use @SkipThrottle() on routes that should be exempt (e.g. health checks).
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Global rate limiter keyed by user ID for authenticated routes,
+    // and by IP for public endpoints — prevents the Next.js proxy from
+    // collapsing all users into a single shared bucket.
+    { provide: APP_GUARD, useClass: UserAwareThrottlerGuard },
   ],
 })
 export class AppModule { }

@@ -12,7 +12,7 @@ import type { Response } from 'express';
 export class ExportsController {
     constructor(private readonly exportsService: ExportsService) { }
 
-    @Roles('ADMIN', 'SUPERADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+    @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
     @Get('loans/excel')
     async exportLoansExcel(@CurrentUser() user: JwtPayload, @Res() res: Response) {
         const buffer = await this.exportsService.exportLoansToExcel(user.tenantId, user.sub);
@@ -21,7 +21,7 @@ export class ExportsController {
         res.send(buffer);
     }
 
-    @Roles('ADMIN', 'SUPERADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+    @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
     @Get('repayments/excel')
     async exportRepaymentsExcel(@CurrentUser() user: JwtPayload, @Res() res: Response) {
         const buffer = await this.exportsService.exportRepaymentsToExcel(user.tenantId, user.sub);

@@ -37,7 +37,12 @@ export class TenantsController {
 
     @Roles('SUPERADMIN')
     @Put(':id')
-    update(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() data: { name?: string; plan?: string; status?: string }) {
+    update(
+        @Param('id') id: string,
+        @CurrentUser() user: JwtPayload,
+        // Fix 5: allow penaltyRatePerDay to be configured per-tenant via superadmin panel
+        @Body() data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number },
+    ) {
         return this.tenantsService.update(id, data, user.sub);
     }
 
@@ -53,10 +58,18 @@ export class TenantsController {
         return this.tenantsService.setStatus(id, 'ACTIVE', user.sub);
     }
 
+    // Fix 9 – Phase 1: Request erasure (suspends + marks deletedAt for 30-day retention)
     @Roles('SUPERADMIN')
     @Delete(':id')
     remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
         return this.tenantsService.remove(id, user.sub);
+    }
+
+    // Fix 9 – Phase 2: Irreversible GDPR hard-delete + PII anonymization
+    @Roles('SUPERADMIN')
+    @Delete(':id/hard')
+    hardDelete(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        return this.tenantsService.hardDelete(id, user.sub);
     }
 
     // SUPERADMIN user management (for PaaS team)

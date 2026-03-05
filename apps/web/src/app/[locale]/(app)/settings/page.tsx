@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Input } from '@/components/ui/input';
-import { Building2, MessageSquare, Save, Settings, Loader2, CreditCard, Link2, Zap, ShieldCheck } from 'lucide-react';
+import { Building2, MessageSquare, Save, Settings, Loader2, CreditCard, Link2, Zap, ShieldCheck, ExternalLink } from 'lucide-react';
 import { MfaSetup } from '@/components/auth/mfa-setup';
 import { useToast } from '@/components/ui/toast';
 
@@ -42,6 +42,16 @@ export default function SettingsPage() {
             window.location.href = res.data.url;
         } catch (err: any) {
             showToast('Checkout failed: ' + (err.response?.data?.message || err.message), 'error');
+        }
+    };
+
+    // Fix 4: Open Stripe Customer Portal to manage / cancel subscription
+    const handleManageSubscription = async () => {
+        try {
+            const res = await api.post('/billing/portal');
+            window.location.href = res.data.url;
+        } catch (err: any) {
+            showToast('Could not open billing portal: ' + (err.response?.data?.message || err.message), 'error');
         }
     };
 
@@ -141,21 +151,32 @@ export default function SettingsPage() {
                                 </p>
                                 <p className="text-2xl font-bold">{settings.plan}</p>
                             </div>
-                            {settings.plan === 'FREE' ? (
-                                <button
-                                    onClick={() => handleUpgrade('PRO')}
-                                    className="bg-white text-primary font-bold text-sm px-5 py-2 rounded hover:bg-white/90 transition-colors"
-                                >
-                                    Upgrade to PRO
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => handleUpgrade('ENTERPRISE')}
-                                    className="border border-white/30 text-white font-semibold text-sm px-5 py-2 rounded hover:bg-white/10 transition-colors"
-                                >
-                                    Enterprise
-                                </button>
-                            )}
+                            <div className="flex flex-col gap-2">
+                                {settings.plan === 'FREE' ? (
+                                    <button
+                                        onClick={() => handleUpgrade('PRO')}
+                                        className="bg-white text-primary font-bold text-sm px-5 py-2 rounded hover:bg-white/90 transition-colors"
+                                    >
+                                        Upgrade to PRO
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => handleUpgrade('ENTERPRISE')}
+                                            className="border border-white/30 text-white font-semibold text-sm px-5 py-2 rounded hover:bg-white/10 transition-colors"
+                                        >
+                                            Upgrade to Enterprise
+                                        </button>
+                                        {/* Fix 4: Stripe Customer Portal for plan change / cancellation */}
+                                        <button
+                                            onClick={handleManageSubscription}
+                                            className="flex items-center justify-center gap-1.5 border border-white/20 text-white/80 font-medium text-xs px-5 py-1.5 rounded hover:bg-white/10 transition-colors"
+                                        >
+                                            <ExternalLink size={11} /> Manage Subscription
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <div className="px-5 pb-4">
                             <p className="text-xs text-primary-foreground/50 flex items-center gap-1.5">

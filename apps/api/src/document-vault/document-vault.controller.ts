@@ -39,13 +39,7 @@ export class DocumentVaultController {
         @Res() res: Response,
     ) {
         const doc = await this.documentVaultService.downloadDocument(user.tenantId, documentId, user.sub);
-
-        if (doc.type === 'url' && doc.url) {
-            return res.redirect(doc.url);
-        } else if (doc.type === 'buffer' && doc.mimetype) {
-            res.setHeader('Content-Type', doc.mimetype);
-            res.setHeader('Content-Disposition', `attachment; filename="${doc.name}"`);
-            res.send(doc.data);
-        }
+        // Fix 6: service always returns a presigned URL now — no buffer fallback
+        return res.redirect(doc.url!);
     }
 }

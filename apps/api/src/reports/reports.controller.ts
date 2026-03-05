@@ -34,7 +34,7 @@ export class ReportsController {
     private readonly prisma: PrismaService,
   ) { }
 
-  @Roles('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
   @Get('dashboard')
   async getDashboardStats(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;
@@ -86,7 +86,7 @@ export class ReportsController {
     };
   }
 
-  @Roles('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {
     const result = await this.loansService.findAll(user.tenantId, undefined, undefined, 1, 10000);
@@ -112,7 +112,7 @@ export class ReportsController {
     res.send(csv);
   }
 
-  @Roles('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Get('repayments')
   async exportRepayments(
     @CurrentUser() user: JwtPayload,
@@ -139,62 +139,58 @@ export class ReportsController {
     res.send(csv);
   }
 
-  @Roles('SUPERADMIN', 'ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get('cashflow')
   async getCashflow(@CurrentUser() user: JwtPayload) {
     const tenantId = user.tenantId;
-    const months: any[] = [];
     const now = new Date();
 
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        name: d.toLocaleString('default', { month: 'short' }),
-        year: d.getFullYear(),
-        month: d.getMonth(),
-        disbursements: 0,
-        collections: 0,
-      });
-    }
+    // Build the 6-month window boundaries
+    const startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-    const startDate = new Date(months[0].year, months[0].month, 1);
+    // Fix 8: Use SQL GROUP BY instead of loading all records into memory.
+    // prisma.$queryRaw returns one row per (year, month) with the sum.
+    const [disbRows, collRows] = await Promise.all([
+      this.prisma.$queryRaw<{ yr: number; mo: number; total: string }[]>`
+        SELECT
+          EXTRACT(YEAR  FROM "startDate")::int AS yr,
+          EXTRACT(MONTH FROM "startDate")::int AS mo,
+          COALESCE(SUM(principal), 0)::text     AS total
+        FROM "Loan"
+        WHERE "tenantId" = ${tenantId}
+          AND "startDate" >= ${startDate}
+          AND status IN ('DISBURSED', 'CLOSED')
+        GROUP BY yr, mo
+      `,
+      this.prisma.$queryRaw<{ yr: number; mo: number; total: string }[]>`
+        SELECT
+          EXTRACT(YEAR  FROM date)::int AS yr,
+          EXTRACT(MONTH FROM date)::int AS mo,
+          COALESCE(SUM(amount), 0)::text AS total
+        FROM "Repayment"
+        WHERE "tenantId" = ${tenantId}
+          AND date >= ${startDate}
+        GROUP BY yr, mo
+      `,
+    ]);
 
-    const loans = await this.prisma.loan.findMany({
-      where: {
-        tenantId,
-        startDate: { gte: startDate },
-        status: { in: ['DISBURSED', 'CLOSED'] },
-      },
+    // Build sorted month labels and merge query results
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      const yr = d.getFullYear();
+      const mo = d.getMonth() + 1; // SQL EXTRACT month is 1-based
+      const name = d.toLocaleString('default', { month: 'short' });
+
+      const disbRow = disbRows.find(r => Number(r.yr) === yr && Number(r.mo) === mo);
+      const collRow = collRows.find(r => Number(r.yr) === yr && Number(r.mo) === mo);
+
+      return {
+        name,
+        disbursements: disbRow ? parseFloat(disbRow.total) : 0,
+        collections: collRow ? parseFloat(collRow.total) : 0,
+      };
     });
 
-    const repayments = await this.prisma.repayment.findMany({
-      where: {
-        tenantId,
-        date: { gte: startDate },
-      },
-    });
-
-    months.forEach((m) => {
-      m.disbursements = loans
-        .filter(
-          (l) =>
-            l.startDate.getFullYear() === m.year &&
-            l.startDate.getMonth() === m.month,
-        )
-        .reduce((sum, l) => sum + Number(l.principal), 0);
-
-      m.collections = repayments
-        .filter(
-          (r) =>
-            r.date.getFullYear() === m.year && r.date.getMonth() === m.month,
-        )
-        .reduce((sum, r) => sum + Number(r.amount), 0);
-    });
-
-    return months.map(({ name, disbursements, collections }) => ({
-      name,
-      disbursements,
-      collections,
-    }));
+    return months;
   }
 }

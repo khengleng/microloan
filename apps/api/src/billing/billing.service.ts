@@ -63,6 +63,28 @@ export class BillingService {
         return { url: session.url };
     }
 
+    // Fix 4: Stripe Customer Portal — lets tenants manage/cancel their own subscription
+    async createBillingPortal(tenantId: string, actorId: string) {
+        if (!process.env.STRIPE_SECRET_KEY) {
+            throw new ServiceUnavailableException('Online billing is not yet configured for this platform. Please contact your administrator.');
+        }
+
+        const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+        if (!tenant) throw new BadRequestException('Tenant not found');
+        if (!tenant.stripeCustomerId) {
+            throw new BadRequestException('No active subscription found. Please subscribe first.');
+        }
+
+        const session = await this.stripe.billingPortal.sessions.create({
+            customer: tenant.stripeCustomerId,
+            return_url: `${process.env.WEB_URL || 'http://localhost:3000'}/settings`,
+        });
+
+        await this.audit.logAction(tenantId, actorId, 'READ', 'Tenant', tenantId, { event: 'BILLING_PORTAL_ACCESSED' });
+
+        return { url: session.url };
+    }
+
     async handleStripeWebhook(signature: string, payload: Buffer) {
         if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
             this.logger.warn('Stripe Webhook hit without env variables configured');

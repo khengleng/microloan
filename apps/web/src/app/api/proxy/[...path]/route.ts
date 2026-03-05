@@ -45,7 +45,7 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
     // 1. Extract tokens from cookies
     const accessToken = req.cookies.get('access_token')?.value;
 
-    // 2. Prepare headers
+    // 2. Prepare headers — forward select originals, add real-IP and user identity
     const headers = new Headers();
     req.headers.forEach((value, key) => {
         // Skip host and other sensitive/incompatible headers
@@ -56,7 +56,25 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
 
     if (accessToken) {
         headers.set('Authorization', `Bearer ${accessToken}`);
+
+        // Forward the JWT user-ID so the API throttler can rate-limit per user
+        // instead of treating all traffic as one IP (the Next.js server IP).
+        // We decode WITHOUT verifying here — the API will fully verify the JWT.
+        // This is safe: the API never trusts this header for auth decisions.
+        try {
+            const [, payload] = accessToken.split('.');
+            const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString());
+            if (decoded?.sub) headers.set('X-User-ID', decoded.sub);
+        } catch { /* malformed JWT — ignore */ }
     }
+
+    // 3. Forward the real browser IP so the throttler works for unauthenticated routes
+    const realIp =
+        req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+        req.headers.get('x-real-ip') ||
+        '127.0.0.1';
+    headers.set('X-Forwarded-For', realIp);
+    headers.set('X-Real-IP', realIp);
 
     try {
         const body = req.method !== 'GET' && req.method !== 'HEAD'

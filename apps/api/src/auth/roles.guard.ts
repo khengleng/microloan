@@ -12,13 +12,16 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!requiredRoles) {
-      return true;
-    }
+    // No @Roles() decorator → route is accessible to any authenticated user
+    if (!requiredRoles) return true;
+
     const { user } = context.switchToHttp().getRequest();
-    if (user?.role === 'SUPERADMIN') {
-      return true;
-    }
-    return requiredRoles.includes(user.role);
+
+    // SUPERADMIN is a platform-level role. It only passes when the route
+    // explicitly declares @Roles('SUPERADMIN'). Tenant-level routes
+    // (borrowers, loans, repayments, etc.) do NOT list SUPERADMIN, so the
+    // platform operator is correctly blocked from reading or writing
+    // inside any tenant's operational data.
+    return requiredRoles.includes(user?.role);
   }
 }

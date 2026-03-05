@@ -18,6 +18,14 @@ export class BillingController {
         return this.billingService.createSubscriptionCheckout(user.tenantId, user.sub, body.plan);
     }
 
+    // Fix 4: Stripe Customer Portal — manage / cancel subscription without contacting support
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles('ADMIN', 'SUPERADMIN')
+    @Post('portal')
+    async billingPortal(@CurrentUser() user: JwtPayload) {
+        return this.billingService.createBillingPortal(user.tenantId, user.sub);
+    }
+
     @Post('webhook')
     async stripeWebhook(@Headers('stripe-signature') signature: string, @Req() req: Request, @Res() res: Response) {
         await this.billingService.handleStripeWebhook(signature, req.body);
