@@ -12,7 +12,7 @@ import type { Response } from 'express';
 export class AuditLogsController {
     constructor(private prisma: PrismaService) { }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Get()
     async findAll(
         @CurrentUser() user: JwtPayload,
@@ -59,7 +59,7 @@ export class AuditLogsController {
         };
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Get('export/csv')
     async exportCsv(
         @CurrentUser() user: JwtPayload,
@@ -106,7 +106,7 @@ export class AuditLogsController {
         res.send(csv);
     }
 
-    @Roles('ADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Get('summary')
     async summary(@CurrentUser() user: JwtPayload) {
         const [

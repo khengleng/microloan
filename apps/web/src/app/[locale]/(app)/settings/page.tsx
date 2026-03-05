@@ -8,6 +8,8 @@ import {
     Building2, MessageSquare, Save, Loader2, CreditCard,
     Link2, Zap, ShieldCheck, ExternalLink, Globe, Key, Users, Server
 } from 'lucide-react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { MfaSetup } from '@/components/auth/mfa-setup';
 import { useToast } from '@/components/ui/toast';
 
@@ -16,6 +18,7 @@ const labelCls = "block text-sm font-medium text-foreground mb-1";
 
 /** ── SUPERADMIN: Platform-level configuration panel ────────────────────── */
 function PlatformSettings() {
+    const { locale } = useParams();
     const { showToast } = useToast();
     return (
         <div className="max-w-4xl space-y-6">
@@ -71,8 +74,8 @@ function PlatformSettings() {
                             </div>
                         </div>
                         <div className="px-5 py-4 space-y-3">
-                            <a
-                                href="../tenants"
+                            <Link
+                                href={`/${locale}/tenants`}
                                 className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 transition-colors group"
                             >
                                 <div className="flex items-center gap-3">
@@ -83,9 +86,9 @@ function PlatformSettings() {
                                     </div>
                                 </div>
                                 <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                            </a>
-                            <a
-                                href="../users"
+                            </Link>
+                            <Link
+                                href={`/${locale}/users`}
                                 className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 transition-colors group"
                             >
                                 <div className="flex items-center gap-3">
@@ -96,7 +99,7 @@ function PlatformSettings() {
                                     </div>
                                 </div>
                                 <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-                            </a>
+                            </Link>
                         </div>
                     </div>
                 </div>
