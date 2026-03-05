@@ -31,6 +31,7 @@ interface Tenant {
     name: string;
     status: string;
     plan: string;
+    deletedAt?: string;
     createdAt: string;
     _count: { users: number; borrowers: number; loans: number; repayments: number; };
     performance: { disbursed: number; collected: number; };
@@ -126,18 +127,31 @@ export default function TenantsPage() {
     };
 
     const handleDelete = async (t: Tenant) => {
+        const isSoftDeleted = !!t.deletedAt;
+
         const ok = await confirm({
-            title: `Remove "${t.name}"?`,
-            message: 'The organization will be suspended and disabled. This action cannot be undone.',
-            confirmLabel: 'Remove',
+            title: isSoftDeleted ? `PURGE IRREVERSIBLY: ${t.name}?` : `Soft-Delete "${t.name}"?`,
+            message: isSoftDeleted
+                ? 'This action is PERMANENT. All PII (Personal Identifiable Information) will be anonymized and all database records for this organization will be DESTROYED. Proceed with extreme caution.'
+                : 'The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data.',
+            confirmLabel: isSoftDeleted ? 'PURGE NOW' : 'Soft-Delete',
             variant: 'danger',
         });
+
         if (!ok) return;
+
         try {
-            await api.delete(`/tenants/${t.id}`);
-            showToast(`${t.name} has been removed`, 'success');
+            if (isSoftDeleted) {
+                await api.delete(`/tenants/${t.id}/hard`);
+                showToast(`${t.name} and all associated data has been purged.`, 'success');
+            } else {
+                await api.delete(`/tenants/${t.id}`);
+                showToast(`${t.name} is now suspended and marked for erasure.`, 'success');
+            }
             fetchAll();
-        } catch { showToast('Cannot delete tenant with data', 'error'); }
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Purge operation failed', 'error');
+        }
         setMenu(null);
     };
 
@@ -300,10 +314,15 @@ export default function TenantsPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <h3 className="text-xl font-black text-slate-900 tracking-tight truncate max-w-[150px]">{tenant.name}</h3>
-                                        <div className="flex gap-2 mt-1.5">
+                                        <div className="flex flex-wrap gap-2 mt-1.5">
                                             <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${STATUS_COLORS[tenant.status] || 'bg-gray-100 text-gray-600'}`}>
                                                 {tenant.status}
                                             </span>
+                                            {tenant.deletedAt && (
+                                                <span className="px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm bg-rose-500 text-white animate-pulse">
+                                                    Marked for Erasure
+                                                </span>
+                                            )}
                                             <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${PLAN_COLORS[tenant.plan] || 'bg-gray-100 text-gray-600'}`}>
                                                 {tenant.plan}
                                             </span>
@@ -336,7 +355,7 @@ export default function TenantsPage() {
                                             )}
                                             <hr className="my-2 border-slate-100" />
                                             <button onClick={() => handleDelete(tenant)} className="w-full text-left px-5 py-3 hover:bg-rose-50 flex items-center gap-3 text-rose-500">
-                                                <Trash2 size={14} /> Purge Environment
+                                                <Trash2 size={14} /> {tenant.deletedAt ? 'Purge Environment Permanently' : 'Request Data Erasure'}
                                             </button>
                                         </div>
                                     )}

@@ -63,9 +63,6 @@ export class TenantsController {
     @Roles('SUPERADMIN', 'ADMIN')
     @Put(':id/activate')
     activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-        if (id === user.tenantId) {
-            throw new BadRequestException('Cannot modify the platform organization.');
-        }
         return this.tenantsService.setStatus(id, 'ACTIVE', user.sub);
     }
 
