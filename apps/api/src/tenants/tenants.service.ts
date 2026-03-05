@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { Role } from '@microloan/db';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -69,32 +70,35 @@ export class TenantsService {
                 where: { email: data.adminEmail }
             });
             if (existing) {
-                throw new BadRequestException('Email address is already registered in the platform (even if suspended). Please use a unique organizational email or purge the old account first.');
+                throw new BadRequestException('This email is tied to an existing organization (possibly suspended or in the Trash). You must permanently PURGE that organization from the "Show Trash" view before you can reuse this email.');
             }
         }
 
-        return this.prisma.$transaction(async (tx) => {
-            const tenant = await tx.tenant.create({ data: { name: data.name } });
+        const tenant = await this.prisma.$transaction(async (tx) => {
+            const t = await tx.tenant.create({ data: { name: data.name } });
 
             if (data.adminEmail && data.adminPassword) {
                 const salt = await bcrypt.genSalt();
                 const hash = await bcrypt.hash(data.adminPassword, salt);
                 await tx.user.create({
                     data: {
-                        tenantId: tenant.id,
+                        tenantId: t.id,
                         email: data.adminEmail,
                         passwordHash: hash,
-                        role: 'ADMIN',
+                        role: Role.ADMIN,
                     }
                 });
             }
-
-            await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
-                name: tenant.name,
-                event: 'TENANT_CREATED',
-            });
-            return tenant;
+            return t;
         });
+
+        // Audit log must be outside transaction to avoid deadlocks/timeouts during heavy provisioning
+        await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
+            name: tenant.name,
+            event: 'TENANT_CREATED',
+        });
+
+        return tenant;
     }
 
     async update(id: string, data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number }, actorId?: string) {
@@ -150,7 +154,7 @@ export class TenantsService {
      * SUPERADMIN only. Irreversible.
      */
     async hardDelete(id: string, actorId: string) {
-        const tenant = await this.prisma.tenant.findUnique({ where: { id } }) as any;
+        const tenant = await (this.prisma.tenant.findUnique({ where: { id } }) as any);
         if (!tenant) throw new BadRequestException('Tenant not found');
         if (!tenant.deletedAt) {
             throw new BadRequestException(
@@ -158,16 +162,36 @@ export class TenantsService {
             );
         }
 
-        // NUCLEAR CLEANUP: Manually wipe tables that have dual dependencies (User + Tenant) 
-        // to avoid Postgres Cascade race conditions/FK blocks.
-        await this.prisma.$transaction([
-            this.prisma.auditLog.deleteMany({ where: { tenantId: id } }),
-            this.prisma.repayment.deleteMany({ where: { tenantId: id } }),
-            this.prisma.document.deleteMany({ where: { tenantId: id } }),
-            this.prisma.tenant.delete({ where: { id } }),
-        ]);
+        // NUCLEAR CLEANUP: Bottom-Up ordered deletion to avoid all Foreign Key constraints 
+        // This is necessary because some DB providers have lag in Cascade propagation
+        await this.prisma.$transaction(async (tx) => {
+            // 1. Logs & Social Interactions
+            await tx.auditLog.deleteMany({ where: { tenantId: id } });
+            await tx.loanInteraction.deleteMany({ where: { loan: { tenantId: id } } });
 
-        // Best-effort post-purge audit
+            // 2. Financial History
+            await tx.repayment.deleteMany({ where: { tenantId: id } });
+            await tx.repaymentSchedule.deleteMany({ where: { loan: { tenantId: id } } });
+
+            // 3. Assets & Documentation
+            await tx.collateral.deleteMany({ where: { loan: { tenantId: id } } });
+            await tx.guarantor.deleteMany({ where: { loan: { tenantId: id } } });
+            await tx.document.deleteMany({ where: { tenantId: id } });
+
+            // 4. Core Entities
+            await tx.loan.deleteMany({ where: { tenantId: id } });
+            await tx.borrower.deleteMany({ where: { tenantId: id } });
+            await tx.user.deleteMany({ where: { tenantId: id } });
+
+            // 5. Product Logic
+            await tx.loanPolicy.deleteMany({ where: { product: { tenantId: id } } });
+            await tx.loanProduct.deleteMany({ where: { tenantId: id } });
+
+            // 6. Organization Shell
+            await tx.tenant.delete({ where: { id } });
+        });
+
+        // Best-effort post-purge audit (outside transaction)
         await this.audit.logAction('system', actorId, 'DELETE', 'Tenant', id, {
             event: 'TENANT_HARD_DELETED',
             name: tenant.name,
@@ -175,7 +199,7 @@ export class TenantsService {
 
         return {
             success: true,
-            message: `Tenant "${tenant.name}" and all associated data have been permanently destroyed from the platform servers.`,
+            message: `Tenant "${tenant.name}" and all associated data have been permanently destroyed.`,
         };
     }
 
