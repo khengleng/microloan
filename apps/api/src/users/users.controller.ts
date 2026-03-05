@@ -43,6 +43,8 @@ export class UsersController {
     @Roles('ADMIN', 'SUPERADMIN')
     @Put(':id/role')
     updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: { role: string }) {
-        return this.usersService.updateRole(user.tenantId, id, body.role, user.sub);
+        // SUPERADMIN can manage any user globally; ADMIN is restricted to their own tenant
+        const tenantId = user.role === 'SUPERADMIN' ? null : user.tenantId;
+        return this.usersService.updateRole(tenantId, id, body.role, user.sub);
     }
 }

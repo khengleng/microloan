@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { User, Role } from '@microloan/db';
@@ -95,20 +95,30 @@ export class UsersService {
     return result;
   }
 
-  async updateRole(tenantId: string, id: string, role: string, actorId?: string) {
-    const before = await this.prisma.user.findUnique({ where: { id, tenantId }, select: { email: true, role: true } });
-    const user = await this.prisma.user.update({
-      where: { id, tenantId },
+  async updateRole(tenantId: string | null, id: string, role: string, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: tenantId ? { id, tenantId } : { id },
+      select: { id: true, email: true, role: true, isActive: true, tenantId: true }
+    });
+
+    if (!user) throw new BadRequestException('User not found');
+    if (!user.isActive) {
+      throw new BadRequestException('Cannot update role for suspended users. You must reactivate the account first to update its logic permissions.');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
       data: { role: role as Role },
       select: { id: true, email: true, role: true },
     });
 
-    await this.audit.logAction(tenantId, actorId || id, 'UPDATE', 'User', id, {
+    await this.audit.logAction(user.tenantId, actorId || id, 'UPDATE', 'User', id, {
       email: user.email,
-      previousRole: before?.role,
+      previousRole: user.role,
       newRole: role,
+      event: 'USER_ROLE_UPDATED',
     });
 
-    return user;
+    return updated;
   }
 }
