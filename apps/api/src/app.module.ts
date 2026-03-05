@@ -31,14 +31,9 @@ import { ReminderModule } from './reminder/reminder.module';
     // To scale HA: add ThrottlerStorageRedisService + ioredis.
     // Named throttlers allow @Throttle({ login: {} }) per-route customisation.
     ThrottlerModule.forRoot([
-      // Per-user bucket for authenticated routes (keyed on user ID by UserAwareThrottlerGuard).
-      // 120 req/sec gives a single user plenty of room for page navigation with
-      // parallel API calls (dashboard, sidebar, modals all fire at once).
-      { name: 'short', ttl: 1_000, limit: 120 },
-      // Unauthenticated endpoints — these still key on IP (see guard).
-      { name: 'login', ttl: 15 * 60_000, limit: 10 }, // 10 attempts / IP / 15 min
-      { name: 'register', ttl: 60 * 60_000, limit: 5 }, // 5 registrations / IP / hr
-      { name: 'mfa', ttl: 15 * 60_000, limit: 10 }, // 10 MFA attempts / IP / 15 min
+      // 'default' applies globally to all endpoints.
+      // 120 req/sec gives a single user plenty of room for page navigation.
+      { name: 'default', ttl: 1_000, limit: 120 },
     ]),
     PrismaModule,
     TenantsModule,

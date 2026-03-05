@@ -29,14 +29,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   /** 5 registrations / IP / hr */
-  @Throttle({ register: {} })
+  @Throttle({ default: { limit: 5, ttl: 60 * 60_000 } })
   @Post('register-tenant')
   register(@Body() registerDto: RegisterTenantDto, @Req() req: any) {
     return this.authService.registerTenant(registerDto, getIp(req));
   }
 
   /** 10 login attempts / IP / 15 min */
-  @Throttle({ login: {} })
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('login')
   login(@Body() loginDto: LoginDto, @Req() req: any) {
@@ -44,7 +44,7 @@ export class AuthController {
   }
 
   /** Refresh tokens — same login limit */
-  @Throttle({ login: {} })
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('refresh')
   refresh(@Body() refreshDto: RefreshDto) {
@@ -63,7 +63,7 @@ export class AuthController {
    * Accepts the short-lived mfaToken issued by POST /auth/login (not a raw userId),
    * so attackers cannot brute-force TOTP codes for arbitrary user IDs.
    */
-  @Throttle({ mfa: {} })
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @Post('mfa/authenticate')
   @HttpCode(HttpStatus.OK)
   verifyMfa(@Body() dto: { mfaToken: string; code: string }, @Req() req: any) {
