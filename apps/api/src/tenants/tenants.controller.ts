@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -43,18 +43,27 @@ export class TenantsController {
         // Fix 5: allow penaltyRatePerDay to be configured per-tenant via superadmin panel
         @Body() data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number },
     ) {
+        if (id === user.tenantId) {
+            throw new BadRequestException('Cannot modify the platform organization.');
+        }
         return this.tenantsService.update(id, data, user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Put(':id/suspend')
     suspend(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        if (id === user.tenantId) {
+            throw new BadRequestException('Cannot suspend the platform organization.');
+        }
         return this.tenantsService.setStatus(id, 'SUSPENDED', user.sub);
     }
 
     @Roles('SUPERADMIN')
     @Put(':id/activate')
     activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        if (id === user.tenantId) {
+            throw new BadRequestException('Cannot modify the platform organization.');
+        }
         return this.tenantsService.setStatus(id, 'ACTIVE', user.sub);
     }
 
@@ -62,6 +71,9 @@ export class TenantsController {
     @Roles('SUPERADMIN')
     @Delete(':id')
     remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        if (id === user.tenantId) {
+            throw new BadRequestException('Cannot remove the platform organization.');
+        }
         return this.tenantsService.remove(id, user.sub);
     }
 
@@ -69,6 +81,9 @@ export class TenantsController {
     @Roles('SUPERADMIN')
     @Delete(':id/hard')
     hardDelete(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+        if (id === user.tenantId) {
+            throw new BadRequestException('Cannot delete the platform organization.');
+        }
         return this.tenantsService.hardDelete(id, user.sub);
     }
 
