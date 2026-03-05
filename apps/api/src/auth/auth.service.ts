@@ -83,7 +83,6 @@ export class AuthService {
       where: { email: loginDto.email },
       include: { tenant: { select: { status: true, name: true } } }
     });
-    console.log('[DEBUG] Login attempt:', { email: loginDto.email, found: !!user, isActive: user?.isActive, tenantStatus: user?.tenant?.status });
 
     // ── User not found — generic error, equal timing ─────────────────────
     if (!user) {
