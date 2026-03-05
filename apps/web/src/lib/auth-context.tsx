@@ -23,12 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem('accessToken');
-        if (!token) {
-            setLoading(false);
-            return;
-        }
-
         api.get('/auth/me')
             .then(res => setUser(res.data))
             .catch(() => setUser(null))
