@@ -9,7 +9,9 @@ import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar } from 'lucide-react';
 
-const ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
+const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
+// Platform team can hold any tenant-equivalent role; they operate against platform data
+const PLATFORM_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
 const ROLE_COLORS: Record<string, string> = {
     ADMIN: 'bg-indigo-100 text-indigo-700 shadow-sm',
     FINANCE: 'bg-purple-100 text-purple-700 shadow-sm',
@@ -29,6 +31,7 @@ interface TeamMember {
 
 export default function UsersPage() {
     const { showToast } = useToast();
+    const [currentUserRole, setCurrentUserRole] = useState<string>('');
     const [users, setUsers] = useState<TeamMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,11 +39,18 @@ export default function UsersPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
 
+    const isSuperAdmin = currentUserRole === 'SUPERADMIN';
+    const ROLES = isSuperAdmin ? PLATFORM_ROLES : TENANT_ROLES;
+
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await api.get('/users');
-            setUsers(res.data);
+            const [meRes, usersRes] = await Promise.all([
+                api.get('/auth/me'),
+                api.get('/users'),
+            ]);
+            setCurrentUserRole(meRes.data.role);
+            setUsers(usersRes.data);
         } catch {
             showToast('Failed to load team members', 'error');
         } finally {
@@ -96,9 +106,14 @@ export default function UsersPage() {
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Users className="text-indigo-600" size={32} /> Human Capital Register
+                        <Users className="text-indigo-600" size={32} />
+                        {isSuperAdmin ? 'Platform Team' : 'Team Members'}
                     </h1>
-                    <p className="text-slate-500 font-medium mt-1">Manage organizational hierarchy and distributed access permissions</p>
+                    <p className="text-slate-500 font-medium mt-1">
+                        {isSuperAdmin
+                            ? 'Manage your platform operations staff — FinOps, CX, Sales, Marketing'
+                            : 'Manage your organization staff and their access roles'}
+                    </p>
                 </div>
                 <Button
                     onClick={() => setIsModalOpen(true)}

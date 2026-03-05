@@ -13,13 +13,15 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
 
-    @Roles('ADMIN')
+    // SUPERADMIN manages their platform operations team (finOps, CX, Sales etc.)
+    // ADMIN manages their tenant's team — both scoped to their own tenantId via JWT
+    @Roles('ADMIN', 'SUPERADMIN')
     @Get()
     findAll(@CurrentUser() user: JwtPayload) {
         return this.usersService.findAll(user.tenantId);
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @CheckQuota('users')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
@@ -30,13 +32,13 @@ export class UsersController {
         }, user.sub);
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.usersService.remove(user.tenantId, id, user.sub);
     }
 
-    @Roles('ADMIN')
+    @Roles('ADMIN', 'SUPERADMIN')
     @Put(':id/role')
     updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: { role: string }) {
         return this.usersService.updateRole(user.tenantId, id, body.role, user.sub);

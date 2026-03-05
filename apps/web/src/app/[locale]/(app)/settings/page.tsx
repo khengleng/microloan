@@ -3,14 +3,122 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Input } from '@/components/ui/input';
-import { Building2, MessageSquare, Save, Settings, Loader2, CreditCard, Link2, Zap, ShieldCheck, ExternalLink } from 'lucide-react';
+import {
+    Building2, MessageSquare, Save, Loader2, CreditCard,
+    Link2, Zap, ShieldCheck, ExternalLink, Globe, Key, Users, Server
+} from 'lucide-react';
 import { MfaSetup } from '@/components/auth/mfa-setup';
 import { useToast } from '@/components/ui/toast';
 
 const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
 const labelCls = "block text-sm font-medium text-foreground mb-1";
 
-export default function SettingsPage() {
+/** ── SUPERADMIN: Platform-level configuration panel ────────────────────── */
+function PlatformSettings() {
+    const { showToast } = useToast();
+    return (
+        <div className="max-w-4xl space-y-6">
+            <div>
+                <h1 className="text-xl font-bold text-foreground">Platform Settings & Billing</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                    Configure platform-wide defaults. Tenant billing is managed per-tenant from the Organizations page.
+                </p>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-5">
+                    {/* Platform info */}
+                    <div className="bg-white border border-border rounded-md">
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+                            <Globe size={16} className="text-primary" />
+                            <div>
+                                <h3 className="text-sm font-bold text-foreground">Platform Identity</h3>
+                                <p className="text-xs text-muted-foreground">Global platform settings for all tenant organizations.</p>
+                            </div>
+                        </div>
+                        <div className="px-5 py-5 space-y-4">
+                            <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                                <div>
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Platform Role</p>
+                                    <p className="text-sm font-bold text-foreground">SUPERADMIN</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Access Level</p>
+                                    <p className="text-sm font-bold text-emerald-600">Full Platform Control</p>
+                                </div>
+                            </div>
+                            <div className="flex items-start gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-sm">
+                                <Server size={16} className="text-indigo-500 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="font-semibold text-indigo-800">Tenant Billing Management</p>
+                                    <p className="text-indigo-600 text-xs mt-0.5">
+                                        To upgrade, suspend, or change a tenant's subscription plan, go to{' '}
+                                        <strong>Organizations</strong> → select the tenant → Edit Org.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Platform quick actions */}
+                    <div className="bg-white border border-border rounded-md">
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+                            <Key size={16} className="text-primary" />
+                            <div>
+                                <h3 className="text-sm font-bold text-foreground">Platform Management</h3>
+                                <p className="text-xs text-muted-foreground">Quick links to platform operations.</p>
+                            </div>
+                        </div>
+                        <div className="px-5 py-4 space-y-3">
+                            <a
+                                href="../tenants"
+                                className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 transition-colors group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Building2 size={15} className="text-muted-foreground" />
+                                    <div>
+                                        <p className="text-sm font-semibold text-foreground">Manage Organizations</p>
+                                        <p className="text-xs text-muted-foreground">Register tenants, update plans, suspend access</p>
+                                    </div>
+                                </div>
+                                <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                            </a>
+                            <a
+                                href="../users"
+                                className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 transition-colors group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Users size={15} className="text-muted-foreground" />
+                                    <div>
+                                        <p className="text-sm font-semibold text-foreground">Manage Platform Team</p>
+                                        <p className="text-xs text-muted-foreground">Add FinOps, CX, Sales, and Marketing staff</p>
+                                    </div>
+                                </div>
+                                <ExternalLink size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right — MFA */}
+                <div className="space-y-5">
+                    <MfaSetup />
+                    <div className="bg-white border border-border rounded-md px-5 py-4">
+                        <h4 className="text-sm font-bold text-foreground mb-1 flex items-center gap-2">
+                            <ShieldCheck size={14} className="text-emerald-500" /> Platform Security
+                        </h4>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            As SUPERADMIN your account has global access. Enable MFA to protect your credentials.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** ── Tenant ADMIN: existing settings flow ──────────────────────────────── */
+function TenantSettings() {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -45,7 +153,6 @@ export default function SettingsPage() {
         }
     };
 
-    // Fix 4: Open Stripe Customer Portal to manage / cancel subscription
     const handleManageSubscription = async () => {
         try {
             const res = await api.post('/billing/portal');
@@ -69,7 +176,6 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
-                {/* Left column — forms */}
                 <div className="lg:col-span-2 space-y-5">
                     <form onSubmit={handleSave} className="space-y-5">
                         {/* Organization */}
@@ -103,24 +209,20 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                             <div className="px-5 py-4 space-y-3">
-                                <div>
-                                    <label htmlFor="tgToken" className={labelCls}>Bot Token</label>
-                                    <input
-                                        id="tgToken"
-                                        type="password"
-                                        autoComplete="off"
-                                        className={fieldCls}
-                                        placeholder="Paste your bot token..."
-                                        value={settings.telegramBotToken || ''}
-                                        onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
-                                    />
-                                </div>
+                                <label htmlFor="tgToken" className={labelCls}>Bot Token</label>
+                                <input
+                                    id="tgToken"
+                                    type="password"
+                                    autoComplete="off"
+                                    className={fieldCls}
+                                    placeholder="Paste your bot token..."
+                                    value={settings.telegramBotToken || ''}
+                                    onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
+                                />
                                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                                     <Link2 size={12} />
                                     Get your token from{' '}
-                                    <a href="https://t.me/BotFather" target="_blank" className="text-primary hover:underline">
-                                        @BotFather
-                                    </a>{' '}
+                                    <a href="https://t.me/BotFather" target="_blank" className="text-primary hover:underline">@BotFather</a>{' '}
                                     on Telegram.
                                 </p>
                             </div>
@@ -167,7 +269,6 @@ export default function SettingsPage() {
                                         >
                                             Upgrade to Enterprise
                                         </button>
-                                        {/* Fix 4: Stripe Customer Portal for plan change / cancellation */}
                                         <button
                                             onClick={handleManageSubscription}
                                             className="flex items-center justify-center gap-1.5 border border-white/20 text-white/80 font-medium text-xs px-5 py-1.5 rounded hover:bg-white/10 transition-colors"
@@ -186,7 +287,6 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                {/* Right column — MFA */}
                 <div className="space-y-5">
                     <MfaSetup />
                     <div className="bg-white border border-border rounded-md px-5 py-4">
@@ -199,4 +299,21 @@ export default function SettingsPage() {
             </div>
         </div>
     );
+}
+
+/** ── Root: detect role and render the right panel ─────────────────────── */
+export default function SettingsPage() {
+    const [role, setRole] = useState<string | null>(null);
+
+    useEffect(() => {
+        api.get('/auth/me').then(res => setRole(res.data.role));
+    }, []);
+
+    if (!role) return (
+        <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
+            <Loader2 className="animate-spin mr-2" size={16} /> Loading...
+        </div>
+    );
+
+    return role === 'SUPERADMIN' ? <PlatformSettings /> : <TenantSettings />;
 }

@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
-    Menu, X, ChevronRight
+    Menu, X, ChevronRight, Globe
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 
@@ -87,8 +87,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <>
                             {navSection('Platform')}
                             {navItem('/tenants', 'Organizations', Building)}
-                            {navItem('/users', 'Team', UserCog)}
+                            {navItem('/users', 'Platform Team', UserCog)}
                             {navItem('/audit', 'Audit Log', Shield)}
+                            {navSection('Configuration')}
+                            {navItem('/settings', 'Settings & Billing', Settings)}
                         </>
                     )}
 
