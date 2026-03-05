@@ -38,8 +38,8 @@ export default function DashboardPage() {
         setIsMounted(true);
         const fetchData = async () => {
             try {
-                // Guard: SUPERADMIN has no tenant data — redirect to platform view
-                if (user?.role === 'SUPERADMIN') {
+                // Guard: Platform staff have no microfinance data — redirect to platform view
+                if (user?.isPlatform) {
                     router.replace(`/${locale}/tenants`);
                     return;
                 }

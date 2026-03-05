@@ -9,6 +9,7 @@ interface AuthUser {
     role: string;
     tenantId: string;
     tenantName: string;
+    isPlatform: boolean;
 }
 
 interface AuthContextValue {

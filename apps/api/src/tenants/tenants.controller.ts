@@ -6,36 +6,38 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+import { PlatformGuard } from '../auth/platform.guard';
+
+@UseGuards(JwtAuthGuard, RolesGuard, PlatformGuard)
 @Controller('tenants')
 export class TenantsController {
     constructor(private readonly tenantsService: TenantsService) { }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES')
     @Get('stats/platform')
     platformStats() {
         return this.tenantsService.platformStats();
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
     @Get()
     findAll() {
         return this.tenantsService.findAll();
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.tenantsService.findOne(id);
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN', 'SALES')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() data: { name: string }) {
         return this.tenantsService.create(data, user.sub);
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Put(':id')
     update(
         @Param('id') id: string,
@@ -49,7 +51,7 @@ export class TenantsController {
         return this.tenantsService.update(id, data, user.sub);
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Put(':id/suspend')
     suspend(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
         if (id === user.tenantId) {
@@ -58,7 +60,7 @@ export class TenantsController {
         return this.tenantsService.setStatus(id, 'SUSPENDED', user.sub);
     }
 
-    @Roles('SUPERADMIN')
+    @Roles('SUPERADMIN', 'ADMIN')
     @Put(':id/activate')
     activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
         if (id === user.tenantId) {
@@ -87,8 +89,8 @@ export class TenantsController {
         return this.tenantsService.hardDelete(id, user.sub);
     }
 
-    // SUPERADMIN user management (for PaaS team)
-    @Roles('SUPERADMIN')
+    // Platform user management
+    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
     @Get(':id/users')
     tenantUsers(@Param('id') id: string) {
         return this.tenantsService.getTenantUsers(id);

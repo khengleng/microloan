@@ -18,6 +18,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
     const role = user?.role;
     const isSuperAdmin = role === 'SUPERADMIN';
+    const isPlatform = user?.isPlatform;
     const isAdmin = role === 'ADMIN' || isSuperAdmin;
     const isFinance = role === 'FINANCE' || isAdmin;
     const isSales = role === 'SALES' || isAdmin;
@@ -73,20 +74,23 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
                 {/* Nav */}
                 <nav className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
-                    {isSuperAdmin && (
+                    {isPlatform ? (
                         <>
-                            {navSection('Platform')}
+                            {navSection('Platform Operations')}
                             {navItem('/tenants', 'Organizations', Building)}
-                            {navItem('/users', 'Platform Team', UserCog)}
-                            {navItem('/audit', 'Audit Log', Shield)}
-                            {navSection('Configuration')}
-                            {navItem('/settings', 'Settings & Billing', Settings)}
-                        </>
-                    )}
 
-                    {!isSuperAdmin && (
+                            {isAdmin && (
+                                <>
+                                    {navItem('/users', 'Platform Team', UserCog)}
+                                    {navItem('/audit', 'Audit Log', Shield)}
+                                    {navSection('Configuration')}
+                                    {navItem('/settings', 'Settings & Billing', Settings)}
+                                </>
+                            )}
+                        </>
+                    ) : (
                         <>
-                            {navSection('Operations')}
+                            {navSection('Lending Operations')}
                             {navItem('/dashboard', 'Dashboard', LayoutDashboard)}
                             {(isSales || isFinance) && navItem('/borrowers', 'Borrowers', Users)}
                             {(isSales || isFinance) && navItem('/loans', 'Loans', FileText)}
@@ -97,7 +101,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
                             {isAdmin && (
                                 <>
-                                    {navSection('Admin')}
+                                    {navSection('Business Settings')}
                                     {navItem('/users', 'Team Members', UserCog)}
                                     {navItem('/audit', 'Audit Log', Shield)}
                                     {navItem('/settings', 'Settings', Settings)}

@@ -39,9 +39,9 @@ export default function LoginPage() {
                 setMfaStep(true);
                 return;
             }
-            // Redirect SUPERADMIN to platform view; everyone else to dashboard
+            // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me', { headers: { Authorization: `Bearer ${data.accessToken ?? ''}` } }).then(r => r.json()).catch(() => ({}));
-            router.push(me?.role === 'SUPERADMIN' ? `/${locale}/tenants` : `/${locale}/dashboard`);
+            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
             setError('Unable to connect to service.');
         } finally {
@@ -64,9 +64,9 @@ export default function LoginPage() {
                 setError(data?.message || 'Invalid verification code.');
                 return;
             }
-            // Redirect SUPERADMIN to platform view; everyone else to dashboard
+            // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me').then(r => r.json()).catch(() => ({}));
-            router.push(me?.role === 'SUPERADMIN' ? `/${locale}/tenants` : `/${locale}/dashboard`);
+            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
             setError('MFA validation failure.');
         } finally {

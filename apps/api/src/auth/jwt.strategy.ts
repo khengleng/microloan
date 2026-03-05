@@ -11,6 +11,7 @@ export type JwtPayload = {
   tenantId: string;
   tenantName?: string;
   tenantPlan?: string;     // Added for quota checking
+  isPlatform?: boolean;
 };
 
 @Injectable()
@@ -63,6 +64,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User account is suspended or no longer exists.');
     }
 
+    // Identify if this user belongs to the SaaS Platform team or a client Tenant
+    const superadmin = await this.prisma.user.findFirst({
+      where: { role: 'SUPERADMIN' },
+      select: { tenantId: true },
+    });
+    const isPlatform = payload.tenantId === superadmin?.tenantId;
+
     return {
       id: payload.sub,
       sub: payload.sub,
@@ -71,6 +79,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenantId: payload.tenantId,
       tenantName: payload.tenantName,
       tenantPlan: tenant.plan,
+      isPlatform,
     };
   }
 }
