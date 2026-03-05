@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class TenantsService {
@@ -61,8 +62,22 @@ export class TenantsService {
         });
     }
 
-    async create(data: { name: string }, actorId?: string) {
-        const tenant = await this.prisma.tenant.create({ data });
+    async create(data: { name: string; adminEmail?: string; adminPassword?: string }, actorId?: string) {
+        const tenant = await this.prisma.tenant.create({ data: { name: data.name } });
+
+        if (data.adminEmail && data.adminPassword) {
+            const salt = await bcrypt.genSalt();
+            const hash = await bcrypt.hash(data.adminPassword, salt);
+            await this.prisma.user.create({
+                data: {
+                    tenantId: tenant.id,
+                    email: data.adminEmail,
+                    passwordHash: hash,
+                    role: 'ADMIN',
+                }
+            });
+        }
+
         await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
             name: tenant.name,
             event: 'TENANT_CREATED',
@@ -82,9 +97,12 @@ export class TenantsService {
     }
 
     async setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED', actorId?: string) {
-        const tenant = await this.prisma.tenant.update({
+        const tenant = await (this.prisma.tenant.update as any)({
             where: { id },
-            data: { status },
+            data: {
+                status,
+                ...(status === 'ACTIVE' ? { deletedAt: null } : {})
+            },
         });
         await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
             name: tenant.name,
@@ -120,7 +138,7 @@ export class TenantsService {
      * SUPERADMIN only. Irreversible.
      */
     async hardDelete(id: string, actorId: string) {
-        const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+        const tenant = await this.prisma.tenant.findUnique({ where: { id } }) as any;
         if (!tenant) throw new BadRequestException('Tenant not found');
         if (!tenant.deletedAt) {
             throw new BadRequestException(

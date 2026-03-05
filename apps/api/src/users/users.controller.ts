@@ -35,7 +35,9 @@ export class UsersController {
     @Roles('ADMIN', 'SUPERADMIN')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-        return this.usersService.remove(user.tenantId, id, user.sub);
+        // SUPERADMIN can purge any user globally; ADMIN is restricted to their own tenant
+        const tenantId = user.role === 'SUPERADMIN' ? null : user.tenantId;
+        return this.usersService.remove(tenantId, id, user.sub);
     }
 
     @Roles('ADMIN', 'SUPERADMIN')

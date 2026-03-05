@@ -56,9 +56,13 @@ export default function TenantsPage() {
     const [statusFilter, setStatus] = useState('ALL');
     const [isModalOpen, setModal] = useState(false);
     const [editTenant, setEdit] = useState<Tenant | null>(null);
-    const [form, setForm] = useState({ name: '', plan: 'FREE' });
+    const [form, setForm] = useState({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' });
     const [submitting, setSub] = useState(false);
     const [menuOpen, setMenu] = useState<string | null>(null);
+    const [selectedTenantUsers, setSelectedTenantUsers] = useState<any[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [isUsersModalOpen, setUsersModalOpen] = useState(false);
+    const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
 
     const fetchAll = async () => {
         setLoading(true);
@@ -86,10 +90,15 @@ export default function TenantsPage() {
                 await api.put(`/tenants/${editTenant.id}`, { name: form.name, plan: form.plan });
                 showToast('Organization updated', 'success');
             } else {
-                await api.post('/tenants', { name: form.name });
-                showToast('Organization registered', 'success');
+                await api.post('/tenants', {
+                    name: form.name,
+                    adminEmail: form.adminEmail,
+                    adminPassword: form.adminPassword
+                });
+                showToast('Organization registered with Admin access', 'success');
             }
             setModal(false);
+            setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' });
             fetchAll();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Operation failed', 'error');
@@ -134,9 +143,41 @@ export default function TenantsPage() {
 
     const handleEdit = (t: Tenant) => {
         setEdit(t);
-        setForm({ name: t.name, plan: t.plan });
+        setForm({ name: t.name, plan: t.plan, adminEmail: '', adminPassword: '' });
         setModal(true);
         setMenu(null);
+    };
+
+    const handleViewUsers = async (t: Tenant) => {
+        setViewingTenant(t);
+        setUsersModalOpen(true);
+        setLoadingUsers(true);
+        try {
+            const res = await api.get(`/tenants/${t.id}/users`);
+            setSelectedTenantUsers(res.data);
+        } catch {
+            showToast('Failed to load tenant users', 'error');
+        } finally {
+            setLoadingUsers(false);
+        }
+        setMenu(null);
+    };
+
+    const handlePurgeUser = async (user: any) => {
+        const ok = await confirm({
+            title: `Purge Operator?`,
+            message: `Are you sure you want to irreversibly purge ${user.email}? This action cannot be undone.`,
+            confirmLabel: 'Purge',
+            variant: 'danger',
+        });
+        if (!ok) return;
+        try {
+            await api.delete(`/users/${user.id}`);
+            showToast('User purged from environment', 'success');
+            handleViewUsers(viewingTenant!);
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to purge user', 'error');
+        }
     };
 
     const filtered = tenants.filter(t => {
@@ -156,7 +197,7 @@ export default function TenantsPage() {
                     <p className="text-slate-500 font-medium mt-1">Global oversight of all tenant organizations and distributed assets</p>
                 </div>
                 <Button
-                    onClick={() => { setEdit(null); setForm({ name: '', plan: 'FREE' }); setModal(true); }}
+                    onClick={() => { setEdit(null); setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' }); setModal(true); }}
                     className="rounded-2xl font-black px-8 h-12 bg-slate-950 text-white hover:bg-slate-800 shadow-lg shadow-slate-950/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
                     <Plus size={18} />
@@ -281,6 +322,9 @@ export default function TenantsPage() {
                                             <button onClick={() => handleEdit(tenant)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex items-center gap-3 text-slate-700">
                                                 <Edit2 size={14} /> Edit Org Logic
                                             </button>
+                                            <button onClick={() => handleViewUsers(tenant)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex items-center gap-3 text-slate-700">
+                                                <Users size={14} /> Manage Operators
+                                            </button>
                                             {tenant.status === 'ACTIVE' ? (
                                                 <button onClick={() => handleSuspend(tenant)} className="w-full text-left px-5 py-3 hover:bg-rose-50 flex items-center gap-3 text-rose-600">
                                                     <Ban size={14} /> Suspend Instance
@@ -350,19 +394,49 @@ export default function TenantsPage() {
                                 className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-5"
                             />
                         </div>
-                        {editTenant && (
-                            <div className="space-y-3">
-                                <Label htmlFor="org-plan" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Subscription Matrix</Label>
-                                <div className="relative">
-                                    <select
-                                        id="org-plan"
-                                        value={form.plan}
-                                        onChange={e => setForm({ ...form, plan: e.target.value })}
-                                        className="w-full h-14 pl-5 pr-10 appearance-none text-sm font-black border border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
-                                    >
-                                        {PLANS.map(p => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                        <div className="space-y-3">
+                            <Label htmlFor="org-plan" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Subscription Matrix</Label>
+                            <div className="relative">
+                                <select
+                                    id="org-plan"
+                                    value={form.plan}
+                                    onChange={e => setForm({ ...form, plan: e.target.value })}
+                                    className="w-full h-14 pl-5 pr-10 appearance-none text-sm font-black border border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
+                                >
+                                    {PLANS.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                            </div>
+                        </div>
+
+                        {!editTenant && (
+                            <div className="space-y-6 pt-4 border-t border-slate-100">
+                                <div className="flex items-center gap-2 text-indigo-600">
+                                    <ShieldCheck size={18} />
+                                    <h4 className="text-sm font-black uppercase tracking-widest">Initial Admin User</h4>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">Admin Email</Label>
+                                        <Input
+                                            value={form.adminEmail}
+                                            onChange={e => setForm({ ...form, adminEmail: e.target.value })}
+                                            placeholder="admin@tenant.com"
+                                            className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
+                                            required={!editTenant}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">Admin Password</Label>
+                                        <Input
+                                            type="password"
+                                            value={form.adminPassword}
+                                            onChange={e => setForm({ ...form, adminPassword: e.target.value })}
+                                            placeholder="••••••••"
+                                            className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
+                                            required={!editTenant}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -374,6 +448,68 @@ export default function TenantsPage() {
                             <Button type="button" variant="ghost" onClick={() => setModal(false)} className="h-12 rounded-2xl font-bold text-slate-400 hover:text-slate-600">Dismiss</Button>
                         </div>
                     </form>
+                </DialogContent>
+            </Dialog>
+            {/* Users Modal */}
+            <Dialog open={isUsersModalOpen} onOpenChange={setUsersModalOpen}>
+                <DialogContent className="max-w-3xl rounded-[2.5rem] border-none shadow-2xl overflow-hidden p-0 bg-slate-50">
+                    <div className="bg-white p-8 border-b border-slate-100">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                                <Users className="text-indigo-600" size={28} />
+                                {viewingTenant?.name} Operators
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-500 font-medium">
+                                Manage administrative access for this organization environment.
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+
+                    <div className="p-8 max-h-[50vh] overflow-y-auto">
+                        {loadingUsers ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+                                <Loader2 className="animate-spin" size={24} />
+                                <span className="text-xs font-black uppercase tracking-widest">Hydrating Team...</span>
+                            </div>
+                        ) : selectedTenantUsers.length === 0 ? (
+                            <div className="text-center py-12">
+                                <p className="text-slate-400 font-medium">No operators found for this tenant.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {selectedTenantUsers.map(u => (
+                                    <div key={u.id} className="bg-white p-5 rounded-3xl flex items-center justify-between border border-slate-100 premium-shadow-sm">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-indigo-600 font-black">
+                                                {u.email.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-900 tracking-tight">{u.email}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{u.role}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handlePurgeUser(u)}
+                                            className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                                            title="Purge Operator"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-8 bg-white border-t border-slate-100 flex justify-end">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setUsersModalOpen(false)}
+                            className="h-12 rounded-2xl font-black px-8 text-slate-400 hover:text-slate-900"
+                        >
+                            Done
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

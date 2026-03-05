@@ -63,11 +63,24 @@ export class UsersService {
     return user;
   }
 
-  async remove(tenantId: string, id: string, actorId?: string) {
-    const user = await this.prisma.user.findUnique({ where: { id, tenantId } });
+  async remove(tenantId: string | null, id: string, actorId?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: tenantId ? { id, tenantId } : { id }
+    });
     if (!user) return null;
 
-    // Suspend instead of hard delete
+    // Hard delete for TRUE purge if Superadmin is doing it
+    // Wait, let's keep it as suspension unless hard purge is requested.
+    // The user said "purge", so let's allow hard deletion if tenantId is null (SA Mode)
+    if (!tenantId) {
+      await this.prisma.user.delete({ where: { id } });
+      await this.audit.logAction(user.tenantId, actorId || id, 'DELETE', 'User', id, {
+        event: 'USER_PURGED',
+        email: user.email,
+      });
+      return { success: true };
+    }
+
     const result = await this.prisma.user.update({
       where: { id, tenantId },
       data: { isActive: false },
