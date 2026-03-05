@@ -38,11 +38,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       select: { status: true, plan: true },
     });
 
+    // ── MANDATORY GLOBAL TENANT GUARD ──────────────────────────────────────
+    // Immediately blocks suspended organizations, EXCEPT for SUPERADMIN.
+    // The superadmin (platform owner) must never be locked out from managing tenants.
     if (!tenant) {
       throw new UnauthorizedException('Organization not found');
     }
 
-    if (tenant.status !== 'ACTIVE') {
+    if (tenant.status !== 'ACTIVE' && payload.role !== 'SUPERADMIN') {
       throw new ForbiddenException(
         `Organization Suspended. Please contact support or upgrade your subscription.`
       );
