@@ -1,143 +1,276 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Download, FileText, BarChart2, Users, ShieldCheck, Activity } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { useAuth } from '@/lib/auth-context';
+import { ReportFilters } from '@/components/reports/ReportFilters';
+import { ReportTabs } from '@/components/reports/ReportTabs';
+import { BorrowersReport } from '@/components/reports/BorrowersReport';
+import { CollectionsReport } from '@/components/reports/CollectionsReport';
+import { LoanPortfolioReport } from '@/components/reports/LoanPortfolioReport';
+import { OverviewDashboard } from '@/components/reports/OverviewDashboard';
+import { RiskReport } from '@/components/reports/RiskReport';
+import { OptionItem, ReportFilters as ReportFiltersType, ReportResponse, ReportTabKey } from '@/components/reports/types';
 
-const EXPORTS = [
-    {
-        title: 'Loan Portfolio',
-        description: 'All active and closed loans with principal, interest rate, term, method, and status.',
-        endpoint: 'loan-book',
-        filename: 'loan_book.csv',
-        Icon: FileText,
-        iconCls: 'text-primary bg-primary/10',
-    },
-    {
-        title: 'Collections & Repayments',
-        description: 'Full repayment history — principal recovered, interest paid, and dates for every transaction.',
-        endpoint: 'repayments',
-        filename: 'repayments.csv',
-        Icon: Activity,
-        iconCls: 'text-[#006644] bg-[#E3FCEF]',
-    },
+const DEFAULT_FILTERS: ReportFiltersType = {
+  page: 1,
+  limit: 20,
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+  currency: 'USD',
+};
+
+const STATUS_OPTIONS: OptionItem[] = [
+  { label: 'Pending', value: 'PENDING' },
+  { label: 'Approved', value: 'APPROVED' },
+  { label: 'Disbursed', value: 'DISBURSED' },
+  { label: 'Closed', value: 'CLOSED' },
+  { label: 'Defaulted', value: 'DEFAULTED' },
+  { label: 'On Time', value: 'ON_TIME' },
+  { label: 'Late', value: 'LATE' },
+  { label: 'Active', value: 'ACTIVE' },
+  { label: 'Inactive', value: 'INACTIVE' },
 ];
 
-const EXCEL_EXPORTS = [
-    {
-        title: 'Loans (Excel)',
-        description: 'Loan portfolio in Excel format for spreadsheet analysis.',
-        endpoint: '/exports/loans/excel',
-        filename: 'loans.xlsx',
-        Icon: BarChart2,
-        iconCls: 'text-[#006644] bg-[#E3FCEF]',
-    },
-    {
-        title: 'Borrowers (Excel)',
-        description: 'Full borrower registry with contact details and ID numbers.',
-        endpoint: '/exports/borrowers',
-        filename: 'borrowers.xlsx',
-        Icon: Users,
-        iconCls: 'text-[#974F0C] bg-[#FFFAE6]',
-    },
+const RISK_OPTIONS: OptionItem[] = [
+  { label: 'Low', value: 'Low' },
+  { label: 'Medium', value: 'Medium' },
+  { label: 'High', value: 'High' },
+  { label: 'Critical', value: 'Critical' },
 ];
+
+function endpoint(tab: ReportTabKey) {
+  if (tab === 'overview') return 'overview';
+  if (tab === 'loan-portfolio') return 'loan-portfolio';
+  if (tab === 'collections') return 'collections';
+  if (tab === 'borrowers') return 'borrowers';
+  return 'risk';
+}
+
+function exportEndpoint(tab: ReportTabKey) {
+  if (tab === 'loan-portfolio') return 'loan-portfolio';
+  if (tab === 'collections') return 'collections';
+  if (tab === 'borrowers') return 'borrowers';
+  if (tab === 'risk') return 'risk';
+  return null;
+}
+
+function clean(filters: ReportFiltersType) {
+  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== undefined && value !== ''));
+}
 
 export default function ReportsPage() {
-    const { showToast } = useToast();
+  const t = useTranslations('Reports');
+  const { showToast } = useToast();
+  const { user } = useAuth();
 
-    const handleCsvDownload = async (endpoint: string, filename: string) => {
-        try {
-            const res = await api.get(`/reports/${endpoint}`, { responseType: 'blob' });
-            trigger(res.data, filename);
-            showToast(`${filename} downloaded`, 'success');
-        } catch { showToast('Download failed', 'error'); }
-    };
+  const [activeTab, setActiveTab] = useState<ReportTabKey>('overview');
+  const [filters, setFilters] = useState<ReportFiltersType>(DEFAULT_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ReportFiltersType>(DEFAULT_FILTERS);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<ReportResponse | null>(null);
 
-    const handleExcelDownload = async (endpoint: string, filename: string) => {
-        try {
-            const res = await api.get(endpoint, { responseType: 'blob' });
-            trigger(res.data, filename);
-            showToast(`${filename} downloaded`, 'success');
-        } catch { showToast('Download failed', 'error'); }
-    };
+  const [branches, setBranches] = useState<OptionItem[]>([]);
+  const [officers, setOfficers] = useState<OptionItem[]>([]);
+  const [products, setProducts] = useState<OptionItem[]>([]);
+  const [borrowers, setBorrowers] = useState<OptionItem[]>([]);
 
-    const trigger = (data: Blob, filename: string) => {
-        const url = window.URL.createObjectURL(new Blob([data]));
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        window.URL.revokeObjectURL(url);
-    };
+  const isBorrower = user?.role === 'BORROWER';
 
-    return (
-        <div className="max-w-4xl space-y-6">
-            <div>
-                <h1 className="text-xl font-bold text-foreground">Reports & Exports</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">Download financial data for analysis, auditing, or reporting.</p>
-            </div>
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [usersRes, productsRes, borrowersRes] = await Promise.all([
+        api.get('/users').catch(() => ({ data: [] })),
+        api.get('/loan-products').catch(() => ({ data: [] })),
+        api.get('/borrowers', { params: { page: 1, limit: 200 } }).catch(() => ({ data: { data: [] } })),
+      ]);
 
-            {/* CSV Reports */}
-            <div>
-                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">CSV Reports</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {EXPORTS.map(exp => (
-                        <div key={exp.endpoint} className="bg-white border border-border rounded-md p-5 flex flex-col gap-3">
-                            <div className="flex items-start gap-3">
-                                <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${exp.iconCls}`}>
-                                    <exp.Icon size={16} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-foreground">{exp.title}</h3>
-                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{exp.description}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => handleCsvDownload(exp.endpoint, exp.filename)}
-                                className="btn-ghost text-sm w-full justify-center"
-                            >
-                                <Download size={14} /> Download CSV
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+      const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
+      const productsData = Array.isArray(productsRes.data) ? productsRes.data : [];
+      const borrowersData = Array.isArray(borrowersRes.data?.data) ? borrowersRes.data.data : [];
 
-            {/* Excel Reports */}
-            <div>
-                <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">Excel Reports</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {EXCEL_EXPORTS.map(exp => (
-                        <div key={exp.endpoint} className="bg-white border border-border rounded-md p-5 flex flex-col gap-3">
-                            <div className="flex items-start gap-3">
-                                <div className={`w-9 h-9 rounded flex items-center justify-center flex-shrink-0 ${exp.iconCls}`}>
-                                    <exp.Icon size={16} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-foreground">{exp.title}</h3>
-                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{exp.description}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => handleExcelDownload(exp.endpoint, exp.filename)}
-                                className="btn-primary text-sm w-full justify-center"
-                            >
-                                <Download size={14} /> Download Excel
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+      const branchSet = new Map<string, string>();
+      for (const u of usersData as Array<{ branchId?: string | null }>) {
+        if (u.branchId) {
+          branchSet.set(u.branchId, u.branchId);
+        }
+      }
 
-            {/* Info */}
-            <div className="bg-white border border-border rounded-md p-4 flex items-start gap-3">
-                <ShieldCheck size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
-                <div>
-                    <h4 className="text-sm font-bold text-foreground mb-0.5">Scheduled Reports</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                        Monthly performance summaries and risk exposure reports are generated automatically on the 1st of each month. For custom data requests, contact your administrator.
-                    </p>
-                </div>
-            </div>
+      setOfficers(usersData.map((u: { id: string; email: string }) => ({ value: u.id, label: u.email })));
+      setProducts(productsData.map((p: { id: string; name: string }) => ({ value: p.id, label: p.name })));
+      setBorrowers(borrowersData.map((b: { id: string; firstName: string; lastName: string }) => ({ value: b.id, label: `${b.firstName} ${b.lastName}`.trim() })));
+      setBranches(Array.from(branchSet.entries()).map(([value, label]) => ({ value, label })));
+    } catch {
+      // Non-blocking: filters can still be applied with date/search/status.
+    }
+  }, []);
+
+  const loadReport = useCallback(async (tab: ReportTabKey, query: ReportFiltersType) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/reports/${endpoint(tab)}`, { params: clean(query) });
+      setData(res.data);
+    } catch (e: any) {
+      setData(null);
+      const message = e?.response?.data?.message || 'Unable to load report data for selected filters.';
+      setError(Array.isArray(message) ? message[0] : message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
+
+  useEffect(() => {
+    loadReport(activeTab, appliedFilters);
+  }, [activeTab, appliedFilters, loadReport]);
+
+  const onApply = () => setAppliedFilters(filters);
+
+  const onReset = () => {
+    setFilters(DEFAULT_FILTERS);
+    setAppliedFilters(DEFAULT_FILTERS);
+  };
+
+  const onSort = (key: string) => {
+    const nextOrder: 'asc' | 'desc' = filters.sortBy === key && filters.sortOrder === 'asc' ? 'desc' : 'asc';
+    const next = { ...filters, sortBy: key, sortOrder: nextOrder, page: 1 };
+    setFilters(next);
+    setAppliedFilters(next);
+  };
+
+  const onPageChange = (page: number) => {
+    const next = { ...filters, page };
+    setFilters(next);
+    setAppliedFilters(next);
+  };
+
+  const onExport = async (format: 'csv' | 'xlsx') => {
+    const exp = exportEndpoint(activeTab);
+    if (!exp) return;
+
+    try {
+      const res = await api.get(`/reports/${exp}/export`, {
+        params: { ...clean(appliedFilters), format },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${exp}_${new Date().toISOString().slice(0, 10)}.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showToast(t('exportSuccess'), 'success');
+    } catch {
+      showToast(t('exportFail'), 'error');
+    }
+  };
+
+  const filterOptions = useMemo(() => ({
+    branches,
+    officers,
+    products,
+    borrowers,
+    statuses: STATUS_OPTIONS,
+    riskGrades: RISK_OPTIONS,
+    currencies: [{ label: 'USD', value: 'USD' }],
+  }), [branches, officers, products, borrowers]);
+
+  return (
+    <div className="max-w-7xl space-y-5">
+      <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <h1 className="text-2xl font-black text-slate-900">{t('title')}</h1>
+        <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
+      </div>
+
+      {isBorrower ? (
+        <div className="bg-white border border-red-200 text-red-700 rounded-lg p-5 text-sm">
+          {t('forbidden')}
         </div>
-    );
+      ) : (
+        <>
+          <ReportTabs activeTab={activeTab} onChange={setActiveTab} />
+
+          <ReportFilters
+            tab={activeTab}
+            filters={filters}
+            setFilters={setFilters}
+            onApply={onApply}
+            onReset={onReset}
+            options={filterOptions}
+          />
+
+          {activeTab === 'overview' && (
+            <OverviewDashboard
+              data={data}
+              loading={loading}
+              error={error}
+              sortBy={filters.sortBy}
+              sortOrder={filters.sortOrder}
+              onSort={onSort}
+              onPageChange={onPageChange}
+            />
+          )}
+
+          {activeTab === 'loan-portfolio' && (
+            <LoanPortfolioReport
+              data={data}
+              loading={loading}
+              error={error}
+              sortBy={filters.sortBy}
+              sortOrder={filters.sortOrder}
+              onSort={onSort}
+              onPageChange={onPageChange}
+              onExport={onExport}
+            />
+          )}
+
+          {activeTab === 'collections' && (
+            <CollectionsReport
+              data={data}
+              loading={loading}
+              error={error}
+              sortBy={filters.sortBy}
+              sortOrder={filters.sortOrder}
+              onSort={onSort}
+              onPageChange={onPageChange}
+              onExport={onExport}
+            />
+          )}
+
+          {activeTab === 'borrowers' && (
+            <BorrowersReport
+              data={data}
+              loading={loading}
+              error={error}
+              sortBy={filters.sortBy}
+              sortOrder={filters.sortOrder}
+              onSort={onSort}
+              onPageChange={onPageChange}
+              onExport={onExport}
+            />
+          )}
+
+          {activeTab === 'risk' && (
+            <RiskReport
+              data={data}
+              loading={loading}
+              error={error}
+              sortBy={filters.sortBy}
+              sortOrder={filters.sortOrder}
+              onSort={onSort}
+              onPageChange={onPageChange}
+              onExport={onExport}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
 }
