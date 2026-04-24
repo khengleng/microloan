@@ -4,12 +4,31 @@
  */
 import { PrismaClient } from '@microloan/db';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
+const WEAK_DEFAULTS = new Set(['Admin@123!', 'password123', 'admin123']);
 
 async function main() {
-    const email = process.env.ADMIN_EMAIL || 'admin@microloanos.com';
-    const password = process.env.ADMIN_PASSWORD || 'Admin@123!';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const email = process.env.ADMIN_EMAIL;
+    let password = process.env.ADMIN_PASSWORD;
+
+    if (!email) {
+        throw new Error('ADMIN_EMAIL is required for seed-admin.');
+    }
+
+    if (!password) {
+        if (!isDevelopment) {
+            throw new Error('ADMIN_PASSWORD is required outside development.');
+        }
+        // Development-only fallback: secure random credential.
+        password = randomBytes(24).toString('base64url');
+    }
+
+    if (!isDevelopment && WEAK_DEFAULTS.has(password)) {
+        throw new Error('Refusing to use weak/default ADMIN_PASSWORD outside development.');
+    }
 
     // Check if user already exists
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -44,7 +63,11 @@ async function main() {
 
     console.log(`\n✅ SUPERADMIN created successfully!`);
     console.log(`   Email:    ${user.email}`);
-    console.log(`   Password: ${password}`);
+    if (isDevelopment) {
+        console.log(`   Password: ${password}`);
+    } else {
+        console.log('   Password: [REDACTED]');
+    }
     console.log(`   Role:     ${user.role}`);
     console.log(`   Tenant:   ${tenant.name}\n`);
 }

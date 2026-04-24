@@ -7,6 +7,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard, QuotaGuard)
 @Controller('users')
@@ -18,33 +19,29 @@ export class UsersController {
     @Roles('ADMIN', 'SUPERADMIN')
     @Get()
     findAll(@CurrentUser() user: JwtPayload) {
-        return this.usersService.findAll(user.tenantId);
+        return this.usersService.findAll(user);
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
     @CheckQuota('users')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
-        return this.usersService.create(user.tenantId, {
+        return this.usersService.create(user, {
             email: dto.email,
-            passwordHash: dto.password,
+            plainPassword: dto.password,
             role: dto.role,
-        }, user.sub);
+        });
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-        // SUPERADMIN can purge any user globally; ADMIN is restricted to their own tenant
-        const tenantId = user.role === 'SUPERADMIN' ? null : user.tenantId;
-        return this.usersService.remove(tenantId, id, user.sub);
+        return this.usersService.remove(user, id);
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
     @Put(':id/role')
-    updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: { role: string }) {
-        // SUPERADMIN can manage any user globally; ADMIN is restricted to their own tenant
-        const tenantId = user.role === 'SUPERADMIN' ? null : user.tenantId;
-        return this.usersService.updateRole(tenantId, id, body.role, user.sub);
+    updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: UpdateUserRoleDto) {
+        return this.usersService.updateRole(user, id, body.role);
     }
 }

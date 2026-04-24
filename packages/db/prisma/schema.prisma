@@ -59,8 +59,23 @@ model User {
   updatedAt        DateTime  @updatedAt
 
   auditLogs AuditLog[]
+  refreshTokens RefreshToken[]
   @@index([tenantId])
   @@index([email])
+}
+
+model RefreshToken {
+  // JWT jti (unique per issued refresh token)
+  id          String    @id
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hashedToken String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 model Borrower {

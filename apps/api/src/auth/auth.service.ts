@@ -15,11 +15,14 @@ import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
+import { createHash, randomUUID } from 'crypto';
+import { Prisma } from '@microloan/db';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
 const LOCK_DURATION_MS = 30 * 60 * 1000; // Locked for 30 minutes
 const GENERIC_AUTH_ERROR = 'Invalid credentials'; // Never reveal which field failed
+const REFRESH_TOKEN_TYPE = 'refresh';
 
 const otpauth = {
   keyuri: (email: string, issuer: string, secret: string) => {
@@ -290,14 +293,100 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    type RefreshPayload = {
+      sub: string;
+      email: string;
+      role: string;
+      tenantId: string;
+      jti?: string;
+      typ?: string;
+    };
+
+    let payload: RefreshPayload;
     try {
-      const payload = this.jwtService.verify(refreshToken, {
+      payload = this.jwtService.verify<RefreshPayload>(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET!, // startup guard guarantees this is set
       });
-      return this.generateTokens(payload.sub, payload.email, payload.role, payload.tenantId);
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
+    if (!payload.jti || payload.typ !== REFRESH_TOKEN_TYPE) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const tokenRecord = await this.prisma.refreshToken.findUnique({
+      where: { id: payload.jti },
+      include: {
+        user: {
+          include: { tenant: { select: { status: true, name: true } } },
+        },
+      },
+    });
+
+    if (!tokenRecord) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // Reuse detection: a revoked token being presented again indicates replay.
+    if (tokenRecord.revokedAt) {
+      await this.revokeAllUserSessions(tokenRecord.userId);
+      throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
+    }
+
+    if (tokenRecord.expiresAt.getTime() <= Date.now()) {
+      await this.prisma.refreshToken.update({
+        where: { id: tokenRecord.id },
+        data: { revokedAt: new Date() },
+      }).catch(() => { });
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const incomingHash = this.hashRefreshToken(refreshToken);
+    if (incomingHash !== tokenRecord.hashedToken) {
+      await this.revokeAllUserSessions(tokenRecord.userId);
+      throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
+    }
+
+    if (!tokenRecord.user.isActive) {
+      await this.revokeAllUserSessions(tokenRecord.userId);
+      throw new UnauthorizedException('User account is suspended or no longer exists.');
+    }
+
+    if (tokenRecord.user.tenant?.status !== 'ACTIVE' && tokenRecord.user.role !== Role.SUPERADMIN) {
+      await this.revokeAllUserSessions(tokenRecord.userId);
+      throw new ForbiddenException(
+        `Organization ${tokenRecord.user.tenant?.name || 'Unknown'} has been suspended or is pending data erasure.`
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const revoke = await tx.refreshToken.updateMany({
+        where: { id: tokenRecord.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+
+      // Concurrent replay: token was consumed by another request first.
+      if (revoke.count !== 1) {
+        await tx.refreshToken.updateMany({
+          where: { userId: tokenRecord.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
+      }
+
+      return this.generateTokens(
+        tokenRecord.user.id,
+        tokenRecord.user.email,
+        tokenRecord.user.role,
+        tokenRecord.user.tenantId,
+        tx,
+      );
+    });
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -325,16 +414,76 @@ export class AuthService {
     } catch { /* never fail on audit */ }
   }
 
-  private async generateTokens(userId: string, email: string, role: string, tenantId: string) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  private async generateTokens(
+    userId: string,
+    email: string,
+    role: string,
+    tenantId: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
     const tenantName = tenant?.name || 'Magic Money';
     const payload = { sub: userId, email, role, tenantId, tenantName };
+
+    const refreshTokenId = randomUUID();
+    const refreshTtlRaw = process.env.JWT_REFRESH_TTL || '30d';
+    const refreshToken = this.jwtService.sign(
+      { ...payload, typ: REFRESH_TOKEN_TYPE, jti: refreshTokenId },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: refreshTtlRaw as any,
+      },
+    );
+
+    await db.refreshToken.create({
+      data: {
+        id: refreshTokenId,
+        userId,
+        hashedToken: this.hashRefreshToken(refreshToken),
+        expiresAt: new Date(Date.now() + this.parseDurationMs(refreshTtlRaw)),
+      },
+    });
+
     return {
       access_token: this.jwtService.sign(payload),
-      refresh_token: this.jwtService.sign(payload, {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: (process.env.JWT_REFRESH_TTL || '30d') as any,
-      }),
+      refresh_token: refreshToken,
     };
+  }
+
+  private hashRefreshToken(token: string): string {
+    const pepper = process.env.JWT_REFRESH_TOKEN_PEPPER || '';
+    return createHash('sha256').update(`${token}.${pepper}`).digest('hex');
+  }
+
+  private parseDurationMs(expiresIn: string | number): number {
+    if (typeof expiresIn === 'number') {
+      return expiresIn * 1000;
+    }
+
+    const raw = String(expiresIn).trim();
+    if (/^\d+$/.test(raw)) {
+      return parseInt(raw, 10) * 1000;
+    }
+
+    const match = raw.match(/^(\d+)([smhd])$/i);
+    if (!match) {
+      // Safe fallback to 30 days if misconfigured.
+      return 30 * 24 * 60 * 60 * 1000;
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+    if (unit === 's') return value * 1000;
+    if (unit === 'm') return value * 60 * 1000;
+    if (unit === 'h') return value * 60 * 60 * 1000;
+    return value * 24 * 60 * 60 * 1000;
+  }
+
+  private async revokeAllUserSessions(userId: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }).catch(() => { });
   }
 }

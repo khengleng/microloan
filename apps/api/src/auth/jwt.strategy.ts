@@ -57,26 +57,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // revoked INSTANTLY (next request), not when the 15min token expires.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { isActive: true },
+      select: { isActive: true, role: true, tenantId: true },
     });
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User account is suspended or no longer exists.');
     }
 
-    // Identify if this user belongs to the SaaS Platform team or a client Tenant
-    const superadmin = await this.prisma.user.findFirst({
-      where: { role: 'SUPERADMIN' },
-      select: { tenantId: true },
-    });
-    const isPlatform = payload.tenantId === superadmin?.tenantId;
+    // Security: reject stale/forged claims if user role or tenant changed since token issuance.
+    if (user.role !== payload.role || user.tenantId !== payload.tenantId) {
+      throw new UnauthorizedException('Token claims are stale or invalid.');
+    }
+
+    // Explicit platform model: SUPERADMIN identities are platform users.
+    const isPlatform = user.role === 'SUPERADMIN';
 
     return {
       id: payload.sub,
       sub: payload.sub,
       email: payload.email,
-      role: payload.role,
-      tenantId: payload.tenantId,
+      role: user.role,
+      tenantId: user.tenantId,
       tenantName: payload.tenantName,
       tenantPlan: tenant.plan,
       isPlatform,

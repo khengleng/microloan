@@ -1,4 +1,15 @@
-import { Controller, Post, Get, Param, UseInterceptors, UploadedFile, UseGuards, Res, BadRequestException } from '@nestjs/common';
+import {
+    Controller,
+    Post,
+    Get,
+    Param,
+    UseInterceptors,
+    UploadedFile,
+    UseGuards,
+    Res,
+    BadRequestException,
+    UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentVaultService } from './document-vault.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -7,6 +18,26 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
+import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+
+const MAX_UPLOAD_BYTES = Number(process.env.DOCUMENT_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
+const ALLOWED_MIME_TYPES = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+]);
+
+const uploadOptions: MulterOptions = {
+    // Critical: enforce hard size limit at the multipart parser boundary.
+    limits: { fileSize: MAX_UPLOAD_BYTES },
+    fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            return cb(new UnsupportedMediaTypeException('Unsupported file type. Accepted: PDF, JPEG, PNG, WebP.'), false);
+        }
+        return cb(null, true);
+    },
+};
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('documents')
@@ -15,7 +46,7 @@ export class DocumentVaultController {
 
     @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE')
     @Post('upload/:loanId')
-    @UseInterceptors(FileInterceptor('file'))
+    @UseInterceptors(FileInterceptor('file', uploadOptions))
     async uploadDocument(
         @CurrentUser() user: JwtPayload,
         @Param('loanId') loanId: string,

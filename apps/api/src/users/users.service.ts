@@ -1,8 +1,17 @@
-import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { User, Role } from '@microloan/db';
 import * as bcrypt from 'bcrypt';
+import type { JwtPayload } from '../auth/jwt.strategy';
+
+type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId'>;
 
 @Injectable()
 export class UsersService {
@@ -19,9 +28,10 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
-  async findAll(tenantId: string): Promise<any[]> {
+  async findAll(actor: UserActor): Promise<any[]> {
+    this.assertManagementActor(actor);
     return this.prisma.user.findMany({
-      where: { tenantId },
+      where: { tenantId: actor.tenantId },
       select: {
         id: true,
         email: true,
@@ -35,46 +45,64 @@ export class UsersService {
     });
   }
 
-  async create(tenantId: string, data: { email: string; passwordHash: string; role: Role }, actorId?: string) {
+  async create(actor: UserActor, data: { email: string; plainPassword: string; role: Role }) {
+    this.assertManagementActor(actor);
+    const requestedRole = this.parseRole(data.role);
+
+    // Critical: tenant admins can never mint global privilege.
+    if (requestedRole === Role.SUPERADMIN && actor.role !== Role.SUPERADMIN) {
+      throw new ForbiddenException('Only SUPERADMIN can assign SUPERADMIN role.');
+    }
+
     const existing = await this.findOneByEmail(data.email);
     if (existing) {
       throw new ConflictException('User already exists');
     }
 
     const salt = await bcrypt.genSalt();
-    const hash = await bcrypt.hash(data.passwordHash, salt);
+    const hash = await bcrypt.hash(data.plainPassword, salt);
 
     const user = await this.prisma.user.create({
       data: {
-        tenantId,
+        // All creates are tenant-scoped to the actor's tenant in this controller flow.
+        tenantId: actor.tenantId,
         email: data.email,
         passwordHash: hash,
-        role: data.role,
+        role: requestedRole,
       },
       select: { id: true, email: true, role: true },
     });
 
-    await this.audit.logAction(tenantId, actorId || user.id, 'CREATE', 'User', user.id, {
+    await this.audit.logAction(actor.tenantId, actor.sub, 'CREATE', 'User', user.id, {
       email: user.email,
       role: user.role,
-      invitedBy: actorId,
+      invitedBy: actor.sub,
     });
 
     return user;
   }
 
-  async remove(tenantId: string | null, id: string, actorId?: string) {
-    const user = await this.prisma.user.findUnique({
-      where: tenantId ? { id, tenantId } : { id }
+  async remove(actor: UserActor, id: string) {
+    this.assertManagementActor(actor);
+    const scopeTenantId = actor.role === Role.SUPERADMIN ? undefined : actor.tenantId;
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        ...(scopeTenantId ? { tenantId: scopeTenantId } : {}),
+      },
     });
-    if (!user) return null;
+    if (!user) throw new NotFoundException('User not found');
+
+    // Non-superadmin actors cannot touch SUPERADMIN identities.
+    if (actor.role !== Role.SUPERADMIN && user.role === Role.SUPERADMIN) {
+      throw new ForbiddenException('Only SUPERADMIN can manage SUPERADMIN users.');
+    }
 
     // Hard delete for TRUE purge if Superadmin is doing it
-    // Wait, let's keep it as suspension unless hard purge is requested.
-    // The user said "purge", so let's allow hard deletion if tenantId is null (SA Mode)
-    if (!tenantId) {
+    if (actor.role === Role.SUPERADMIN) {
       await this.prisma.user.delete({ where: { id } });
-      await this.audit.logAction(user.tenantId, actorId || id, 'DELETE', 'User', id, {
+      await this.audit.logAction(user.tenantId, actor.sub, 'DELETE', 'User', id, {
         event: 'USER_PURGED',
         email: user.email,
       });
@@ -82,43 +110,73 @@ export class UsersService {
     }
 
     const result = await this.prisma.user.update({
-      where: { id, tenantId },
+      where: { id },
       data: { isActive: false },
     });
 
-    await this.audit.logAction(tenantId, actorId || id, 'UPDATE', 'User', id, {
+    await this.audit.logAction(actor.tenantId, actor.sub, 'UPDATE', 'User', id, {
       event: 'USER_SUSPENDED',
-      email: user?.email,
-      role: user?.role,
+      email: user.email,
+      role: user.role,
     });
 
     return result;
   }
 
-  async updateRole(tenantId: string | null, id: string, role: string, actorId?: string) {
-    const user = await this.prisma.user.findUnique({
-      where: tenantId ? { id, tenantId } : { id },
+  async updateRole(actor: UserActor, id: string, role: string) {
+    this.assertManagementActor(actor);
+    const targetRole = this.parseRole(role);
+    const scopeTenantId = actor.role === Role.SUPERADMIN ? undefined : actor.tenantId;
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        ...(scopeTenantId ? { tenantId: scopeTenantId } : {}),
+      },
       select: { id: true, email: true, role: true, isActive: true, tenantId: true }
     });
 
-    if (!user) throw new BadRequestException('User not found');
+    if (!user) throw new NotFoundException('User not found');
     if (!user.isActive) {
       throw new BadRequestException('Cannot update role for suspended users. You must reactivate the account first to update its logic permissions.');
     }
 
+    // Critical: only SUPERADMIN can assign SUPERADMIN role (service-enforced).
+    if (targetRole === Role.SUPERADMIN && actor.role !== Role.SUPERADMIN) {
+      throw new ForbiddenException('Only SUPERADMIN can assign SUPERADMIN role.');
+    }
+
+    // Defense-in-depth: tenant admins cannot manage existing SUPERADMIN accounts.
+    if (actor.role !== Role.SUPERADMIN && user.role === Role.SUPERADMIN) {
+      throw new ForbiddenException('Only SUPERADMIN can manage SUPERADMIN users.');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { role: role as Role },
+      data: { role: targetRole },
       select: { id: true, email: true, role: true },
     });
 
-    await this.audit.logAction(user.tenantId, actorId || id, 'UPDATE', 'User', id, {
+    await this.audit.logAction(user.tenantId, actor.sub, 'UPDATE', 'User', id, {
       email: user.email,
       previousRole: user.role,
-      newRole: role,
+      newRole: targetRole,
       event: 'USER_ROLE_UPDATED',
     });
 
     return updated;
+  }
+
+  private assertManagementActor(actor: UserActor) {
+    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPERADMIN) {
+      throw new ForbiddenException('Only ADMIN or SUPERADMIN can manage users.');
+    }
+  }
+
+  private parseRole(role: string): Role {
+    if (!Object.values(Role).includes(role as Role)) {
+      throw new BadRequestException('Invalid role');
+    }
+    return role as Role;
   }
 }
