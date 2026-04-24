@@ -1,0 +1,29 @@
+[
+  {
+    "mode": "hardcodes",
+    "file": "scripts/security-scan.mjs",
+    "pattern": "password123",
+    "reason": "Pattern definition intentionally includes weak-password signature for detection.",
+    "owner": "security-team",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "None; scanner source only"
+  },
+  {
+    "mode": "hardcodes",
+    "file": "seed-admin.ts",
+    "pattern": "password123",
+    "reason": "Weak-password denylist includes common defaults to block unsafe bootstrap credentials.",
+    "owner": "platform-auth",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "Protective validation only"
+  },
+  {
+    "mode": "hardcodes",
+    "file": "packages/db/prisma/seed.ts",
+    "pattern": "password123",
+    "reason": "Weak-password denylist includes common defaults to block unsafe bootstrap credentials.",
+    "owner": "platform-auth",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "Protective validation only"
+  }
+]

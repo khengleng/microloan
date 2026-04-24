@@ -8,6 +8,8 @@ import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 const WEAK_DEFAULTS = new Set(['Admin@123!', 'password123', 'admin123']);
+const STRONG_PASSWORD =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
 
 async function main() {
     const isDevelopment = process.env.NODE_ENV === 'development';
@@ -29,6 +31,14 @@ async function main() {
     if (!isDevelopment && WEAK_DEFAULTS.has(password)) {
         throw new Error('Refusing to use weak/default BOOTSTRAP_SUPERADMIN_PASSWORD outside development.');
     }
+    if (!isDevelopment && !STRONG_PASSWORD.test(password)) {
+        throw new Error('BOOTSTRAP_SUPERADMIN_PASSWORD must be at least 12 chars with upper/lower/number/symbol outside development.');
+    }
+
+    const existingSuperadmins = await prisma.user.count({ where: { role: 'SUPERADMIN' as any } });
+    if (existingSuperadmins > 1 && !isDevelopment) {
+        throw new Error('Multiple SUPERADMIN accounts detected. Refusing bootstrap mutation outside development.');
+    }
 
     // Check if user already exists
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -40,15 +50,6 @@ async function main() {
         });
         console.log(`✅ User ${email} promoted to SUPERADMIN`);
         return;
-    }
-
-    // Create a platform tenant if needed
-    let tenant = await prisma.tenant.findFirst({ where: { name: 'Magic Money Platform' } });
-    if (!tenant) {
-        tenant = await prisma.tenant.create({
-            data: { name: 'Magic Money Platform', plan: 'ENTERPRISE', status: 'ACTIVE' },
-        });
-        console.log(`✅ Created platform tenant: ${tenant.name}`);
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -70,7 +71,7 @@ async function main() {
         console.log('   Password: [REDACTED]');
     }
     console.log(`   Role:     ${user.role}`);
-    console.log(`   Tenant:   ${tenant.name}\n`);
+    console.log(`   Tenant:   platform-scope\n`);
 }
 
 main()

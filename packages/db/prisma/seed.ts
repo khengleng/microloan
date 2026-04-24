@@ -5,6 +5,8 @@ import { randomBytes } from 'crypto';
 
 const prisma = new PrismaClient();
 const WEAK_DEFAULTS = new Set(['Admin@123!', 'password123', 'admin123']);
+const STRONG_PASSWORD =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
 
 async function main() {
     console.log('--- Seeding Database MVP ---');
@@ -24,8 +26,11 @@ async function main() {
     if (!isDevelopment && WEAK_DEFAULTS.has(adminPassword)) {
         throw new Error('Refusing to use weak/default BOOTSTRAP_SUPERADMIN_PASSWORD outside development.');
     }
+    if (!isDevelopment && !STRONG_PASSWORD.test(adminPassword)) {
+        throw new Error('BOOTSTRAP_SUPERADMIN_PASSWORD must be at least 12 chars with upper/lower/number/symbol outside development.');
+    }
 
-    // 1. Tenant
+    // 1. Tenant (development bootstrap dataset only)
     let tenant = await prisma.tenant.findFirst({ where: { name: 'Acme Lending' } });
     if (!tenant) {
         tenant = await prisma.tenant.create({ data: { name: 'Acme Lending' } });
@@ -55,6 +60,12 @@ async function main() {
             data: { role: Role.SUPERADMIN }
         });
         console.log(`Promoted ${adminEmail} to SUPERADMIN`);
+    }
+
+    if (!isDevelopment) {
+        console.log('Production/Staging mode detected: skipped demo borrower/loan seed data.');
+        console.log('--- Seed Complete ---');
+        return;
     }
 
     // 3. Borrower

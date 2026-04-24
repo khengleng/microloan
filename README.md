@@ -34,15 +34,25 @@ Magic Money is a multi-tenant, Khmer/English micro-lending operations platform d
 2. Setup `.env`:
    ```bash
    cp .env.example .env
-   # Ensure DATABASE_URL is set correctly in .env
+   # Fill all required variables before running the API
    ```
+   Minimum required variables:
+   - `DATABASE_URL`
+   - `JWT_ACCESS_SECRET` (>= 32 chars)
+   - `JWT_REFRESH_SECRET` (>= 32 chars)
+   - `JWT_REFRESH_TOKEN_PEPPER` (>= 16 chars)
+   - `CORS_ORIGINS`
+   - `REDIS_URL` (required in production)
+   - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` (required in production)
+   - `BOOTSTRAP_SUPERADMIN_EMAIL`, `BOOTSTRAP_SUPERADMIN_PASSWORD`
 
 3. Setup Database (Schema & Seed):
    ```bash
-   pnpm db:push
+   pnpm db:migrate:deploy
    pnpm db:seed
    ```
-   *The seed script creates a default tenant "Acme Lending", an admin user (`admin@acme.com` / `password123`), and test loan setup.*
+   In `development`, seed also creates sample borrower/loan data.
+   In `staging/production`, seed only bootstraps platform superadmin safely.
 
 4. Start Dev Environments (Next.js & NestJS concurrent):
    ```bash
@@ -66,9 +76,12 @@ Both Next.js web app and NestJS API can be deployed seamlessly to [Railway](http
      - `DATABASE_URL` = (From the Postgres service)
      - `JWT_ACCESS_SECRET` = (Your secure random string)
      - `JWT_REFRESH_SECRET` = (Your secure random string)
-     - `CORS_ORIGIN` = `https://<YOUR-WEB-DOMAIN>.up.railway.app`
+     - `JWT_REFRESH_TOKEN_PEPPER` = (Strong random pepper)
+     - `CORS_ORIGINS` = `https://<YOUR-WEB-DOMAIN>.up.railway.app`
+     - `REDIS_URL` = (Managed Redis connection string)
+     - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`
      - `NODE_ENV` = `production`
-   - **Migrations**: Railway will auto deploy, you can set a custom start command to include: `npx prisma migrate deploy && node dist/main.js` if you are using migrations. (Otherwise `pnpm db:push` handles schema syncs safely at the MVP stage).
+   - **Migrations**: Use `npx prisma migrate deploy` only. Do not run `prisma db push` in production.
 
 3. **Add Web Service**:
    - Create a second service from the same GitHub repo.
@@ -81,3 +94,16 @@ Both Next.js web app and NestJS API can be deployed seamlessly to [Railway](http
 
 ## Built with ❤️
 Designed for lending operations robustness, minimal technical debt edge cases, and high portability.
+
+## Security & Production Readiness Checks
+
+Run before any production rollout:
+
+```bash
+pnpm run security:scan-hardcodes
+pnpm run security:scan-timebombs
+pnpm run security:scan-memory-stores
+pnpm run security:prod-config-check
+pnpm --filter api typecheck
+pnpm --filter web typecheck
+```

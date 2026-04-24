@@ -4,25 +4,13 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-
-// ── Required secrets guard — fail fast at startup, never use insecure fallbacks ──
-const REQUIRED_SECRETS = [
-  'JWT_ACCESS_SECRET',
-  'JWT_REFRESH_SECRET',
-  'SETUP_SECRET',
-] as const;
-
-for (const key of REQUIRED_SECRETS) {
-  if (!process.env[key]) {
-    console.error(`FATAL: Required environment variable "${key}" is not set. Refusing to start.`);
-    process.exit(1);
-  }
-}
+import { loadRuntimeConfig } from './config/runtime-config';
 
 async function bootstrap() {
+  const runtime = loadRuntimeConfig();
   // Use NestExpressApplication so we can access the underlying express instance
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    logger: process.env.NODE_ENV === 'production'
+    logger: runtime.isProduction
       ? ['error', 'warn']
       : ['log', 'error', 'warn', 'debug'],
   });
@@ -66,12 +54,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (
-        /\.railway\.app$/.test(origin) ||
-        /\.cambobia\.com$/.test(origin) ||
-        /^http:\/\/localhost(:\d+)?$/.test(origin) ||
-        /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)
-      ) {
+      if (runtime.corsOrigins.includes(origin)) {
         return callback(null, true);
       }
       callback(new Error(`CORS: origin ${origin} is not allowed`));
@@ -91,9 +74,8 @@ async function bootstrap() {
     transformOptions: { enableImplicitConversion: true },
   }));
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  Logger.log(`🔐 API running on port ${port} with security hardening enabled`);
+  await app.listen(runtime.port);
+  Logger.log(`API running on port ${runtime.port} with production safety checks enabled`);
 }
 
 bootstrap().catch((err) => {

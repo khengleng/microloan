@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
+function apiBaseUrl(): string {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (url && url.trim()) return url.trim();
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('NEXT_PUBLIC_API_URL is required in production.');
+    }
+    return 'http://localhost:3001/v1';
+}
 
 /**
  * POST /api/auth/login
@@ -15,7 +22,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        const res = await fetch(`${API_BASE}/auth/login`, {
+        const res = await fetch(`${apiBaseUrl()}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),

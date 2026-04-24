@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
+function apiUrl(): string {
+    const configured = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+    if (configured && configured.trim()) return configured.trim();
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('API_URL (or NEXT_PUBLIC_API_URL) is required in production.');
+    }
+    return 'http://localhost:3001/v1';
+}
 
 /**
  * Next.js API Proxy Route
@@ -9,38 +16,33 @@ const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http:
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
     const resolvedParams = await params;
-    console.log(`[Proxy] GET ${resolvedParams.path.join('/')}`);
     return proxy(req, resolvedParams);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
     const resolvedParams = await params;
-    console.log(`[Proxy] POST ${resolvedParams.path.join('/')}`);
     return proxy(req, resolvedParams);
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
     const resolvedParams = await params;
-    console.log(`[Proxy] PUT ${resolvedParams.path.join('/')}`);
     return proxy(req, resolvedParams);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
     const resolvedParams = await params;
-    console.log(`[Proxy] PATCH ${resolvedParams.path.join('/')}`);
     return proxy(req, resolvedParams);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
     const resolvedParams = await params;
-    console.log(`[Proxy] DELETE ${resolvedParams.path.join('/')}`);
     return proxy(req, resolvedParams);
 }
 
 async function proxy(req: NextRequest, params: { path: string[] }) {
     const path = params.path.join('/');
     const url = new URL(req.url);
-    const targetUrl = `${API_URL}/${path}${url.search}`;
+    const targetUrl = `${apiUrl()}/${path}${url.search}`;
 
     // 1. Extract tokens from cookies
     const accessToken = req.cookies.get('access_token')?.value;

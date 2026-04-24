@@ -23,19 +23,32 @@ import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
 import { ExportsModule } from './exports/exports.module';
 import { ReminderModule } from './reminder/reminder.module';
 import { AuthzModule } from './authz/authz.module';
+import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    // ── Global rate limiting via @nestjs/throttler ─────────────────────────────────
-    // Works in-memory on a single instance (current Railway setup).
-    // To scale HA: add ThrottlerStorageRedisService + ioredis.
-    // Named throttlers allow @Throttle({ login: {} }) per-route customisation.
-    ThrottlerModule.forRoot([
-      // 'default' applies globally to all endpoints.
-      // 120 req/sec gives a single user plenty of room for page navigation.
-      { name: 'default', ttl: 1_000, limit: 120 },
-    ]),
+    ThrottlerModule.forRootAsync({
+      useFactory: async () => {
+        const runtime = loadRuntimeConfig();
+        const base = { name: 'default', ttl: 1_000, limit: 120 };
+
+        if (!runtime.isProduction) {
+          return [base];
+        }
+        // Runtime import avoids TS export-map issues with legacy redis storage package.
+        const { ThrottlerStorageRedisService } = require('nestjs-throttler-storage-redis') as {
+          ThrottlerStorageRedisService: new (url?: string) => any;
+        };
+
+        return [
+          {
+            ...base,
+            storage: new ThrottlerStorageRedisService(runtime.redisUrl),
+          },
+        ];
+      },
+    }),
     PrismaModule,
     TenantsModule,
     UsersModule,

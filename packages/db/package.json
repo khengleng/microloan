@@ -16,7 +16,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit",
-    "prisma:validate": "prisma format"
+    "prisma:validate": "prisma validate"
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",

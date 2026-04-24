@@ -1,0 +1,46 @@
+name: Security & Production Readiness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Hardcode scan
+        run: pnpm run security:scan-hardcodes
+
+      - name: Timebomb scan
+        run: pnpm run security:scan-timebombs
+
+      - name: Memory-store scan
+        run: pnpm run security:scan-memory-stores
+
+      - name: Production config check
+        env:
+          DATABASE_URL: postgresql://user:pass@localhost:5432/db
+          JWT_ACCESS_SECRET: 12345678901234567890123456789012
+          JWT_REFRESH_SECRET: 12345678901234567890123456789012
+          JWT_REFRESH_TOKEN_PEPPER: 1234567890abcdef
+          CORS_ORIGINS: https://app.example.com
+          REDIS_URL: redis://localhost:6379
+        run: pnpm run security:prod-config-check

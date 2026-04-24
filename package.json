@@ -9,9 +9,15 @@
         "typecheck": "turbo run typecheck",
         "test": "pnpm run lint && pnpm run typecheck && pnpm --filter db run prisma:validate",
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-        "db:push": "pnpm --filter db db:push",
+        "db:push": "node ./scripts/guarded-db-push.mjs",
+        "db:migrate:deploy": "pnpm --filter db migrate:deploy",
         "db:seed": "pnpm --filter db db:seed",
-        "start": "pnpm --filter db db:push --accept-data-loss && eval \"${START_COMMAND:-node apps/api/dist/main}\""
+        "start": "pnpm run db:migrate:deploy && eval \"${START_COMMAND:-node apps/api/dist/main}\"",
+        "security:scan-hardcodes": "node ./scripts/security-scan.mjs hardcodes",
+        "security:scan-timebombs": "node ./scripts/security-scan.mjs timebombs",
+        "security:scan-memory-stores": "node ./scripts/security-scan.mjs memory",
+        "security:prod-config-check": "node ./scripts/prod-config-check.mjs",
+        "security:ci": "pnpm run security:scan-hardcodes && pnpm run security:scan-timebombs && pnpm run security:scan-memory-stores && pnpm run security:prod-config-check"
     },
     "devDependencies": {
         "prettier": "^3.2.5",

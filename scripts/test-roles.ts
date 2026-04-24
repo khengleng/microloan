@@ -7,17 +7,17 @@
  * Usage:
  *   npx tsx scripts/test-roles.ts
  *
- * Env vars (override defaults):
- *   API_URL          defaults to https://magicmoney.cambobia.com/api/proxy
+ * Env vars:
+ *   API_URL
  *   SUPER_EMAIL      SUPERADMIN email
  *   SUPER_PASSWORD   SUPERADMIN password
  *   TENANT_EMAIL     Tenant ADMIN email (created during this run if missing)
  *   TENANT_PASSWORD  Tenant ADMIN password
  */
 
-const API = process.env.API_URL ?? 'https://magicmoney.cambobia.com/api/proxy';
-const SUPER_EMAIL = process.env.SUPER_EMAIL ?? 'admin@microloanos.com';
-const SUPER_PASS = process.env.SUPER_PASSWORD ?? 'Admin@123!';
+const API = process.env.API_URL ?? '';
+const SUPER_EMAIL = process.env.SUPER_EMAIL ?? '';
+const SUPER_PASS = process.env.SUPER_PASSWORD ?? '';
 // A real tenant admin that exists on the platform — override via env
 const TENANT_EMAIL = process.env.TENANT_EMAIL ?? '';
 const TENANT_PASS = process.env.TENANT_PASSWORD ?? '';
@@ -59,6 +59,10 @@ function expect(label: string, condition: boolean, detail?: any) {
 // ─── main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+    if (!API || !SUPER_EMAIL || !SUPER_PASS) {
+        throw new Error('API_URL, SUPER_EMAIL, and SUPER_PASSWORD are required.');
+    }
+
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`  SaaS Role Segregation Test`);
     console.log(`  API: ${API}`);

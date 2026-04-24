@@ -25,9 +25,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(BotService.name);
     private enabled = false;
 
-    // We will store simple conversational state per Telegram Chat ID
-    private conversations: Record<string, any[]> = {};
-
     constructor(
         private readonly prisma: PrismaService,
         private readonly borrowersService: BorrowersService,
@@ -78,30 +75,21 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         const bot = new Telegraf(token);
 
         bot.start((ctx) => {
-            const conversationId = `${tenantId}:${ctx.chat.id}`;
-            this.conversations[conversationId] = [
-                { role: 'system', content: SYSTEM_PROMPT }
-            ];
             ctx.reply('Welcome to Magic Money! Need a loan? Just tell me how much you need or ask me for help applying!');
         });
 
         bot.on('text', async (ctx) => {
             const chatId = ctx.chat.id;
             const text = ctx.message.text;
-            const conversationId = `${tenantId}:${chatId}`;
-
-            if (!this.conversations[conversationId]) {
-                this.conversations[conversationId] = [
-                    { role: 'system', content: SYSTEM_PROMPT }
-                ];
-            }
-
-            this.conversations[conversationId].push({ role: 'user', content: text });
+            const conversation: any[] = [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: text },
+            ];
             try {
                 await ctx.sendChatAction('typing');
                 const response = await this.openai.chat.completions.create({
                     model: 'gpt-4o',
-                    messages: this.conversations[conversationId],
+                    messages: conversation,
                     tools: [
                         {
                             type: 'function',
@@ -157,8 +145,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                         resultContent = await this.getLoanProducts(tenantId);
                     }
 
-                    this.conversations[conversationId].push(choice.message as any);
-                    this.conversations[conversationId].push({
+                    conversation.push(choice.message as any);
+                    conversation.push({
                         role: 'tool',
                         tool_call_id: toolCall.id,
                         content: resultContent
@@ -166,15 +154,13 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
                     const followup = await this.openai.chat.completions.create({
                         model: 'gpt-4o',
-                        messages: this.conversations[conversationId]
+                        messages: conversation
                     });
 
                     const replyText = followup.choices[0].message.content || 'Done!';
-                    this.conversations[conversationId].push({ role: 'assistant', content: replyText });
                     ctx.reply(replyText);
                 } else {
                     const aiResponse = choice.message.content || '...';
-                    this.conversations[conversationId].push({ role: 'assistant', content: aiResponse });
                     ctx.reply(aiResponse);
                 }
             } catch (err) {

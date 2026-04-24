@@ -11,7 +11,7 @@ import { Permission } from '../authz/permission.enum';
 export class DocumentVaultService {
     private s3Client: S3Client;
     private readonly logger = new Logger(DocumentVaultService.name);
-    private bucketName = process.env.AWS_S3_BUCKET_NAME || 'microloan-documents';
+    private bucketName = process.env.AWS_S3_BUCKET_NAME || '';
     // Fix 6: S3 is required — no silent DB fallback
     private s3Configured = !!(
         process.env.AWS_ACCESS_KEY_ID &&
