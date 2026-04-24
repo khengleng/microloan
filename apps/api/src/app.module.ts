@@ -22,6 +22,7 @@ import { DocumentVaultModule } from './document-vault/document-vault.module';
 import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
 import { ExportsModule } from './exports/exports.module';
 import { ReminderModule } from './reminder/reminder.module';
+import { AuthzModule } from './authz/authz.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ReminderModule } from './reminder/reminder.module';
     PenaltyCronModule,
     ExportsModule,
     ReminderModule,
+    AuthzModule,
   ],
   controllers: [AppController],
   providers: [

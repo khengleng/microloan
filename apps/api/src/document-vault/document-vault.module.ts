@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { DocumentVaultService } from './document-vault.service';
 import { DocumentVaultController } from './document-vault.controller';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
+import { AuthzModule } from '../authz/authz.module';
 
 @Module({
-  providers: [DocumentVaultService, PrismaService, AuditService],
+  imports: [AuthzModule],
+  providers: [DocumentVaultService],
   controllers: [DocumentVaultController]
 })
 export class DocumentVaultModule {}

@@ -1,5 +1,6 @@
 import { IsEmail, IsNotEmpty, MinLength, IsEnum } from 'class-validator';
 import { Role } from '@microloan/db';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateUserDto {
     @IsEmail()
@@ -11,4 +12,12 @@ export class CreateUserDto {
 
     @IsEnum(Role)
     role: Role;
+
+    @IsOptional()
+    @IsUUID()
+    tenantId?: string;
+
+    @IsOptional()
+    @IsUUID()
+    branchId?: string;
 }

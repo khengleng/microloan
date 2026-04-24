@@ -19,6 +19,9 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+import { PermissionGuard } from '../authz/permission.guard';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
+import { Permission } from '../authz/permission.enum';
 
 const MAX_UPLOAD_BYTES = Number(process.env.DOCUMENT_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
 const ALLOWED_MIME_TYPES = new Set([
@@ -39,12 +42,13 @@ const uploadOptions: MulterOptions = {
     },
 };
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
 @Controller('documents')
 export class DocumentVaultController {
     constructor(private readonly documentVaultService: DocumentVaultService) { }
 
     @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE')
+    @RequirePermissions(Permission.DOCUMENT_UPLOAD)
     @Post('upload/:loanId')
     @UseInterceptors(FileInterceptor('file', uploadOptions))
     async uploadDocument(
@@ -53,23 +57,25 @@ export class DocumentVaultController {
         @UploadedFile() file: Express.Multer.File,
     ) {
         if (!file) throw new BadRequestException('File is required');
-        return this.documentVaultService.uploadDocument(user.tenantId, loanId, user.sub, file);
+        return this.documentVaultService.uploadDocument(user, loanId, file);
     }
 
     @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
+    @RequirePermissions(Permission.DOCUMENT_VIEW)
     @Get('loan/:loanId')
     async getDocuments(@CurrentUser() user: JwtPayload, @Param('loanId') loanId: string) {
-        return this.documentVaultService.getDocuments(user.tenantId, loanId);
+        return this.documentVaultService.getDocuments(user, loanId);
     }
 
     @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
+    @RequirePermissions(Permission.DOCUMENT_VIEW)
     @Get('download/:documentId')
     async downloadDocument(
         @CurrentUser() user: JwtPayload,
         @Param('documentId') documentId: string,
         @Res() res: Response,
     ) {
-        const doc = await this.documentVaultService.downloadDocument(user.tenantId, documentId, user.sub);
+        const doc = await this.documentVaultService.downloadDocument(user, documentId);
         // Fix 6: service always returns a presigned URL now — no buffer fallback
         return res.redirect(doc.url!);
     }

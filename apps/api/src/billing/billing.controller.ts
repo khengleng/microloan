@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Headers, UseGuards, Res } from '@nestjs/common';
+import { Controller, Post, Body, Req, Headers, UseGuards, Res, BadRequestException } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -15,6 +15,7 @@ export class BillingController {
     @Roles('ADMIN', 'SUPERADMIN')
     @Post('checkout')
     async createCheckout(@CurrentUser() user: JwtPayload, @Body() body: { plan: string }) {
+        if (!user.tenantId) throw new BadRequestException('Tenant-scoped billing requires tenantId');
         return this.billingService.createSubscriptionCheckout(user.tenantId, user.sub, body.plan);
     }
 
@@ -23,6 +24,7 @@ export class BillingController {
     @Roles('ADMIN', 'SUPERADMIN')
     @Post('portal')
     async billingPortal(@CurrentUser() user: JwtPayload) {
+        if (!user.tenantId) throw new BadRequestException('Tenant-scoped billing requires tenantId');
         return this.billingService.createBillingPortal(user.tenantId, user.sub);
     }
 

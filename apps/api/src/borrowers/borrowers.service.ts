@@ -6,19 +6,30 @@ import {
   CreateBorrowerDto,
   UpdateBorrowerDto,
 } from './dto/create-borrower.dto';
+import type { JwtPayload } from '../auth/jwt.strategy';
+import { AuthzService } from '../authz/authz.service';
+import { Permission } from '../authz/permission.enum';
 
 @Injectable()
 export class BorrowersService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private authz: AuthzService,
   ) { }
 
-  async create(tenantId: string, userId: string, dto: CreateBorrowerDto) {
-    const b = await this.prisma.borrower.create({ data: { tenantId, ...dto } });
+  async create(actor: JwtPayload, dto: CreateBorrowerDto) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_CREATE);
+    const b = await this.prisma.borrower.create({
+      data: {
+        tenantId: actor.tenantId!,
+        branchId: actor.branchId || null,
+        ...dto,
+      },
+    });
     await this.audit.logAction(
-      tenantId,
-      userId,
+      actor.tenantId!,
+      this.authz.actorId(actor),
       'CREATE',
       'Borrower',
       b.id,
@@ -27,8 +38,10 @@ export class BorrowersService {
     return b;
   }
 
-  async findAll(tenantId: string, search?: string, page = 1, limit = 50) {
-    const where: any = { tenantId };
+  async findAll(actor: JwtPayload, search?: string, page = 1, limit = 50) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    const where: any = this.authz.scopeWhere(actor, {});
+    if (actor.branchId) where.branchId = actor.branchId;
     if (search) {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
@@ -50,60 +63,66 @@ export class BorrowersService {
     return { data, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
-  async findOne(tenantId: string, id: string) {
-    const b = await this.prisma.borrower.findUnique({
-      where: { id, tenantId },
+  async findOne(actor: JwtPayload, id: string) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    const b = await this.prisma.borrower.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
     });
     if (!b) throw new NotFoundException('Borrower not found');
+    this.authz.assertBranchAccess(actor, b.branchId);
     return b;
   }
 
   async update(
-    tenantId: string,
-    userId: string,
+    actor: JwtPayload,
     id: string,
     dto: UpdateBorrowerDto,
   ) {
-    const b = await this.prisma.borrower.findUnique({
-      where: { id, tenantId },
+    this.authz.assertPermission(actor, Permission.CUSTOMER_UPDATE);
+    const b = await this.prisma.borrower.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
     });
     if (!b) throw new NotFoundException('Borrower not found');
+    this.authz.assertBranchAccess(actor, b.branchId);
     const updated = await this.prisma.borrower.update({
-      where: { id, tenantId },
+      where: { id },
       data: dto,
     });
-    await this.audit.logAction(tenantId, userId, 'UPDATE', 'Borrower', b.id, {
+    await this.audit.logAction(actor.tenantId!, this.authz.actorId(actor), 'UPDATE', 'Borrower', b.id, {
       before: maskBorrowerForAudit(b),      // ← masked
       after: maskBorrowerDto(dto),          // ← masked
     });
     return updated;
   }
 
-  async remove(tenantId: string, userId: string, id: string) {
-    const b = await this.prisma.borrower.findUnique({
-      where: { id, tenantId },
+  async remove(actor: JwtPayload, id: string) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_UPDATE);
+    const b = await this.prisma.borrower.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
       include: { _count: { select: { loans: true } } },
     });
     if (!b) throw new NotFoundException('Borrower not found');
+    this.authz.assertBranchAccess(actor, b.branchId);
     if (b._count.loans > 0) {
       throw new Error('Cannot delete borrower with associated loans');
     }
 
-    await this.prisma.borrower.delete({ where: { id, tenantId } });
-    await this.audit.logAction(tenantId, userId, 'DELETE', 'Borrower', id,
+    await this.prisma.borrower.delete({ where: { id } });
+    await this.audit.logAction(actor.tenantId!, this.authz.actorId(actor), 'DELETE', 'Borrower', id,
       maskBorrowerForAudit(b),   // ← masked, initials only
     );
     return { success: true };
   }
 
-  async checkCrossTenantCredit(tenantId: string, userId: string, query: { idNumber?: string; phone?: string }) {
+  async checkCrossTenantCredit(actor: JwtPayload, query: { idNumber?: string; phone?: string }) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     // SECURITY: Reject empty queries to avoid unintentional full scans or privacy leaks
     if (!query.idNumber && !query.phone) {
       throw new BadRequestException('Provide at least an ID Number or Phone to search.');
     }
 
     // AUDIT: This is a privacy-sensitive cross-org check, so we log WHO did it and WHAT they looked for.
-    await this.audit.logAction(tenantId, userId, 'SEARCH', 'Borrower', 'CROSS_ORG_SEARCH', {
+    await this.audit.logAction(actor.tenantId!, this.authz.actorId(actor), 'SEARCH', 'Borrower', 'CROSS_ORG_SEARCH', {
       event: 'CROSS_TENANT_CHECK',
       query: { idNumber: query.idNumber ? '***' : null, phone: query.phone ? '***' : null },
       action: 'Search across all organizations for credit risk'
@@ -125,7 +144,7 @@ export class BorrowersService {
     });
 
     return borrowers.map(b => {
-      const isOwnTenant = b.tenantId === tenantId;
+      const isOwnTenant = b.tenantId === actor.tenantId;
       return {
         organization: isOwnTenant ? 'Your Organization' : 'Another Organization',
         // Never expose organization name or loan details for external tenants

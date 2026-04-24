@@ -23,6 +23,7 @@ model Tenant {
   updatedAt            DateTime @updatedAt
 
   users        User[]
+  branches     Branch[]
   borrowers    Borrower[]
   loans        Loan[]
   repayments   Repayment[]
@@ -33,6 +34,16 @@ model Tenant {
 
 enum Role {
   SUPERADMIN
+  TENANT_ADMIN
+  BRANCH_MANAGER
+  LOAN_OFFICER
+  CREDIT_OFFICER
+  APPROVER
+  ACCOUNTANT
+  AUDITOR
+  CUSTOMER_SUPPORT
+  BORROWER
+  // Legacy roles kept for backward compatibility during migration.
   ADMIN
   OPERATOR
   FINANCE
@@ -40,16 +51,36 @@ enum Role {
   CX
 }
 
+model Branch {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  code      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  borrowers Borrower[]
+  loans     Loan[]
+
+  @@index([tenantId])
+  @@unique([tenantId, name])
+}
+
 model User {
   id               String    @id @default(uuid())
-  tenantId         String
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  branchId         String?
+  branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   email            String    @unique
   passwordHash     String
   twoFactorSecret  String?   // For MFA
   twoFactorEnabled Boolean   @default(false)
   isActive         Boolean   @default(true) // For soft delete / suspension
-  role             Role      @default(OPERATOR)
+  role             Role      @default(LOAN_OFFICER)
   telegramChatId   String?   // Staff's telegram chat ID
   loginAttempts    Int       @default(0)  // Brute-force counter
   lockedUntil      DateTime? // Account locked until this timestamp
@@ -61,6 +92,7 @@ model User {
   auditLogs AuditLog[]
   refreshTokens RefreshToken[]
   @@index([tenantId])
+  @@index([branchId])
   @@index([email])
 }
 
@@ -82,6 +114,8 @@ model Borrower {
   id             String   @id @default(uuid())
   tenantId       String
   tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId       String?
+  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   firstName      String
   lastName       String
   phone          String?
@@ -92,6 +126,7 @@ model Borrower {
   updatedAt      DateTime @updatedAt
 
   loans Loan[]
+  @@index([tenantId, branchId])
 }
 
 enum LoanStatus {
@@ -143,6 +178,8 @@ model Loan {
   id                 String         @id @default(uuid())
   tenantId           String
   tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId           String?
+  branch             Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   borrowerId         String
   borrower           Borrower       @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
   productId          String?
@@ -163,6 +200,9 @@ model Loan {
   collaterals  Collateral[]
   guarantors   Guarantor[]
   interactions LoanInteraction[]
+  createdByUserId String?
+  reviewedByUserId String?
+  disbursedByUserId String?
 
   // Approval Workflow Fields
   approvedBy   String?
@@ -171,7 +211,7 @@ model Loan {
   rejectedAt   DateTime?
   rejectionReason String?
 
-  @@index([tenantId])
+  @@index([tenantId, branchId])
 }
 
 model Collateral {

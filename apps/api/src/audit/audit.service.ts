@@ -48,4 +48,40 @@ export class AuditService {
       // Never fail the main transaction due to an audit error
     }
   }
+
+  async logSecurityEvent(event: {
+    actorUserId: string | null;
+    actorRole: string | null;
+    actorTenantId: string | null;
+    targetType: string;
+    targetId: string;
+    action: string;
+    oldValue?: any;
+    newValue?: any;
+    reason?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    result: 'SUCCESS' | 'FAILURE';
+    timestamp?: string;
+  }) {
+    const tenantId = event.actorTenantId || 'system';
+    return this.logAction(
+      tenantId,
+      event.actorUserId || 'anonymous',
+      event.action,
+      event.targetType,
+      event.targetId,
+      {
+        actorRole: event.actorRole,
+        actorTenantId: event.actorTenantId,
+        oldValue: event.oldValue,
+        newValue: event.newValue,
+        reason: event.reason,
+        ipAddress: event.ipAddress,
+        userAgent: event.userAgent,
+        result: event.result,
+        timestamp: event.timestamp || new Date().toISOString(),
+      },
+    );
+  }
 }

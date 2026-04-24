@@ -7,17 +7,22 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PostRepaymentDto } from './dto/post-repayment.dto';
 import { LoanStatus } from '@microloan/db';
+import type { JwtPayload } from '../auth/jwt.strategy';
+import { AuthzService } from '../authz/authz.service';
+import { Permission } from '../authz/permission.enum';
 
 @Injectable()
 export class RepaymentsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private authz: AuthzService,
   ) { }
 
-  async postRepayment(tenantId: string, userId: string, dto: PostRepaymentDto) {
-    const loan = await this.prisma.loan.findUnique({
-      where: { id: dto.loanId, tenantId },
+  async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
+    this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id: dto.loanId }),
       include: {
         schedules: {
           where: { isPaid: false },
@@ -27,6 +32,7 @@ export class RepaymentsService {
     });
 
     if (!loan) throw new NotFoundException('Loan not found');
+    this.authz.assertBranchAccess(actor, loan.branchId);
     if (loan.status !== LoanStatus.DISBURSED) {
       throw new BadRequestException(
         'Can only post repayments for disbursed loans',
@@ -109,7 +115,7 @@ export class RepaymentsService {
     const [repayment] = await this.prisma.$transaction([
       this.prisma.repayment.create({
         data: {
-          tenantId,
+          tenantId: loan.tenantId,
           loanId: dto.loanId,
           amount: dto.amount,
           interestPaid: totalInterestPaid,
@@ -121,8 +127,8 @@ export class RepaymentsService {
     ]);
 
     await this.audit.logAction(
-      tenantId,
-      userId,
+      loan.tenantId,
+      this.authz.actorId(actor),
       'CREATE',
       'Repayment',
       repayment.id,
@@ -140,10 +146,10 @@ export class RepaymentsService {
 
     if (unpaidCount === 0 && (updates.length > 0 || loan.schedules.length === 0)) {
       await this.prisma.loan.update({
-        where: { id: dto.loanId, tenantId },
+        where: { id: dto.loanId },
         data: { status: LoanStatus.CLOSED },
       });
-      await this.audit.logAction(tenantId, userId, 'UPDATE', 'Loan', loan.id, {
+      await this.audit.logAction(loan.tenantId, this.authz.actorId(actor), 'UPDATE', 'Loan', loan.id, {
         action: 'Auto-closed due to full repayment',
       });
     }
@@ -152,15 +158,17 @@ export class RepaymentsService {
   }
 
   async findAll(
-    tenantId: string,
+    actor: JwtPayload,
     loanId?: string,
     startDate?: string,
     endDate?: string,
     page = 1,
     limit = 50,
   ) {
-    const where: any = { tenantId };
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    const where: any = this.authz.scopeWhere(actor, {});
     if (loanId) where.loanId = loanId;
+    if (actor.branchId) where.loan = { ...(where.loan || {}), branchId: actor.branchId };
     if (startDate || endDate) {
       where.date = {};
       if (startDate) where.date.gte = new Date(startDate);

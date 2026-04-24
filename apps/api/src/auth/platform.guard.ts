@@ -7,7 +7,7 @@ export class PlatformGuard implements CanActivate {
         const request = context.switchToHttp().getRequest();
         const user = request.user as JwtPayload;
 
-        if (!user || !user.isPlatform) {
+        if (!user || !user.isPlatform || user.role !== 'SUPERADMIN' || user.tenantId !== null) {
             throw new ForbiddenException('This endpoint is restricted to SaaS Platform Operations staff.');
         }
 

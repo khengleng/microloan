@@ -19,6 +19,9 @@ export class QuotaGuard implements CanActivate {
         const req = context.switchToHttp().getRequest();
         const user = req.user as JwtPayload;
         if (!user || user.role === 'SUPERADMIN') return true;
+        if (!user.tenantId) {
+            throw new ForbiddenException('Tenant scope is required for quota checks.');
+        }
 
         // Use the tenant plan we fetched automatically during JwtStrategy validation
         const limits = getQuotaLimits(user.tenantPlan);

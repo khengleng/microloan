@@ -18,6 +18,7 @@ export class SettingsController {
     @Roles('ADMIN')
     @Get()
     async getSettings(@CurrentUser() user: JwtPayload) {
+        if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
         return this.prisma.tenant.findUnique({
             where: { id: user.tenantId },
             select: {
@@ -35,6 +36,7 @@ export class SettingsController {
         @CurrentUser() user: JwtPayload,
         @Body() data: { name?: string; telegramBotToken?: string }
     ) {
+        if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
         const tenant = await this.prisma.tenant.update({
             where: { id: user.tenantId },
             data: {

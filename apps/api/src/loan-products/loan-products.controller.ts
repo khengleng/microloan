@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { BadRequestException } from '@nestjs/common';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('loan-products')
@@ -16,28 +17,33 @@ export class LoanProductsController {
     @Roles('ADMIN', 'OPERATOR')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() createLoanProductDto: CreateLoanProductDto) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
         return this.loanProductsService.create(user.tenantId, createLoanProductDto);
     }
 
     @Get()
     findAll(@CurrentUser() user: JwtPayload) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
         return this.loanProductsService.findAll(user.tenantId);
     }
 
     @Get(':id')
     findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
         return this.loanProductsService.findOne(user.tenantId, id);
     }
 
     @Roles('ADMIN', 'OPERATOR')
     @Put(':id')
     update(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() updateLoanProductDto: UpdateLoanProductDto) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
         return this.loanProductsService.update(user.tenantId, id, updateLoanProductDto);
     }
 
     @Roles('ADMIN', 'OPERATOR')
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
         return this.loanProductsService.remove(user.tenantId, id);
     }
 }

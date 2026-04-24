@@ -9,20 +9,20 @@ const WEAK_DEFAULTS = new Set(['Admin@123!', 'password123', 'admin123']);
 async function main() {
     console.log('--- Seeding Database MVP ---');
     const isDevelopment = process.env.NODE_ENV === 'development';
-    const adminEmail = process.env.SEED_ADMIN_EMAIL;
-    let adminPassword = process.env.SEED_ADMIN_PASSWORD;
+    const adminEmail = process.env.BOOTSTRAP_SUPERADMIN_EMAIL;
+    let adminPassword = process.env.BOOTSTRAP_SUPERADMIN_PASSWORD;
 
     if (!adminEmail) {
-        throw new Error('SEED_ADMIN_EMAIL is required for db seed.');
+        throw new Error('BOOTSTRAP_SUPERADMIN_EMAIL is required for db seed.');
     }
     if (!adminPassword) {
         if (!isDevelopment) {
-            throw new Error('SEED_ADMIN_PASSWORD is required outside development.');
+            throw new Error('BOOTSTRAP_SUPERADMIN_PASSWORD is required outside development.');
         }
         adminPassword = randomBytes(24).toString('base64url');
     }
     if (!isDevelopment && WEAK_DEFAULTS.has(adminPassword)) {
-        throw new Error('Refusing to use weak/default SEED_ADMIN_PASSWORD outside development.');
+        throw new Error('Refusing to use weak/default BOOTSTRAP_SUPERADMIN_PASSWORD outside development.');
     }
 
     // 1. Tenant
@@ -38,10 +38,11 @@ async function main() {
         const passwordHash = await bcrypt.hash(adminPassword, 10);
         admin = await prisma.user.create({
             data: {
-                tenantId: tenant.id,
+                tenantId: null,
                 email: adminEmail,
                 passwordHash,
                 role: Role.SUPERADMIN,
+                branchId: null,
             },
         });
         console.log(`Created Platform SuperAdmin: ${adminEmail}`);

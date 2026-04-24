@@ -3,15 +3,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import * as bcrypt from 'bcrypt';
+import type { JwtPayload } from '../auth/jwt.strategy';
+import { AuthzService } from '../authz/authz.service';
+import { Permission } from '../authz/permission.enum';
 
 @Injectable()
 export class TenantsService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
+        private readonly authz: AuthzService,
     ) { }
 
-    async findAll(includeArchived = false) {
+    async findAll(actor: JwtPayload, includeArchived = false) {
+        this.authz.assertPlatformOnly(actor);
         const tenants = await this.prisma.tenant.findMany({
             where: (includeArchived ? {} : { deletedAt: null }) as any,
             include: {
@@ -53,7 +58,8 @@ export class TenantsService {
         });
     }
 
-    async findOne(id: string) {
+    async findOne(actor: JwtPayload, id: string) {
+        this.authz.assertPlatformOnly(actor);
         return this.prisma.tenant.findUnique({
             where: { id },
             include: {
@@ -64,7 +70,9 @@ export class TenantsService {
         });
     }
 
-    async create(data: { name: string; adminEmail?: string; adminPassword?: string }, actorId?: string) {
+    async create(actor: JwtPayload, data: { name: string; adminEmail?: string; adminPassword?: string }) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_CREATE);
         if (data.adminEmail) {
             const existing = await this.prisma.user.findUnique({
                 where: { email: data.adminEmail }
@@ -85,7 +93,7 @@ export class TenantsService {
                         tenantId: t.id,
                         email: data.adminEmail,
                         passwordHash: hash,
-                        role: Role.ADMIN,
+                        role: Role.TENANT_ADMIN,
                     }
                 });
             }
@@ -93,26 +101,42 @@ export class TenantsService {
         });
 
         // Audit log must be outside transaction to avoid deadlocks/timeouts during heavy provisioning
-        await this.audit.logAction(tenant.id, actorId || 'system', 'CREATE', 'Tenant', tenant.id, {
-            name: tenant.name,
-            event: 'TENANT_CREATED',
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: tenant.id,
+            action: 'TENANT_CREATE',
+            newValue: { name: tenant.name },
+            result: 'SUCCESS',
         });
 
         return tenant;
     }
 
-    async update(id: string, data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number }, actorId?: string) {
+    async update(actor: JwtPayload, id: string, data: { name?: string; plan?: string; status?: string; penaltyRatePerDay?: number }) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_UPDATE);
         const before = await this.prisma.tenant.findUnique({ where: { id } });
         const tenant = await this.prisma.tenant.update({ where: { id }, data });
-        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
-            before: { name: before?.name, plan: before?.plan, status: before?.status },
-            after: { name: data.name, plan: data.plan, status: data.status, penaltyRatePerDay: data.penaltyRatePerDay },
-            event: 'TENANT_UPDATED',
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: id,
+            action: 'TENANT_UPDATE',
+            oldValue: { name: before?.name, plan: before?.plan, status: before?.status },
+            newValue: { name: data.name, plan: data.plan, status: data.status, penaltyRatePerDay: data.penaltyRatePerDay },
+            result: 'SUCCESS',
         });
         return tenant;
     }
 
-    async setStatus(id: string, status: 'ACTIVE' | 'SUSPENDED', actorId?: string) {
+    async setStatus(actor: JwtPayload, id: string, status: 'ACTIVE' | 'SUSPENDED') {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_SUSPEND);
         const tenant = await (this.prisma.tenant.update as any)({
             where: { id },
             data: {
@@ -120,10 +144,15 @@ export class TenantsService {
                 ...(status === 'ACTIVE' ? { deletedAt: null } : {})
             },
         });
-        await this.audit.logAction(id, actorId || 'system', 'UPDATE', 'Tenant', id, {
-            name: tenant.name,
-            newStatus: status,
-            event: status === 'SUSPENDED' ? 'TENANT_SUSPENDED' : 'TENANT_ACTIVATED',
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: id,
+            action: status === 'SUSPENDED' ? 'TENANT_SUSPEND' : 'TENANT_ACTIVATE',
+            newValue: { status },
+            result: 'SUCCESS',
         });
         return tenant;
     }
@@ -133,16 +162,23 @@ export class TenantsService {
      * Suspends the tenant and marks deletedAt. A SUPERADMIN (or background job)
      * calls hardDelete() after the required retention period (e.g. 30 days).
      */
-    async remove(id: string, actorId?: string) {
+    async remove(actor: JwtPayload, id: string) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_SUSPEND);
         const tenant = await this.prisma.tenant.findUnique({ where: { id } });
         const result = await (this.prisma.tenant.update as any)({
             where: { id },
             data: { status: 'SUSPENDED', deletedAt: new Date() },
         });
-        await this.audit.logAction(id, actorId || 'system', 'DELETE', 'Tenant', id, {
-            name: tenant?.name,
-            event: 'TENANT_ERASURE_REQUESTED',
-            scheduledPurgeAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: id,
+            action: 'TENANT_ERASURE_REQUEST',
+            newValue: { scheduledPurgeAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+            result: 'SUCCESS',
         });
         return result;
     }
@@ -153,7 +189,9 @@ export class TenantsService {
      * hard-deletes the tenant row (cascading to all child entities).
      * SUPERADMIN only. Irreversible.
      */
-    async hardDelete(id: string, actorId: string) {
+    async hardDelete(actor: JwtPayload, id: string) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_SUSPEND);
         const tenant = await (this.prisma.tenant.findUnique({ where: { id } }) as any);
         if (!tenant) throw new BadRequestException('Tenant not found');
         if (!tenant.deletedAt) {
@@ -192,9 +230,15 @@ export class TenantsService {
         });
 
         // Best-effort post-purge audit (outside transaction)
-        await this.audit.logAction('system', actorId, 'DELETE', 'Tenant', id, {
-            event: 'TENANT_HARD_DELETED',
-            name: tenant.name,
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: id,
+            action: 'TENANT_HARD_DELETE',
+            oldValue: { name: tenant.name },
+            result: 'SUCCESS',
         }).catch(() => { });
 
         return {
@@ -203,7 +247,9 @@ export class TenantsService {
         };
     }
 
-    async getTenantUsers(tenantId: string) {
+    async getTenantUsers(actor: JwtPayload, tenantId: string) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.USER_UPDATE);
         return this.prisma.user.findMany({
             where: { tenantId },
             select: { id: true, email: true, role: true, twoFactorEnabled: true, createdAt: true },
@@ -211,7 +257,8 @@ export class TenantsService {
         });
     }
 
-    async platformStats() {
+    async platformStats(actor: JwtPayload) {
+        this.authz.assertPlatformOnly(actor);
         const [
             totalTenants,
             activeTenants,

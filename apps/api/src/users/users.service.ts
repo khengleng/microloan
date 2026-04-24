@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,14 +9,18 @@ import { AuditService } from '../audit/audit.service';
 import { User, Role } from '@microloan/db';
 import * as bcrypt from 'bcrypt';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { AuthzService } from '../authz/authz.service';
+import { Permission } from '../authz/permission.enum';
+import { canonicalRole } from '../authz/role-permissions';
 
-type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId'>;
+type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId' | 'branchId' | 'permissions'>;
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private authz: AuthzService,
   ) { }
 
   async findOneByEmail(email: string): Promise<User | null> {
@@ -29,13 +32,15 @@ export class UsersService {
   }
 
   async findAll(actor: UserActor): Promise<any[]> {
-    this.assertManagementActor(actor);
+    this.authz.assertPermission(actor, Permission.USER_UPDATE);
     return this.prisma.user.findMany({
-      where: { tenantId: actor.tenantId },
+      where: this.authz.scopeWhere(actor, {}),
       select: {
         id: true,
         email: true,
         role: true,
+        tenantId: true,
+        branchId: true,
         isActive: true,
         twoFactorEnabled: true,
         createdAt: true,
@@ -45,14 +50,10 @@ export class UsersService {
     });
   }
 
-  async create(actor: UserActor, data: { email: string; plainPassword: string; role: Role }) {
-    this.assertManagementActor(actor);
+  async create(actor: UserActor, data: { email: string; plainPassword: string; role: Role; tenantId?: string; branchId?: string }) {
+    this.authz.assertPermission(actor, Permission.USER_CREATE);
     const requestedRole = this.parseRole(data.role);
-
-    // Critical: tenant admins can never mint global privilege.
-    if (requestedRole === Role.SUPERADMIN && actor.role !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can assign SUPERADMIN role.');
-    }
+    this.authz.assertCanAssignRole(actor, requestedRole);
 
     const existing = await this.findOneByEmail(data.email);
     if (existing) {
@@ -62,49 +63,77 @@ export class UsersService {
     const salt = await bcrypt.genSalt();
     const hash = await bcrypt.hash(data.plainPassword, salt);
 
+    const actorIsPlatform = this.authz.isPlatform(actor);
+    const tenantId = actorIsPlatform ? (data.tenantId ?? null) : actor.tenantId;
+    const branchId = actorIsPlatform ? (data.branchId ?? null) : (data.branchId ?? actor.branchId ?? null);
+
+    if (!actorIsPlatform && tenantId === null) {
+      await this.authz.auditAuthzFailure(actor, 'USER_CREATE', 'User', data.email, 'Tenant admin tried to set tenantId=null');
+      throw new BadRequestException('Tenant users cannot set tenantId to null.');
+    }
+    if (requestedRole === Role.SUPERADMIN && tenantId !== null) {
+      throw new BadRequestException('SUPERADMIN must be created with tenantId=null.');
+    }
+    if (requestedRole !== Role.SUPERADMIN && !tenantId) {
+      throw new BadRequestException('Non-SUPERADMIN users must have a tenantId.');
+    }
+
+    if (branchId && tenantId) {
+      const branch = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId } });
+      if (!branch) throw new BadRequestException('Invalid branch assignment');
+    }
+
     const user = await this.prisma.user.create({
       data: {
-        // All creates are tenant-scoped to the actor's tenant in this controller flow.
-        tenantId: actor.tenantId,
+        tenantId,
+        branchId,
         email: data.email,
         passwordHash: hash,
         role: requestedRole,
       },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, tenantId: true, branchId: true },
     });
 
-    await this.audit.logAction(actor.tenantId, actor.sub, 'CREATE', 'User', user.id, {
-      email: user.email,
-      role: user.role,
-      invitedBy: actor.sub,
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'USER_CREATE',
+      newValue: { role: user.role, tenantId: user.tenantId, branchId: user.branchId },
+      result: 'SUCCESS',
     });
 
     return user;
   }
 
   async remove(actor: UserActor, id: string) {
-    this.assertManagementActor(actor);
-    const scopeTenantId = actor.role === Role.SUPERADMIN ? undefined : actor.tenantId;
+    this.authz.assertPermission(actor, Permission.USER_DELETE);
 
     const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-        ...(scopeTenantId ? { tenantId: scopeTenantId } : {}),
-      },
+      where: this.authz.scopeWhere(actor, { id }),
     });
     if (!user) throw new NotFoundException('User not found');
+    this.authz.assertCanManageUser(actor, user);
 
-    // Non-superadmin actors cannot touch SUPERADMIN identities.
-    if (actor.role !== Role.SUPERADMIN && user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can manage SUPERADMIN users.');
+    // Self-delete lockout protection.
+    if (this.authz.actorId(actor) === user.id) {
+      throw new BadRequestException('You cannot delete your own account.');
     }
 
     // Hard delete for TRUE purge if Superadmin is doing it
-    if (actor.role === Role.SUPERADMIN) {
+    if (this.authz.isPlatform(actor)) {
       await this.prisma.user.delete({ where: { id } });
-      await this.audit.logAction(user.tenantId, actor.sub, 'DELETE', 'User', id, {
-        event: 'USER_PURGED',
-        email: user.email,
+      await this.audit.logSecurityEvent({
+        actorUserId: actor.sub,
+        actorRole: actor.role,
+        actorTenantId: actor.tenantId,
+        targetType: 'User',
+        targetId: id,
+        action: 'USER_DELETE',
+        oldValue: { role: user.role, tenantId: user.tenantId },
+        result: 'SUCCESS',
       });
       return { success: true };
     }
@@ -114,25 +143,27 @@ export class UsersService {
       data: { isActive: false },
     });
 
-    await this.audit.logAction(actor.tenantId, actor.sub, 'UPDATE', 'User', id, {
-      event: 'USER_SUSPENDED',
-      email: user.email,
-      role: user.role,
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: id,
+      action: 'USER_DISABLE',
+      oldValue: { isActive: true, role: user.role },
+      newValue: { isActive: false },
+      result: 'SUCCESS',
     });
 
     return result;
   }
 
   async updateRole(actor: UserActor, id: string, role: string) {
-    this.assertManagementActor(actor);
+    this.authz.assertPermission(actor, Permission.USER_UPDATE_ROLE);
     const targetRole = this.parseRole(role);
-    const scopeTenantId = actor.role === Role.SUPERADMIN ? undefined : actor.tenantId;
 
     const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-        ...(scopeTenantId ? { tenantId: scopeTenantId } : {}),
-      },
+      where: this.authz.scopeWhere(actor, { id }),
       select: { id: true, email: true, role: true, isActive: true, tenantId: true }
     });
 
@@ -140,15 +171,14 @@ export class UsersService {
     if (!user.isActive) {
       throw new BadRequestException('Cannot update role for suspended users. You must reactivate the account first to update its logic permissions.');
     }
+    this.authz.assertCanManageUser(actor, user, { role: targetRole });
 
-    // Critical: only SUPERADMIN can assign SUPERADMIN role (service-enforced).
-    if (targetRole === Role.SUPERADMIN && actor.role !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can assign SUPERADMIN role.');
+    // Prevent self-promotion to platform role and self-demotion lockout.
+    if (this.authz.actorId(actor) === user.id && canonicalRole(targetRole) === 'SUPERADMIN' && !this.authz.isPlatform(actor)) {
+      throw new BadRequestException('Self-promotion to SUPERADMIN is forbidden.');
     }
-
-    // Defense-in-depth: tenant admins cannot manage existing SUPERADMIN accounts.
-    if (actor.role !== Role.SUPERADMIN && user.role === Role.SUPERADMIN) {
-      throw new ForbiddenException('Only SUPERADMIN can manage SUPERADMIN users.');
+    if (this.authz.actorId(actor) === user.id && canonicalRole(user.role) === 'SUPERADMIN' && canonicalRole(targetRole) !== 'SUPERADMIN') {
+      throw new BadRequestException('SUPERADMIN cannot self-demote.');
     }
 
     const updated = await this.prisma.user.update({
@@ -157,20 +187,19 @@ export class UsersService {
       select: { id: true, email: true, role: true },
     });
 
-    await this.audit.logAction(user.tenantId, actor.sub, 'UPDATE', 'User', id, {
-      email: user.email,
-      previousRole: user.role,
-      newRole: targetRole,
-      event: 'USER_ROLE_UPDATED',
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: id,
+      action: 'USER_UPDATE_ROLE',
+      oldValue: { role: user.role },
+      newValue: { role: targetRole },
+      result: 'SUCCESS',
     });
 
     return updated;
-  }
-
-  private assertManagementActor(actor: UserActor) {
-    if (actor.role !== Role.ADMIN && actor.role !== Role.SUPERADMIN) {
-      throw new ForbiddenException('Only ADMIN or SUPERADMIN can manage users.');
-    }
   }
 
   private parseRole(role: string): Role {

@@ -200,7 +200,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         });
 
         if (!borrower) {
-            borrower = await this.borrowersService.create(tenantId, userId, {
+            borrower = await this.borrowersService.create({
+                sub: userId,
+                id: userId,
+                role: 'TENANT_ADMIN',
+                tenantId,
+                branchId: null,
+                permissions: [],
+            } as any, {
                 firstName: args.firstName,
                 lastName: args.lastName,
                 idNumber: 'BOT-' + Date.now().toString(),
@@ -227,7 +234,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         if (!policy) throw new Error('Selected product has no valid interest policies.');
 
         // 2. Create Loan
-        await this.loansService.create(tenantId, userId, {
+        await this.loansService.create({
+            sub: userId,
+            id: userId,
+            role: 'TENANT_ADMIN',
+            tenantId,
+            branchId: borrower.branchId || null,
+            permissions: [],
+        } as any, {
             borrowerId: borrower.id,
             principal: args.principal,
             annualInterestRate: Number(policy.interestRate),

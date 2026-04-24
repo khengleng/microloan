@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { JwtPayload } from '../auth/jwt.strategy';
+import { AuthzService } from '../authz/authz.service';
+import { Permission } from '../authz/permission.enum';
 
 @Injectable()
 export class DocumentVaultService {
@@ -19,6 +22,7 @@ export class DocumentVaultService {
     constructor(
         private prisma: PrismaService,
         private audit: AuditService,
+        private authz: AuthzService,
     ) {
         this.s3Client = new S3Client({
             region: process.env.AWS_REGION || 'us-east-1',
@@ -29,7 +33,8 @@ export class DocumentVaultService {
         });
     }
 
-    async uploadDocument(tenantId: string, loanId: string, actorId: string, file: Express.Multer.File) {
+    async uploadDocument(actor: JwtPayload, loanId: string, file: Express.Multer.File) {
+        this.authz.assertPermission(actor, Permission.DOCUMENT_UPLOAD);
         // Fix 6: Require S3 — no silent DB fallback that bloats the database with Base64
         if (!this.s3Configured) {
             throw new ServiceUnavailableException(
@@ -37,8 +42,9 @@ export class DocumentVaultService {
             );
         }
 
-        const loan = await this.prisma.loan.findFirst({ where: { id: loanId, tenantId } });
+        const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id: loanId }) });
         if (!loan) throw new NotFoundException('Loan not found');
+        this.authz.assertBranchAccess(actor, loan.branchId);
 
         // ── File type allowlist (OWASP: reject unknown/dangerous types) ─────────────
         const ALLOWED_MIME_TYPES = new Set([
@@ -53,7 +59,7 @@ export class DocumentVaultService {
             );
         }
 
-        const key = `tenants/${tenantId}/loans/${loanId}/${Date.now()}_${file.originalname}`;
+        const key = `tenants/${loan.tenantId}/loans/${loanId}/${Date.now()}_${file.originalname}`;
 
         try {
             await this.s3Client.send(new PutObjectCommand({
@@ -70,7 +76,7 @@ export class DocumentVaultService {
 
         const document = await this.prisma.document.create({
             data: {
-                tenantId,
+                tenantId: loan.tenantId,
                 loanId,
                 name: file.originalname,
                 content: key, // Store the S3 key only — never raw file content in DB
@@ -78,26 +84,47 @@ export class DocumentVaultService {
             }
         });
 
-        await this.audit.logAction(tenantId, actorId, 'CREATE', 'Document', document.id, {
-            event: 'DOCUMENT_UPLOADED_S3',
-            loanId,
-            name: file.originalname,
+        await this.audit.logSecurityEvent({
+            actorUserId: this.authz.actorId(actor),
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Document',
+            targetId: document.id,
+            action: 'DOCUMENT_UPLOAD',
+            result: 'SUCCESS',
         });
         return document;
     }
 
-    async getDocuments(tenantId: string, loanId: string) {
+    async getDocuments(actor: JwtPayload, loanId: string) {
+        this.authz.assertPermission(actor, Permission.DOCUMENT_VIEW);
+        const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id: loanId }) });
+        if (!loan) throw new NotFoundException('Loan not found');
+        this.authz.assertBranchAccess(actor, loan.branchId);
         return this.prisma.document.findMany({
-            where: { tenantId, loanId },
+            where: { tenantId: loan.tenantId, loanId },
             select: { id: true, name: true, type: true, createdAt: true },
         });
     }
 
-    async downloadDocument(tenantId: string, id: string, actorId: string) {
-        const document = await this.prisma.document.findFirst({ where: { id, tenantId } });
+    async downloadDocument(actor: JwtPayload, id: string) {
+        this.authz.assertPermission(actor, Permission.DOCUMENT_VIEW);
+        const document = await this.prisma.document.findFirst({
+            where: this.authz.scopeWhere(actor, { id }),
+            include: { loan: true },
+        });
         if (!document) throw new NotFoundException('Document not found');
+        this.authz.assertBranchAccess(actor, document.loan.branchId);
 
-        await this.audit.logAction(tenantId, actorId, 'READ', 'Document', id, { event: 'DOCUMENT_DOWNLOADED' });
+        await this.audit.logSecurityEvent({
+            actorUserId: this.authz.actorId(actor),
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Document',
+            targetId: id,
+            action: 'DOCUMENT_DOWNLOAD',
+            result: 'SUCCESS',
+        });
 
         // Fix 6: Legacy DB_OVERFLOW records cannot be served — require re-upload
         if (document.content.startsWith('DB_OVERFLOW:')) {
@@ -120,9 +147,14 @@ export class DocumentVaultService {
     }
 
     // Fix 6: Delete document from S3 and DB atomically
-    async deleteDocument(tenantId: string, id: string, actorId: string) {
-        const document = await this.prisma.document.findFirst({ where: { id, tenantId } });
+    async deleteDocument(actor: JwtPayload, id: string) {
+        this.authz.assertPermission(actor, Permission.DOCUMENT_DELETE);
+        const document = await this.prisma.document.findFirst({
+            where: this.authz.scopeWhere(actor, { id }),
+            include: { loan: true },
+        });
         if (!document) throw new NotFoundException('Document not found');
+        this.authz.assertBranchAccess(actor, document.loan.branchId);
 
         // Attempt S3 deletion (non-fatal if object is already gone)
         if (this.s3Configured && !document.content.startsWith('DB_OVERFLOW:')) {
@@ -137,9 +169,14 @@ export class DocumentVaultService {
         }
 
         await this.prisma.document.delete({ where: { id } });
-        await this.audit.logAction(tenantId, actorId, 'DELETE', 'Document', id, {
-            event: 'DOCUMENT_DELETED',
-            name: document.name,
+        await this.audit.logSecurityEvent({
+            actorUserId: this.authz.actorId(actor),
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Document',
+            targetId: id,
+            action: 'DOCUMENT_DELETE',
+            result: 'SUCCESS',
         });
         return { success: true };
     }

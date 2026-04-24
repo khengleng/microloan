@@ -11,23 +11,23 @@ const WEAK_DEFAULTS = new Set(['Admin@123!', 'password123', 'admin123']);
 
 async function main() {
     const isDevelopment = process.env.NODE_ENV === 'development';
-    const email = process.env.ADMIN_EMAIL;
-    let password = process.env.ADMIN_PASSWORD;
+    const email = process.env.BOOTSTRAP_SUPERADMIN_EMAIL;
+    let password = process.env.BOOTSTRAP_SUPERADMIN_PASSWORD;
 
     if (!email) {
-        throw new Error('ADMIN_EMAIL is required for seed-admin.');
+        throw new Error('BOOTSTRAP_SUPERADMIN_EMAIL is required for seed-admin.');
     }
 
     if (!password) {
         if (!isDevelopment) {
-            throw new Error('ADMIN_PASSWORD is required outside development.');
+            throw new Error('BOOTSTRAP_SUPERADMIN_PASSWORD is required outside development.');
         }
         // Development-only fallback: secure random credential.
         password = randomBytes(24).toString('base64url');
     }
 
     if (!isDevelopment && WEAK_DEFAULTS.has(password)) {
-        throw new Error('Refusing to use weak/default ADMIN_PASSWORD outside development.');
+        throw new Error('Refusing to use weak/default BOOTSTRAP_SUPERADMIN_PASSWORD outside development.');
     }
 
     // Check if user already exists
@@ -36,7 +36,7 @@ async function main() {
         // Just make sure they are SUPERADMIN
         await prisma.user.update({
             where: { email },
-            data: { role: 'SUPERADMIN' as any },
+            data: { role: 'SUPERADMIN' as any, tenantId: null, branchId: null },
         });
         console.log(`✅ User ${email} promoted to SUPERADMIN`);
         return;
@@ -54,10 +54,11 @@ async function main() {
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
         data: {
-            tenantId: tenant.id,
+            tenantId: null,
             email,
             passwordHash,
             role: 'SUPERADMIN' as any,
+            branchId: null,
         },
     });
 

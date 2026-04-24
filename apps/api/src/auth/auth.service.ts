@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
@@ -17,6 +16,7 @@ import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
 import { createHash, randomUUID } from 'crypto';
 import { Prisma } from '@microloan/db';
+import { permissionsForRole } from '../authz/role-permissions';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
@@ -33,14 +33,13 @@ const otpauth = {
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
     private jwtService: JwtService,
     private prisma: PrismaService,
     private audit: AuditService,
   ) { }
 
   async registerTenant(dto: RegisterTenantDto, ip?: string) {
-    const existing = await this.usersService.findOneByEmail(dto.adminEmail);
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.adminEmail } });
     if (existing) {
       throw new ConflictException('Registration failed. This email is already tied to an existing organization (possibly suspended or in the Trash). To reuse this email, the organization must be permanently PURGED from the platform by a Superadmin.');
     }
@@ -53,23 +52,25 @@ export class AuthService {
         data: { name: dto.organizationName }
       });
 
-      const userCount = await tx.user.count();
-      const role = userCount === 0 ? Role.SUPERADMIN : Role.ADMIN;
-
       const user = await tx.user.create({
         data: {
           tenantId: tenant.id,
           email: dto.adminEmail,
           passwordHash,
-          role,
+          role: Role.TENANT_ADMIN,
         }
       });
 
-      await this.audit.logAction(tenant.id, user.id, 'CREATE', 'Tenant', tenant.id, {
-        organizationName: dto.organizationName,
-        role,
-        event: 'TENANT_REGISTERED',
-        ip: ip || 'unknown',
+      await this.audit.logSecurityEvent({
+        actorUserId: user.id,
+        actorRole: user.role,
+        actorTenantId: tenant.id,
+        targetType: 'Tenant',
+        targetId: tenant.id,
+        action: 'TENANT_CREATE',
+        newValue: { organizationName: dto.organizationName },
+        ipAddress: ip || 'unknown',
+        result: 'SUCCESS',
       });
 
       return {
@@ -96,7 +97,7 @@ export class AuthService {
     }
 
     // ── Organization Suspended check ─────────────────────────────────────
-    if (user.tenant?.status !== 'ACTIVE') {
+    if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
       throw new ForbiddenException(`Organization ${user.tenant?.name || 'Isolated Environment'} has been suspended or is pending data erasure. Please contact platform support.`);
     }
 
@@ -182,13 +183,18 @@ export class AuthService {
       };
     }
 
-    await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-      event: 'LOGIN_SUCCESS',
-      role: user.role,
-      ip: ip || 'unknown',
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'LOGIN',
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
     });
 
-    return this.generateTokens(user.id, user.email, user.role, user.tenantId);
+    return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null);
   }
 
   async verifyMfa(mfaToken: string, code: string, ip?: string) {
@@ -211,20 +217,31 @@ export class AuthService {
     const isValid = verify({ token: code, secret: user.twoFactorSecret });
 
     if (!isValid) {
-      await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-        event: 'MFA_FAILED',
-        ip: ip || 'unknown',
+      await this.audit.logSecurityEvent({
+        actorUserId: user.id,
+        actorRole: user.role,
+        actorTenantId: user.tenantId || null,
+        targetType: 'User',
+        targetId: user.id,
+        action: 'LOGIN_MFA_FAILED',
+        ipAddress: ip || 'unknown',
+        result: 'FAILURE',
       });
       throw new UnauthorizedException('Invalid MFA code');
     }
 
-    await this.audit.logAction(user.tenantId, user.id, 'LOGIN', 'User', user.id, {
-      event: 'MFA_SUCCESS',
-      role: user.role,
-      ip: ip || 'unknown',
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'LOGIN_MFA',
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
     });
 
-    return this.generateTokens(user.id, user.email, user.role, user.tenantId);
+    return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null);
   }
 
   async generateMfaSecret(userId: string) {
@@ -240,8 +257,14 @@ export class AuthService {
       data: { twoFactorSecret: secret },
     });
 
-    await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
-      event: 'MFA_SETUP_INITIATED',
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'MFA_SETUP_INITIATED',
+      result: 'SUCCESS',
     });
 
     return { secret, qrCodeDataUrl };
@@ -259,8 +282,14 @@ export class AuthService {
       data: { twoFactorEnabled: true },
     });
 
-    await this.audit.logAction(user.tenantId, user.id, 'UPDATE', 'User', user.id, {
-      event: 'MFA_ENABLED',
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'MFA_ENABLED',
+      result: 'SUCCESS',
     });
 
     return { success: true };
@@ -272,13 +301,19 @@ export class AuthService {
 
     const updated = await this.prisma.user.update({
       where: { email },
-      data: { role: Role.SUPERADMIN },
+      data: { role: Role.SUPERADMIN, tenantId: null, branchId: null },
       select: { id: true, email: true, role: true, tenantId: true },
     });
 
-    await this.audit.logAction(updated.tenantId, updated.id, 'UPDATE', 'User', updated.id, {
-      event: 'PROMOTED_TO_SUPERADMIN',
-      newRole: Role.SUPERADMIN,
+    await this.audit.logSecurityEvent({
+      actorUserId: updated.id,
+      actorRole: updated.role,
+      actorTenantId: updated.tenantId || null,
+      targetType: 'User',
+      targetId: updated.id,
+      action: 'PROMOTED_TO_SUPERADMIN',
+      newValue: { newRole: Role.SUPERADMIN },
+      result: 'SUCCESS',
     });
 
     return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
@@ -301,7 +336,8 @@ export class AuthService {
       sub: string;
       email: string;
       role: string;
-      tenantId: string;
+      tenantId: string | null;
+      branchId?: string | null;
       jti?: string;
       typ?: string;
     };
@@ -335,6 +371,16 @@ export class AuthService {
     // Reuse detection: a revoked token being presented again indicates replay.
     if (tokenRecord.revokedAt) {
       await this.revokeAllUserSessions(tokenRecord.userId);
+      await this.audit.logSecurityEvent({
+        actorUserId: tokenRecord.userId,
+        actorRole: tokenRecord.user.role,
+        actorTenantId: tokenRecord.user.tenantId || null,
+        targetType: 'RefreshToken',
+        targetId: tokenRecord.id,
+        action: 'REFRESH_TOKEN_REUSE',
+        reason: 'Revoked token replayed',
+        result: 'FAILURE',
+      });
       throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
     }
 
@@ -349,6 +395,16 @@ export class AuthService {
     const incomingHash = this.hashRefreshToken(refreshToken);
     if (incomingHash !== tokenRecord.hashedToken) {
       await this.revokeAllUserSessions(tokenRecord.userId);
+      await this.audit.logSecurityEvent({
+        actorUserId: tokenRecord.userId,
+        actorRole: tokenRecord.user.role,
+        actorTenantId: tokenRecord.user.tenantId || null,
+        targetType: 'RefreshToken',
+        targetId: tokenRecord.id,
+        action: 'REFRESH_TOKEN_REUSE',
+        reason: 'Token hash mismatch',
+        result: 'FAILURE',
+      });
       throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
     }
 
@@ -376,6 +432,16 @@ export class AuthService {
           where: { userId: tokenRecord.userId, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        await this.audit.logSecurityEvent({
+          actorUserId: tokenRecord.userId,
+          actorRole: tokenRecord.user.role,
+          actorTenantId: tokenRecord.user.tenantId || null,
+          targetType: 'RefreshToken',
+          targetId: tokenRecord.id,
+          action: 'REFRESH_TOKEN_REUSE',
+          reason: 'Concurrent reuse detected during rotation',
+          result: 'FAILURE',
+        });
         throw new UnauthorizedException('Refresh token reuse detected. Please log in again.');
       }
 
@@ -384,6 +450,7 @@ export class AuthService {
         tokenRecord.user.email,
         tokenRecord.user.role,
         tokenRecord.user.tenantId,
+        tokenRecord.user.branchId || null,
         tx,
       );
     });
@@ -400,16 +467,16 @@ export class AuthService {
     extra?: any,
   ) {
     try {
-      let tid = tenantId;
-      if (!tid) {
-        const first = await this.prisma.tenant.findFirst();
-        tid = first?.id || 'system';
-      }
-      await this.audit.logAction(tid, userId || 'anonymous', 'LOGIN', 'User', userId || email, {
-        event,
-        ip: ip || 'unknown',
-        timestamp: new Date().toISOString(),
-        ...extra,
+      await this.audit.logSecurityEvent({
+        actorUserId: userId || null,
+        actorRole: null,
+        actorTenantId: tenantId,
+        targetType: 'User',
+        targetId: userId || email,
+        action: event,
+        newValue: extra,
+        ipAddress: ip || 'unknown',
+        result: 'FAILURE',
       });
     } catch { /* never fail on audit */ }
   }
@@ -418,13 +485,24 @@ export class AuthService {
     userId: string,
     email: string,
     role: string,
-    tenantId: string,
+    tenantId: string | null,
+    branchId: string | null = null,
     tx?: Prisma.TransactionClient,
   ) {
     const db = tx ?? this.prisma;
-    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+    const tenant = tenantId
+      ? await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } })
+      : null;
     const tenantName = tenant?.name || 'Magic Money';
-    const payload = { sub: userId, email, role, tenantId, tenantName };
+    const payload = {
+      sub: userId,
+      email,
+      role,
+      tenantId,
+      branchId,
+      tenantName,
+      permissions: Array.from(permissionsForRole(role)),
+    };
 
     const refreshTokenId = randomUUID();
     const refreshTtlRaw = process.env.JWT_REFRESH_TTL || '30d';

@@ -109,24 +109,25 @@ export class AuditLogsController {
     @Roles('SUPERADMIN', 'ADMIN')
     @Get('summary')
     async summary(@CurrentUser() user: JwtPayload) {
+        const tenantScope = user.tenantId ? { tenantId: user.tenantId } : {};
         const [
             totalEvents,
             loginEvents,
             failedLogins,
             today,
         ] = await Promise.all([
-            this.prisma.auditLog.count({ where: { tenantId: user.tenantId } }),
-            this.prisma.auditLog.count({ where: { tenantId: user.tenantId, action: 'LOGIN' } }),
+            this.prisma.auditLog.count({ where: { ...tenantScope } }),
+            this.prisma.auditLog.count({ where: { ...tenantScope, action: 'LOGIN' } }),
             this.prisma.auditLog.count({
                 where: {
-                    tenantId: user.tenantId,
+                    ...tenantScope,
                     action: 'LOGIN',
                     metadata: { path: ['event'], equals: 'LOGIN_FAILED' },
                 }
             }),
             this.prisma.auditLog.count({
                 where: {
-                    tenantId: user.tenantId,
+                    ...tenantScope,
                     createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
                 }
             }),

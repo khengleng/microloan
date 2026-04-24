@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, UseGuards, Res, BadRequestException } from '@nestjs/common';
 import { LoansService } from '../loans/loans.service';
 import { BorrowersService } from '../borrowers/borrowers.service';
 import { RepaymentsService } from '../repayments/repayments.service';
@@ -37,6 +37,7 @@ export class ReportsController {
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
   @Get('dashboard')
   async getDashboardStats(@CurrentUser() user: JwtPayload) {
+    if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
     const tenantId = user.tenantId;
 
     const activeLoans = await this.prisma.loan.count({
@@ -80,16 +81,16 @@ export class ReportsController {
     return {
       activeLoans,
       totalBorrowers,
-      repaymentsThisMonth: repayments._sum.amount || 0,
-      outstandingPrincipal: outstanding._sum.outstandingPrincipal || 0,
-      dueNext7Days: dueNext7._sum.totalAmount || 0
+      repaymentsThisMonth: repayments._sum?.amount || 0,
+      outstandingPrincipal: outstanding._sum?.outstandingPrincipal || 0,
+      dueNext7Days: dueNext7._sum?.totalAmount || 0
     };
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE')
   @Get('loan-book')
   async exportLoanBook(@CurrentUser() user: JwtPayload, @Res() res: Response) {
-    const result = await this.loansService.findAll(user.tenantId, undefined, undefined, 1, 10000);
+    const result = await this.loansService.findAll(user, undefined, undefined, 1, 10000);
     const loans = result.data;
 
     // Simple CSV Generation
@@ -118,7 +119,7 @@ export class ReportsController {
     @CurrentUser() user: JwtPayload,
     @Res() res: Response,
   ) {
-    const result = await this.repaymentsService.findAll(user.tenantId, undefined, undefined, undefined, 1, 10000);
+    const result = await this.repaymentsService.findAll(user, undefined, undefined, undefined, 1, 10000);
     const repayments = result.data;
 
     const header = 'id,loanId,borrower,amount,date\n';
@@ -142,6 +143,7 @@ export class ReportsController {
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
   @Get('cashflow')
   async getCashflow(@CurrentUser() user: JwtPayload) {
+    if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
     const tenantId = user.tenantId;
     const now = new Date();
 

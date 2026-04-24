@@ -8,8 +8,11 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { PermissionGuard } from '../authz/permission.guard';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
+import { Permission } from '../authz/permission.enum';
 
-@UseGuards(JwtAuthGuard, RolesGuard, QuotaGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard, QuotaGuard)
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }
@@ -17,6 +20,7 @@ export class UsersController {
     // SUPERADMIN manages their platform operations team (finOps, CX, Sales etc.)
     // ADMIN manages their tenant's team — both scoped to their own tenantId via JWT
     @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_UPDATE)
     @Get()
     findAll(@CurrentUser() user: JwtPayload) {
         return this.usersService.findAll(user);
@@ -24,22 +28,27 @@ export class UsersController {
 
     @Roles('ADMIN', 'SUPERADMIN')
     @CheckQuota('users')
+    @RequirePermissions(Permission.USER_CREATE)
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() dto: CreateUserDto) {
         return this.usersService.create(user, {
             email: dto.email,
             plainPassword: dto.password,
             role: dto.role,
+            tenantId: dto.tenantId,
+            branchId: dto.branchId,
         });
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_DISABLE)
     @Delete(':id')
     remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.usersService.remove(user, id);
     }
 
     @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_UPDATE_ROLE)
     @Put(':id/role')
     updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: UpdateUserRoleDto) {
         return this.usersService.updateRole(user, id, body.role);
