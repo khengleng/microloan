@@ -73,12 +73,8 @@ export function loadRuntimeConfig(): RuntimeConfig {
     throw new Error('REDIS_URL is required in production for distributed rate limiting.');
   }
 
-  if (isProduction) {
-    const requiredS3 = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME', 'AWS_REGION'] as const;
-    for (const key of requiredS3) {
-      required(key);
-    }
-  }
+  // S3 is optional at process startup to allow controlled rollout.
+  // Document endpoints enforce availability and return 503 when unconfigured.
 
   return {
     nodeEnv,
