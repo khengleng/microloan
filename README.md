@@ -81,7 +81,7 @@ Both Next.js web app and NestJS API can be deployed seamlessly to [Railway](http
      - `REDIS_URL` = (Managed Redis connection string)
      - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`
      - `NODE_ENV` = `production`
-   - **Migrations**: Use `npx prisma migrate deploy` only. Do not run `prisma db push` in production.
+   - **Migrations**: Run `npx prisma migrate deploy` as a separate release/one-off step. Do not couple migrations to app container startup. Do not run `prisma db push` in production.
 
 3. **Add Web Service**:
    - Create a second service from the same GitHub repo.
