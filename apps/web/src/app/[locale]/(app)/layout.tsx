@@ -9,6 +9,8 @@ import {
     Menu, X, ChevronRight, Globe
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
+import { useEffect } from 'react';
+import { clarityIdentify, claritySetTag } from '@/lib/clarity';
 
 function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
@@ -22,6 +24,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const isAdmin = role === 'ADMIN' || isSuperAdmin;
     const isFinance = role === 'FINANCE' || isAdmin;
     const isSales = role === 'SALES' || isAdmin;
+
+    useEffect(() => {
+        if (!user) return;
+        // Identify with stable internal subject only; never send raw PII to analytics.
+        clarityIdentify(user.sub);
+        claritySetTag('user_role', user.role);
+        claritySetTag('is_platform', !!user.isPlatform);
+        claritySetTag('tenant_scope', user.tenantId || 'platform');
+    }, [user]);
 
     const navItem = (href: string, label: string, Icon: any) => {
         const active = pathname === `/${locale}${href}`;

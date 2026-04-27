@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 export default function RegisterTenantPage() {
     const router = useRouter();
@@ -17,8 +18,14 @@ export default function RegisterTenantPage() {
         adminPassword: ''
     });
 
+    useEffect(() => {
+        claritySetTag('journey_stage', 'tenant_register');
+        clarityEvent('register_page_visit');
+    }, []);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('register_submit_attempt');
         setSubmitting(true);
         setError('');
         try {
@@ -30,15 +37,19 @@ export default function RegisterTenantPage() {
 
             if (!res.ok) {
                 const errData = await res.json();
+                clarityEvent('register_submit_failed');
                 throw new Error(errData.message || 'Registration failed');
             }
 
+            clarityEvent('register_submit_success');
             setSuccess(true);
             setTimeout(() => {
                 router.push(`/${locale}/login`);
             }, 3000);
-        } catch (err: any) {
-            setError(err.message || 'An error occurred during registration.');
+        } catch (err: unknown) {
+            clarityEvent('register_submit_failed');
+            const message = err instanceof Error ? err.message : 'An error occurred during registration.';
+            setError(message);
         } finally {
             setSubmitting(false);
         }
@@ -104,6 +115,7 @@ export default function RegisterTenantPage() {
                             <input
                                 id="email"
                                 type="email"
+                                data-clarity-mask="true"
                                 autoComplete="email"
                                 placeholder="you@company.com"
                                 className={inputClass}
@@ -118,6 +130,7 @@ export default function RegisterTenantPage() {
                             <input
                                 id="pass"
                                 type="password"
+                                data-clarity-mask="true"
                                 autoComplete="new-password"
                                 placeholder="Minimum 8 characters"
                                 className={inputClass}
@@ -144,9 +157,9 @@ export default function RegisterTenantPage() {
 
                         <p className="text-center text-[12px] text-muted-foreground leading-relaxed">
                             By creating an account you agree to our{' '}
-                            <Link href="#" className="text-primary hover:text-primary/80 transition-colors">Terms</Link>
+                            <Link href="/terms-and-conditions" className="text-primary hover:text-primary/80 transition-colors">Terms</Link>
                             {' '}and{' '}
-                            <Link href="#" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
+                            <Link href="/privacy-policy" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
                         </p>
                     </form>
                 </div>
@@ -160,8 +173,8 @@ export default function RegisterTenantPage() {
 
                 <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
                     <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
-                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</button>
-                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</button>
+                    <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
+                    <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
                 </div>
             </div>
         </div>

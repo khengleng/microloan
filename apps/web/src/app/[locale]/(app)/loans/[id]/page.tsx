@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -80,7 +81,20 @@ export default function LoanDetailsPage() {
 
     useEffect(() => { fetchLoan(); }, [fetchLoan]);
 
+    useEffect(() => {
+        claritySetTag('journey_stage', 'loan_status_page');
+        clarityEvent('loan_status_page_view');
+    }, []);
+
+    useEffect(() => {
+        if (!loan) return;
+        claritySetTag('loan_status', loan.status);
+        if (loan.status === 'APPROVED') clarityEvent('loan_approved_status_view');
+        if (loan.status === 'REJECTED') clarityEvent('loan_rejected_status_view');
+    }, [loan]);
+
     const handleApprove = async () => {
+        clarityEvent('loan_approve_attempt');
         const ok = await confirm({
             title: 'Approve Loan Application',
             message: 'This loan will be marked as APPROVED. The loan officer can then disburse funds.',
@@ -90,9 +104,11 @@ export default function LoanDetailsPage() {
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
+            clarityEvent('loan_approve_success');
             showToast('Loan approved', 'success');
             fetchLoan();
         } catch {
+            clarityEvent('loan_approve_failed');
             showToast('Failed to approve loan', 'error');
         }
     };
@@ -102,6 +118,7 @@ export default function LoanDetailsPage() {
             showToast('Please provide a reason for rejection', 'error');
             return;
         }
+        clarityEvent('loan_reject_attempt');
         const ok = await confirm({
             title: 'Reject Loan Application',
             message: `Reason: "${rejectionReason}". This cannot be undone.`,
@@ -111,16 +128,19 @@ export default function LoanDetailsPage() {
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'REJECTED', reason: rejectionReason });
+            clarityEvent('loan_reject_success');
             showToast('Application rejected', 'success');
             setShowRejectInput(false);
             setRejectionReason('');
             fetchLoan();
         } catch {
+            clarityEvent('loan_reject_failed');
             showToast('Failed to reject loan', 'error');
         }
     };
 
     const handleDisburse = async () => {
+        clarityEvent('loan_disburse_attempt');
         const ok = await confirm({
             title: 'Disburse Loan',
             message: 'This will activate the repayment schedule. The borrower will receive the funds.',
@@ -130,9 +150,11 @@ export default function LoanDetailsPage() {
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
+            clarityEvent('loan_disburse_success');
             showToast('Loan disbursed successfully', 'success');
             fetchLoan();
         } catch {
+            clarityEvent('loan_disburse_failed');
             showToast('Failed to disburse loan', 'error');
         }
     };
@@ -202,6 +224,7 @@ export default function LoanDetailsPage() {
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="text"
+                                        data-clarity-mask="true"
                                         placeholder="Reason for rejection..."
                                         value={rejectionReason}
                                         onChange={e => setRejectionReason(e.target.value)}
@@ -227,7 +250,10 @@ export default function LoanDetailsPage() {
                         </button>
                     )}
                     {loan.status === 'DISBURSED' && (
-                        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+                        <button onClick={() => {
+                            clarityEvent('repayment_modal_open_from_loan');
+                            setIsModalOpen(true);
+                        }} className="btn-primary">
                             <Plus size={14} /> Post Payment
                         </button>
                     )}

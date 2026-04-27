@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Trash2, Loader2, Plus, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
+import { clarityEvent, claritySetTag } from "@/lib/clarity";
 
 interface LoanModalProps {
     open: boolean;
@@ -37,9 +37,12 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
     });
 
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [dirty, setDirty] = useState(false);
 
     useEffect(() => {
         if (open) {
+            claritySetTag('journey_stage', 'loan_application');
+            clarityEvent('loan_application_start');
             setFetchError(null);
             Promise.all([api.get('/borrowers', { params: { limit: 500 } }), api.get('/loan-products')])
                 .then(([bRes, pRes]) => {
@@ -58,9 +61,19 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
         }
     }, [open]);
 
+    useEffect(() => {
+        if (!open && dirty && !loading) {
+            clarityEvent('loan_application_dropoff');
+            setDirty(false);
+        }
+    }, [open, dirty, loading]);
+
     const handleProductChange = (productId: string) => {
+        setDirty(true);
+        clarityEvent('loan_product_selected');
         const product = products.find(p => p.id === productId);
         if (product) {
+            clarityEvent('loan_calculator_usage');
             setFormData({
                 ...formData, productId,
                 interestMethod: product.interestMethod,
@@ -73,6 +86,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('loan_application_submit_attempt');
         setLoading(true);
         try {
             await api.post('/loans', {
@@ -82,7 +96,9 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                 termMonths: parseInt(formData.termMonths),
             });
             onSuccess();
+            clarityEvent('loan_application_submitted');
             onOpenChange(false);
+            setDirty(false);
             setFormData({
                 borrowerId: '', productId: '', principal: '',
                 annualInterestRate: '', termMonths: '',
@@ -90,6 +106,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                 interestMethod: 'FLAT', collaterals: [], guarantors: []
             });
         } catch (error: any) {
+            clarityEvent('loan_application_submit_failed');
             const msg = error.response?.data?.message || 'Failed to create loan';
             showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
@@ -97,12 +114,22 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
         }
     };
 
-    const addCollateral = () => setFormData({
-        ...formData, collaterals: [...formData.collaterals, { type: 'LAND_TITLE', description: '', value: '0', idNumber: '' }]
-    });
-    const addGuarantor = () => setFormData({
-        ...formData, guarantors: [...formData.guarantors, { name: '', phone: '', relation: '', idNumber: '' }]
-    });
+    const addCollateral = () => {
+        clarityEvent('loan_collateral_added');
+        setDirty(true);
+        setFormData({
+            ...formData,
+            collaterals: [...formData.collaterals, { type: 'LAND_TITLE', description: '', value: '0', idNumber: '' }]
+        });
+    };
+    const addGuarantor = () => {
+        clarityEvent('loan_guarantor_added');
+        setDirty(true);
+        setFormData({
+            ...formData,
+            guarantors: [...formData.guarantors, { name: '', phone: '', relation: '', idNumber: '' }]
+        });
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,7 +152,10 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label htmlFor="borrowerId" className={labelCls}>Borrower <span className="text-destructive">*</span></label>
-                                    <select id="borrowerId" className={selectCls} value={formData.borrowerId} onChange={e => setFormData({ ...formData, borrowerId: e.target.value })} required>
+                                    <select id="borrowerId" data-clarity-mask="true" className={selectCls} value={formData.borrowerId} onChange={e => {
+                                        setDirty(true);
+                                        setFormData({ ...formData, borrowerId: e.target.value });
+                                    }} required>
                                         <option value="">Select borrower...</option>
                                         {borrowers.map(b => <option key={b.id} value={b.id}>{b.firstName} {b.lastName}</option>)}
                                     </select>
@@ -143,15 +173,27 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             <div className="p-4 bg-muted rounded border border-border grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label htmlFor="principal" className={labelCls}>Principal (USD) <span className="text-destructive">*</span></label>
-                                    <input id="principal" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.principal} onChange={e => setFormData({ ...formData, principal: e.target.value })} required />
+                                    <input id="principal" data-clarity-mask="true" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.principal} onChange={e => {
+                                        setDirty(true);
+                                        clarityEvent('loan_calculator_usage');
+                                        setFormData({ ...formData, principal: e.target.value });
+                                    }} required />
                                 </div>
                                 <div>
                                     <label htmlFor="annualInterestRate" className={labelCls}>Annual Interest Rate (%) <span className="text-destructive">*</span></label>
-                                    <input id="annualInterestRate" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.annualInterestRate} onChange={e => setFormData({ ...formData, annualInterestRate: e.target.value })} required />
+                                    <input id="annualInterestRate" data-clarity-mask="true" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.annualInterestRate} onChange={e => {
+                                        setDirty(true);
+                                        clarityEvent('loan_calculator_usage');
+                                        setFormData({ ...formData, annualInterestRate: e.target.value });
+                                    }} required />
                                 </div>
                                 <div>
                                     <label htmlFor="termMonths" className={labelCls}>Term (months) <span className="text-destructive">*</span></label>
-                                    <input id="termMonths" type="number" min="1" className={fieldCls} placeholder="12" value={formData.termMonths} onChange={e => setFormData({ ...formData, termMonths: e.target.value })} required />
+                                    <input id="termMonths" data-clarity-mask="true" type="number" min="1" className={fieldCls} placeholder="12" value={formData.termMonths} onChange={e => {
+                                        setDirty(true);
+                                        clarityEvent('loan_calculator_usage');
+                                        setFormData({ ...formData, termMonths: e.target.value });
+                                    }} required />
                                 </div>
                             </div>
 
@@ -159,11 +201,18 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label htmlFor="startDate" className={labelCls}>Start Date <span className="text-destructive">*</span></label>
-                                    <input id="startDate" type="date" className={fieldCls} value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} required />
+                                    <input id="startDate" type="date" className={fieldCls} value={formData.startDate} onChange={e => {
+                                        setDirty(true);
+                                        setFormData({ ...formData, startDate: e.target.value });
+                                    }} required />
                                 </div>
                                 <div>
                                     <label htmlFor="interestMethod" className={labelCls}>Interest Method <span className="text-destructive">*</span></label>
-                                    <select id="interestMethod" className={selectCls} value={formData.interestMethod} onChange={e => setFormData({ ...formData, interestMethod: e.target.value })} required>
+                                    <select id="interestMethod" className={selectCls} value={formData.interestMethod} onChange={e => {
+                                        setDirty(true);
+                                        clarityEvent('loan_calculator_usage');
+                                        setFormData({ ...formData, interestMethod: e.target.value });
+                                    }} required>
                                         <option value="FLAT">Flat Rate</option>
                                         <option value="REDUCING_BALANCE">Reducing Balance</option>
                                     </select>
@@ -187,6 +236,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                             <span className="text-xs text-muted-foreground w-5 text-center">{i + 1}</span>
                                             <select className={`${selectCls} flex-1`} value={c.type} onChange={e => {
                                                 const next = [...formData.collaterals]; next[i].type = e.target.value;
+                                                setDirty(true);
                                                 setFormData({ ...formData, collaterals: next });
                                             }}>
                                                 <option value="LAND_TITLE">Land Title</option>
@@ -195,12 +245,14 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                                 <option value="ID_CARD">ID Card</option>
                                                 <option value="OTHER">Other</option>
                                             </select>
-                                            <input type="number" placeholder="Value (USD)" className={`${fieldCls} flex-1`} value={c.value} onChange={e => {
+                                            <input type="number" data-clarity-mask="true" placeholder="Value (USD)" className={`${fieldCls} flex-1`} value={c.value} onChange={e => {
                                                 const next = [...formData.collaterals]; next[i].value = e.target.value;
+                                                setDirty(true);
                                                 setFormData({ ...formData, collaterals: next });
                                             }} />
                                             <button type="button" onClick={() => {
                                                 const next = [...formData.collaterals]; next.splice(i, 1);
+                                                setDirty(true);
                                                 setFormData({ ...formData, collaterals: next });
                                             }} className="text-destructive hover:text-destructive/80 p-1">
                                                 <Trash2 size={14} />
@@ -225,16 +277,19 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                     {formData.guarantors.map((g, i) => (
                                         <div key={i} className="flex gap-2 items-center p-3 bg-muted rounded border border-border">
                                             <span className="text-xs text-muted-foreground w-5 text-center">{i + 1}</span>
-                                            <input placeholder="Full name" className={`${fieldCls} flex-1`} value={g.name} onChange={e => {
+                                            <input data-clarity-mask="true" placeholder="Full name" className={`${fieldCls} flex-1`} value={g.name} onChange={e => {
                                                 const next = [...formData.guarantors]; next[i].name = e.target.value;
+                                                setDirty(true);
                                                 setFormData({ ...formData, guarantors: next });
                                             }} />
-                                            <input placeholder="Phone" className={`${fieldCls} flex-1`} value={g.phone} onChange={e => {
+                                            <input data-clarity-mask="true" placeholder="Phone" className={`${fieldCls} flex-1`} value={g.phone} onChange={e => {
                                                 const next = [...formData.guarantors]; next[i].phone = e.target.value;
+                                                setDirty(true);
                                                 setFormData({ ...formData, guarantors: next });
                                             }} />
                                             <button type="button" onClick={() => {
                                                 const next = [...formData.guarantors]; next.splice(i, 1);
+                                                setDirty(true);
                                                 setFormData({ ...formData, guarantors: next });
                                             }} className="text-destructive hover:text-destructive/80 p-1">
                                                 <Trash2 size={14} />

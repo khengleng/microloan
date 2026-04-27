@@ -45,6 +45,7 @@ Magic Money is a multi-tenant, Khmer/English micro-lending operations platform d
    - `REDIS_URL` (required in production)
    - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` (required in production)
    - `BOOTSTRAP_SUPERADMIN_EMAIL`, `BOOTSTRAP_SUPERADMIN_PASSWORD`
+   - `NEXT_PUBLIC_CLARITY_PROJECT_ID` (web behavioral analytics, optional)
 
 3. Setup Database (Schema & Seed):
    ```bash
@@ -60,6 +61,12 @@ Magic Money is a multi-tenant, Khmer/English micro-lending operations platform d
    ```
    - **API Server** will be at: `http://localhost:3001`
    - **Web Server** will be at: `http://localhost:3000`
+
+### Microsoft Clarity (Web Analytics)
+- Set `NEXT_PUBLIC_CLARITY_PROJECT_ID` in the web environment.
+- Clarity is initialized client-side and tracks journey events (login, registration, loan workflow, KYC, repayments) plus scoped tags.
+- Sensitive fields (credentials, PII, financial inputs) are explicitly masked in UI forms.
+- Identification uses internal user subject IDs only (no raw emails or password/token values).
 
 ---
 
@@ -88,6 +95,7 @@ Both Next.js web app and NestJS API can be deployed seamlessly to [Railway](http
    - Set **Root Directory** to `apps/web`.
    - Setup Environment Variables:
      - `NEXT_PUBLIC_API_URL` = `https://<YOUR-API-DOMAIN>.up.railway.app/v1`
+     - `NEXT_PUBLIC_CLARITY_PROJECT_ID` = `<YOUR_CLARITY_PROJECT_ID>`
      - `NODE_ENV` = `production`
 
 ---

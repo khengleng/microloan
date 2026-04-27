@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from 'react';
+import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 export default function LoginPage() {
     const t = useTranslations('Index');
@@ -19,8 +21,14 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const router = useRouter();
 
+    useEffect(() => {
+        claritySetTag('journey_stage', 'landing_login');
+        clarityEvent('landing_page_visit');
+    }, []);
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('login_submit_attempt');
         setLoading(true);
         setError('');
         try {
@@ -31,18 +39,22 @@ export default function LoginPage() {
             });
             const data = await res.json();
             if (!res.ok) {
+                clarityEvent('login_submit_failed');
                 setError(data?.message || 'Invalid email or password.');
                 return;
             }
             if (data.mfaRequired) {
+                clarityEvent('login_mfa_challenge');
                 setMfaToken(data.mfaToken);
                 setMfaStep(true);
                 return;
             }
             // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me', { headers: { Authorization: `Bearer ${data.accessToken ?? ''}` } }).then(r => r.json()).catch(() => ({}));
+            clarityEvent('login_submit_success');
             router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
+            clarityEvent('login_submit_failed');
             setError('Unable to connect to service.');
         } finally {
             setLoading(false);
@@ -51,6 +63,7 @@ export default function LoginPage() {
 
     const handleMfaVerify = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('mfa_verify_attempt');
         setLoading(true);
         setError('');
         try {
@@ -61,13 +74,16 @@ export default function LoginPage() {
             });
             const data = await res.json();
             if (!res.ok) {
+                clarityEvent('mfa_verify_failed');
                 setError(data?.message || 'Invalid verification code.');
                 return;
             }
             // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me').then(r => r.json()).catch(() => ({}));
+            clarityEvent('mfa_verify_success');
             router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
+            clarityEvent('mfa_verify_failed');
             setError('MFA validation failure.');
         } finally {
             setLoading(false);
@@ -103,6 +119,7 @@ export default function LoginPage() {
                                 <input
                                     id="email"
                                     type="email"
+                                    data-clarity-mask="true"
                                     autoComplete="email"
                                     placeholder="name@company.com"
                                     className={inputClass}
@@ -120,6 +137,7 @@ export default function LoginPage() {
                                     <input
                                         id="password"
                                         type={showPassword ? 'text' : 'password'}
+                                        data-clarity-mask="true"
                                         autoComplete="current-password"
                                         placeholder="••••••••"
                                         className={`${inputClass} pr-10`}
@@ -158,6 +176,7 @@ export default function LoginPage() {
                                 <label htmlFor="mfaCode" className={labelClass}>Verification code</label>
                                 <input
                                     id="mfaCode"
+                                    data-clarity-mask="true"
                                     placeholder="000000"
                                     maxLength={6}
                                     className={`${inputClass} text-center text-[20px] font-bold tracking-[0.25em]`}
@@ -198,8 +217,8 @@ export default function LoginPage() {
 
                 <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
                     <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
-                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</button>
-                    <button className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</button>
+                    <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
+                    <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
                 </div>
             </div>
         </div>

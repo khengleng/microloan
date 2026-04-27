@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { clarityEvent, claritySetTag } from "@/lib/clarity";
 
 interface RepaymentModalProps {
     open: boolean;
@@ -32,16 +33,27 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
         amount: '',
         date: new Date().toISOString().split('T')[0]
     });
+    const [dirty, setDirty] = useState(false);
 
     useEffect(() => {
         if (open) {
+            claritySetTag('journey_stage', 'repayment');
+            clarityEvent('repayment_form_start');
             api.get('/loans', { params: { status: 'DISBURSED', limit: 200 } }).then(res => {
                 const data = res.data.data || res.data;
                 setLoans(Array.isArray(data) ? data.filter((l: any) => l.status === 'DISBURSED') : []);
             });
             if (defaultLoanId) setFormData(prev => ({ ...prev, loanId: defaultLoanId }));
+            setDirty(false);
         }
     }, [open, defaultLoanId]);
+
+    useEffect(() => {
+        if (!open && dirty && !loading) {
+            clarityEvent('repayment_form_dropoff');
+            setDirty(false);
+        }
+    }, [open, dirty, loading]);
 
     useEffect(() => {
         if (formData.loanId) {
@@ -62,13 +74,17 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('repayment_submit_attempt');
         setLoading(true);
         try {
             await api.post('/repayments', { ...formData, amount: parseFloat(formData.amount) });
+            clarityEvent('repayment_submit_success');
             onSuccess();
             onOpenChange(false);
+            setDirty(false);
             setFormData({ loanId: '', amount: '', date: new Date().toISOString().split('T')[0] });
         } catch (error: any) {
+            clarityEvent('repayment_submit_failed');
             const msg = error.response?.data?.message || 'Failed to post repayment';
             showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
@@ -101,7 +117,10 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                 id="loanId"
                                 className={`${fieldCls} appearance-none`}
                                 value={formData.loanId}
-                                onChange={e => setFormData({ ...formData, loanId: e.target.value })}
+                                onChange={e => {
+                                    setDirty(true);
+                                    setFormData({ ...formData, loanId: e.target.value });
+                                }}
                                 required
                             >
                                 <option value="">Select a loan...</option>
@@ -125,7 +144,11 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                     className={fieldCls}
                                     placeholder="0.00"
                                     value={formData.amount}
-                                    onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                                    data-clarity-mask="true"
+                                    onChange={e => {
+                                        setDirty(true);
+                                        setFormData({ ...formData, amount: e.target.value });
+                                    }}
                                     required
                                 />
                             </div>
@@ -136,7 +159,10 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                     type="date"
                                     className={fieldCls}
                                     value={formData.date}
-                                    onChange={e => setFormData({ ...formData, date: e.target.value })}
+                                    onChange={e => {
+                                        setDirty(true);
+                                        setFormData({ ...formData, date: e.target.value });
+                                    }}
                                     required
                                 />
                             </div>

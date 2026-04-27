@@ -7,6 +7,7 @@ import { Plus, Search, FileText, Loader2, Download, ChevronLeft, ChevronRight } 
 import { LoanModal } from '@/components/LoanModal';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface Loan {
     id: string;
@@ -62,8 +63,13 @@ export default function LoansPage() {
     }, []);
 
     useEffect(() => { fetchLoans(1, '', 'ALL'); }, [fetchLoans]);
+    useEffect(() => {
+        claritySetTag('journey_stage', 'loan_portfolio_list');
+        clarityEvent('loan_portfolio_page_view');
+    }, []);
 
     const handleSearchChange = (value: string) => {
+        clarityEvent('loan_search_used');
         setSearchQuery(value);
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
@@ -73,6 +79,7 @@ export default function LoansPage() {
     };
 
     const handleStatusChange = (status: string) => {
+        clarityEvent('loan_status_filter_used');
         setStatusFilter(status);
         setPage(1);
         fetchLoans(1, searchQuery, status);
@@ -84,6 +91,7 @@ export default function LoansPage() {
     };
 
     const exportToExcel = async () => {
+        clarityEvent('loan_export_attempt');
         try {
             const res = await api.get('/exports/loans/excel', { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -93,8 +101,10 @@ export default function LoansPage() {
             document.body.appendChild(link);
             link.click();
             link.remove();
+            clarityEvent('loan_export_success');
             showToast('Loans exported', 'success');
         } catch {
+            clarityEvent('loan_export_failed');
             showToast('Failed to export', 'error');
         }
     };
@@ -113,7 +123,10 @@ export default function LoansPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> Export
                     </button>
-                    <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+                    <button onClick={() => {
+                        clarityEvent('loan_application_start');
+                        setIsModalOpen(true);
+                    }} className="btn-primary">
                         <Plus size={14} /> New Loan
                     </button>
                 </div>

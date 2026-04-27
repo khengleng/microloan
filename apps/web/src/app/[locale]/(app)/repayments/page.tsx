@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Search, CreditCard, Loader2, Download, ChevronLeft, ChevronRight, Wallet, Activity, CheckCircle2 } from 'lucide-react';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface Repayment {
     id: string;
@@ -66,11 +67,14 @@ export default function RepaymentsPage() {
     }, []);
 
     useEffect(() => {
+        claritySetTag('journey_stage', 'repayment_page');
+        clarityEvent('repayment_page_view');
         fetchRepayments(1, '', '');
         fetchTotal();
     }, [fetchRepayments, fetchTotal]);
 
     const handleDateChange = (from: string, to: string) => {
+        clarityEvent('repayment_filter_apply');
         setPage(1);
         fetchRepayments(1, from, to);
     };
@@ -91,6 +95,7 @@ export default function RepaymentsPage() {
     const pageTotal = repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
     const exportToExcel = async () => {
+        clarityEvent('repayment_export_attempt');
         try {
             const params: any = {};
             if (dateFrom) params.startDate = dateFrom;
@@ -103,8 +108,10 @@ export default function RepaymentsPage() {
             document.body.appendChild(link);
             link.click();
             link.remove();
+            clarityEvent('repayment_export_success');
             showToast('Repayments exported', 'success');
         } catch {
+            clarityEvent('repayment_export_failed');
             showToast('Failed to export', 'error');
         }
     };
@@ -123,7 +130,10 @@ export default function RepaymentsPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> Export
                     </button>
-                    <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+                    <button onClick={() => {
+                        clarityEvent('repayment_form_open');
+                        setIsModalOpen(true);
+                    }} className="btn-primary">
                         <Plus size={14} /> Record Payment
                     </button>
                 </div>
@@ -155,7 +165,10 @@ export default function RepaymentsPage() {
                             type="text"
                             placeholder="Search by borrower name..."
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            onChange={e => {
+                                clarityEvent('repayment_search_used');
+                                setSearchQuery(e.target.value);
+                            }}
                             className="w-full pl-8 pr-4 h-9 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                         />
                     </div>

@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
+import { clarityEvent, claritySetTag } from "@/lib/clarity";
 
 
 interface Borrower {
@@ -36,6 +37,14 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
         idNumber: '',
         address: ''
     });
+    const [dirty, setDirty] = useState(false);
+
+    useEffect(() => {
+        if (open) {
+            claritySetTag('journey_stage', 'kyc_borrower_form');
+            clarityEvent(borrower ? 'borrower_edit_start' : 'borrower_create_start');
+        }
+    }, [open, borrower]);
 
     useEffect(() => {
         if (borrower) {
@@ -49,10 +58,19 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
         } else {
             setFormData({ firstName: '', lastName: '', phone: '', idNumber: '', address: '' });
         }
+        setDirty(false);
     }, [borrower, open]);
+
+    useEffect(() => {
+        if (!open && dirty && !loading) {
+            clarityEvent('kyc_form_dropoff');
+            setDirty(false);
+        }
+    }, [open, dirty, loading]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        clarityEvent('kyc_submit_attempt');
         setLoading(true);
         try {
             if (borrower) {
@@ -60,9 +78,12 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
             } else {
                 await api.post('/borrowers', formData);
             }
+            clarityEvent('kyc_submit_success');
+            setDirty(false);
             onSuccess();
             onOpenChange(false);
         } catch (error: any) {
+            clarityEvent('kyc_submit_failed');
             showToast(error.response?.data?.message || 'Failed to save borrower', 'error');
         } finally {
             setLoading(false);
@@ -88,27 +109,42 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="firstName" className={labelCls}>First Name <span className="text-destructive">*</span></label>
-                                <input id="firstName" className={fieldCls} value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} required />
+                                <input id="firstName" data-clarity-mask="true" className={fieldCls} value={formData.firstName} onChange={e => {
+                                    setDirty(true);
+                                    setFormData({ ...formData, firstName: e.target.value });
+                                }} required />
                             </div>
                             <div>
                                 <label htmlFor="lastName" className={labelCls}>Last Name <span className="text-destructive">*</span></label>
-                                <input id="lastName" className={fieldCls} value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} required />
+                                <input id="lastName" data-clarity-mask="true" className={fieldCls} value={formData.lastName} onChange={e => {
+                                    setDirty(true);
+                                    setFormData({ ...formData, lastName: e.target.value });
+                                }} required />
                             </div>
                         </div>
 
                         <div>
                             <label htmlFor="phone" className={labelCls}>Phone Number <span className="text-destructive">*</span></label>
-                            <input id="phone" type="tel" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} required />
+                            <input id="phone" type="tel" data-clarity-mask="true" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => {
+                                setDirty(true);
+                                setFormData({ ...formData, phone: e.target.value });
+                            }} required />
                         </div>
 
                         <div>
                             <label htmlFor="idNumber" className={labelCls}>National ID / Passport <span className="text-destructive">*</span></label>
-                            <input id="idNumber" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => setFormData({ ...formData, idNumber: e.target.value })} required />
+                            <input id="idNumber" data-clarity-mask="true" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => {
+                                setDirty(true);
+                                setFormData({ ...formData, idNumber: e.target.value });
+                            }} required />
                         </div>
 
                         <div>
                             <label htmlFor="address" className={labelCls}>Address <span className="text-destructive">*</span></label>
-                            <input id="address" className={fieldCls} placeholder="Street, City" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} required />
+                            <input id="address" data-clarity-mask="true" className={fieldCls} placeholder="Street, City" value={formData.address} onChange={e => {
+                                setDirty(true);
+                                setFormData({ ...formData, address: e.target.value });
+                            }} required />
                         </div>
                     </div>
 
