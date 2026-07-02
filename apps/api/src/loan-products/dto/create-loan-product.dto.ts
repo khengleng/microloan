@@ -48,6 +48,15 @@ export class CreateLoanProductDto {
     @IsBoolean()
     isActive?: boolean;
 
+    // P1 #11: origination fees applied at disbursement.
+    @IsOptional()
+    @IsNumber()
+    processingFeePct?: number;
+
+    @IsOptional()
+    @IsNumber()
+    adminFee?: number;
+
     @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })

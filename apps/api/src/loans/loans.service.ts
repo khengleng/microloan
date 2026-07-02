@@ -245,24 +245,46 @@ export class LoansService {
 
       // Feature #3: post the disbursement to the general ledger atomically.
       const principal = Number(loan.principal);
+
+      // P1 #11: origination fee from the product, deducted from disbursed cash
+      // and recognised as fee income. Capped at principal for safety.
+      let feeAmount = 0;
+      if (loan.productId) {
+        const product = await this.prisma.loanProduct.findUnique({
+          where: { id: loan.productId },
+          select: { processingFeePct: true, adminFee: true },
+        });
+        if (product) {
+          const pct = Number(product.processingFeePct || 0);
+          const flat = Number(product.adminFee || 0);
+          feeAmount = Math.min(principal, Math.round((principal * pct / 100 + flat) * 100) / 100);
+        }
+      }
+      data.feeCharged = feeAmount;
+      const cashOut = Math.round((principal - feeAmount) * 100) / 100;
+
       updated = await this.prisma.$transaction(async (tx) => {
         const u = await tx.loan.update({
           where: { id: loan.id },
           data,
           include: { borrower: true },
         });
+        const lines: any[] = [
+          { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principal },
+          { accountCode: ACCOUNT_CODES.CASH, credit: cashOut },
+        ];
+        if (feeAmount > 0) {
+          lines.push({ accountCode: ACCOUNT_CODES.FEE_INCOME, credit: feeAmount });
+        }
         await this.ledger.postEntry(
           {
             tenantId: loan.tenantId,
             source: JournalSource.DISBURSEMENT,
-            description: `Loan ${loan.id} disbursed`,
+            description: `Loan ${loan.id} disbursed${feeAmount > 0 ? ` (fee ${feeAmount})` : ''}`,
             currency: loan.currency,
             loanId: loan.id,
             createdByUserId: actorId,
-            lines: [
-              { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principal },
-              { accountCode: ACCOUNT_CODES.CASH, credit: principal },
-            ],
+            lines,
           },
           tx,
         );

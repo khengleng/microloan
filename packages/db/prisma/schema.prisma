@@ -176,6 +176,10 @@ model LoanProduct {
   isActive          Boolean        @default(true)
   // Fix 5: per-product penalty override (null = use tenant default)
   penaltyRatePerDay Decimal?       @db.Decimal(8, 2)
+  // P1 #11: origination fees applied at disbursement (deducted from disbursed cash,
+  // recognised as fee income). Processing fee = % of principal; admin fee = flat.
+  processingFeePct  Decimal?       @db.Decimal(5, 2)
+  adminFee          Decimal?       @db.Decimal(10, 2)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -218,6 +222,8 @@ model Loan {
   // Feature #1: FX rate (loan currency -> tenant base currency) captured at
   // disbursement, so historical portfolio value in base currency is stable.
   fxRateToBase        Decimal?       @db.Decimal(18, 8)
+  // P1 #11: origination fee charged at disbursement (snapshot).
+  feeCharged          Decimal        @default(0) @db.Decimal(10, 2)
   startDate           DateTime
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
