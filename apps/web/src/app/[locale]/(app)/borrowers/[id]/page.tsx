@@ -5,9 +5,27 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Phone, MapPin, CreditCard, FileText, Eye, Plus, UserCheck, Wallet, Activity, Calendar } from 'lucide-react';
+import { ChevronLeft, Phone, MapPin, CreditCard, FileText, Eye, Plus, UserCheck, Wallet, Activity, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BorrowerModal } from '@/components/BorrowerModal';
+
+interface CreditCheck {
+    id: string;
+    status: string;
+    score: number | null;
+    grade: string | null;
+    summary: string | null;
+    provider: string;
+    createdAt: string;
+    completedAt?: string | null;
+}
+
+const CREDIT_STATUS_STYLES: Record<string, string> = {
+    COMPLETED: 'bg-emerald-100 text-emerald-700',
+    PENDING: 'bg-amber-100 text-amber-700',
+    PROCESSING: 'bg-indigo-100 text-indigo-700',
+    FAILED: 'bg-rose-100 text-rose-700',
+};
 
 const STATUS_STYLES: Record<string, string> = {
     DRAFT: 'bg-slate-100 text-slate-500',
@@ -43,6 +61,8 @@ export default function BorrowerProfilePage() {
     const [borrower, setBorrower] = useState<Borrower | null>(null);
     const [loading, setLoading] = useState(true);
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const [creditChecks, setCreditChecks] = useState<CreditCheck[]>([]);
+    const [runningCheck, setRunningCheck] = useState(false);
 
     const fetch = useCallback(async () => {
         setLoading(true);
@@ -56,7 +76,30 @@ export default function BorrowerProfilePage() {
         }
     }, [id]);
 
+    const fetchCreditChecks = useCallback(async () => {
+        try {
+            const res = await api.get(`/credit-checks/borrower/${id}`);
+            setCreditChecks(res.data);
+        } catch {
+            // non-fatal: credit history simply won't render
+        }
+    }, [id]);
+
+    const handleRunCreditCheck = async () => {
+        setRunningCheck(true);
+        try {
+            await api.post('/credit-checks', { borrowerId: id });
+            showToast('Credit check submitted', 'success');
+            fetchCreditChecks();
+        } catch {
+            showToast('Failed to run credit check', 'error');
+        } finally {
+            setRunningCheck(false);
+        }
+    };
+
     useEffect(() => { fetch(); }, [fetch]);
+    useEffect(() => { fetchCreditChecks(); }, [fetchCreditChecks]);
 
     if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">Loading Profile...</div>;
     if (!borrower) return <div className="text-center py-20 font-black text-rose-500">Borrower not found.</div>;
@@ -204,6 +247,59 @@ export default function BorrowerProfilePage() {
                                                     </div>
                                                 </Link>
                                             </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                {/* Credit Bureau (CBC) */}
+                <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
+                    <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+                        <h3 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tight">
+                            <ShieldCheck size={22} className="text-indigo-600" /> Credit Bureau (CBC)
+                        </h3>
+                        <Button
+                            onClick={handleRunCreditCheck}
+                            disabled={runningCheck}
+                            className="rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-950 text-white hover:bg-slate-800 h-10 px-6 gap-2 disabled:opacity-60"
+                        >
+                            {runningCheck ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Run Credit Check
+                        </Button>
+                    </div>
+
+                    {creditChecks.length === 0 ? (
+                        <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                            <ShieldCheck size={48} strokeWidth={1} className="mx-auto text-slate-300 mb-4" />
+                            <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">No credit checks on record.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto no-scrollbar">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100">
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Provider</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Score</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">Summary</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100/50">
+                                    {creditChecks.map(check => (
+                                        <tr key={check.id} className="group hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-5 text-sm font-extrabold text-slate-800">{new Date(check.createdAt).toLocaleDateString()}</td>
+                                            <td className="py-5 text-sm font-bold text-slate-500 hidden md:table-cell">{check.provider}</td>
+                                            <td className="py-5">
+                                                <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${CREDIT_STATUS_STYLES[check.status] || 'bg-gray-100 text-gray-600'}`}>
+                                                    {check.status}
+                                                </span>
+                                            </td>
+                                            <td className="py-5 text-right font-black text-indigo-600 text-sm">{check.score ?? '—'}</td>
+                                            <td className="py-5 text-right font-black text-slate-900 text-sm">{check.grade ?? '—'}</td>
+                                            <td className="py-5 text-sm text-slate-500 font-medium max-w-md hidden lg:table-cell">{check.summary ?? '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>

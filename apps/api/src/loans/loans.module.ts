@@ -3,9 +3,10 @@ import { LoansService } from './loans.service';
 import { LoansController } from './loans.controller';
 import { BotModule } from '../bot/bot.module';
 import { AuthzModule } from '../authz/authz.module';
+import { LedgerModule } from '../ledger/ledger.module';
 
 @Module({
-  imports: [AuthzModule, forwardRef(() => BotModule)],
+  imports: [AuthzModule, LedgerModule, forwardRef(() => BotModule)],
   providers: [LoansService],
   controllers: [LoansController],
   exports: [LoansService],

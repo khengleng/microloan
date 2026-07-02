@@ -6,10 +6,12 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PostRepaymentDto } from './dto/post-repayment.dto';
-import { LoanStatus } from '@microloan/db';
+import { LoanStatus, JournalSource } from '@microloan/db';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { LedgerService } from '../ledger/ledger.service';
+import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
 
 @Injectable()
 export class RepaymentsService {
@@ -17,6 +19,7 @@ export class RepaymentsService {
     private prisma: PrismaService,
     private audit: AuditService,
     private authz: AuthzService,
+    private ledger: LedgerService,
   ) { }
 
   async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
@@ -61,7 +64,7 @@ export class RepaymentsService {
     let remainingAmount = dto.amount;
     let totalInterestPaid = 0;
     let totalPrincipalPaid = 0;
-    const updates: any[] = [];
+    const scheduleUpdates: { id: string; paidInterest: number; paidPrincipal: number; isPaid: boolean }[] = [];
 
     // "pay due interest first, then principal" across schedules
     for (const schedule of loan.schedules) {
@@ -98,33 +101,67 @@ export class RepaymentsService {
         const isPaid =
           newPaidInterest + newPaidPrincipal >= Number(schedule.totalAmount);
 
-        updates.push(
-          this.prisma.repaymentSchedule.update({
-            where: { id: schedule.id },
-            data: {
-              paidInterest: newPaidInterest,
-              paidPrincipal: newPaidPrincipal,
-              isPaid,
-            },
-          }),
-        );
+        scheduleUpdates.push({
+          id: schedule.id,
+          paidInterest: newPaidInterest,
+          paidPrincipal: newPaidPrincipal,
+          isPaid,
+        });
       }
     }
 
-    // Process all in a transaction
-    const [repayment] = await this.prisma.$transaction([
-      this.prisma.repayment.create({
+    // Amount actually applied to the loan (guards GL balance against any
+    // sub-cent rounding between the tendered amount and the allocation).
+    const appliedAmount = Math.round((totalInterestPaid + totalPrincipalPaid) * 100) / 100;
+
+    // Process repayment, schedule updates, and the GL posting atomically.
+    const repayment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.repayment.create({
         data: {
           tenantId: loan.tenantId,
           loanId: dto.loanId,
           amount: dto.amount,
+          currency: loan.currency,
           interestPaid: totalInterestPaid,
           principalPaid: totalPrincipalPaid,
           date: new Date(dto.date),
         },
-      }),
-      ...updates,
-    ]);
+      });
+
+      for (const u of scheduleUpdates) {
+        await tx.repaymentSchedule.update({
+          where: { id: u.id },
+          data: { paidInterest: u.paidInterest, paidPrincipal: u.paidPrincipal, isPaid: u.isPaid },
+        });
+      }
+
+      // Feature #3: GL posting — Dr Cash; Cr Loans Receivable (principal),
+      // Interest Income (interest). Skip if nothing was actually applied.
+      if (appliedAmount > 0) {
+        const lines = [{ accountCode: ACCOUNT_CODES.CASH, debit: appliedAmount }];
+        if (totalPrincipalPaid > 0) {
+          lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: totalPrincipalPaid } as any);
+        }
+        if (totalInterestPaid > 0) {
+          lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, credit: totalInterestPaid } as any);
+        }
+        await this.ledger.postEntry(
+          {
+            tenantId: loan.tenantId,
+            source: JournalSource.REPAYMENT,
+            description: `Repayment on loan ${dto.loanId}`,
+            currency: loan.currency,
+            loanId: dto.loanId,
+            referenceId: created.id,
+            createdByUserId: this.authz.actorId(actor),
+            lines,
+          },
+          tx,
+        );
+      }
+
+      return created;
+    });
 
     await this.audit.logAction(
       loan.tenantId,
@@ -144,7 +181,7 @@ export class RepaymentsService {
       where: { loanId: dto.loanId, isPaid: false },
     });
 
-    if (unpaidCount === 0 && (updates.length > 0 || loan.schedules.length === 0)) {
+    if (unpaidCount === 0 && (scheduleUpdates.length > 0 || loan.schedules.length === 0)) {
       await this.prisma.loan.update({
         where: { id: dto.loanId },
         data: { status: LoanStatus.CLOSED },

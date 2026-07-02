@@ -8,12 +8,21 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateLoanDto, ChangeLoanStatusDto } from './dto/create-loan.dto';
-import { calculateRepaymentSchedule, LoanParams } from '@microloan/shared';
-import { LoanStatus } from '@microloan/db';
+import {
+  calculateRepaymentSchedule,
+  LoanParams,
+  checkInterestRateCap,
+  normalizeCurrency,
+  formatCurrency,
+  Currency as SharedCurrency,
+} from '@microloan/shared';
+import { LoanStatus, Currency, JournalSource } from '@microloan/db';
 import { BotService } from '../bot/bot.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { LedgerService } from '../ledger/ledger.service';
+import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
 
 @Injectable()
 export class LoansService {
@@ -21,6 +30,7 @@ export class LoansService {
     private prisma: PrismaService,
     private audit: AuditService,
     private authz: AuthzService,
+    private ledger: LedgerService,
     @Inject(forwardRef(() => BotService))
     private bot: BotService,
   ) {}
@@ -30,9 +40,21 @@ export class LoansService {
 
     const borrower = await this.prisma.borrower.findFirst({
       where: this.authz.scopeWhere(actor, { id: dto.borrowerId }),
+      include: { tenant: { select: { maxAnnualInterestRatePct: true } } },
     });
     if (!borrower) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, borrower.branchId);
+
+    // Feature #1: enforce the NBC interest-rate cap (tenant may set a lower cap).
+    const cap = checkInterestRateCap(
+      dto.annualInterestRate,
+      Number(borrower.tenant?.maxAnnualInterestRatePct),
+    );
+    if (!cap.ok) {
+      throw new BadRequestException(cap.message);
+    }
+
+    const currency = normalizeCurrency(dto.currency) as unknown as Currency;
 
     const params: LoanParams = {
       principal: dto.principal,
@@ -53,6 +75,7 @@ export class LoansService {
           principal: dto.principal,
           annualInterestRate: dto.annualInterestRate,
           termMonths: dto.termMonths,
+          currency,
           startDate: new Date(dto.startDate),
           interestMethod: dto.interestMethod,
           productId: dto.productId,
@@ -182,6 +205,8 @@ export class LoansService {
       if (loan.reviewedByUserId && loan.reviewedByUserId === actorId) {
         throw new BadRequestException('Reviewer cannot approve the same loan.');
       }
+      // Feature #3: block approval without a valid CBC credit check (tenant-configurable).
+      await this.assertCreditCheckForApproval(loan.tenantId, loan.borrowerId);
       data.approvedBy = actorId;
       data.approvedAt = new Date();
       data.reviewedByUserId = data.reviewedByUserId || actorId;
@@ -203,15 +228,48 @@ export class LoansService {
       throw new BadRequestException('Unsupported status transition');
     }
 
-    const updated = await this.prisma.loan.update({
-      where: { id: loan.id },
-      data,
-      include: { borrower: true },
-    });
+    let updated;
+    if (targetStatus === LoanStatus.DISBURSED) {
+      // Feature #1: snapshot FX rate to base currency for stable portfolio value.
+      data.fxRateToBase = await this.resolveFxRateToBase(loan.tenantId, loan.currency);
+
+      // Feature #3: post the disbursement to the general ledger atomically.
+      const principal = Number(loan.principal);
+      updated = await this.prisma.$transaction(async (tx) => {
+        const u = await tx.loan.update({
+          where: { id: loan.id },
+          data,
+          include: { borrower: true },
+        });
+        await this.ledger.postEntry(
+          {
+            tenantId: loan.tenantId,
+            source: JournalSource.DISBURSEMENT,
+            description: `Loan ${loan.id} disbursed`,
+            currency: loan.currency,
+            loanId: loan.id,
+            createdByUserId: actorId,
+            lines: [
+              { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principal },
+              { accountCode: ACCOUNT_CODES.CASH, credit: principal },
+            ],
+          },
+          tx,
+        );
+        return u;
+      });
+    } else {
+      updated = await this.prisma.loan.update({
+        where: { id: loan.id },
+        data,
+        include: { borrower: true },
+      });
+    }
 
     if (updated.status === LoanStatus.DISBURSED && loan.status !== LoanStatus.DISBURSED && updated.borrower.telegramChatId) {
       try {
-        const msg = `🎉 Your loan of **$${updated.principal}** has been DISBURSED. Check your schedule at the Magic Money portal.`;
+        const amount = formatCurrency(Number(updated.principal), updated.currency as unknown as SharedCurrency);
+        const msg = `🎉 Your loan of **${amount}** has been DISBURSED. Check your schedule at the Magic Money portal.`;
         await this.bot.sendDisbursementAlert(updated.tenantId, updated.borrower.telegramChatId, msg);
       } catch {}
     }
@@ -351,6 +409,65 @@ export class LoansService {
       result: 'SUCCESS',
     });
     return { success: true };
+  }
+
+  /**
+   * Feature #3: enforce that a borrower has a COMPLETED credit-bureau (CBC)
+   * check within the tenant's validity window before their loan is approved.
+   * No-op when the tenant has disabled the requirement.
+   */
+  private async assertCreditCheckForApproval(tenantId: string, borrowerId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { requireCreditCheckForApproval: true, creditCheckValidityDays: true },
+    });
+    if (!tenant || !tenant.requireCreditCheckForApproval) return;
+
+    const validityDays = tenant.creditCheckValidityDays ?? 90;
+    const cutoff = new Date(Date.now() - validityDays * 24 * 60 * 60 * 1000);
+    const recent = await this.prisma.creditCheck.findFirst({
+      where: {
+        tenantId,
+        borrowerId,
+        status: 'COMPLETED',
+        completedAt: { gte: cutoff },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+    if (!recent) {
+      throw new BadRequestException(
+        `A completed credit bureau (CBC) check within the last ${validityDays} days is required before approving this loan.`,
+      );
+    }
+  }
+
+  /**
+   * Feature #1: resolve the FX rate from a loan's currency to the tenant's base
+   * currency, using the latest effective-dated ExchangeRate. Returns 1 when the
+   * currencies match, or null when no rate is configured (loan still disburses;
+   * base-currency value is simply unknown until a rate is entered).
+   */
+  private async resolveFxRateToBase(
+    tenantId: string,
+    loanCurrency: Currency,
+  ): Promise<number | null> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { baseCurrency: true },
+    });
+    if (!tenant) return null;
+    if (tenant.baseCurrency === loanCurrency) return 1;
+
+    const rate = await this.prisma.exchangeRate.findFirst({
+      where: {
+        tenantId,
+        fromCurrency: loanCurrency,
+        toCurrency: tenant.baseCurrency,
+        effectiveDate: { lte: new Date() },
+      },
+      orderBy: { effectiveDate: 'desc' },
+    });
+    return rate ? Number(rate.rate) : null;
   }
 }
 

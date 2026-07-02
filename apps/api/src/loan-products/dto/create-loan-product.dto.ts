@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, ValidateNested, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, ValidateNested, IsArray, IsNumber, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InterestMethod } from '@microloan/shared';
 
@@ -38,6 +38,11 @@ export class CreateLoanProductDto {
 
     @IsEnum(InterestMethod)
     interestMethod: InterestMethod;
+
+    @IsOptional()
+    @IsString()
+    @IsIn(['USD', 'KHR'])
+    currency?: string;
 
     @IsOptional()
     @IsBoolean()

@@ -15,8 +15,9 @@ describe('LoansService maker-checker', () => {
     logAction: jest.fn(),
   };
   const bot: any = { sendDisbursementAlert: jest.fn() };
+  const ledger: any = { postEntry: jest.fn(), ensureChartOfAccounts: jest.fn() };
   const authz = new AuthzService(audit);
-  const service = new LoansService(prisma, audit, authz, bot);
+  const service = new LoansService(prisma, audit, authz, ledger, bot);
 
   beforeEach(() => {
     jest.clearAllMocks();

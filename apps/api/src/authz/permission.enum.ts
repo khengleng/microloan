@@ -21,4 +21,16 @@ export enum Permission {
   DOCUMENT_DELETE = 'DOCUMENT_DELETE',
   AUDIT_VIEW = 'AUDIT_VIEW',
   CONFIG_UPDATE = 'CONFIG_UPDATE',
+  // Feature #1: FX / multi-currency management
+  FX_VIEW = 'FX_VIEW',
+  FX_MANAGE = 'FX_MANAGE',
+  // Feature #3: General Ledger
+  LEDGER_VIEW = 'LEDGER_VIEW',
+  LEDGER_MANAGE = 'LEDGER_MANAGE',
+  // Feature #3: Loan-loss provisioning
+  PROVISION_VIEW = 'PROVISION_VIEW',
+  PROVISION_RUN = 'PROVISION_RUN',
+  // Feature #3: Credit Bureau (CBC)
+  CREDIT_CHECK_VIEW = 'CREDIT_CHECK_VIEW',
+  CREDIT_CHECK_RUN = 'CREDIT_CHECK_RUN',
 }

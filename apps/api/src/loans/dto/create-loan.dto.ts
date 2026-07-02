@@ -6,6 +6,7 @@ import {
   IsString,
   IsDateString,
   IsOptional,
+  IsIn,
 } from 'class-validator';
 import { InterestMethod } from '@microloan/shared';
 
@@ -69,6 +70,11 @@ export class CreateLoanDto {
   @IsEnum(InterestMethod)
   @IsNotEmpty()
   interestMethod: InterestMethod;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['USD', 'KHR'])
+  currency?: string;
 
   @IsString()
   @IsOptional()

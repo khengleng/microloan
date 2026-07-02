@@ -5,7 +5,15 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
 import { ReportQueryDto } from './dto/report-query.dto';
+import { normalizeCurrency, Currency } from '@microloan/shared';
 import * as XLSX from 'xlsx';
+
+// Feature #1: converts monetary amounts from a source currency into a single
+// reporting currency so portfolio totals aren't a meaningless mix of USD + KHR.
+type ReportConverter = {
+  reporting: Currency;
+  convert: (amount: number, from?: string | null) => number;
+};
 
 type Pagination = { page: number; limit: number; total: number };
 
@@ -46,15 +54,55 @@ export class ReportsService {
     const to = query.to ? new Date(query.to) : undefined;
     if (to) to.setHours(23, 59, 59, 999);
 
-    if (query.currency && query.currency.toUpperCase() !== 'USD') {
-      return { emptyCurrency: true, page, limit, from, to };
-    }
-
     if (!this.authz.isPlatform(actor) && query.tenantId && query.tenantId !== actor.tenantId) {
       throw new BadRequestException('Invalid tenant scope');
     }
 
+    // Reports now aggregate into a single reporting currency (see buildConverter)
+    // instead of returning empty for non-USD.
     return { page, limit, from, to, emptyCurrency: false };
+  }
+
+  /**
+   * Feature #1: build a converter into the reporting currency. The reporting
+   * currency defaults to the tenant's base currency, or is overridden by
+   * ?currency=. Uses the latest effective-dated exchange rates. When a rate is
+   * missing (or no tenant scope, e.g. platform-wide), amounts pass through
+   * unconverted as a best-effort fallback.
+   */
+  private async buildConverter(actor: JwtPayload, query: ReportQueryDto): Promise<ReportConverter> {
+    const tenantId = this.authz.isPlatform(actor) ? query.tenantId : actor.tenantId;
+    let baseCurrency: Currency = Currency.USD;
+    const rateMap = new Map<string, number>();
+
+    if (tenantId) {
+      const tenant = await this.prisma.tenant?.findUnique?.({
+        where: { id: tenantId },
+        select: { baseCurrency: true },
+      });
+      if (tenant?.baseCurrency) baseCurrency = tenant.baseCurrency as unknown as Currency;
+      const rates = (await this.prisma.exchangeRate?.findMany?.({
+        where: { tenantId },
+        orderBy: { effectiveDate: 'desc' },
+      })) || [];
+      for (const r of rates) {
+        const key = `${r.fromCurrency}->${r.toCurrency}`;
+        if (!rateMap.has(key)) rateMap.set(key, Number(r.rate)); // latest effective wins
+      }
+    }
+
+    const reporting = normalizeCurrency(query.currency, baseCurrency);
+    const convert = (amount: number, from?: string | null): number => {
+      const f = (from || Currency.USD) as string;
+      if (f === reporting) return amount;
+      const direct = rateMap.get(`${f}->${reporting}`);
+      if (direct) return amount * direct;
+      const inverse = rateMap.get(`${reporting}->${f}`);
+      if (inverse) return amount / inverse;
+      return amount; // no configured rate — best-effort passthrough
+    };
+
+    return { reporting, convert };
   }
 
   private baseLoanWhere(actor: JwtPayload, query: ReportQueryDto, from?: Date, to?: Date) {
@@ -139,6 +187,7 @@ export class ReportsService {
 
     const loanWhere = this.baseLoanWhere(actor, query, nrm.from, nrm.to);
     const repaymentWhere = this.baseRepaymentWhere(actor, query, nrm.from, nrm.to);
+    const fx = await this.buildConverter(actor, query);
 
     const [loans, borrowersCount, monthlyCollection, repayments] = await Promise.all([
       this.prisma.loan.findMany({
@@ -162,14 +211,15 @@ export class ReportsService {
     const overdueRows: any[] = [];
 
     for (const loan of loans) {
-      const { outstanding: out, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const { outstanding: outRaw, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const out = fx.convert(outRaw, loan.currency);
       outstanding += out;
       if (daysPastDue >= 30) par30 += out;
       if (daysPastDue >= 90 || loan.status === 'DEFAULTED') npl += out;
       const risk = this.riskGrade(daysPastDue, loan.creditRatingApplied);
       riskBreakdown[risk] = (riskBreakdown[risk] || 0) + out;
       const mk = monthKey(new Date(loan.startDate));
-      disbByMonth[mk] = (disbByMonth[mk] || 0) + n(loan.principal);
+      disbByMonth[mk] = (disbByMonth[mk] || 0) + fx.convert(n(loan.principal), loan.currency);
       if (daysPastDue > 0) {
         overdueRows.push({
           loanId: loan.id,
@@ -183,7 +233,7 @@ export class ReportsService {
     }
     for (const r of repayments) {
       const mk = monthKey(new Date(r.date));
-      collByMonth[mk] = (collByMonth[mk] || 0) + n(r.amount);
+      collByMonth[mk] = (collByMonth[mk] || 0) + fx.convert(n(r.amount), r.currency);
     }
 
     const allMonths = Array.from(new Set([...Object.keys(disbByMonth), ...Object.keys(collByMonth)])).sort();
@@ -193,11 +243,12 @@ export class ReportsService {
 
     const result = {
       filters: query,
+      currency: fx.reporting,
       kpis: {
         totalPortfolioOutstanding: outstanding,
         totalBorrowers: borrowersCount,
         activeLoans: loans.filter((l) => l.status === 'DISBURSED').length,
-        monthlyCollection: n(monthlyCollection._sum.amount),
+        monthlyCollection: fx.convert(n(monthlyCollection._sum.amount), fx.reporting),
         par30Amount: par30,
         par30Pct: pct(par30, outstanding),
         nplAmount: npl,
@@ -229,6 +280,7 @@ export class ReportsService {
     const sortOrder = (query.sortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
     const sortBy = query.sortBy || 'startDate';
 
+    const fx = await this.buildConverter(actor, query);
     const loans = await this.prisma.loan.findMany({
       where,
       include: {
@@ -250,8 +302,8 @@ export class ReportsService {
         branch: loan.branch?.name || 'Unassigned',
         loanOfficer: loan.createdByUserId || 'N/A',
         product: loan.product?.name || 'N/A',
-        principal: n(loan.principal),
-        outstandingBalance: outstanding,
+        principal: fx.convert(n(loan.principal), loan.currency),
+        outstandingBalance: fx.convert(outstanding, loan.currency),
         interestRate: n(loan.annualInterestRate),
         term: loan.termMonths,
         disbursementDate: loan.startDate,
@@ -259,7 +311,7 @@ export class ReportsService {
         status: loan.status,
         daysPastDue,
         riskGrade: risk,
-        currency: 'USD',
+        currency: fx.reporting,
         tenantId: loan.tenantId,
       };
     }).filter((r) => !query.riskGrade || r.riskGrade.toLowerCase() === query.riskGrade.toLowerCase());
@@ -338,6 +390,7 @@ export class ReportsService {
     const nrm = this.normalize(actor, query);
     if (nrm.emptyCurrency) return { filters: query, kpis: {}, charts: {}, rows: [], pagination: { page: nrm.page, limit: nrm.limit, total: 0 } };
     const where = this.baseRepaymentWhere(actor, query, nrm.from, nrm.to);
+    const fx = await this.buildConverter(actor, query);
 
     const repayments = await this.prisma.repayment.findMany({
       where,
@@ -348,6 +401,7 @@ export class ReportsService {
     const rows = repayments.map((r) => {
       const due = r.loan?.schedules?.find?.((s: any) => !s.isPaid)?.dueDate || r.date;
       const daysLate = Math.max(0, Math.floor((new Date(r.date).getTime() - new Date(due).getTime()) / 86400000));
+      const cur = (r as any).currency;
       return {
         repaymentId: r.id,
         loanId: r.loanId,
@@ -356,14 +410,14 @@ export class ReportsService {
         collector: r.loan?.createdByUserId || 'N/A',
         paymentDate: r.date,
         dueDate: due,
-        amountPaid: n(r.amount),
-        principalPaid: n(r.principalPaid),
-        interestPaid: n(r.interestPaid),
-        penaltyPaid: n(r.penaltyPaid),
+        amountPaid: fx.convert(n(r.amount), cur),
+        principalPaid: fx.convert(n(r.principalPaid), cur),
+        interestPaid: fx.convert(n(r.interestPaid), cur),
+        penaltyPaid: fx.convert(n(r.penaltyPaid), cur),
         paymentMethod: 'CASH',
         status: daysLate > 0 ? 'LATE' : 'ON_TIME',
         daysLate,
-        currency: 'USD',
+        currency: fx.reporting,
       };
     }).filter((r) => !query.status || r.status === query.status);
 
@@ -452,6 +506,7 @@ export class ReportsService {
     }
     if (nrm.from || nrm.to) where.createdAt = { ...(nrm.from ? { gte: nrm.from } : {}), ...(nrm.to ? { lte: nrm.to } : {}) };
 
+    const fx = await this.buildConverter(actor, query);
     const borrowers = await this.prisma.borrower.findMany({
       where,
       include: { loans: { include: { schedules: true } }, branch: true },
@@ -463,7 +518,7 @@ export class ReportsService {
       const activeLoanCount = activeLoans.length;
       const outstanding = activeLoans.reduce((acc, l) => {
         const due = (l.schedules || []).reduce((a, s) => a + Math.max(0, n(s.totalAmount) - (n(s.paidPrincipal) + n(s.paidInterest) + n(s.paidPenalty))), 0);
-        return acc + due;
+        return acc + fx.convert(due, (l as any).currency);
       }, 0);
       const maxDpd = Math.max(0, ...activeLoans.map((l) => this.loanOutstandingAndDPD(l).daysPastDue));
       const risk = this.riskGrade(maxDpd, undefined);
@@ -480,7 +535,7 @@ export class ReportsService {
         outstandingBalance: outstanding,
         riskGrade: risk,
         status: activeLoanCount > 0 ? 'ACTIVE' : 'INACTIVE',
-        currency: 'USD',
+        currency: fx.reporting,
       };
     }).filter((r) => !query.riskGrade || r.riskGrade.toLowerCase() === query.riskGrade.toLowerCase());
 
@@ -548,6 +603,7 @@ export class ReportsService {
     const nrm = this.normalize(actor, query);
     if (nrm.emptyCurrency) return { filters: query, kpis: {}, charts: {}, rows: [], pagination: { page: nrm.page, limit: nrm.limit, total: 0 } };
     const where = this.baseLoanWhere(actor, query, nrm.from, nrm.to);
+    const fx = await this.buildConverter(actor, query);
     const loans = await this.prisma.loan.findMany({
       where,
       include: { borrower: true, branch: true, product: true, schedules: true },
@@ -555,7 +611,8 @@ export class ReportsService {
     });
 
     const rows = loans.map((loan) => {
-      const { outstanding, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const { outstanding: outRaw, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const outstanding = fx.convert(outRaw, loan.currency);
       const overdueAmount = daysPastDue > 0 ? outstanding : 0;
       const agingBucket = daysPastDue <= 0 ? 'Current'
         : daysPastDue <= 7 ? '1-7 days'
@@ -580,6 +637,7 @@ export class ReportsService {
               : 'Monitor',
         product: loan.product?.name || 'N/A',
         status: loan.status,
+        currency: fx.reporting,
       };
     }).filter((r) => !query.riskGrade || r.riskGrade.toLowerCase() === query.riskGrade.toLowerCase());
 

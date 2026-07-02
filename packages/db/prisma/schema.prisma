@@ -8,28 +8,46 @@ datasource db {
 }
 
 model Tenant {
-  id               String   @id @default(uuid())
-  name             String
-  telegramBotToken String?  @unique // Per-tenant bot token
-  plan                 String   @default("FREE") // Basic subscription visibility
-  status               String   @default("ACTIVE") // ACTIVE, SUSPENDED
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
+  id                       String    @id @default(uuid())
+  name                     String
+  telegramBotToken         String?   @unique // Per-tenant bot token
+  plan                     String    @default("FREE") // Basic subscription visibility
+  status                   String    @default("ACTIVE") // ACTIVE, SUSPENDED
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?
   // Fix 5: configurable late penalty in $USD per overdue installment per day
-  penaltyRatePerDay    Decimal  @default(10.00) @db.Decimal(8, 2)
+  penaltyRatePerDay        Decimal   @default(10.00) @db.Decimal(8, 2)
+  // Feature #1: dual-currency — the tenant's reporting/base currency.
+  baseCurrency             Currency  @default(USD)
+  // Feature #1: per-tenant interest ceiling (%). Never exceeds NBC cap of 18%.
+  maxAnnualInterestRatePct Decimal   @default(18.00) @db.Decimal(5, 2)
+  // Feature #3: require a completed CBC credit check before a loan can be approved.
+  requireCreditCheckForApproval Boolean @default(true)
+  // Days a completed credit check stays valid for approval purposes.
+  creditCheckValidityDays       Int     @default(90)
   // Fix 9: GDPR soft-delete — set when erasure is requested, hard-delete job runs after 30 days
-  deletedAt            DateTime?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  users        User[]
-  branches     Branch[]
-  borrowers    Borrower[]
-  loans        Loan[]
-  repayments   Repayment[]
-  auditLogs    AuditLog[]
-  documents    Document[]
-  loanProducts LoanProduct[]
+  users          User[]
+  branches       Branch[]
+  borrowers      Borrower[]
+  loans          Loan[]
+  repayments     Repayment[]
+  auditLogs      AuditLog[]
+  documents      Document[]
+  loanProducts   LoanProduct[]
+  exchangeRates  ExchangeRate[]
+  ledgerAccounts LedgerAccount[]
+  journalEntries JournalEntry[]
+  provisionRuns  ProvisionRun[]
+  creditChecks   CreditCheck[]
+}
+
+enum Currency {
+  USD
+  KHR
 }
 
 enum Role {
@@ -65,8 +83,8 @@ model Branch {
   borrowers Borrower[]
   loans     Loan[]
 
-  @@index([tenantId])
   @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model User {
@@ -77,20 +95,21 @@ model User {
   branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   email            String    @unique
   passwordHash     String
-  twoFactorSecret  String?   // For MFA
+  twoFactorSecret  String? // For MFA
   twoFactorEnabled Boolean   @default(false)
   isActive         Boolean   @default(true) // For soft delete / suspension
   role             Role      @default(LOAN_OFFICER)
-  telegramChatId   String?   // Staff's telegram chat ID
-  loginAttempts    Int       @default(0)  // Brute-force counter
+  telegramChatId   String? // Staff's telegram chat ID
+  loginAttempts    Int       @default(0) // Brute-force counter
   lockedUntil      DateTime? // Account locked until this timestamp
   lastLoginAt      DateTime? // Last successful login
-  lastLoginIp      String?   // Last known IP for anomaly detection
+  lastLoginIp      String? // Last known IP for anomaly detection
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs AuditLog[]
+  auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+
   @@index([tenantId])
   @@index([branchId])
   @@index([email])
@@ -125,7 +144,9 @@ model Borrower {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  loans Loan[]
+  loans        Loan[]
+  creditChecks CreditCheck[]
+
   @@index([tenantId, branchId])
 }
 
@@ -144,71 +165,79 @@ enum InterestMethod {
 }
 
 model LoanProduct {
-  id               String           @id @default(uuid())
-  tenantId         String
-  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name             String           // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
-  description      String?
-  interestMethod   InterestMethod
-  isActive         Boolean          @default(true)
+  id                String         @id @default(uuid())
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String // e.g., "Daily Loan", "Weekly Loan", "Mortgage Loan"
+  description       String?
+  interestMethod    InterestMethod
+  currency          Currency       @default(USD)
+  isActive          Boolean        @default(true)
   // Fix 5: per-product penalty override (null = use tenant default)
-  penaltyRatePerDay Decimal?        @db.Decimal(8, 2)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  penaltyRatePerDay Decimal?       @db.Decimal(8, 2)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  policies         LoanPolicy[]
-  loans            Loan[]
+  policies LoanPolicy[]
+  loans    Loan[]
 }
 
 model LoanPolicy {
-  id             String       @id @default(uuid())
-  productId      String
-  product        LoanProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  creditRating   String       // e.g., "A", "B", "C", "EXCELLENT", "GOOD", "FAIR"
-  interestRate   Decimal      @db.Decimal(5, 2)
-  minTermMonths  Int?
-  maxTermMonths  Int?
-  minPrincipal   Decimal?     @db.Decimal(10, 2)
-  maxPrincipal   Decimal?     @db.Decimal(10, 2)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id            String      @id @default(uuid())
+  productId     String
+  product       LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  creditRating  String // e.g., "A", "B", "C", "EXCELLENT", "GOOD", "FAIR"
+  interestRate  Decimal     @db.Decimal(5, 2)
+  minTermMonths Int?
+  maxTermMonths Int?
+  minPrincipal  Decimal?    @db.Decimal(10, 2)
+  maxPrincipal  Decimal?    @db.Decimal(10, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model Loan {
-  id                 String         @id @default(uuid())
-  tenantId           String
-  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId           String?
-  branch             Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  borrowerId         String
-  borrower           Borrower       @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
-  productId          String?
-  product            LoanProduct?   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                  String         @id @default(uuid())
+  tenantId            String
+  tenant              Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId            String?
+  branch              Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  borrowerId          String
+  borrower            Borrower       @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  productId           String?
+  product             LoanProduct?   @relation(fields: [productId], references: [id], onDelete: Cascade)
   creditRatingApplied String?
-  status             LoanStatus     @default(PENDING)
-  principal          Decimal        @db.Decimal(10, 2)
-  annualInterestRate Decimal        @db.Decimal(5, 2)
-  termMonths         Int
-  interestMethod     InterestMethod
-  startDate          DateTime
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  status              LoanStatus     @default(PENDING)
+  principal           Decimal        @db.Decimal(10, 2)
+  annualInterestRate  Decimal        @db.Decimal(5, 2)
+  termMonths          Int
+  interestMethod      InterestMethod
+  // Feature #1: currency the loan is booked and repaid in.
+  currency            Currency       @default(USD)
+  // Feature #1: FX rate (loan currency -> tenant base currency) captured at
+  // disbursement, so historical portfolio value in base currency is stable.
+  fxRateToBase        Decimal?       @db.Decimal(18, 8)
+  startDate           DateTime
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
-  schedules    RepaymentSchedule[]
-  repayments   Repayment[]
-  documents    Document[]
-  collaterals  Collateral[]
-  guarantors   Guarantor[]
-  interactions LoanInteraction[]
-  createdByUserId String?
-  reviewedByUserId String?
+  schedules         RepaymentSchedule[]
+  repayments        Repayment[]
+  documents         Document[]
+  collaterals       Collateral[]
+  guarantors        Guarantor[]
+  interactions      LoanInteraction[]
+  provisions        LoanProvision[]
+  journalEntries    JournalEntry[]
+  createdByUserId   String?
+  reviewedByUserId  String?
   disbursedByUserId String?
 
   // Approval Workflow Fields
-  approvedBy   String?
-  approvedAt   DateTime?
-  rejectedBy   String?
-  rejectedAt   DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
   rejectionReason String?
 
   @@index([tenantId, branchId])
@@ -218,10 +247,10 @@ model Collateral {
   id          String   @id @default(uuid())
   loanId      String
   loan        Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  type        String   // e.g., "LAND_TITLE", "VEHICLE", "GOLD", "OTHER"
+  type        String // e.g., "LAND_TITLE", "VEHICLE", "GOLD", "OTHER"
   description String
   value       Decimal  @db.Decimal(10, 2)
-  idNumber    String?  // e.g., Land title number or license plate
+  idNumber    String? // e.g., Land title number or license plate
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -233,7 +262,7 @@ model Guarantor {
   name      String
   phone     String
   idNumber  String?
-  relation  String?  // e.g., "SPOUSE", "PARENT", "COLLEAGUE"
+  relation  String? // e.g., "SPOUSE", "PARENT", "COLLEAGUE"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -243,30 +272,30 @@ model LoanInteraction {
   loanId    String
   loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   userId    String
-  title     String?  // e.g., "Follow-up Call", "Home Visit"
+  title     String? // e.g., "Follow-up Call", "Home Visit"
   notes     String
   type      String   @default("NOTE") // NOTE, CALL, VISIT, SYSTEM
   createdAt DateTime @default(now())
 }
 
 model RepaymentSchedule {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   loanId               String
-  loan                 Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan                 Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
   installmentNumber    Int
   dueDate              DateTime
-  principalAmount      Decimal  @db.Decimal(10, 2)
-  interestAmount       Decimal  @db.Decimal(10, 2)
-  penaltyAmount        Decimal  @default(0) @db.Decimal(10, 2)
-  totalAmount          Decimal  @db.Decimal(10, 2)
-  outstandingPrincipal Decimal  @db.Decimal(10, 2)
-  paidPrincipal        Decimal  @default(0) @db.Decimal(10, 2)
-  paidInterest         Decimal  @default(0) @db.Decimal(10, 2)
-  paidPenalty          Decimal  @default(0) @db.Decimal(10, 2)
-  isPaid               Boolean  @default(false)
+  principalAmount      Decimal   @db.Decimal(10, 2)
+  interestAmount       Decimal   @db.Decimal(10, 2)
+  penaltyAmount        Decimal   @default(0) @db.Decimal(10, 2)
+  totalAmount          Decimal   @db.Decimal(10, 2)
+  outstandingPrincipal Decimal   @db.Decimal(10, 2)
+  paidPrincipal        Decimal   @default(0) @db.Decimal(10, 2)
+  paidInterest         Decimal   @default(0) @db.Decimal(10, 2)
+  paidPenalty          Decimal   @default(0) @db.Decimal(10, 2)
+  isPaid               Boolean   @default(false)
   penaltyLastAppliedAt DateTime? // Guard: ensures penalty is applied at most once per day
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Repayment {
@@ -276,6 +305,7 @@ model Repayment {
   loanId        String
   loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   amount        Decimal  @db.Decimal(10, 2)
+  currency      Currency @default(USD)
   principalPaid Decimal  @default(0) @db.Decimal(10, 2)
   interestPaid  Decimal  @default(0) @db.Decimal(10, 2)
   penaltyPaid   Decimal  @default(0) @db.Decimal(10, 2)
@@ -288,12 +318,12 @@ model AuditLog {
   id        String   @id @default(uuid())
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId    String?  // Nullable  — allows anonymous security events (e.g. unknown email login)
+  userId    String? // Nullable  — allows anonymous security events (e.g. unknown email login)
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   // CREATE, UPDATE, DELETE, LOGIN
-  entity    String   // Borrower, Loan, Repayment, User, Tenant
+  action    String // CREATE, UPDATE, DELETE, LOGIN
+  entity    String // Borrower, Loan, Repayment, User, Tenant
   entityId  String
-  metadata  Json?    // Masked metadata only — never raw PII
+  metadata  Json? // Masked metadata only — never raw PII
   createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
@@ -311,4 +341,158 @@ model Document {
   content   String   @db.Text // Base64 content or public URL
   type      String // e.g., "application/pdf", "image/png", or "url"
   createdAt DateTime @default(now())
+}
+
+// ── Feature #1: Multi-currency FX rates ─────────────────────────────────────
+// Tenant-scoped exchange rates. `rate` = units of `toCurrency` per 1 unit of
+// `fromCurrency`. Rates are effective-dated; the latest effective rate at or
+// before a transaction date is used.
+model ExchangeRate {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromCurrency  Currency
+  toCurrency    Currency
+  rate          Decimal  @db.Decimal(18, 8)
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, fromCurrency, toCurrency, effectiveDate])
+}
+
+// ── Feature #3: General Ledger (double-entry) ───────────────────────────────
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum JournalSource {
+  DISBURSEMENT
+  REPAYMENT
+  PENALTY
+  PROVISION
+  WRITEOFF
+  MANUAL
+}
+
+model LedgerAccount {
+  id        String            @id @default(uuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code      String // e.g., "1000" cash, "1200" loans receivable
+  name      String
+  type      LedgerAccountType
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  lines JournalLine[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model JournalEntry {
+  id              String        @id @default(uuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date            DateTime      @default(now())
+  source          JournalSource
+  currency        Currency      @default(USD)
+  description     String
+  // Optional linkage to the business object that produced this entry.
+  loanId          String?
+  loan            Loan?         @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  referenceId     String? // repaymentId, provisionRunId, etc.
+  createdByUserId String?
+  createdAt       DateTime      @default(now())
+
+  lines JournalLine[]
+
+  @@index([tenantId, date])
+  @@index([tenantId, source])
+  @@index([loanId])
+}
+
+model JournalLine {
+  id        String        @id @default(uuid())
+  entryId   String
+  entry     JournalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debit     Decimal       @default(0) @db.Decimal(18, 2)
+  credit    Decimal       @default(0) @db.Decimal(18, 2)
+
+  @@index([entryId])
+  @@index([accountId])
+}
+
+// ── Feature #3: Loan-loss provisioning (NBC classification) ─────────────────
+enum LoanClassification {
+  STANDARD
+  SPECIAL_MENTION
+  SUBSTANDARD
+  DOUBTFUL
+  LOSS
+}
+
+model ProvisionRun {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runDate         DateTime @default(now())
+  totalProvision  Decimal  @default(0) @db.Decimal(18, 2)
+  loanCount       Int      @default(0)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  provisions LoanProvision[]
+
+  @@index([tenantId, runDate])
+}
+
+model LoanProvision {
+  id                   String             @id @default(uuid())
+  runId                String
+  run                  ProvisionRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  loanId               String
+  loan                 Loan               @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  daysOverdue          Int
+  classification       LoanClassification
+  outstandingPrincipal Decimal            @db.Decimal(18, 2)
+  provisionRate        Decimal            @db.Decimal(6, 4)
+  provisionAmount      Decimal            @db.Decimal(18, 2)
+  currency             Currency           @default(USD)
+
+  @@index([runId])
+  @@index([loanId])
+}
+
+// ── Feature #3: Credit Bureau Cambodia (CBC) checks ─────────────────────────
+enum CreditCheckStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model CreditCheck {
+  id                String            @id @default(uuid())
+  tenantId          String
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  borrowerId        String
+  borrower          Borrower          @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  provider          String            @default("CBC")
+  status            CreditCheckStatus @default(PENDING)
+  score             Int? // bureau score (nullable until completed)
+  grade             String? // e.g., "A".."E"
+  reportRef         String? // bureau reference id
+  summary           String? // human-readable summary (no raw PII)
+  requestedByUserId String?
+  createdAt         DateTime          @default(now())
+  completedAt       DateTime?
+
+  @@index([tenantId, borrowerId])
 }

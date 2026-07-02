@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
-    Menu, X, ChevronRight, Globe
+    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
@@ -109,6 +109,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             {isFinance && navItem('/collections', 'Collections', AlertTriangle)}
                             {isFinance && navItem('/reports', 'Reports', BarChart2)}
                             {navItem('/products', 'Products', BarChart2)}
+
+                            {isFinance && (
+                                <>
+                                    {navSection('Accounting')}
+                                    {navItem('/accounting', 'Accounting', Landmark)}
+                                    {navItem('/provisioning', 'Provisioning', ShieldCheck)}
+                                    {navItem('/fx', 'FX Rates', Coins)}
+                                </>
+                            )}
 
                             {isAdmin && (
                                 <>

@@ -6,6 +6,8 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { BotService } from '../bot/bot.service';
+import { normalizeCurrency, NBC_ANNUAL_INTEREST_CAP_PCT } from '@microloan/shared';
+import { Currency } from '@microloan/db';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('settings')
@@ -25,6 +27,10 @@ export class SettingsController {
                 id: true,
                 name: true,
                 telegramBotToken: true,
+                baseCurrency: true,
+                maxAnnualInterestRatePct: true,
+                requireCreditCheckForApproval: true,
+                creditCheckValidityDays: true,
                 createdAt: true,
             }
         });
@@ -34,14 +40,36 @@ export class SettingsController {
     @Put()
     async updateSettings(
         @CurrentUser() user: JwtPayload,
-        @Body() data: { name?: string; telegramBotToken?: string }
+        @Body() data: {
+            name?: string;
+            telegramBotToken?: string;
+            baseCurrency?: string;
+            maxAnnualInterestRatePct?: number;
+            requireCreditCheckForApproval?: boolean;
+            creditCheckValidityDays?: number;
+        }
     ) {
         if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
+
+        // Feature #1: never allow a tenant cap above the NBC regulatory ceiling.
+        let cap: number | undefined;
+        if (data.maxAnnualInterestRatePct !== undefined) {
+            cap = Math.min(Number(data.maxAnnualInterestRatePct), NBC_ANNUAL_INTEREST_CAP_PCT);
+            if (!(cap > 0)) cap = NBC_ANNUAL_INTEREST_CAP_PCT;
+        }
+        const baseCurrency = data.baseCurrency
+            ? (normalizeCurrency(data.baseCurrency) as unknown as Currency)
+            : undefined;
+
         const tenant = await this.prisma.tenant.update({
             where: { id: user.tenantId },
             data: {
                 name: data.name,
                 telegramBotToken: data.telegramBotToken,
+                baseCurrency,
+                maxAnnualInterestRatePct: cap,
+                requireCreditCheckForApproval: data.requireCreditCheckForApproval,
+                creditCheckValidityDays: data.creditCheckValidityDays,
             }
         });
 

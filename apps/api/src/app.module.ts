@@ -23,6 +23,10 @@ import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
 import { ExportsModule } from './exports/exports.module';
 import { ReminderModule } from './reminder/reminder.module';
 import { AuthzModule } from './authz/authz.module';
+import { LedgerModule } from './ledger/ledger.module';
+import { ProvisioningModule } from './provisioning/provisioning.module';
+import { CreditBureauModule } from './credit-bureau/credit-bureau.module';
+import { FxModule } from './fx/fx.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -67,6 +71,10 @@ import { loadRuntimeConfig } from './config/runtime-config';
     ExportsModule,
     ReminderModule,
     AuthzModule,
+    LedgerModule,
+    ProvisioningModule,
+    CreditBureauModule,
+    FxModule,
   ],
   controllers: [AppController],
   providers: [
