@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { ChevronLeft, Phone, MapPin, CreditCard, FileText, Eye, Plus, UserCheck, Wallet, Activity, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BorrowerModal } from '@/components/BorrowerModal';
+import { BorrowerKycReview } from '@/components/BorrowerKycReview';
 
 interface CreditCheck {
     id: string;
@@ -199,6 +200,9 @@ export default function BorrowerProfilePage() {
 
             {/* Content Tabs / Sections */}
             <div className="grid grid-cols-1 gap-8">
+                {/* Manual e-KYC review (borrower-uploaded documents) */}
+                <BorrowerKycReview borrowerId={String(id)} />
+
                 {/* Loan History Table */}
                 <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
                     <div className="flex items-center justify-between mb-8 flex-wrap gap-4">

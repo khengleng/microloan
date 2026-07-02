@@ -173,8 +173,46 @@ model Borrower {
 
   loans        Loan[]
   creditChecks CreditCheck[]
+  kycDocuments KycDocument[]
+  otps         BorrowerOtp[]
 
   @@index([tenantId, branchId])
+}
+
+// ── CX Batch #6: Borrower self-service portal (phone + OTP auth) ─────────────
+// A short-lived one-time code is SMS'd to the borrower's phone. Only the hash
+// is stored (sha256 + pepper), single-use, attempt-capped. On success the API
+// issues a borrower-scoped JWT (typ=borrower) kept in an HttpOnly cookie.
+model BorrowerOtp {
+  id         String    @id @default(uuid())
+  phone      String
+  borrowerId String
+  borrower   Borrower  @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  tenantId   String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, expiresAt])
+  @@index([borrowerId])
+}
+
+// ── CX Batch #6: Manual e-KYC — borrower-uploaded identity documents ─────────
+// Stored as a base64 data URI or URL (mirrors Document). Staff review flips the
+// borrower's aggregate kycStatus; per-document status is advisory.
+model KycDocument {
+  id         String   @id @default(uuid())
+  tenantId   String
+  borrowerId String
+  borrower   Borrower @relation(fields: [borrowerId], references: [id], onDelete: Cascade)
+  type       String // e.g. NATIONAL_ID_FRONT, NATIONAL_ID_BACK, SELFIE, PROOF_OF_ADDRESS
+  content    String   @db.Text
+  mimeType   String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, borrowerId])
 }
 
 enum KycStatus {

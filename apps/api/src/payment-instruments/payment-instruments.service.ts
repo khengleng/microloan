@@ -215,4 +215,17 @@ export class PaymentInstrumentsService {
 
     return this.withRender(pick);
   }
+
+  /** Borrower-portal facing: the tenant's default active collection QR. */
+  async resolveForTenant(tenantId: string) {
+    const active = await this.prisma.paymentInstrument.findMany({
+      where: { tenantId, isActive: true },
+    });
+    if (active.length === 0) return null;
+    const pick =
+      active.find((i) => i.isDefault) ||
+      active.find((i) => !i.branchId) ||
+      active[0];
+    return this.withRender(pick);
+  }
 }

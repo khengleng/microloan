@@ -44,8 +44,13 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
     const url = new URL(req.url);
     const targetUrl = `${apiUrl()}/${path}${url.search}`;
 
-    // 1. Extract tokens from cookies
-    const accessToken = req.cookies.get('access_token')?.value;
+    // 1. Extract tokens from cookies. Staff access_token takes precedence; the
+    //    borrower-portal token is forwarded when no staff session is present.
+    //    Both are fully verified by the API (distinct secrets + guards), so
+    //    forwarding whichever exists is safe — cross-use is rejected server-side.
+    const accessToken =
+        req.cookies.get('access_token')?.value ||
+        req.cookies.get('borrower_token')?.value;
 
     // 2. Prepare headers — forward select originals, add real-IP and user identity
     const headers = new Headers();
