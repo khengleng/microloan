@@ -15,7 +15,10 @@ async function main() {
     let adminPassword = process.env.BOOTSTRAP_SUPERADMIN_PASSWORD;
 
     if (!adminEmail) {
-        throw new Error('BOOTSTRAP_SUPERADMIN_EMAIL is required for db seed.');
+        // Safe to run on every deploy: with no bootstrap email set, do nothing.
+        console.log('BOOTSTRAP_SUPERADMIN_EMAIL not set — skipping superadmin bootstrap.');
+        console.log('--- Seed Complete (no-op) ---');
+        return;
     }
     if (!adminPassword) {
         if (!isDevelopment) {
@@ -30,9 +33,9 @@ async function main() {
         throw new Error('BOOTSTRAP_SUPERADMIN_PASSWORD must be at least 12 chars with upper/lower/number/symbol outside development.');
     }
 
-    // 1. Tenant (development bootstrap dataset only)
+    // 1. Demo tenant — DEVELOPMENT ONLY (never create junk data in prod).
     let tenant = await prisma.tenant.findFirst({ where: { name: 'Acme Lending' } });
-    if (!tenant) {
+    if (!tenant && isDevelopment) {
         tenant = await prisma.tenant.create({ data: { name: 'Acme Lending' } });
         console.log('Created Tenant: Acme Lending');
     }
