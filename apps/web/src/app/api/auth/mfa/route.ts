@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setAuthCookies } from '../login/route';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
+const API_BASE = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
 
 /**
  * POST /api/auth/mfa

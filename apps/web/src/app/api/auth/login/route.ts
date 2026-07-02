@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 function apiBaseUrl(): string {
-    const url = process.env.NEXT_PUBLIC_API_URL;
+    // Prefer the server-only API_URL (kept out of the browser bundle so the
+    // internal hostname isn't shipped to clients); fall back to NEXT_PUBLIC_API_URL.
+    const url = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
     if (url && url.trim()) return url.trim();
     if (process.env.NODE_ENV === 'production') {
-        throw new Error('NEXT_PUBLIC_API_URL is required in production.');
+        throw new Error('API_URL (or NEXT_PUBLIC_API_URL) is required in production.');
     }
     return 'http://localhost:3001/v1';
 }
