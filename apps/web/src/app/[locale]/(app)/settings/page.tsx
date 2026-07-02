@@ -12,6 +12,7 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { MfaSetup } from '@/components/auth/mfa-setup';
+import { PaymentInstruments } from '@/components/PaymentInstruments';
 import { useToast } from '@/components/ui/toast';
 
 const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
@@ -242,6 +243,9 @@ function TenantSettings() {
                             </button>
                         </div>
                     </form>
+
+                    {/* Static-QR collection instruments (display-only payment rail) */}
+                    <PaymentInstruments />
 
                     {/* Subscription */}
                     <div className="bg-primary text-primary-foreground border border-primary rounded-md">

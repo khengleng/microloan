@@ -29,6 +29,7 @@ import { CreditBureauModule } from './credit-bureau/credit-bureau.module';
 import { FxModule } from './fx/fx.module';
 import { CollectionsModule } from './collections/collections.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentInstrumentsModule } from './payment-instruments/payment-instruments.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -79,6 +80,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     FxModule,
     CollectionsModule,
     NotificationsModule,
+    PaymentInstrumentsModule,
   ],
   controllers: [AppController],
   providers: [

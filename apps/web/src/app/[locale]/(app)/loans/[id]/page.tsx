@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { LoanPaymentQr } from '@/components/LoanPaymentQr';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface ScheduleItem {
@@ -321,6 +322,9 @@ export default function LoanDetailsPage() {
                             )}
                         </div>
                     </div>
+
+                    {/* Static-QR collection panel (display-only) */}
+                    <LoanPaymentQr loanId={loan.id} />
 
                     {/* Collateral */}
                     <div className="bg-white border border-border rounded-md">

@@ -44,6 +44,7 @@ model Tenant {
   provisionRuns  ProvisionRun[]
   creditChecks   CreditCheck[]
   promisesToPay  PromiseToPay[]
+  paymentInstruments PaymentInstrument[]
 }
 
 enum Currency {
@@ -83,6 +84,7 @@ model Branch {
   users     User[]
   borrowers Borrower[]
   loans     Loan[]
+  paymentInstruments PaymentInstrument[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -555,6 +557,38 @@ model CreditCheck {
   completedAt       DateTime?
 
   @@index([tenantId, borrowerId])
+}
+
+// ── Payments Batch #P1: Static-QR payment rail (display-only) ────────────────
+// A tenant (optionally per-branch) stores its static collection QR — either the
+// KHQR/EMVCo payload string (rendered to an image on demand) or an uploaded QR
+// image (base64/URL). Disbursement stays manual and repayments are still posted
+// by an officer; the QR is a payer convenience shown on loans, receipts and the
+// borrower portal. `resolveForLoan` prefers a branch instrument, else the tenant
+// default.
+model PaymentInstrument {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId      String?
+  branch        Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  label         String // e.g. "ABA Main", "Bakong - HQ"
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+  // KHQR / EMVCo static payload string. When present it is rendered to a QR
+  // image server-side (qrcode lib). Never contains an amount for a static QR.
+  qrPayload     String?  @db.Text
+  // Fallback: an uploaded QR image (base64 data URI or public URL) when only an
+  // image is available and no payload string can be provided.
+  qrImage       String?  @db.Text
+  currency      Currency @default(USD)
+  isActive      Boolean  @default(true)
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, branchId])
 }
 
 // ── P1 #10: Collections — promise-to-pay ────────────────────────────────────
