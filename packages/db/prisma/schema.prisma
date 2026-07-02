@@ -45,6 +45,7 @@ model Tenant {
   creditChecks   CreditCheck[]
   promisesToPay  PromiseToPay[]
   paymentInstruments PaymentInstrument[]
+  loanAgreements LoanAgreement[]
 }
 
 enum Currency {
@@ -314,6 +315,7 @@ model Loan {
   provisions        LoanProvision[]
   journalEntries    JournalEntry[]
   promisesToPay     PromiseToPay[]
+  agreements        LoanAgreement[]
   createdByUserId   String?
   reviewedByUserId  String?
   disbursedByUserId String?
@@ -627,6 +629,32 @@ model PaymentInstrument {
   updatedAt     DateTime @updatedAt
 
   @@index([tenantId, branchId])
+}
+
+// ── Compliance Batch #4: Key Facts Statement + e-signature ──────────────────
+// An immutable, hash-anchored record that a borrower (or staff on their behalf)
+// was shown the Key Facts (principal, nominal rate, EIR/APR, total cost of
+// credit) and signed the loan agreement. keyFacts is the snapshot at signing;
+// agreementHash binds the exact disclosed terms so tampering is detectable.
+model LoanAgreement {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loanId             String
+  loan               Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  version            Int      @default(1)
+  keyFacts           Json // Key Facts snapshot (EIR, totals) at signing
+  agreementHash      String // sha256 over canonical disclosed terms
+  signatureName      String? // typed signer name
+  signatureImage     String?  @db.Text // drawn signature (base64), optional
+  signerRole         String // BORROWER | STAFF
+  signedByBorrowerId String?
+  signedByUserId     String? // staff who captured / witnessed
+  ipAddress          String?
+  signedAt           DateTime @default(now())
+  createdAt          DateTime @default(now())
+
+  @@index([tenantId, loanId])
 }
 
 // ── P1 #10: Collections — promise-to-pay ────────────────────────────────────

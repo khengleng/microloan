@@ -2,8 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentInstrumentsService } from '../payment-instruments/payment-instruments.service';
+import { AgreementsService } from '../agreements/agreements.service';
 import type { BorrowerSession } from './borrower-jwt';
 import { UploadKycDto } from './dto/borrower-auth.dto';
+import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
 
 function outstandingOf(schedules: { totalAmount: any; paidPrincipal: any; paidInterest: any; paidPenalty: any }[]): number {
   return schedules.reduce(
@@ -19,7 +21,24 @@ export class BorrowerPortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentInstruments: PaymentInstrumentsService,
+    private readonly agreements: AgreementsService,
   ) {}
+
+  keyFacts(session: BorrowerSession, loanId: string) {
+    return this.agreements.keyFacts({ id: loanId, borrowerId: session.borrowerId });
+  }
+
+  signAgreement(session: BorrowerSession, loanId: string, dto: SignAgreementDto, ip?: string) {
+    return this.agreements.sign({
+      where: { id: loanId, borrowerId: session.borrowerId },
+      tenantId: session.tenantId,
+      signerRole: 'BORROWER',
+      signedByBorrowerId: session.borrowerId,
+      signatureName: dto.signatureName,
+      signatureImage: dto.signatureImage,
+      ip,
+    });
+  }
 
   async me(session: BorrowerSession) {
     const b = await this.prisma.borrower.findUnique({

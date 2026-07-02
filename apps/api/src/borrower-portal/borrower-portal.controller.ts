@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Ip,
   Param,
   Post,
   Res,
@@ -14,6 +15,7 @@ import { BorrowerJwtGuard } from './borrower-jwt.guard';
 import { CurrentBorrower } from './current-borrower.decorator';
 import type { BorrowerSession } from './borrower-jwt';
 import { RequestOtpDto, VerifyOtpDto, UploadKycDto } from './dto/borrower-auth.dto';
+import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
 
 @Controller('borrower')
 export class BorrowerPortalController {
@@ -66,6 +68,23 @@ export class BorrowerPortalController {
       'Content-Length': pdf.length,
     });
     res.send(pdf);
+  }
+
+  @UseGuards(BorrowerJwtGuard)
+  @Get('loans/:id/key-facts')
+  keyFacts(@CurrentBorrower() b: BorrowerSession, @Param('id') id: string) {
+    return this.portal.keyFacts(b, id);
+  }
+
+  @UseGuards(BorrowerJwtGuard)
+  @Post('loans/:id/sign')
+  sign(
+    @CurrentBorrower() b: BorrowerSession,
+    @Param('id') id: string,
+    @Body() dto: SignAgreementDto,
+    @Ip() ip: string,
+  ) {
+    return this.portal.signAgreement(b, id, dto, ip);
   }
 
   @UseGuards(BorrowerJwtGuard)

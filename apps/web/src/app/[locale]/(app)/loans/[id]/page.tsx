@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { LoanPaymentQr } from '@/components/LoanPaymentQr';
+import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface ScheduleItem {
@@ -325,6 +326,12 @@ export default function LoanDetailsPage() {
 
                     {/* Static-QR collection panel (display-only) */}
                     <LoanPaymentQr loanId={loan.id} />
+
+                    {/* Key Facts Statement + e-signature */}
+                    <KeyFactsAgreement
+                        keyFactsPath={`/agreements/loan/${loan.id}/key-facts`}
+                        signPath={`/agreements/loan/${loan.id}/sign`}
+                    />
 
                     {/* Collateral */}
                     <div className="bg-white border border-border rounded-md">

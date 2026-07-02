@@ -7,6 +7,7 @@ import {
     Loader2, LogOut, FileText, QrCode, ShieldCheck, ShieldAlert,
     ShieldQuestion, Upload, Wallet, CalendarClock,
 } from 'lucide-react';
+import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 
 type Me = { firstName: string; lastName: string; organization: string | null; kycStatus: string };
 type Loan = {
@@ -136,6 +137,12 @@ export default function BorrowerPortalPage() {
                                 className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-primary hover:underline">
                                 <FileText size={14} /> {t('downloadStatement')}
                             </a>
+                            <div className="mt-3">
+                                <KeyFactsAgreement
+                                    keyFactsPath={`/borrower/loans/${l.id}/key-facts`}
+                                    signPath={`/borrower/loans/${l.id}/sign`}
+                                />
+                            </div>
                         </div>
                     ))}
                 </section>

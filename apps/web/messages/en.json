@@ -504,5 +504,29 @@
         "doc_NATIONAL_ID_BACK": "National ID (back)",
         "doc_SELFIE": "Selfie",
         "doc_PROOF_OF_ADDRESS": "Proof of address"
+    },
+    "Agreement": {
+        "title": "Key Facts & Loan Agreement",
+        "loading": "Loading key facts…",
+        "loadFailed": "Could not load key facts.",
+        "eir": "Effective Interest Rate (APR)",
+        "principal": "Principal",
+        "netDisbursed": "Net amount disbursed",
+        "nominalRate": "Nominal annual rate",
+        "totalInterest": "Total interest",
+        "totalFees": "Total fees",
+        "totalCost": "Total cost of credit",
+        "totalRepayable": "Total repayable",
+        "installments": "Installments",
+        "penaltyPerDay": "Late penalty / day",
+        "signedOn": "Signed on {date}",
+        "typedName": "Type your full name",
+        "typedNamePlaceholder": "Full name as signature",
+        "drawSignature": "Or draw your signature",
+        "acceptTerms": "I have read and understood the Key Facts above, including the effective interest rate and total cost of credit, and I agree to the loan terms.",
+        "sign": "Sign agreement",
+        "mustAccept": "Please confirm you accept the Key Facts.",
+        "needSignature": "Type your name or draw a signature.",
+        "signFailed": "Could not record the signature. Please try again."
     }
 }
