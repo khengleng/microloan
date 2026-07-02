@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar } from 'lucide-react';
+import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
@@ -38,6 +38,7 @@ export default function UsersPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [resettingId, setResettingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
 
     const isSuperAdmin = user?.role === 'SUPERADMIN';
@@ -70,6 +71,21 @@ export default function UsersPage() {
             showToast(err.response?.data?.message || 'Failed to create user', 'error');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleResetPassword = async (id: string, email: string) => {
+        const pw = window.prompt(`Set a new password for ${email} (minimum 12 characters).\nThey will be signed out of all sessions and must use the new password.`);
+        if (pw === null) return; // cancelled
+        if (pw.length < 12) { showToast('Password must be at least 12 characters', 'error'); return; }
+        setResettingId(id);
+        try {
+            await api.patch(`/users/${id}/password`, { password: pw });
+            showToast(`Password reset for ${email}`, 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to reset password', 'error');
+        } finally {
+            setResettingId(null);
         }
     };
 
@@ -215,16 +231,28 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.isActive && (
-                                                <button
-                                                    onClick={() => handleDelete(user.id, user.email)}
-                                                    disabled={deletingId === user.id}
-                                                    className="w-10 h-10 ml-auto rounded-xl bg-white text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
-                                                    title="Suspend Access"
-                                                >
-                                                    {deletingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <UserX size={16} />}
-                                                </button>
-                                            )}
+                                            <div className="flex items-center justify-end gap-2">
+                                                {user.isActive && (
+                                                    <button
+                                                        onClick={() => handleResetPassword(user.id, user.email)}
+                                                        disabled={resettingId === user.id}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
+                                                        title="Reset Password"
+                                                    >
+                                                        {resettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                                                    </button>
+                                                )}
+                                                {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.isActive && (
+                                                    <button
+                                                        onClick={() => handleDelete(user.id, user.email)}
+                                                        disabled={deletingId === user.id}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
+                                                        title="Suspend Access"
+                                                    >
+                                                        {deletingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <UserX size={16} />}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

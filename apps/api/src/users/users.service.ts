@@ -158,6 +158,55 @@ export class UsersService {
     return result;
   }
 
+  /**
+   * Admin-initiated password reset. A tenant admin can reset users within their
+   * org; a platform superadmin can reset any user (scoping enforced by
+   * scopeWhere + assertCanManageUser). Resets the lockout and revokes all active
+   * refresh tokens so the old password/session can no longer be used.
+   *
+   * Note: this is the account-recovery path for a stack with no email delivery —
+   * self-service email reset requires an email provider to be configured.
+   */
+  async resetPassword(actor: UserActor, id: string, plainPassword: string) {
+    this.authz.assertPermission(actor, Permission.USER_UPDATE);
+    if (!plainPassword || plainPassword.length < 12) {
+      throw new BadRequestException('Password must be at least 12 characters.');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      select: { id: true, email: true, role: true, tenantId: true, branchId: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    this.authz.assertCanManageUser(actor, user);
+
+    const hash = await bcrypt.hash(plainPassword, await bcrypt.genSalt());
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { passwordHash: hash, loginAttempts: 0, lockedUntil: null },
+      }),
+      // Force re-login everywhere by revoking active refresh tokens.
+      this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: id,
+      action: 'USER_PASSWORD_RESET',
+      result: 'SUCCESS',
+    });
+
+    return { success: true };
+  }
+
   async updateRole(actor: UserActor, id: string, role: string) {
     this.authz.assertPermission(actor, Permission.USER_UPDATE_ROLE);
     const targetRole = this.parseRole(role);

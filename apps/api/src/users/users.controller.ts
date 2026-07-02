@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, Patch, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -52,5 +53,14 @@ export class UsersController {
     @Put(':id/role')
     updateRole(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: UpdateUserRoleDto) {
         return this.usersService.updateRole(user, id, body.role);
+    }
+
+    // Admin-initiated password reset (account recovery for the "Forgot password?"
+    // flow, since there is no self-service email delivery configured).
+    @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_UPDATE)
+    @Patch(':id/password')
+    resetPassword(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: ResetPasswordDto) {
+        return this.usersService.resetPassword(user, id, body.password);
     }
 }
