@@ -7,7 +7,9 @@ describe('DocumentVaultService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [DocumentVaultService],
-    }).compile();
+    })
+      .useMocker(() => ({}))
+      .compile();
 
     service = module.get<DocumentVaultService>(DocumentVaultService);
   });
