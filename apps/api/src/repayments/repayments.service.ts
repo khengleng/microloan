@@ -325,6 +325,45 @@ export class RepaymentsService {
     return { success: true, reversedRepaymentId: repaymentId, loanReopened: !allPaid && repayment.loan.status === LoanStatus.CLOSED };
   }
 
+  /**
+   * P1 #11: structured repayment receipt (the web renders/prints it). Includes
+   * allocation breakdown and the outstanding balance after the payment.
+   */
+  async getReceipt(actor: JwtPayload, id: string) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    const r = await this.prisma.repayment.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      include: {
+        loan: { include: { borrower: true, branch: true } },
+        tenant: { select: { name: true } },
+      },
+    });
+    if (!r) throw new NotFoundException('Repayment not found');
+    this.authz.assertBranchAccess(actor, r.loan.branchId);
+
+    const schedules = await this.prisma.repaymentSchedule.findMany({ where: { loanId: r.loanId } });
+    const outstandingAfter = schedules.reduce(
+      (a, s) => a + Math.max(0, Number(s.totalAmount) - (Number(s.paidPrincipal) + Number(s.paidInterest) + Number(s.paidPenalty))),
+      0,
+    );
+
+    return {
+      receiptNo: r.id,
+      date: r.date,
+      reversed: !!r.reversedAt,
+      organization: r.tenant?.name ?? null,
+      borrowerName: `${r.loan.borrower.firstName} ${r.loan.borrower.lastName}`.trim(),
+      branch: r.loan.branch?.name ?? null,
+      loanId: r.loanId,
+      currency: r.currency,
+      amount: Number(r.amount),
+      principalPaid: Number(r.principalPaid),
+      interestPaid: Number(r.interestPaid),
+      penaltyPaid: Number(r.penaltyPaid),
+      outstandingAfter: Math.round(outstandingAfter * 100) / 100,
+    };
+  }
+
   async findAll(
     actor: JwtPayload,
     loanId?: string,

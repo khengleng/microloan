@@ -33,6 +33,13 @@ export class RepaymentsController {
     return this.repaymentsService.reverseRepayment(user, id, dto?.reason);
   }
 
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX', 'TENANT_ADMIN', 'ACCOUNTANT', 'LOAN_OFFICER', 'BRANCH_MANAGER', 'CUSTOMER_SUPPORT')
+  @RequirePermissions(Permission.CUSTOMER_VIEW)
+  @Get(':id/receipt')
+  receipt(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.repaymentsService.getReceipt(user, id);
+  }
+
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX')
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get()

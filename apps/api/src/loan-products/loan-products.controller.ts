@@ -11,17 +11,19 @@ import { BadRequestException } from '@nestjs/common';
 import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
+import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 
 // Loan products are tenant configuration: reads require CUSTOMER_VIEW, writes
 // require CONFIG_UPDATE (TENANT_ADMIN). Enforced by PermissionGuard so access
 // can't be granted by the coarse legacy role names alone.
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard, QuotaGuard)
 @Controller('loan-products')
 export class LoanProductsController {
     constructor(private readonly loanProductsService: LoanProductsService) { }
 
     @Roles('TENANT_ADMIN', 'ADMIN')
     @RequirePermissions(Permission.CONFIG_UPDATE)
+    @CheckQuota('loanProducts')
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() createLoanProductDto: CreateLoanProductDto) {
         if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
