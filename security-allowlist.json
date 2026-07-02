@@ -1,6 +1,15 @@
 [
   {
     "mode": "hardcodes",
+    "file": ".github/workflows/security.yml",
+    "pattern": "postgresql://user:pass@localhost",
+    "reason": "Throwaway localhost DSN used only to exercise the production-config check in CI.",
+    "owner": "platform",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "None; CI-only test value"
+  },
+  {
+    "mode": "hardcodes",
     "file": "scripts/security-scan.mjs",
     "pattern": "password123",
     "reason": "Pattern definition intentionally includes weak-password signature for detection.",

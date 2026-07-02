@@ -66,7 +66,11 @@ const files = execSync('git ls-files', { encoding: 'utf8' })
   .filter((f) => !f.includes('.next/'))
   .filter((f) => !f.endsWith('.spec.ts'))
   .filter((f) => !f.endsWith('.test.ts'))
-  .filter((f) => !f.includes('/__tests__/'));
+  .filter((f) => !f.includes('/__tests__/'))
+  // The scanner's own definition files legitimately contain the very patterns
+  // it searches for — scanning them is self-referential and always false-positive.
+  .filter((f) => f !== 'scripts/security-scan.mjs')
+  .filter((f) => f !== 'security-allowlist.json');
 
 const findings = [];
 
