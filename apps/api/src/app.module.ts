@@ -27,6 +27,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { ProvisioningModule } from './provisioning/provisioning.module';
 import { CreditBureauModule } from './credit-bureau/credit-bureau.module';
 import { FxModule } from './fx/fx.module';
+import { CollectionsModule } from './collections/collections.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -75,6 +76,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     ProvisioningModule,
     CreditBureauModule,
     FxModule,
+    CollectionsModule,
   ],
   controllers: [AppController],
   providers: [

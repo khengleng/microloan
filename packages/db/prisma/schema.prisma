@@ -43,6 +43,7 @@ model Tenant {
   journalEntries JournalEntry[]
   provisionRuns  ProvisionRun[]
   creditChecks   CreditCheck[]
+  promisesToPay  PromiseToPay[]
 }
 
 enum Currency {
@@ -236,6 +237,7 @@ model Loan {
   interactions      LoanInteraction[]
   provisions        LoanProvision[]
   journalEntries    JournalEntry[]
+  promisesToPay     PromiseToPay[]
   createdByUserId   String?
   reviewedByUserId  String?
   disbursedByUserId String?
@@ -517,4 +519,30 @@ model CreditCheck {
   completedAt       DateTime?
 
   @@index([tenantId, borrowerId])
+}
+
+// ── P1 #10: Collections — promise-to-pay ────────────────────────────────────
+enum PtpStatus {
+  PENDING
+  KEPT
+  BROKEN
+}
+
+model PromiseToPay {
+  id              String    @id @default(uuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loanId          String
+  loan            Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        Currency  @default(USD)
+  promisedDate    DateTime
+  status          PtpStatus @default(PENDING)
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tenantId, loanId])
+  @@index([tenantId, status, promisedDate])
 }
