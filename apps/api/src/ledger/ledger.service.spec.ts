@@ -16,7 +16,7 @@ describe('LedgerService.postEntry (double-entry invariant)', () => {
     prisma = {
       ledgerAccount: {
         findMany: jest.fn().mockResolvedValue(accounts),
-        upsert: jest.fn(),
+        createMany: jest.fn(),
       },
       journalEntry: {
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'e1', ...data })),
@@ -93,7 +93,9 @@ describe('LedgerService.postEntry (double-entry invariant)', () => {
       ],
     });
 
-    expect(prisma.ledgerAccount.upsert).toHaveBeenCalled();
+    expect(prisma.ledgerAccount.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
     expect(prisma.journalEntry.create).toHaveBeenCalledTimes(1);
   });
 });

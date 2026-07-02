@@ -43,15 +43,18 @@ export class LedgerService {
      * Safe to call repeatedly; only missing accounts are created.
      */
     async ensureChartOfAccounts(tenantId: string, client: PrismaLike = this.prisma) {
-        await Promise.all(
-            DEFAULT_CHART_OF_ACCOUNTS.map((acc) =>
-                client.ledgerAccount.upsert({
-                    where: { tenantId_code: { tenantId, code: acc.code } },
-                    update: {},
-                    create: { tenantId, code: acc.code, name: acc.name, type: acc.type },
-                }),
-            ),
-        );
+        // Concurrency-safe: skipDuplicates emits INSERT ... ON CONFLICT DO NOTHING,
+        // which is atomic. Per-row upserts here raced two simultaneous requests
+        // into a P2002 unique-constraint violation on (tenantId, code).
+        await client.ledgerAccount.createMany({
+            data: DEFAULT_CHART_OF_ACCOUNTS.map((acc) => ({
+                tenantId,
+                code: acc.code,
+                name: acc.name,
+                type: acc.type,
+            })),
+            skipDuplicates: true,
+        });
     }
 
     /**

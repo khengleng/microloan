@@ -1,0 +1,8 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "preDeployCommand": [
+      "pnpm --filter @microloan/db exec prisma migrate deploy"
+    ]
+  }
+}
