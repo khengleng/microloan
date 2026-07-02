@@ -341,6 +341,119 @@ export class LoansService {
     });
   }
 
+  /**
+   * P1 #9: early-settlement payoff quote (read-only). Payoff today = outstanding
+   * principal + interest already due (accrued) + outstanding penalties. Interest
+   * on installments due after today is waived on early settlement.
+   */
+  async payoffQuote(actor: JwtPayload, id: string) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      include: { schedules: true },
+    });
+    if (!loan) throw new NotFoundException('Loan not found');
+    this.authz.assertBranchAccess(actor, loan.branchId);
+
+    const now = new Date();
+    let outstandingPrincipal = 0;
+    let accruedInterestDue = 0;
+    let futureInterestWaived = 0;
+    let outstandingPenalty = 0;
+    for (const s of loan.schedules) {
+      if (s.isPaid) continue;
+      outstandingPrincipal += Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal));
+      outstandingPenalty += Math.max(0, Number(s.penaltyAmount) - Number(s.paidPenalty));
+      const dueInterest = Math.max(0, Number(s.interestAmount) - Number(s.paidInterest));
+      if (new Date(s.dueDate) <= now) accruedInterestDue += dueInterest;
+      else futureInterestWaived += dueInterest;
+    }
+    const round = (x: number) => Math.round(x * 100) / 100;
+    const payoffAmount = round(outstandingPrincipal + accruedInterestDue + outstandingPenalty);
+
+    return {
+      loanId: loan.id,
+      currency: loan.currency,
+      asOf: now,
+      outstandingPrincipal: round(outstandingPrincipal),
+      accruedInterestDue: round(accruedInterestDue),
+      outstandingPenalty: round(outstandingPenalty),
+      futureInterestWaived: round(futureInterestWaived),
+      payoffAmount,
+    };
+  }
+
+  /**
+   * P1 #9: write off an uncollectable loan. Posts Dr Allowance for Loan Losses /
+   * Cr Loans Receivable for the outstanding principal and marks the loan
+   * WRITTEN_OFF (removing it from the active portfolio).
+   */
+  async writeOff(actor: JwtPayload, id: string, reason: string) {
+    this.authz.assertPermission(actor, Permission.LOAN_WRITEOFF);
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      include: { schedules: true },
+    });
+    if (!loan) throw new NotFoundException('Loan not found');
+    this.authz.assertBranchAccess(actor, loan.branchId);
+
+    if (loan.status !== LoanStatus.DISBURSED && loan.status !== LoanStatus.DEFAULTED) {
+      throw new BadRequestException('Only disbursed or defaulted loans can be written off.');
+    }
+    if (!reason || !reason.trim()) {
+      throw new BadRequestException('A write-off reason is required.');
+    }
+
+    const outstandingPrincipal = loan.schedules.reduce(
+      (sum, s) => sum + (s.isPaid ? 0 : Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal))),
+      0,
+    );
+    const amount = Math.round(outstandingPrincipal * 100) / 100;
+    const actorId = this.authz.actorId(actor);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.loan.update({
+        where: { id: loan.id },
+        data: {
+          status: LoanStatus.WRITTEN_OFF,
+          writtenOffAt: new Date(),
+          writtenOffByUserId: actorId,
+          writeOffReason: reason.trim(),
+        },
+      });
+      if (amount > 0) {
+        await this.ledger.postEntry(
+          {
+            tenantId: loan.tenantId,
+            source: JournalSource.WRITEOFF,
+            description: `Write-off of loan ${loan.id}`,
+            currency: loan.currency,
+            loanId: loan.id,
+            createdByUserId: actorId,
+            lines: [
+              { accountCode: ACCOUNT_CODES.ALLOWANCE_FOR_LOAN_LOSSES, debit: amount },
+              { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: amount },
+            ],
+          },
+          tx,
+        );
+      }
+      return u;
+    });
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actorId,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'Loan',
+      targetId: loan.id,
+      action: 'LOAN_WRITEOFF',
+      newValue: { writeOffAmount: amount, reason: reason.trim() },
+      result: 'SUCCESS',
+    });
+    return updated;
+  }
+
   async remove(actor: JwtPayload, id: string) {
     this.authz.assertPermission(actor, Permission.USER_DELETE);
     const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id }) });

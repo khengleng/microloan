@@ -157,6 +157,7 @@ enum LoanStatus {
   DISBURSED
   CLOSED
   DEFAULTED
+  WRITTEN_OFF
 }
 
 enum InterestMethod {
@@ -239,6 +240,11 @@ model Loan {
   rejectedBy      String?
   rejectedAt      DateTime?
   rejectionReason String?
+
+  // P1 #9: write-off audit trail
+  writtenOffAt       DateTime?
+  writtenOffByUserId String?
+  writeOffReason     String?
 
   @@index([tenantId, branchId])
 }

@@ -78,6 +78,24 @@ export class LoansController {
     return this.loansService.changeStatus(user, id, dto);
   }
 
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX', 'TENANT_ADMIN', 'ACCOUNTANT')
+  @RequirePermissions(Permission.CUSTOMER_VIEW)
+  @Get(':id/payoff-quote')
+  payoffQuote(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.loansService.payoffQuote(user, id);
+  }
+
+  @Roles('ADMIN', 'FINANCE', 'TENANT_ADMIN', 'ACCOUNTANT', 'SUPERADMIN')
+  @RequirePermissions(Permission.LOAN_WRITEOFF)
+  @Post(':id/write-off')
+  writeOff(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: { reason: string },
+  ) {
+    return this.loansService.writeOff(user, id, dto?.reason);
+  }
+
   @Roles('ADMIN', 'OPERATOR')
   @RequirePermissions(Permission.USER_DELETE)
   @Delete(':id')
