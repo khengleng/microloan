@@ -137,7 +137,8 @@ export class ReportsService {
   }
 
   private baseRepaymentWhere(actor: JwtPayload, query: ReportQueryDto, from?: Date, to?: Date) {
-    const where: any = this.authz.scopeWhere(actor, {});
+    // Exclude reversed repayments from all collection/cashflow figures.
+    const where: any = this.authz.scopeWhere(actor, { reversedAt: null });
     const actorRole = canonicalRole(actor.role);
     if (this.authz.isPlatform(actor) && query.tenantId) where.tenantId = query.tenantId;
     if (query.borrowerId) where.loan = { ...(where.loan || {}), borrowerId: query.borrowerId };

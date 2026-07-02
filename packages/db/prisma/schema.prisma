@@ -320,6 +320,10 @@ model Repayment {
   // the same key returns the original instead of posting twice. NULLs are allowed
   // and treated as distinct by Postgres, so keyless posts are unaffected.
   idempotencyKey String?
+  // P1 #13: reversal audit trail (a reversed repayment is excluded from balances).
+  reversedAt        DateTime?
+  reversedByUserId  String?
+  reversalReason    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

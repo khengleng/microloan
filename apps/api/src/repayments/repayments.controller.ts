@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { PostRepaymentDto } from './dto/post-repayment.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -20,6 +20,17 @@ export class RepaymentsController {
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: PostRepaymentDto) {
     return this.repaymentsService.postRepayment(user, dto);
+  }
+
+  @Roles('ADMIN', 'FINANCE', 'TENANT_ADMIN', 'ACCOUNTANT', 'SUPERADMIN')
+  @RequirePermissions(Permission.LOAN_REPAYMENT_POST)
+  @Post(':id/reverse')
+  reverse(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: { reason: string },
+  ) {
+    return this.repaymentsService.reverseRepayment(user, id, dto?.reason);
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX')

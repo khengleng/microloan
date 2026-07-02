@@ -205,6 +205,126 @@ export class RepaymentsService {
     return repayment;
   }
 
+  /**
+   * P1 #13: reverse a posted repayment. Marks it reversed, recomputes the loan's
+   * schedule paid amounts by replaying the remaining (non-reversed) repayments —
+   * deterministic, so no per-schedule breakdown needs to have been stored — and
+   * posts a GL contra-entry (Dr Loans Receivable + Interest Income / Cr Cash).
+   */
+  async reverseRepayment(actor: JwtPayload, repaymentId: string, reason: string) {
+    this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);
+    const repayment = await this.prisma.repayment.findFirst({
+      where: this.authz.scopeWhere(actor, { id: repaymentId }),
+      include: { loan: true },
+    });
+    if (!repayment) throw new NotFoundException('Repayment not found');
+    this.authz.assertBranchAccess(actor, repayment.loan.branchId);
+    if (repayment.reversedAt) throw new BadRequestException('Repayment is already reversed.');
+    if (!reason || !reason.trim()) throw new BadRequestException('A reversal reason is required.');
+
+    const loanId = repayment.loanId;
+    const [schedules, remaining] = await Promise.all([
+      this.prisma.repaymentSchedule.findMany({ where: { loanId }, orderBy: { installmentNumber: 'asc' } }),
+      this.prisma.repayment.findMany({
+        where: { loanId, reversedAt: null, id: { not: repaymentId } },
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+
+    // Rebuild schedule state from scratch by replaying the remaining repayments
+    // with the same interest-first allocation used when posting.
+    const recomputed = schedules.map((s) => ({
+      id: s.id,
+      principalAmount: Number(s.principalAmount),
+      interestAmount: Number(s.interestAmount),
+      totalAmount: Number(s.totalAmount),
+      paidInterest: 0,
+      paidPrincipal: 0,
+      isPaid: false,
+    }));
+    for (const r of remaining) {
+      let left = Number(r.amount);
+      for (const s of recomputed) {
+        if (left <= 0) break;
+        const dueInterest = Math.max(0, s.interestAmount - s.paidInterest);
+        if (dueInterest > 0) {
+          const pay = Math.min(left, dueInterest);
+          s.paidInterest += pay;
+          left -= pay;
+        }
+        const duePrincipal = Math.max(0, s.principalAmount - s.paidPrincipal);
+        if (left > 0 && duePrincipal > 0) {
+          const pay = Math.min(left, duePrincipal);
+          s.paidPrincipal += pay;
+          left -= pay;
+        }
+        s.isPaid = s.paidInterest + s.paidPrincipal >= s.totalAmount;
+      }
+    }
+
+    const principalReversed = Number(repayment.principalPaid);
+    const interestReversed = Number(repayment.interestPaid);
+    const cashReversed = Math.round((principalReversed + interestReversed) * 100) / 100;
+    const allPaid = recomputed.every((s) => s.isPaid);
+    const actorId = this.authz.actorId(actor);
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const s of recomputed) {
+        await tx.repaymentSchedule.update({
+          where: { id: s.id },
+          data: {
+            paidInterest: Math.round(s.paidInterest * 100) / 100,
+            paidPrincipal: Math.round(s.paidPrincipal * 100) / 100,
+            isPaid: s.isPaid,
+          },
+        });
+      }
+
+      await tx.repayment.update({
+        where: { id: repaymentId },
+        data: { reversedAt: new Date(), reversedByUserId: actorId, reversalReason: reason.trim() },
+      });
+
+      // GL contra-entry: reverse the original repayment postings.
+      if (cashReversed > 0) {
+        const lines: any[] = [{ accountCode: ACCOUNT_CODES.CASH, credit: cashReversed }];
+        if (principalReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principalReversed });
+        if (interestReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, debit: interestReversed });
+        await this.ledger.postEntry(
+          {
+            tenantId: repayment.tenantId,
+            source: JournalSource.MANUAL,
+            description: `Reversal of repayment ${repaymentId}`,
+            currency: repayment.currency,
+            loanId,
+            referenceId: repaymentId,
+            createdByUserId: actorId,
+            lines,
+          },
+          tx,
+        );
+      }
+
+      // Reopen a loan that was auto-closed but is no longer fully paid.
+      if (!allPaid && repayment.loan.status === LoanStatus.CLOSED) {
+        await tx.loan.update({ where: { id: loanId }, data: { status: LoanStatus.DISBURSED } });
+      }
+    });
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actorId,
+      actorRole: actor.role,
+      actorTenantId: repayment.tenantId,
+      targetType: 'Repayment',
+      targetId: repaymentId,
+      action: 'REPAYMENT_REVERSE',
+      newValue: { reason: reason.trim(), principalReversed, interestReversed },
+      result: 'SUCCESS',
+    });
+
+    return { success: true, reversedRepaymentId: repaymentId, loanReopened: !allPaid && repayment.loan.status === LoanStatus.CLOSED };
+  }
+
   async findAll(
     actor: JwtPayload,
     loanId?: string,
