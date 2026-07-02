@@ -126,7 +126,7 @@ function TenantSettings() {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [settings, setSettings] = useState({ name: '', telegramBotToken: '', plan: 'FREE' });
+    const [settings, setSettings] = useState<{ name: string; telegramBotToken: string; plan: string; billingEnabled?: boolean }>({ name: '', telegramBotToken: '', plan: 'FREE', billingEnabled: false });
 
     useEffect(() => {
         api.get('/settings')
@@ -258,7 +258,11 @@ function TenantSettings() {
                                 <p className="text-2xl font-bold">{settings.plan}</p>
                             </div>
                             <div className="flex flex-col gap-2">
-                                {settings.plan === 'FREE' ? (
+                                {settings.billingEnabled === false ? (
+                                    <span className="text-xs font-semibold text-white/70 bg-white/10 border border-white/20 px-4 py-2 rounded">
+                                        Online billing coming soon
+                                    </span>
+                                ) : settings.plan === 'FREE' ? (
                                     <button
                                         onClick={() => handleUpgrade('PRO')}
                                         className="bg-white text-primary font-bold text-sm px-5 py-2 rounded hover:bg-white/90 transition-colors"
@@ -285,7 +289,10 @@ function TenantSettings() {
                         </div>
                         <div className="px-5 pb-4">
                             <p className="text-xs text-primary-foreground/50 flex items-center gap-1.5">
-                                <ShieldCheck size={12} /> Billing managed securely via Stripe.
+                                <ShieldCheck size={12} />
+                                {settings.billingEnabled === false
+                                    ? 'Subscription billing is not yet enabled for this platform.'
+                                    : 'Billing managed securely via Stripe.'}
                             </p>
                         </div>
                     </div>

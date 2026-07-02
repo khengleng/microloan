@@ -18,6 +18,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const { user } = useAuth(); // single /auth/me — no per-page duplicate calls
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+    // Swap the leading locale segment of the current path so switching language
+    // keeps the user on the same page (instead of always jumping to /dashboard).
+    const localizedPath = (target: string) => {
+        const parts = (pathname || `/${locale}`).split('/');
+        if (parts.length > 1) parts[1] = target;
+        const next = parts.join('/');
+        return next || `/${target}`;
+    };
+
     const role = user?.role;
     const isSuperAdmin = role === 'SUPERADMIN';
     const isPlatform = user?.isPlatform;
@@ -180,12 +189,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     {/* Locale switcher */}
                     <div className="flex items-center gap-0.5 border border-border rounded p-0.5 bg-muted">
                         <Link
-                            href={`/en/dashboard`}
+                            href={localizedPath('en')}
                             className={`px-3 py-1 text-xs rounded font-semibold transition-colors ${locale === 'en' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                                 }`}
                         >EN</Link>
                         <Link
-                            href={`/km/dashboard`}
+                            href={localizedPath('km')}
                             className={`px-3 py-1 text-xs rounded font-semibold transition-colors ${locale === 'km' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                                 }`}
                         >KM</Link>

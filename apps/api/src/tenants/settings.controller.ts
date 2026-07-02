@@ -21,11 +21,12 @@ export class SettingsController {
     @Get()
     async getSettings(@CurrentUser() user: JwtPayload) {
         if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
-        return this.prisma.tenant.findUnique({
+        const tenant = await this.prisma.tenant.findUnique({
             where: { id: user.tenantId },
             select: {
                 id: true,
                 name: true,
+                plan: true,
                 telegramBotToken: true,
                 baseCurrency: true,
                 maxAnnualInterestRatePct: true,
@@ -34,6 +35,9 @@ export class SettingsController {
                 createdAt: true,
             }
         });
+        // Whether online billing (Stripe) is provisioned — lets the UI show a
+        // clear "not enabled yet" state instead of erroring on Upgrade/Manage.
+        return { ...tenant, billingEnabled: !!process.env.STRIPE_SECRET_KEY?.trim() };
     }
 
     @Roles('ADMIN')
