@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 export default function LoginPage() {
-    const t = useTranslations('Index');
+    const t = useTranslations('Auth');
     const { locale } = useParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -40,7 +40,7 @@ export default function LoginPage() {
             const data = await res.json();
             if (!res.ok) {
                 clarityEvent('login_submit_failed');
-                setError(data?.message || 'Invalid email or password.');
+                setError(data?.message || t('invalidCredentials'));
                 return;
             }
             if (data.mfaRequired) {
@@ -55,7 +55,7 @@ export default function LoginPage() {
             router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
             clarityEvent('login_submit_failed');
-            setError('Unable to connect to service.');
+            setError(t('connectError'));
         } finally {
             setLoading(false);
         }
@@ -75,7 +75,7 @@ export default function LoginPage() {
             const data = await res.json();
             if (!res.ok) {
                 clarityEvent('mfa_verify_failed');
-                setError(data?.message || 'Invalid verification code.');
+                setError(data?.message || t('invalidCode'));
                 return;
             }
             // Redirect Platform Staff to platform view; everyone else to dashboard
@@ -84,7 +84,7 @@ export default function LoginPage() {
             router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
         } catch {
             clarityEvent('mfa_verify_failed');
-            setError('MFA validation failure.');
+            setError(t('mfaFailure'));
         } finally {
             setLoading(false);
         }
@@ -104,18 +104,18 @@ export default function LoginPage() {
 
                 <div className="bg-card border border-border rounded-lg p-7">
                     <h1 className="text-[18px] font-bold text-foreground mb-1">
-                        {mfaStep ? 'Two-factor authentication' : 'Sign in'}
+                        {mfaStep ? t('twoFactor') : t('signIn')}
                     </h1>
                     <p className="text-[13px] text-muted-foreground mb-6">
                         {mfaStep
-                            ? 'Enter the 6-digit code from your authenticator app.'
-                            : 'Enter your credentials to access your dashboard.'}
+                            ? t('twoFactorDesc')
+                            : t('signInDesc')}
                     </p>
 
                     {!mfaStep ? (
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div>
-                                <label htmlFor="email" className={labelClass}>Email</label>
+                                <label htmlFor="email" className={labelClass}>{t('email')}</label>
                                 <input
                                     id="email"
                                     type="email"
@@ -130,8 +130,8 @@ export default function LoginPage() {
                             </div>
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
-                                    <label htmlFor="password" className="text-[12px] font-semibold text-muted-foreground">Password</label>
-                                    <Link href={`/${locale}/forgot-password`} className="text-[12px] text-primary hover:text-primary/80 transition-colors">Forgot password?</Link>
+                                    <label htmlFor="password" className="text-[12px] font-semibold text-muted-foreground">{t('password')}</label>
+                                    <Link href={`/${locale}/forgot-password`} className="text-[12px] text-primary hover:text-primary/80 transition-colors">{t('forgotPassword')}</Link>
                                 </div>
                                 <div className="relative">
                                     <input
@@ -167,13 +167,13 @@ export default function LoginPage() {
                                 disabled={loading}
                             >
                                 {loading && <Loader2 size={14} className="animate-spin mr-2" />}
-                                {loading ? 'Signing in...' : 'Sign in'}
+                                {loading ? t('signingIn') : t('signIn')}
                             </button>
                         </form>
                     ) : (
                         <form onSubmit={handleMfaVerify} className="space-y-4">
                             <div>
-                                <label htmlFor="mfaCode" className={labelClass}>Verification code</label>
+                                <label htmlFor="mfaCode" className={labelClass}>{t('verificationCode')}</label>
                                 <input
                                     id="mfaCode"
                                     data-clarity-mask="true"
@@ -195,30 +195,30 @@ export default function LoginPage() {
 
                             <button type="submit" disabled={loading} className="tv-button w-full h-10 text-[13px]">
                                 {loading ? <Loader2 size={14} className="animate-spin mr-2" /> : <ShieldCheck size={14} className="mr-2" />}
-                                {loading ? 'Verifying...' : 'Confirm'}
+                                {loading ? t('verifying') : t('confirm')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setMfaStep(false)}
                                 className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground transition-colors"
                             >
-                                Try another method
+                                {t('tryAnother')}
                             </button>
                         </form>
                     )}
                 </div>
 
                 <p className="text-center text-[13px] text-muted-foreground mt-5">
-                    Don&apos;t have an account?{' '}
+                    {t('noAccount')}{' '}
                     <Link href={`/${locale}/register`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
-                        Create account
+                        {t('createAccount')}
                     </Link>
                 </p>
 
                 <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
-                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
-                    <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
-                    <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
+                    <span className="text-[11px] text-muted-foreground">{t('copyright')}</span>
+                    <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{t('terms')}</Link>
+                    <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{t('privacy')}</Link>
                 </div>
             </div>
         </div>

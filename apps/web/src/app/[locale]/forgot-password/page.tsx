@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Loader2, MailCheck } from 'lucide-react';
 import api from '@/lib/api';
 
 export default function ForgotPasswordPage() {
+    const t = useTranslations('Auth');
     const { locale } = useParams();
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,27 +32,27 @@ export default function ForgotPasswordPage() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-full max-w-[360px] px-4">
-                <h1 className="text-xl font-bold text-foreground mb-1">Reset your password</h1>
-                <p className="text-[13px] text-muted-foreground mb-6">Enter your account email and we&apos;ll send a reset link.</p>
+                <h1 className="text-xl font-bold text-foreground mb-1">{t('forgotTitle')}</h1>
+                <p className="text-[13px] text-muted-foreground mb-6">{t('forgotDesc')}</p>
 
                 {sent ? (
                     <div className="rounded-lg border border-border bg-secondary p-5 text-center">
                         <MailCheck className="mx-auto mb-2 text-primary" size={28} />
-                        <p className="text-[13px] text-foreground font-medium">If an account exists for that email, a reset link has been sent.</p>
-                        <p className="text-[12px] text-muted-foreground mt-1">Check your inbox and follow the link (valid for 1 hour).</p>
-                        <Link href={`/${locale}/login`} className="inline-block mt-4 text-[13px] text-primary hover:underline">Back to sign in</Link>
+                        <p className="text-[13px] text-foreground font-medium">{t('sentTitle')}</p>
+                        <p className="text-[12px] text-muted-foreground mt-1">{t('sentDesc')}</p>
+                        <Link href={`/${locale}/login`} className="inline-block mt-4 text-[13px] text-primary hover:underline">{t('backToSignIn')}</Link>
                     </div>
                 ) : (
                     <form onSubmit={submit} className="space-y-4">
                         <div>
-                            <label className="text-[12px] font-semibold text-muted-foreground mb-1.5 block">Email</label>
-                            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" className={inputClass} />
+                            <label className="text-[12px] font-semibold text-muted-foreground mb-1.5 block">{t('email')}</label>
+                            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder={t('emailPlaceholder')} className={inputClass} />
                         </div>
                         <button type="submit" disabled={loading} className="w-full h-10 bg-primary text-primary-foreground rounded text-[13px] font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
-                            {loading ? <Loader2 className="animate-spin" size={16} /> : null} Send reset link
+                            {loading ? <Loader2 className="animate-spin" size={16} /> : null} {t('sendResetLink')}
                         </button>
                         <div className="text-center">
-                            <Link href={`/${locale}/login`} className="text-[13px] text-muted-foreground hover:text-foreground">Back to sign in</Link>
+                            <Link href={`/${locale}/login`} className="text-[13px] text-muted-foreground hover:text-foreground">{t('backToSignIn')}</Link>
                         </div>
                     </form>
                 )}

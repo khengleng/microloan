@@ -26,6 +26,8 @@ const LIMIT = 50;
 
 export default function BorrowersPage() {
     const { locale } = useParams();
+    const t = useTranslations('Borrowers');
+    const tc = useTranslations('Common');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
@@ -48,7 +50,7 @@ export default function BorrowersPage() {
             setBorrowers(res.data.data);
             setMeta(res.data);
         } catch {
-            showToast('Failed to load borrowers', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -77,19 +79,19 @@ export default function BorrowersPage() {
 
     const handleDelete = async (id: string) => {
         const ok = await confirm({
-            title: 'Delete Borrower',
-            message: 'This will permanently delete this borrower and all associated records. This action cannot be undone.',
-            confirmLabel: 'Delete',
+            title: t('deleteTitle'),
+            message: t('deleteMessage'),
+            confirmLabel: t('deleteConfirm'),
             variant: 'danger',
         });
         if (!ok) return;
         setDeletingId(id);
         try {
             await api.delete(`/borrowers/${id}`);
-            showToast('Borrower deleted', 'success');
+            showToast(t('deleted'), 'success');
             fetchBorrowers(page, searchQuery);
         } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to delete borrower', 'error');
+            showToast(error.response?.data?.message || t('deleteFailed'), 'error');
         } finally {
             setDeletingId(null);
         }
@@ -100,9 +102,9 @@ export default function BorrowersPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">Borrowers</h1>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {meta ? `${meta.total.toLocaleString()} registered borrowers` : 'Manage your borrower registry.'}
+                        {meta ? t('registeredCount', { count: meta.total.toLocaleString() }) : t('manageRegistry')}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -111,13 +113,13 @@ export default function BorrowersPage() {
                         className="btn-ghost"
                     >
                         <ShieldAlert size={14} className="text-amber-500" />
-                        Credit Check
+                        {t('creditCheck')}
                     </button>
                     <button
                         onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }}
                         className="btn-primary"
                     >
-                        <Plus size={14} /> New Borrower
+                        <Plus size={14} /> {t('newBorrower')}
                     </button>
                 </div>
             </div>
@@ -128,7 +130,7 @@ export default function BorrowersPage() {
                     <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <input
                         type="text"
-                        placeholder="Search by name, phone, or ID number..."
+                        placeholder={t('searchPlaceholder')}
                         value={searchQuery}
                         onChange={e => handleSearchChange(e.target.value)}
                         className="w-full pl-8 pr-4 h-9 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
@@ -136,7 +138,7 @@ export default function BorrowersPage() {
                 </div>
                 {meta && (
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {meta.total.toLocaleString()} result{meta.total !== 1 ? 's' : ''}
+                        {t('resultsCount', { count: meta.total })}
                     </span>
                 )}
             </div>
@@ -147,11 +149,11 @@ export default function BorrowersPage() {
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/30">
                             <tr>
-                                <th className="table-header px-4 py-2.5 text-left">Borrower</th>
-                                <th className="table-header px-4 py-2.5 text-left">Phone</th>
-                                <th className="table-header px-4 py-2.5 text-left hidden md:table-cell">ID Number</th>
-                                <th className="table-header px-4 py-2.5 text-left hidden lg:table-cell">Address</th>
-                                <th className="table-header px-4 py-2.5 text-right">Actions</th>
+                                <th className="table-header px-4 py-2.5 text-left">{t('colBorrower')}</th>
+                                <th className="table-header px-4 py-2.5 text-left">{t('colPhone')}</th>
+                                <th className="table-header px-4 py-2.5 text-left hidden md:table-cell">{t('colIdNumber')}</th>
+                                <th className="table-header px-4 py-2.5 text-left hidden lg:table-cell">{t('colAddress')}</th>
+                                <th className="table-header px-4 py-2.5 text-right">{t('colActions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -165,9 +167,9 @@ export default function BorrowersPage() {
                                 <tr>
                                     <td colSpan={5} className="px-4 py-20 text-center">
                                         <User size={32} className="mx-auto text-muted-foreground/20 mb-3" />
-                                        <p className="text-sm font-medium text-foreground">No borrowers found</p>
+                                        <p className="text-sm font-medium text-foreground">{t('noBorrowersTitle')}</p>
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            {searchQuery ? 'Try a different search term.' : 'Register your first borrower to get started.'}
+                                            {searchQuery ? t('noBorrowersSearch') : t('noBorrowersEmpty')}
                                         </p>
                                     </td>
                                 </tr>
@@ -204,7 +206,7 @@ export default function BorrowersPage() {
                                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Link href={`/${locale}/borrowers/${borrower.id}`}>
                                                     <button className="btn-ghost text-xs px-2.5 py-1 h-auto">
-                                                        <ArrowRightCircle size={12} /> View
+                                                        <ArrowRightCircle size={12} /> {t('view')}
                                                     </button>
                                                 </Link>
                                                 <button
@@ -239,7 +241,7 @@ export default function BorrowersPage() {
                             disabled={page === 1}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            <ChevronLeft size={14} /> Previous
+                            <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
                             {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
@@ -249,7 +251,7 @@ export default function BorrowersPage() {
                             disabled={page === meta.pages}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            Next <ChevronRight size={14} />
+                            {tc('next')} <ChevronRight size={14} />
                         </button>
                     </div>
                 )}
@@ -258,7 +260,7 @@ export default function BorrowersPage() {
             <BorrowerModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchBorrowers(page, searchQuery); showToast('Borrower saved', 'success'); }}
+                onSuccess={() => { fetchBorrowers(page, searchQuery); showToast(t('saved'), 'success'); }}
                 borrower={selectedBorrower}
             />
             <CrossCheckModal open={isCrossCheckOpen} onOpenChange={setIsCrossCheckOpen} />

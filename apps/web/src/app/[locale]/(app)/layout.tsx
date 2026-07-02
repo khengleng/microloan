@@ -1,5 +1,6 @@
 "use client";
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
@@ -14,6 +15,7 @@ import { clarityIdentify, claritySetTag } from '@/lib/clarity';
 
 function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
+    const t = useTranslations('Nav');
     const pathname = usePathname();
     const { user } = useAuth(); // single /auth/me — no per-page duplicate calls
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -96,44 +98,44 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 <nav className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
                     {isPlatform ? (
                         <>
-                            {navSection('Platform Operations')}
-                            {navItem('/tenants', 'Organizations', Building)}
+                            {navSection(t('secPlatformOps'))}
+                            {navItem('/tenants', t('organizations'), Building)}
 
                             {isAdmin && (
                                 <>
-                                    {navItem('/users', 'Platform Team', UserCog)}
-                                    {navItem('/audit', 'Audit Log', Shield)}
-                                    {navSection('Configuration')}
-                                    {navItem('/settings', 'Settings & Billing', Settings)}
+                                    {navItem('/users', t('platformTeam'), UserCog)}
+                                    {navItem('/audit', t('auditLog'), Shield)}
+                                    {navSection(t('secConfiguration'))}
+                                    {navItem('/settings', t('settingsBilling'), Settings)}
                                 </>
                             )}
                         </>
                     ) : (
                         <>
-                            {navSection('Lending Operations')}
-                            {navItem('/dashboard', 'Dashboard', LayoutDashboard)}
-                            {(isSales || isFinance) && navItem('/borrowers', 'Borrowers', Users)}
-                            {(isSales || isFinance) && navItem('/loans', 'Loans', FileText)}
-                            {isFinance && navItem('/repayments', 'Repayments', CreditCard)}
-                            {isFinance && navItem('/collections', 'Collections', AlertTriangle)}
-                            {isFinance && navItem('/reports', 'Reports', BarChart2)}
-                            {navItem('/products', 'Products', BarChart2)}
+                            {navSection(t('secLendingOps'))}
+                            {navItem('/dashboard', t('dashboard'), LayoutDashboard)}
+                            {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
+                            {(isSales || isFinance) && navItem('/loans', t('loans'), FileText)}
+                            {isFinance && navItem('/repayments', t('repayments'), CreditCard)}
+                            {isFinance && navItem('/collections', t('collections'), AlertTriangle)}
+                            {isFinance && navItem('/reports', t('reports'), BarChart2)}
+                            {navItem('/products', t('products'), BarChart2)}
 
                             {isFinance && (
                                 <>
-                                    {navSection('Accounting')}
-                                    {navItem('/accounting', 'Accounting', Landmark)}
-                                    {navItem('/provisioning', 'Provisioning', ShieldCheck)}
-                                    {navItem('/fx', 'FX Rates', Coins)}
+                                    {navSection(t('secAccounting'))}
+                                    {navItem('/accounting', t('accounting'), Landmark)}
+                                    {navItem('/provisioning', t('provisioning'), ShieldCheck)}
+                                    {navItem('/fx', t('fxRates'), Coins)}
                                 </>
                             )}
 
                             {isAdmin && (
                                 <>
-                                    {navSection('Business Settings')}
-                                    {navItem('/users', 'Team Members', UserCog)}
-                                    {navItem('/audit', 'Audit Log', Shield)}
-                                    {navItem('/settings', 'Settings', Settings)}
+                                    {navSection(t('secBusinessSettings'))}
+                                    {navItem('/users', t('teamMembers'), UserCog)}
+                                    {navItem('/audit', t('auditLog'), Shield)}
+                                    {navItem('/settings', t('settings'), Settings)}
                                 </>
                             )}
                         </>
@@ -161,7 +163,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-sidebar-foreground/70 hover:text-white hover:bg-sidebar-accent/60 rounded transition-colors"
                     >
                         <LogOut size={14} />
-                        Sign out
+                        {t('signOut')}
                     </button>
                 </div>
             </aside>

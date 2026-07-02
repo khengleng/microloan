@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Search, FileText, Loader2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -36,7 +37,18 @@ const LIMIT = 50;
 
 export default function LoansPage() {
     const { locale } = useParams();
+    const t = useTranslations('Loans');
+    const tc = useTranslations('Common');
     const { showToast } = useToast();
+    const STATUS_LABELS: Record<string, string> = {
+        ALL: t('allLoans'),
+        PENDING: t('statusPending'),
+        APPROVED: t('statusApproved'),
+        DISBURSED: t('statusDisbursed'),
+        CLOSED: t('statusClosed'),
+        DEFAULTED: t('statusDefaulted'),
+        REJECTED: t('statusRejected'),
+    };
     const [loans, setLoans] = useState<Loan[]>([]);
     const [meta, setMeta] = useState<PageMeta | null>(null);
     const [loading, setLoading] = useState(true);
@@ -56,7 +68,7 @@ export default function LoansPage() {
             setLoans(res.data.data);
             setMeta(res.data);
         } catch {
-            showToast('Failed to load loans', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -102,10 +114,10 @@ export default function LoansPage() {
             link.click();
             link.remove();
             clarityEvent('loan_export_success');
-            showToast('Loans exported', 'success');
+            showToast(t('exported'), 'success');
         } catch {
             clarityEvent('loan_export_failed');
-            showToast('Failed to export', 'error');
+            showToast(t('exportFailed'), 'error');
         }
     };
 
@@ -114,20 +126,20 @@ export default function LoansPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">Loans</h1>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {meta ? `${meta.total.toLocaleString()} total loans` : 'Manage your loan portfolio.'}
+                        {meta ? t('totalCount', { count: meta.total.toLocaleString() }) : t('managePortfolio')}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={exportToExcel} className="btn-ghost">
-                        <Download size={14} /> Export
+                        <Download size={14} /> {t('export')}
                     </button>
                     <button onClick={() => {
                         clarityEvent('loan_application_start');
                         setIsModalOpen(true);
                     }} className="btn-primary">
-                        <Plus size={14} /> New Loan
+                        <Plus size={14} /> {t('newLoan')}
                     </button>
                 </div>
             </div>
@@ -145,7 +157,7 @@ export default function LoansPage() {
                                 : 'text-muted-foreground hover:text-foreground'
                                 }`}
                         >
-                            {s === 'ALL' ? 'All Loans' : s.charAt(0) + s.slice(1).toLowerCase()}
+                            {STATUS_LABELS[s] ?? s}
                             {statusFilter === s && (
                                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
                             )}
@@ -158,7 +170,7 @@ export default function LoansPage() {
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                             type="text"
-                            placeholder="Filter by borrower name..."
+                            placeholder={t('filterPlaceholder')}
                             value={searchQuery}
                             onChange={e => handleSearchChange(e.target.value)}
                             className="w-full pl-8 pr-4 h-9 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
@@ -173,12 +185,12 @@ export default function LoansPage() {
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/30">
                             <tr>
-                                <th className="table-header px-4 py-2.5 text-left">Borrower</th>
-                                <th className="table-header px-4 py-2.5 text-right">Amount</th>
-                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Rate</th>
-                                <th className="table-header px-4 py-2.5 text-right hidden sm:table-cell">Term</th>
-                                <th className="table-header px-4 py-2.5 text-center">Status</th>
-                                <th className="table-header px-4 py-2.5 text-right">Action</th>
+                                <th className="table-header px-4 py-2.5 text-left">{t('colBorrower')}</th>
+                                <th className="table-header px-4 py-2.5 text-right">{t('colAmount')}</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">{t('colRate')}</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden sm:table-cell">{t('colTerm')}</th>
+                                <th className="table-header px-4 py-2.5 text-center">{t('colStatus')}</th>
+                                <th className="table-header px-4 py-2.5 text-right">{t('colAction')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -192,8 +204,8 @@ export default function LoansPage() {
                                 <tr>
                                     <td colSpan={6} className="px-4 py-20 text-center">
                                         <FileText size={32} className="mx-auto text-muted-foreground/20 mb-3" />
-                                        <p className="text-sm font-medium text-foreground">No loans found</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters.</p>
+                                        <p className="text-sm font-medium text-foreground">{t('noLoansTitle')}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('noLoansDesc')}</p>
                                     </td>
                                 </tr>
                             ) : (
@@ -217,16 +229,16 @@ export default function LoansPage() {
                                             <span className="text-sm text-muted-foreground">{loan.annualInterestRate}%</span>
                                         </td>
                                         <td className="px-4 py-3 text-right hidden sm:table-cell">
-                                            <span className="text-sm text-muted-foreground">{loan.termMonths} mo</span>
+                                            <span className="text-sm text-muted-foreground">{loan.termMonths} {t('monthsShort')}</span>
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>
-                                                {loan.status}
+                                                {STATUS_LABELS[loan.status] ?? loan.status}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <Link href={`/${locale}/loans/${loan.id}`}>
-                                                <button className="btn-ghost text-xs px-2.5 py-1 h-auto">View</button>
+                                                <button className="btn-ghost text-xs px-2.5 py-1 h-auto">{t('view')}</button>
                                             </Link>
                                         </td>
                                     </tr>
@@ -243,7 +255,7 @@ export default function LoansPage() {
                             disabled={page === 1}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            <ChevronLeft size={14} /> Previous
+                            <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
                             {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
@@ -253,7 +265,7 @@ export default function LoansPage() {
                             disabled={page === meta.pages}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            Next <ChevronRight size={14} />
+                            {tc('next')} <ChevronRight size={14} />
                         </button>
                     </div>
                 )}
@@ -262,7 +274,7 @@ export default function LoansPage() {
             <LoanModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchLoans(page, searchQuery, statusFilter); showToast('Loan created', 'success'); }}
+                onSuccess={() => { fetchLoans(page, searchQuery, statusFilter); showToast(t('created'), 'success'); }}
             />
         </div>
     );

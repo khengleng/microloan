@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Search, CreditCard, Loader2, Download, ChevronLeft, ChevronRight, Wallet, Activity, CheckCircle2 } from 'lucide-react';
@@ -23,6 +24,8 @@ interface PageMeta { total: number; page: number; limit: number; pages: number; 
 const LIMIT = 50;
 
 export default function RepaymentsPage() {
+    const t = useTranslations('Repayments');
+    const tc = useTranslations('Common');
     const { showToast } = useToast();
     const [repayments, setRepayments] = useState<Repayment[]>([]);
     const [meta, setMeta] = useState<PageMeta | null>(null);
@@ -50,7 +53,7 @@ export default function RepaymentsPage() {
                 // Use the full sum endpoint or just sum visible — we'll just show page total
             }
         } catch {
-            showToast('Failed to load repayments', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -109,10 +112,10 @@ export default function RepaymentsPage() {
             link.click();
             link.remove();
             clarityEvent('repayment_export_success');
-            showToast('Repayments exported', 'success');
+            showToast(t('exported'), 'success');
         } catch {
             clarityEvent('repayment_export_failed');
-            showToast('Failed to export', 'error');
+            showToast(t('exportFailed'), 'error');
         }
     };
 
@@ -121,20 +124,20 @@ export default function RepaymentsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">Repayments</h1>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {meta ? `${meta.total.toLocaleString()} transactions` : 'Full repayment history and ledger.'}
+                        {meta ? t('transactionsCount', { count: meta.total.toLocaleString() }) : t('historyLedger')}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={exportToExcel} className="btn-ghost">
-                        <Download size={14} /> Export
+                        <Download size={14} /> {t('export')}
                     </button>
                     <button onClick={() => {
                         clarityEvent('repayment_form_open');
                         setIsModalOpen(true);
                     }} className="btn-primary">
-                        <Plus size={14} /> Record Payment
+                        <Plus size={14} /> {t('recordPayment')}
                     </button>
                 </div>
             </div>
@@ -142,9 +145,9 @@ export default function RepaymentsPage() {
             {/* KPI Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
-                    { label: 'This Month', value: `$${totalCollected.toLocaleString()}`, icon: Wallet, cls: 'text-primary' },
-                    { label: 'Average Payment', value: meta && meta.total > 0 ? `$${(pageTotal / repayments.length || 0).toFixed(0)}` : '—', icon: Activity, cls: 'text-foreground' },
-                    { label: 'Verified Ledger', value: 'Audited', icon: CheckCircle2, cls: 'text-[#006644]' },
+                    { label: t('thisMonth'), value: `$${totalCollected.toLocaleString()}`, icon: Wallet, cls: 'text-primary' },
+                    { label: t('averagePayment'), value: meta && meta.total > 0 ? `$${(pageTotal / repayments.length || 0).toFixed(0)}` : '—', icon: Activity, cls: 'text-foreground' },
+                    { label: t('verifiedLedger'), value: t('audited'), icon: CheckCircle2, cls: 'text-[#006644]' },
                 ].map((m, i) => (
                     <div key={i} className="bg-white border border-border rounded-md px-4 py-3 flex items-center gap-3">
                         <m.icon size={16} className={`${m.cls} flex-shrink-0`} />
@@ -163,7 +166,7 @@ export default function RepaymentsPage() {
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                             type="text"
-                            placeholder="Search by borrower name..."
+                            placeholder={t('searchPlaceholder')}
                             value={searchQuery}
                             onChange={e => {
                                 clarityEvent('repayment_search_used');
@@ -180,7 +183,7 @@ export default function RepaymentsPage() {
                             className="h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
                             title="From date"
                         />
-                        <span className="text-xs text-muted-foreground">to</span>
+                        <span className="text-xs text-muted-foreground">{t('to')}</span>
                         <input
                             type="date"
                             value={dateTo}
@@ -193,7 +196,7 @@ export default function RepaymentsPage() {
                                 onClick={() => { setDateFrom(''); setDateTo(''); handleDateChange('', ''); }}
                                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                             >
-                                Clear
+                                {t('clear')}
                             </button>
                         )}
                     </div>
@@ -204,21 +207,21 @@ export default function RepaymentsPage() {
             <div className="bg-white border border-border rounded-md overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center justify-between">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {meta ? `${meta.total.toLocaleString()} transactions` : 'Loading...'}
+                        {meta ? t('transactionsCount', { count: meta.total.toLocaleString() }) : t('loading')}
                     </span>
                     {meta && meta.pages > 1 && (
-                        <span className="text-xs text-muted-foreground">Page {page} of {meta.pages}</span>
+                        <span className="text-xs text-muted-foreground">{t('pageOf', { page, pages: meta.pages })}</span>
                     )}
                 </div>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/30">
                             <tr>
-                                <th className="table-header px-4 py-2.5 text-left">Borrower</th>
-                                <th className="table-header px-4 py-2.5 text-right">Amount</th>
-                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Interest</th>
-                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">Principal</th>
-                                <th className="table-header px-4 py-2.5 text-right">Date</th>
+                                <th className="table-header px-4 py-2.5 text-left">{t('colBorrower')}</th>
+                                <th className="table-header px-4 py-2.5 text-right">{t('colAmount')}</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">{t('colInterest')}</th>
+                                <th className="table-header px-4 py-2.5 text-right hidden md:table-cell">{t('colPrincipal')}</th>
+                                <th className="table-header px-4 py-2.5 text-right">{t('colDate')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -232,8 +235,8 @@ export default function RepaymentsPage() {
                                 <tr>
                                     <td colSpan={5} className="px-4 py-20 text-center">
                                         <CreditCard size={32} className="mx-auto text-muted-foreground/20 mb-3" />
-                                        <p className="text-sm font-medium text-foreground">No repayments found</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters.</p>
+                                        <p className="text-sm font-medium text-foreground">{t('noRepaymentsTitle')}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('noRepaymentsDesc')}</p>
                                     </td>
                                 </tr>
                             ) : (
@@ -278,7 +281,7 @@ export default function RepaymentsPage() {
                             disabled={page === 1}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            <ChevronLeft size={14} /> Previous
+                            <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
                             {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
@@ -288,7 +291,7 @@ export default function RepaymentsPage() {
                             disabled={page === meta.pages}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            Next <ChevronRight size={14} />
+                            {tc('next')} <ChevronRight size={14} />
                         </button>
                     </div>
                 )}
@@ -297,7 +300,7 @@ export default function RepaymentsPage() {
             <RepaymentModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                onSuccess={() => { fetchRepayments(page, dateFrom, dateTo); showToast('Repayment recorded', 'success'); }}
+                onSuccess={() => { fetchRepayments(page, dateFrom, dateTo); showToast(t('recorded'), 'success'); }}
             />
         </div>
     );

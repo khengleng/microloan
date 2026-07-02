@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -48,6 +49,7 @@ interface Stats {
 }
 
 export default function TenantsPage() {
+    const t = useTranslations('Tenants');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const [stats, setStats] = useState<Stats | null>(null);
@@ -76,7 +78,7 @@ export default function TenantsPage() {
             setStats(statsRes.data);
             setTenants(tenantsRes.data);
         } catch {
-            showToast('Failed to load platform data', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -90,14 +92,14 @@ export default function TenantsPage() {
         try {
             if (editTenant) {
                 await api.put(`/tenants/${editTenant.id}`, { name: form.name, plan: form.plan });
-                showToast('Organization updated', 'success');
+                showToast(t('orgUpdated'), 'success');
             } else {
                 await api.post('/tenants', {
                     name: form.name,
                     adminEmail: form.adminEmail,
                     adminPassword: form.adminPassword
                 });
-                showToast('Organization registered with Admin access', 'success');
+                showToast(t('orgRegistered'), 'success');
             }
             setModal(false);
             setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' });
@@ -207,16 +209,16 @@ export default function TenantsPage() {
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Globe className="text-indigo-600" size={32} /> Platform Governance
+                        <Globe className="text-indigo-600" size={32} /> {t('title')}
                     </h1>
-                    <p className="text-slate-500 font-medium mt-1">Global oversight of all tenant organizations and distributed assets</p>
+                    <p className="text-slate-500 font-medium mt-1">{t('subtitle')}</p>
                 </div>
                 <Button
                     onClick={() => { setEdit(null); setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' }); setModal(true); }}
                     className="rounded-2xl font-black px-8 h-12 bg-slate-950 text-white hover:bg-slate-800 shadow-lg shadow-slate-950/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
                     <Plus size={18} />
-                    Register New Org
+                    {t('registerOrg')}
                 </Button>
             </div>
 
@@ -225,38 +227,38 @@ export default function TenantsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                         <div className="flex items-center justify-between mb-4">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Orgs</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('totalOrgs')}</span>
                             <Building2 size={16} className="text-indigo-500" />
                         </div>
                         <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.totalTenants}</div>
                         <div className="flex gap-3 mt-3">
-                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{stats.activeTenants} Active</span>
-                            {stats.suspendedTenants > 0 && <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">{stats.suspendedTenants} Suspended</span>}
+                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{t('activeCount', { count: stats.activeTenants })}</span>
+                            {stats.suspendedTenants > 0 && <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">{t('suspendedCount', { count: stats.suspendedTenants })}</span>}
                         </div>
                     </div>
                     <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                         <div className="flex items-center justify-between mb-4">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Users</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('globalUsers')}</span>
                             <Users size={16} className="text-purple-500" />
                         </div>
                         <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.totalBorrowers.toLocaleString()}</div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">Total KYC Clients</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{t('totalKyc')}</p>
                     </div>
                     <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                         <div className="flex items-center justify-between mb-4">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Assets</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('activeAssets')}</span>
                             <FileText size={16} className="text-emerald-500" />
                         </div>
                         <div className="text-3xl font-black text-slate-900 tracking-tight">{stats.disbursedLoans.toLocaleString()}</div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{stats.totalLoans} Total Issued</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{t('totalIssued', { count: stats.totalLoans })}</p>
                     </div>
                     <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                         <div className="flex items-center justify-between mb-4">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform Flow</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('platformFlow')}</span>
                             <TrendingUp size={16} className="text-amber-500" />
                         </div>
                         <div className="text-2xl font-black text-slate-900 tracking-tight">${Number(stats.totalRepaymentsCollected).toLocaleString()}</div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">Gross Recovery</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 italic">{t('grossRecovery')}</p>
                     </div>
                 </div>
             )}
@@ -267,7 +269,7 @@ export default function TenantsPage() {
                     <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                     <input
                         type="text"
-                        placeholder="Search global organizations by name, ID or domain..."
+                        placeholder={t('searchPlaceholder')}
                         value={searchQuery}
                         onChange={e => setSearch(e.target.value)}
                         className="w-full pl-12 pr-4 h-14 text-sm font-medium border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white glass shadow-sm transition-all text-slate-900 placeholder:text-slate-400"
@@ -291,7 +293,7 @@ export default function TenantsPage() {
                         className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 ${showArchived ? 'bg-rose-500 text-white' : 'bg-white text-slate-400'}`}
                     >
                         <Trash2 size={12} />
-                        {showArchived ? 'Hide Trash' : 'Show Trash'}
+                        {showArchived ? t('hideTrash') : t('showTrash')}
                     </button>
                 </div>
             </div>
@@ -306,8 +308,8 @@ export default function TenantsPage() {
             ) : filtered.length === 0 ? (
                 <div className="glass rounded-[2.5rem] p-24 text-center premium-shadow border-slate-100/10">
                     <Building2 size={48} className="mx-auto text-slate-200 mb-4" strokeWidth={1} />
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Zero Orgs Found</h2>
-                    <p className="text-slate-400 font-medium mt-1 uppercase tracking-widest text-[10px]">Adjust your filters or register a new environment</p>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">{t('noOrgsTitle')}</h2>
+                    <p className="text-slate-400 font-medium mt-1 uppercase tracking-widest text-[10px]">{t('noOrgsDesc')}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -331,7 +333,7 @@ export default function TenantsPage() {
                                             </span>
                                             {tenant.deletedAt && (
                                                 <span className="px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm bg-rose-500 text-white animate-pulse">
-                                                    Marked for Erasure
+                                                    {t('markedErasure')}
                                                 </span>
                                             )}
                                             <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${PLAN_COLORS[tenant.plan] || 'bg-gray-100 text-gray-600'}`}>
@@ -350,23 +352,23 @@ export default function TenantsPage() {
                                     {menuOpen === tenant.id && (
                                         <div className="absolute right-0 top-12 bg-white border border-slate-100 rounded-2xl shadow-2xl z-20 w-52 py-2 text-xs font-bold animate-in fade-in zoom-in duration-200">
                                             <button onClick={() => handleEdit(tenant)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex items-center gap-3 text-slate-700">
-                                                <Edit2 size={14} /> Edit Org Logic
+                                                <Edit2 size={14} /> {t('editOrg')}
                                             </button>
                                             <button onClick={() => handleViewUsers(tenant)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex items-center gap-3 text-slate-700">
-                                                <Users size={14} /> Manage Operators
+                                                <Users size={14} /> {t('manageOperators')}
                                             </button>
                                             {tenant.status === 'ACTIVE' ? (
                                                 <button onClick={() => handleSuspend(tenant)} className="w-full text-left px-5 py-3 hover:bg-rose-50 flex items-center gap-3 text-rose-600">
-                                                    <Ban size={14} /> Suspend Instance
+                                                    <Ban size={14} /> {t('suspendInstance')}
                                                 </button>
                                             ) : (
                                                 <button onClick={() => handleActivate(tenant)} className="w-full text-left px-5 py-3 hover:bg-emerald-50 flex items-center gap-3 text-emerald-600">
-                                                    <RefreshCcw size={14} /> Reactivate Data
+                                                    <RefreshCcw size={14} /> {t('reactivate')}
                                                 </button>
                                             )}
                                             <hr className="my-2 border-slate-100" />
                                             <button onClick={() => handleDelete(tenant)} className="w-full text-left px-5 py-3 hover:bg-rose-50 flex items-center gap-3 text-rose-500">
-                                                <Trash2 size={14} /> {tenant.deletedAt ? 'Purge Environment Permanently' : 'Request Data Erasure'}
+                                                <Trash2 size={14} /> {tenant.deletedAt ? t('purgePermanently') : t('requestErasure')}
                                             </button>
                                         </div>
                                     )}
@@ -377,13 +379,13 @@ export default function TenantsPage() {
                             <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-6 rounded-3xl border border-slate-100/50">
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                        <Users size={10} /> Client Base
+                                        <Users size={10} /> {t('clientBase')}
                                     </p>
                                     <p className="font-black text-slate-800 text-lg tracking-tight">{tenant._count.borrowers}</p>
                                 </div>
                                 <div className="border-l border-slate-200/50 pl-4">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                        <TrendingUp size={10} /> Gross Volume
+                                        <TrendingUp size={10} /> {t('grossVolume')}
                                     </p>
                                     <p className="font-black text-indigo-600 text-lg tracking-tight">${(tenant.performance?.disbursed || 0).toLocaleString()}</p>
                                 </div>
@@ -392,7 +394,7 @@ export default function TenantsPage() {
                             <div className="flex items-center justify-between mt-6 px-1">
                                 <div className="flex items-center gap-2">
                                     <Calendar size={12} className="text-slate-300" />
-                                    <span className="text-[10px] font-bold text-slate-400">Joined {new Date(tenant.createdAt).toLocaleDateString()}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">{t('joined', { date: new Date(tenant.createdAt).toLocaleDateString() })}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
                                     <Activity size={10} /> ${(tenant.performance?.collected || 0).toLocaleString()}
@@ -407,25 +409,25 @@ export default function TenantsPage() {
             <Dialog open={isModalOpen} onOpenChange={setModal}>
                 <DialogContent className="rounded-[2rem] border-none shadow-2xl glass p-8">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">{editTenant ? 'Re-Engineer Organization' : 'Provision Isolated Environment'}</DialogTitle>
+                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">{editTenant ? t('modalEditTitle') : t('modalCreateTitle')}</DialogTitle>
                         <DialogDescription className="text-slate-500 font-medium">
-                            {editTenant ? 'Direct modification of organization parameters and logic tier.' : 'Deploy a new cryptographically isolated environment for a financial entity.'}
+                            {editTenant ? t('modalEditDesc') : t('modalCreateDesc')}
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-6 pt-6">
                         <div className="space-y-3">
-                            <Label htmlFor="org-name" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Entity Branding Name</Label>
+                            <Label htmlFor="org-name" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('entityName')}</Label>
                             <Input
                                 id="org-name"
                                 required
-                                placeholder="e.g. Sunrise Global Microfinance"
+                                placeholder={t('entityNamePlaceholder')}
                                 value={form.name}
                                 onChange={e => setForm({ ...form, name: e.target.value })}
                                 className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-5"
                             />
                         </div>
                         <div className="space-y-3">
-                            <Label htmlFor="org-plan" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Subscription Matrix</Label>
+                            <Label htmlFor="org-plan" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('subscriptionMatrix')}</Label>
                             <div className="relative">
                                 <select
                                     id="org-plan"
@@ -443,11 +445,11 @@ export default function TenantsPage() {
                             <div className="space-y-6 pt-4 border-t border-slate-100">
                                 <div className="flex items-center gap-2 text-indigo-600">
                                     <ShieldCheck size={18} />
-                                    <h4 className="text-sm font-black uppercase tracking-widest">Initial Admin User</h4>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">{t('initialAdmin')}</h4>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">Admin Email</Label>
+                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">{t('adminEmail')}</Label>
                                         <Input
                                             value={form.adminEmail}
                                             onChange={e => setForm({ ...form, adminEmail: e.target.value })}
@@ -458,7 +460,7 @@ export default function TenantsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">Admin Password</Label>
+                                        <Label className="text-[12px] font-black uppercase tracking-widest text-slate-400">{t('adminPassword')}</Label>
                                         <Input
                                             type="password"
                                             value={form.adminPassword}
@@ -475,9 +477,9 @@ export default function TenantsPage() {
                         <div className="flex flex-col gap-3 pt-4">
                             <Button type="submit" disabled={submitting} className="h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20">
                                 {submitting && <Loader2 size={16} className="animate-spin mr-3" />}
-                                {submitting ? 'Proccessing...' : (editTenant ? 'Update Logic Matrix' : 'Deploy environment')}
+                                {submitting ? t('processing') : (editTenant ? t('updateMatrix') : t('deploy'))}
                             </Button>
-                            <Button type="button" variant="ghost" onClick={() => setModal(false)} className="h-12 rounded-2xl font-bold text-slate-400 hover:text-slate-600">Dismiss</Button>
+                            <Button type="button" variant="ghost" onClick={() => setModal(false)} className="h-12 rounded-2xl font-bold text-slate-400 hover:text-slate-600">{t('dismiss')}</Button>
                         </div>
                     </form>
                 </DialogContent>
@@ -489,10 +491,10 @@ export default function TenantsPage() {
                         <DialogHeader>
                             <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                                 <Users className="text-indigo-600" size={28} />
-                                {viewingTenant?.name} Operators
+                                {t('operatorsTitle', { name: viewingTenant?.name ?? '' })}
                             </DialogTitle>
                             <DialogDescription className="text-slate-500 font-medium">
-                                Manage administrative access for this organization environment.
+                                {t('operatorsDesc')}
                             </DialogDescription>
                         </DialogHeader>
                     </div>
@@ -501,11 +503,11 @@ export default function TenantsPage() {
                         {loadingUsers ? (
                             <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
                                 <Loader2 className="animate-spin" size={24} />
-                                <span className="text-xs font-black uppercase tracking-widest">Hydrating Team...</span>
+                                <span className="text-xs font-black uppercase tracking-widest">{t('hydratingTeam')}</span>
                             </div>
                         ) : selectedTenantUsers.length === 0 ? (
                             <div className="text-center py-12">
-                                <p className="text-slate-400 font-medium">No operators found for this tenant.</p>
+                                <p className="text-slate-400 font-medium">{t('noOperators')}</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -539,7 +541,7 @@ export default function TenantsPage() {
                             onClick={() => setUsersModalOpen(false)}
                             className="h-12 rounded-2xl font-black px-8 text-slate-400 hover:text-slate-900"
                         >
-                            Done
+                            {t('done')}
                         </Button>
                     </div>
                 </DialogContent>

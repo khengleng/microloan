@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ interface TeamMember {
 }
 
 export default function UsersPage() {
+    const t = useTranslations('Users');
     const { showToast } = useToast();
     const { user, loading: authLoading } = useAuth();
     const [users, setUsers] = useState<TeamMember[]>([]);
@@ -50,7 +52,7 @@ export default function UsersPage() {
             const res = await api.get('/users');
             setUsers(res.data);
         } catch {
-            showToast('Failed to load team members', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -63,12 +65,12 @@ export default function UsersPage() {
         setSubmitting(true);
         try {
             await api.post('/users', form);
-            showToast(`${form.email} has been invited as ${form.role}`, 'success');
+            showToast(t('invited', { email: form.email, role: form.role }), 'success');
             setIsModalOpen(false);
             setForm({ email: '', password: '', role: 'SALES' });
             fetchUsers();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to create user', 'error');
+            showToast(err.response?.data?.message || t('createFailed'), 'error');
         } finally {
             setSubmitting(false);
         }
@@ -81,9 +83,9 @@ export default function UsersPage() {
         setResettingId(id);
         try {
             await api.patch(`/users/${id}/password`, { password: pw });
-            showToast(`Password reset for ${email}`, 'success');
+            showToast(t('resetSuccess', { email }), 'success');
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to reset password', 'error');
+            showToast(err.response?.data?.message || t('resetFailed'), 'error');
         } finally {
             setResettingId(null);
         }
@@ -94,10 +96,10 @@ export default function UsersPage() {
         setDeletingId(id);
         try {
             await api.delete(`/users/${id}`);
-            showToast(`${email} has been suspended`, 'success');
+            showToast(t('suspended', { email }), 'success');
             fetchUsers();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Cannot suspend this user', 'error');
+            showToast(err.response?.data?.message || t('suspendFailed'), 'error');
         } finally {
             setDeletingId(null);
         }
@@ -106,10 +108,10 @@ export default function UsersPage() {
     const handleRoleChange = async (id: string, newRole: string) => {
         try {
             await api.put(`/users/${id}/role`, { role: newRole });
-            showToast('Role updated', 'success');
+            showToast(t('roleUpdated'), 'success');
             fetchUsers();
         } catch {
-            showToast('Failed to update role', 'error');
+            showToast(t('roleUpdateFailed'), 'error');
         }
     };
 
@@ -126,12 +128,12 @@ export default function UsersPage() {
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <Users className="text-indigo-600" size={32} />
-                        {isSuperAdmin ? 'Platform Team' : 'Team Members'}
+                        {isSuperAdmin ? t('platformTeam') : t('teamMembers')}
                     </h1>
                     <p className="text-slate-500 font-medium mt-1">
                         {isSuperAdmin
-                            ? 'Manage your platform operations staff — FinOps, CX, Sales, Marketing'
-                            : 'Manage your organization staff and their access roles'}
+                            ? t('platformSubtitle')
+                            : t('teamSubtitle')}
                     </p>
                 </div>
                 <Button
@@ -139,28 +141,28 @@ export default function UsersPage() {
                     className="rounded-2xl font-black px-8 h-12 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
                     <UserPlus size={18} />
-                    Onboard Member
+                    {t('onboardMember')}
                 </Button>
             </div>
 
             {/* Team Summary KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Active Seats</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('activeSeats')}</div>
                     <div className="text-3xl font-black text-slate-900 tracking-tight">{users.filter(u => u.isActive).length}</div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Activity size={10} className="text-emerald-500" /> System Access Engaged</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Activity size={10} className="text-emerald-500" /> {t('systemAccess')}</p>
                 </div>
                 <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Identity Strength</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('identityStrength')}</div>
                     <div className="text-3xl font-black text-indigo-600 tracking-tight">
                         {users.length > 0 ? Math.round((users.filter(u => u.twoFactorEnabled).length / users.length) * 100) : 0}%
                     </div>
-                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Fingerprint size={10} /> MFA Adoption Rate</p>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Fingerprint size={10} /> {t('mfaAdoption')}</p>
                 </div>
                 <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Logic Tiers</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('logicTiers')}</div>
                     <div className="text-3xl font-black text-slate-900 tracking-tight">{new Set(users.map(u => u.role)).size}</div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Shield size={10} className="text-purple-500" /> RBAC Enforced</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Shield size={10} className="text-purple-500" /> {t('rbacEnforced')}</p>
                 </div>
             </div>
 
@@ -170,11 +172,11 @@ export default function UsersPage() {
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100/50 bg-slate-50/30">
-                                <th className="text-left px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital Identity</th>
-                                <th className="text-left py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Logic Role</th>
-                                <th className="text-center py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Identity Vault</th>
-                                <th className="text-left py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">Joined Date</th>
-                                <th className="text-right px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Governance</th>
+                                <th className="text-left px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colIdentity')}</th>
+                                <th className="text-left py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colRole')}</th>
+                                <th className="text-center py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colVault')}</th>
+                                <th className="text-left py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">{t('colJoined')}</th>
+                                <th className="text-right px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colGovernance')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100/30">
@@ -188,7 +190,7 @@ export default function UsersPage() {
                                 <tr>
                                     <td colSpan={5} className="py-24 text-center">
                                         <Users size={48} strokeWidth={1} className="mx-auto text-slate-200 mb-4" />
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Zero identities registered in the current environment.</p>
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">{t('noUsers')}</p>
                                     </td>
                                 </tr>
                             ) : (
@@ -201,8 +203,8 @@ export default function UsersPage() {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className={`text-base font-black tracking-tight truncate max-w-[200px] ${user.isActive ? 'text-slate-900' : 'text-slate-400 line-through decoration-rose-500/50'}`}>{user.email}</p>
-                                                    {!user.isActive && <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mt-0.5">Access Suspended</p>}
-                                                    {user.isActive && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Active Instance</p>}
+                                                    {!user.isActive && <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mt-0.5">{t('accessSuspended')}</p>}
+                                                    {user.isActive && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{t('activeInstance')}</p>}
                                                 </div>
                                             </div>
                                         </td>
@@ -237,7 +239,7 @@ export default function UsersPage() {
                                                         onClick={() => handleResetPassword(user.id, user.email)}
                                                         disabled={resettingId === user.id}
                                                         className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
-                                                        title="Reset Password"
+                                                        title={t('resetPasswordTitle')}
                                                     >
                                                         {resettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
                                                     </button>
@@ -247,7 +249,7 @@ export default function UsersPage() {
                                                         onClick={() => handleDelete(user.id, user.email)}
                                                         disabled={deletingId === user.id}
                                                         className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
-                                                        title="Suspend Access"
+                                                        title={t('suspendTitle')}
                                                     >
                                                         {deletingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <UserX size={16} />}
                                                     </button>
@@ -266,12 +268,12 @@ export default function UsersPage() {
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="rounded-[2.5rem] border-none shadow-2xl glass p-8">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">Onboard New Talent</DialogTitle>
-                        <DialogDescription className="text-slate-500 font-medium">Provision a new digital identity for an organizational member with specific role logic.</DialogDescription>
+                        <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">{t('onboardTitle')}</DialogTitle>
+                        <DialogDescription className="text-slate-500 font-medium">{t('onboardDesc')}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleInvite} className="space-y-6 pt-6">
                         <div className="space-y-3">
-                            <Label htmlFor="inv-email" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Identifier</Label>
+                            <Label htmlFor="inv-email" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('emailLabel')}</Label>
                             <div className="relative group">
                                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                                 <Input
@@ -280,14 +282,14 @@ export default function UsersPage() {
                                     autoComplete="email"
                                     required
                                     className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold pl-12 pr-5"
-                                    placeholder="member@organization.com"
+                                    placeholder={t('emailPlaceholder')}
                                     value={form.email}
                                     onChange={e => setForm({ ...form, email: e.target.value })}
                                 />
                             </div>
                         </div>
                         <div className="space-y-3">
-                            <Label htmlFor="inv-pass" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Temporary Credential</Label>
+                            <Label htmlFor="inv-pass" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('credentialLabel')}</Label>
                             <Input
                                 id="inv-pass"
                                 type="password"
@@ -295,13 +297,13 @@ export default function UsersPage() {
                                 required
                                 minLength={6}
                                 className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-5"
-                                placeholder="Min. 8 characters"
+                                placeholder={t('credentialPlaceholder')}
                                 value={form.password}
                                 onChange={e => setForm({ ...form, password: e.target.value })}
                             />
                         </div>
                         <div className="space-y-3">
-                            <Label htmlFor="inv-role" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Logic Tier Assignment</Label>
+                            <Label htmlFor="inv-role" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('roleLabel')}</Label>
                             <div className="relative">
                                 <select
                                     id="inv-role"
@@ -314,15 +316,15 @@ export default function UsersPage() {
                                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                             </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest pl-1">
-                                FINANCE: Logic & Audit · SALES: Origination · CX: Visibility Only
+                                {t('roleHint')}
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 pt-4">
                             <Button type="submit" disabled={submitting} className="h-14 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-950/20">
                                 {submitting && <Loader2 size={16} className="animate-spin mr-3" />}
-                                {submitting ? 'Authenticating...' : 'Register and Dispatch'}
+                                {submitting ? t('registering') : t('registerDispatch')}
                             </Button>
-                            <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="h-12 rounded-2xl font-bold text-slate-400 hover:text-slate-600">Dismiss Request</Button>
+                            <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="h-12 rounded-2xl font-bold text-slate-400 hover:text-slate-600">{t('dismiss')}</Button>
                         </div>
                     </form>
                 </DialogContent>

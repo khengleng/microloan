@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Plus, Package, Zap, Info, Loader2 } from 'lucide-react';
 import { ProductModal } from '@/components/ProductModal';
@@ -27,6 +28,7 @@ interface LoanProduct {
 }
 
 export default function ProductsPage() {
+    const t = useTranslations('Products');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const [products, setProducts] = useState<LoanProduct[]>([]);
@@ -48,25 +50,25 @@ export default function ProductsPage() {
 
     const handleDelete = async (id: string, name: string) => {
         const ok = await confirm({
-            title: 'Delete Product',
-            message: `Are you sure you want to delete "${name}"? This cannot be undone.`,
-            confirmLabel: 'Delete',
+            title: t('deleteTitle'),
+            message: t('deleteMessage', { name }),
+            confirmLabel: t('deleteConfirm'),
             variant: 'danger',
         });
         if (!ok) return;
         try {
             await api.delete(`/loan-products/${id}`);
-            showToast('Product deleted', 'success');
+            showToast(t('deleted'), 'success');
             fetchProducts();
         } catch {
-            showToast('Failed to delete product (it may be in use by existing loans)', 'error');
+            showToast(t('deleteFailed'), 'error');
         }
     };
 
     if (loading) return (
         <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
             <Loader2 className="animate-spin text-[#635BFF]" size={40} />
-            <p className="text-[#697386] font-medium">Loading products...</p>
+            <p className="text-[#697386] font-medium">{t('loading')}</p>
         </div>
     );
 
@@ -75,14 +77,14 @@ export default function ProductsPage() {
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Loan Products</h1>
-                    <p className="text-[#697386] text-[14px]">Configure your credit offerings and automated risk policies.</p>
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{t('title')}</h1>
+                    <p className="text-[#697386] text-[14px]">{t('subtitle')}</p>
                 </div>
                 <button
                     onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
                     className="bg-[#635BFF] hover:bg-[#5D55EF] text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                 >
-                    <Plus size={16} /> New Product
+                    <Plus size={16} /> {t('newProduct')}
                 </button>
             </div>
 
@@ -99,8 +101,8 @@ export default function ProductsPage() {
                         <div className="w-16 h-16 bg-[#F7FAFC] text-[#AAB7C4] rounded-full flex items-center justify-center mx-auto mb-4">
                             <Package size={32} />
                         </div>
-                        <h2 className="text-[18px] font-bold text-[#1A1F36]">No products found</h2>
-                        <p className="text-[#697386] text-[14px] mt-1">Create your first loan product to start originating loans.</p>
+                        <h2 className="text-[18px] font-bold text-[#1A1F36]">{t('noProductsTitle')}</h2>
+                        <p className="text-[#697386] text-[14px] mt-1">{t('noProductsDesc')}</p>
                     </div>
                 ) : (
                     products.map(product => (
@@ -111,12 +113,12 @@ export default function ProductsPage() {
                                         <div className="flex items-center gap-3 mb-2">
                                             <h2 className="text-[20px] font-bold text-[#1A1F36] tracking-tight">{product.name}</h2>
                                             {!product.isActive ? (
-                                                <span className="px-2 py-0.5 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[11px] font-bold">Inactive</span>
+                                                <span className="px-2 py-0.5 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[11px] font-bold">{t('inactive')}</span>
                                             ) : (
-                                                <span className="px-2 py-0.5 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[11px] font-bold">Active</span>
+                                                <span className="px-2 py-0.5 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[11px] font-bold">{t('active')}</span>
                                             )}
                                         </div>
-                                        <p className="text-[#697386] text-[14px] leading-relaxed max-w-2xl">{product.description || 'Professional credit offering with automated policy enforcement.'}</p>
+                                        <p className="text-[#697386] text-[14px] leading-relaxed max-w-2xl">{product.description || t('defaultDescription')}</p>
 
                                         <div className="flex items-center gap-4 mt-6">
                                             <div className="flex items-center gap-2 px-3 py-1 bg-[#F7FAFC] rounded border border-[#E3E8EE]">
@@ -127,30 +129,30 @@ export default function ProductsPage() {
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => { setEditingProduct(product); setIsModalOpen(true); }} className="px-4 py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#4F566B] hover:bg-slate-50 transition-colors">
-                                            Edit
+                                            {t('edit')}
                                         </button>
                                         <button onClick={() => handleDelete(product.id, product.name)} className="px-4 py-2 bg-white border border-[#E3E8EE] rounded shadow-sm text-[13px] font-bold text-[#FF5D5D] hover:bg-[#FFF8F8] transition-colors">
-                                            Delete
+                                            {t('delete')}
                                         </button>
                                     </div>
                                 </div>
 
                                 <div className="mt-10 pt-8 border-t border-[#F7FAFC]">
-                                    <h3 className="text-[12px] font-bold text-[#AAB7C4] uppercase tracking-wider mb-6">Risk Policies ({product.policies.length})</h3>
+                                    <h3 className="text-[12px] font-bold text-[#AAB7C4] uppercase tracking-wider mb-6">{t('riskPolicies', { count: product.policies.length })}</h3>
 
                                     {product.policies.length === 0 ? (
                                         <div className="p-8 text-center bg-[#F7FAFC] rounded border border-dashed border-[#E3E8EE]">
-                                            <p className="text-[13px] text-[#697386] font-medium italic">No specific risk tiers defined.</p>
+                                            <p className="text-[13px] text-[#697386] font-medium italic">{t('noPolicies')}</p>
                                         </div>
                                     ) : (
                                         <div className="overflow-x-auto no-scrollbar">
                                             <table className="min-w-full border-collapse">
                                                 <thead>
                                                     <tr className="border-b border-[#F7FAFC]">
-                                                        <th className="text-left pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Tier</th>
-                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Interest Rate</th>
-                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Term Range</th>
-                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">Principal limit</th>
+                                                        <th className="text-left pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">{t('colTier')}</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">{t('colInterestRate')}</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">{t('colTermRange')}</th>
+                                                        <th className="text-right pb-4 text-[11px] font-bold text-[#AAB7C4] uppercase">{t('colPrincipalLimit')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-[#F7FAFC]">
@@ -180,7 +182,7 @@ export default function ProductsPage() {
             <div className="bg-[#F0F5FF] p-6 rounded-lg border border-[#E3E8EE] flex gap-4">
                 <Info size={20} className="text-[#635BFF] shrink-0 mt-0.5" />
                 <p className="text-[14px] text-[#4F566B] leading-relaxed">
-                    Changes to product availability or policy terms will only apply to future loan originations. Existing active loans will continue under their original terms.
+                    {t('infoNote')}
                 </p>
             </div>
         </div>

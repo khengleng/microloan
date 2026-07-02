@@ -86,35 +86,35 @@ export default function DashboardPage() {
         <div className="flex h-[50vh] items-center justify-center">
             <div className="flex items-center gap-2 text-muted-foreground text-[13px]">
                 <Activity size={16} className="animate-pulse text-primary" />
-                Loading market data...
+                {t('loadingData')}
             </div>
         </div>
     );
 
     const metrics = [
         {
-            label: 'Outstanding Principal',
+            label: t('outstandingPrincipal'),
             value: `$${(stats?.outstandingPrincipal || 0).toLocaleString()}`,
             change: '+12.5%',
             positive: true,
             icon: Wallet,
         },
         {
-            label: 'Active Borrowers',
+            label: t('activeBorrowers'),
             value: stats?.totalBorrowers || 0,
             change: '+3',
             positive: true,
             icon: Users,
         },
         {
-            label: 'Active Loans',
+            label: t('activeLoans'),
             value: stats?.activeLoans || 0,
             change: '+2',
             positive: true,
             icon: BarChart2,
         },
         {
-            label: 'Due Next 7 Days',
+            label: t('dueNext7Days'),
             value: `$${(stats?.dueNext7Days || 0).toLocaleString()}`,
             change: '',
             positive: false,
@@ -128,11 +128,11 @@ export default function DashboardPage() {
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-[18px] font-bold text-foreground">Financial Dashboard</h1>
-                    <p className="text-[13px] text-muted-foreground mt-0.5">Portfolio overview and capital metrics</p>
+                    <h1 className="text-[18px] font-bold text-foreground">{t('heading')}</h1>
+                    <p className="text-[13px] text-muted-foreground mt-0.5">{t('subtitle')}</p>
                 </div>
                 <button onClick={() => setIsLoanModalOpen(true)} className="tv-button gap-1.5 text-[12px]">
-                    <Plus size={14} /> New Loan
+                    <Plus size={14} /> {t('newLoan')}
                 </button>
             </div>
 
@@ -149,11 +149,11 @@ export default function DashboardPage() {
                             <div className={`flex items-center gap-1 text-[12px] font-bold ${m.positive ? 'tv-positive' : 'tv-negative'}`}>
                                 {m.positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                                 {m.change}
-                                <span className="text-muted-foreground font-normal">vs last month</span>
+                                <span className="text-muted-foreground font-normal">{t('vsLastMonth')}</span>
                             </div>
                         )}
                         {m.warn && (
-                            <div className="text-[12px] text-muted-foreground">Requires collection</div>
+                            <div className="text-[12px] text-muted-foreground">{t('requiresCollection')}</div>
                         )}
                     </div>
                 ))}
@@ -165,17 +165,17 @@ export default function DashboardPage() {
                 <div className="lg:col-span-2 tv-card min-w-0 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                         <div>
-                            <h3 className="text-[14px] font-bold text-foreground">Cash Flow</h3>
-                            <p className="text-[12px] text-muted-foreground">Inflow vs Disbursements</p>
+                            <h3 className="text-[14px] font-bold text-foreground">{t('cashFlow')}</h3>
+                            <p className="text-[12px] text-muted-foreground">{t('inflowVsDisbursements')}</p>
                         </div>
                         <div className="flex items-center gap-4 text-[12px]">
                             <div className="flex items-center gap-1.5">
                                 <span className="inline-block" style={{ width: 12, height: 2, background: '#2962FF' }} />
-                                <span className="text-muted-foreground">Collections</span>
+                                <span className="text-muted-foreground">{t('collections')}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <span className="inline-block" style={{ width: 12, height: 2, background: '#ef5350' }} />
-                                <span className="text-muted-foreground">Disbursements</span>
+                                <span className="text-muted-foreground">{t('disbursements')}</span>
                             </div>
                         </div>
                     </div>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-[13px] gap-2 border border-dashed border-border rounded">
                                         <BarChart2 size={24} className="opacity-30" />
-                                        No cashflow data available
+                                        {t('noCashflow')}
                                     </div>
                                 )
                             ) : null}
@@ -219,14 +219,14 @@ export default function DashboardPage() {
                     {/* Quick Actions */}
                     <div className="tv-card">
                         <div className="px-4 py-3 border-b border-border">
-                            <h3 className="text-[14px] font-bold text-foreground">Quick Actions</h3>
+                            <h3 className="text-[14px] font-bold text-foreground">{t('quickActions')}</h3>
                         </div>
                         <div className="p-3 space-y-1">
                             {[
-                                { label: 'Create New Loan', icon: Plus, action: () => setIsLoanModalOpen(true) },
-                                { label: 'Add Borrower', icon: Users, action: () => setIsBorrowerModalOpen(true) },
-                                { label: 'Record Repayment', icon: PiggyBank, action: () => setIsRepaymentModalOpen(true) },
-                                { label: 'View Reports', icon: BarChart2, action: () => router.push(`/${locale}/reports`) },
+                                { label: t('createNewLoan'), icon: Plus, action: () => setIsLoanModalOpen(true) },
+                                { label: t('addBorrower'), icon: Users, action: () => setIsBorrowerModalOpen(true) },
+                                { label: t('recordRepayment'), icon: PiggyBank, action: () => setIsRepaymentModalOpen(true) },
+                                { label: t('viewReports'), icon: BarChart2, action: () => router.push(`/${locale}/reports`) },
                             ].map((action, i) => (
                                 <button key={i} onClick={action.action} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded text-[13px] text-foreground hover:bg-secondary transition-colors text-left">
                                     <action.icon size={15} className="text-primary flex-shrink-0" />
@@ -242,13 +242,13 @@ export default function DashboardPage() {
                         <div className="p-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="w-2 h-2 rounded-full bg-[#ef5350] animate-pulse" />
-                                <span className="text-[12px] font-bold text-[#ef5350] uppercase tracking-wide">Attention Required</span>
+                                <span className="text-[12px] font-bold text-[#ef5350] uppercase tracking-wide">{t('attentionRequired')}</span>
                             </div>
                             <p className="text-[13px] text-foreground mb-3 leading-relaxed">
-                                <strong>4 accounts</strong> are overdue and require immediate intervention.
+                                {t('overdueAlert', { count: 4 })}
                             </p>
                             <button className="w-full py-2 text-[12px] font-bold border border-[#ef5350] text-[#ef5350] rounded hover:bg-[#ef5350]/10 transition-colors">
-                                Review Overdue Accounts
+                                {t('reviewOverdue')}
                             </button>
                         </div>
                     </div>
@@ -258,15 +258,15 @@ export default function DashboardPage() {
             {/* Monthly Summary Row */}
             <div className="tv-card">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                    <h3 className="text-[14px] font-bold text-foreground">Monthly Summary</h3>
-                    <span className="text-[12px] text-muted-foreground">Last 30 days</span>
+                    <h3 className="text-[14px] font-bold text-foreground">{t('monthlySummary')}</h3>
+                    <span className="text-[12px] text-muted-foreground">{t('last30Days')}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border">
                     {[
-                        { label: 'Repayments Collected', value: `$${(stats?.repaymentsThisMonth || 0).toLocaleString()}`, positive: true },
-                        { label: 'Outstanding Balance', value: `$${(stats?.outstandingPrincipal || 0).toLocaleString()}`, positive: true },
-                        { label: 'Active Loan Count', value: stats?.activeLoans || 0, positive: true },
-                        { label: 'Upcoming Collections', value: `$${(stats?.dueNext7Days || 0).toLocaleString()}`, positive: false },
+                        { label: t('repaymentsCollected'), value: `$${(stats?.repaymentsThisMonth || 0).toLocaleString()}`, positive: true },
+                        { label: t('outstandingBalance'), value: `$${(stats?.outstandingPrincipal || 0).toLocaleString()}`, positive: true },
+                        { label: t('activeLoanCount'), value: stats?.activeLoans || 0, positive: true },
+                        { label: t('upcomingCollections'), value: `$${(stats?.dueNext7Days || 0).toLocaleString()}`, positive: false },
                     ].map((s, i) => (
                         <div key={i} className="px-5 py-4">
                             <div className="text-[12px] text-muted-foreground mb-1.5">{s.label}</div>

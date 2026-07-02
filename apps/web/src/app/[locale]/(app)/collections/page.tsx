@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { AlertTriangle, Eye, Phone, Loader2, MessageSquare, CheckCircle2, CreditCard } from 'lucide-react';
 import Link from 'next/link';
@@ -16,14 +17,15 @@ interface OverdueLoan {
 }
 
 const AGING_BRACKETS = [
-    { label: '1–30 days', min: 1, max: 30, badgeCls: 'badge-warning' },
-    { label: '31–60 days', min: 31, max: 60, badgeCls: 'badge-danger' },
-    { label: '61–90 days', min: 61, max: 90, badgeCls: 'badge-danger' },
-    { label: '90+ days', min: 91, max: Infinity, badgeCls: 'badge-danger' },
+    { id: 'aging1', min: 1, max: 30, badgeCls: 'badge-warning' },
+    { id: 'aging2', min: 31, max: 60, badgeCls: 'badge-danger' },
+    { id: 'aging3', min: 61, max: 90, badgeCls: 'badge-danger' },
+    { id: 'aging4', min: 91, max: Infinity, badgeCls: 'badge-danger' },
 ];
 
 export default function CollectionsPage() {
     const { locale } = useParams();
+    const t = useTranslations('Collections');
     const { showToast } = useToast();
     const [loans, setLoans] = useState<OverdueLoan[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ export default function CollectionsPage() {
         setLoading(true);
         api.get('/loans/overdue')
             .then(res => setLoans(res.data))
-            .catch(() => showToast('Failed to load overdue loans', 'error'))
+            .catch(() => showToast(t('loadFailed'), 'error'))
             .finally(() => setLoading(false));
     };
 
@@ -42,20 +44,20 @@ export default function CollectionsPage() {
 
     if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm gap-2">
-            <Loader2 className="animate-spin" size={16} /> Loading collections...
+            <Loader2 className="animate-spin" size={16} /> {t('loading')}
         </div>
     );
 
     if (loans.length === 0) return (
         <div className="max-w-3xl space-y-4">
             <div>
-                <h1 className="text-xl font-bold text-foreground">Collections</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">Overdue accounts requiring follow-up.</p>
+                <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
             </div>
             <div className="bg-white border border-border rounded-md p-12 text-center">
                 <CheckCircle2 size={36} className="mx-auto text-[#006644] mb-3" />
-                <h2 className="text-base font-bold text-foreground">Portfolio is current</h2>
-                <p className="text-sm text-muted-foreground mt-1">No overdue accounts at this time.</p>
+                <h2 className="text-base font-bold text-foreground">{t('portfolioCurrent')}</h2>
+                <p className="text-sm text-muted-foreground mt-1">{t('noOverdue')}</p>
             </div>
         </div>
     );
@@ -75,12 +77,12 @@ export default function CollectionsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">Collections</h1>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        {loans.length} overdue account{loans.length !== 1 ? 's' : ''} requiring attention.
+                        {t('summary', { count: loans.length })}
                     </p>
                 </div>
-                <span className="badge-danger text-xs">{loans.length} delinquent</span>
+                <span className="badge-danger text-xs">{t('delinquent', { count: loans.length })}</span>
             </div>
 
             {/* Aging summary bar */}
@@ -91,8 +93,8 @@ export default function CollectionsPage() {
                         return days >= bracket.min && days <= bracket.max;
                     }).length;
                     return (
-                        <div key={bracket.label} className="text-center">
-                            <p className="text-xs text-muted-foreground mb-1">{bracket.label}</p>
+                        <div key={bracket.id} className="text-center">
+                            <p className="text-xs text-muted-foreground mb-1">{t(bracket.id)}</p>
                             <p className={`text-lg font-bold ${count > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{count}</p>
                         </div>
                     );
@@ -101,21 +103,21 @@ export default function CollectionsPage() {
 
             {/* Bucketed tables */}
             {bucketed.map(bucket => (
-                <div key={bucket.label} className="bg-white border border-border rounded-md overflow-hidden">
+                <div key={bucket.id} className="bg-white border border-border rounded-md overflow-hidden">
                     <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-muted/40">
                         <AlertTriangle size={14} className="text-destructive" />
-                        <span className="text-sm font-bold text-foreground">{bucket.label}</span>
+                        <span className="text-sm font-bold text-foreground">{t(bucket.id)}</span>
                         <span className={`${bucket.badgeCls} ml-1`}>{bucket.loans.length}</span>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-border">
                             <thead className="bg-muted/30">
                                 <tr>
-                                    <th className="table-header px-4 py-2.5 text-left">Borrower</th>
-                                    <th className="table-header px-4 py-2.5 text-left">Phone</th>
-                                    <th className="table-header px-4 py-2.5 text-right">Overdue Amount</th>
-                                    <th className="table-header px-4 py-2.5 text-right">Days Late</th>
-                                    <th className="table-header px-4 py-2.5 text-right">Actions</th>
+                                    <th className="table-header px-4 py-2.5 text-left">{t('colBorrower')}</th>
+                                    <th className="table-header px-4 py-2.5 text-left">{t('colPhone')}</th>
+                                    <th className="table-header px-4 py-2.5 text-right">{t('colOverdueAmount')}</th>
+                                    <th className="table-header px-4 py-2.5 text-right">{t('colDaysLate')}</th>
+                                    <th className="table-header px-4 py-2.5 text-right">{t('colActions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -153,11 +155,11 @@ export default function CollectionsPage() {
                                                         onClick={() => { setRepaymentLoanId(loan.id); setRepaymentOpen(true); }}
                                                         className="btn-primary text-xs px-3 py-1 h-auto"
                                                     >
-                                                        <CreditCard size={12} /> Record Payment
+                                                        <CreditCard size={12} /> {t('recordPayment')}
                                                     </button>
                                                     <Link href={`/${locale}/loans/${loan.id}`}>
                                                         <button className="btn-ghost text-xs px-3 py-1 h-auto">
-                                                            <Eye size={12} /> View
+                                                            <Eye size={12} /> {t('view')}
                                                         </button>
                                                     </Link>
                                                 </div>
@@ -176,7 +178,7 @@ export default function CollectionsPage() {
                 onOpenChange={setRepaymentOpen}
                 defaultLoanId={repaymentLoanId}
                 onSuccess={() => {
-                    showToast('Payment recorded successfully', 'success');
+                    showToast(t('paymentRecorded'), 'success');
                     fetchLoans();
                 }}
             />
