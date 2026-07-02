@@ -63,6 +63,7 @@ export default function BorrowerProfilePage() {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [creditChecks, setCreditChecks] = useState<CreditCheck[]>([]);
     const [runningCheck, setRunningCheck] = useState(false);
+    const [cbcNotice, setCbcNotice] = useState<string | null>(null);
 
     const fetch = useCallback(async () => {
         setLoading(true);
@@ -87,12 +88,16 @@ export default function BorrowerProfilePage() {
 
     const handleRunCreditCheck = async () => {
         setRunningCheck(true);
+        setCbcNotice(null);
         try {
             await api.post('/credit-checks', { borrowerId: id });
             showToast('Credit check submitted', 'success');
             fetchCreditChecks();
-        } catch {
-            showToast('Failed to run credit check', 'error');
+        } catch (err: any) {
+            // 503 = integration not provisioned yet; surface the exact server message.
+            const msg = err?.response?.data?.message || 'Failed to run credit check';
+            setCbcNotice(msg);
+            if (err?.response?.status !== 503) showToast('Failed to run credit check', 'error');
         } finally {
             setRunningCheck(false);
         }
@@ -268,6 +273,13 @@ export default function BorrowerProfilePage() {
                             {runningCheck ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Run Credit Check
                         </Button>
                     </div>
+
+                    {cbcNotice && (
+                        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+                            <ShieldCheck size={18} className="text-amber-500 shrink-0" />
+                            <p className="text-[13px] font-bold text-amber-700">{cbcNotice}</p>
+                        </div>
+                    )}
 
                     {creditChecks.length === 0 ? (
                         <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">

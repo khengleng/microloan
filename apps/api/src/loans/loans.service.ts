@@ -23,6 +23,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { LedgerService } from '../ledger/ledger.service';
 import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
+import { isCbcConfigured } from '../credit-bureau/cbc.provider';
 
 @Injectable()
 export class LoansService {
@@ -417,6 +418,10 @@ export class LoansService {
    * No-op when the tenant has disabled the requirement.
    */
   private async assertCreditCheckForApproval(tenantId: string, borrowerId: string) {
+    // CBC isn't provisioned yet — don't block approvals on a check that can't be
+    // produced. The requirement re-activates automatically once credentials are set.
+    if (!isCbcConfigured()) return;
+
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
       select: { requireCreditCheckForApproval: true, creditCheckValidityDays: true },

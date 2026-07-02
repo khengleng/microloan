@@ -1,34 +1,49 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    NotFoundException,
+    ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthzService } from '../authz/authz.service';
 import { AuditService } from '../audit/audit.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { CreditCheckStatus } from '@microloan/db';
-import { CbcProvider, HttpCbcProvider, MockCbcProvider } from './cbc.provider';
+import {
+    CbcProvider,
+    HttpCbcProvider,
+    isCbcConfigured,
+    CBC_NOT_READY_MESSAGE,
+} from './cbc.provider';
 
 @Injectable()
 export class CreditBureauService {
     private readonly logger = new Logger(CreditBureauService.name);
-    private readonly provider: CbcProvider;
+    // Null until real CBC member credentials are configured. We deliberately do
+    // NOT fall back to a sandbox provider: fabricated scores must never look
+    // like a real bureau result on a live lending platform.
+    private readonly provider: CbcProvider | null;
 
     constructor(
         private readonly prisma: PrismaService,
         private readonly authz: AuthzService,
         private readonly audit: AuditService,
     ) {
-        const apiUrl = process.env.CBC_API_URL?.trim();
-        const apiKey = process.env.CBC_API_KEY?.trim();
-        if (apiUrl && apiKey) {
-            this.provider = new HttpCbcProvider(apiUrl, apiKey);
+        if (isCbcConfigured()) {
+            this.provider = new HttpCbcProvider(
+                process.env.CBC_API_URL!.trim(),
+                process.env.CBC_API_KEY!.trim(),
+            );
         } else {
-            if (process.env.NODE_ENV === 'production') {
-                this.logger.warn(
-                    'CBC credentials not configured — using SANDBOX credit bureau provider in production. Set CBC_API_URL and CBC_API_KEY.',
-                );
-            }
-            this.provider = new MockCbcProvider();
+            this.provider = null;
+            this.logger.warn(`${CBC_NOT_READY_MESSAGE} Set CBC_API_URL and CBC_API_KEY to enable it.`);
         }
+    }
+
+    /** Whether the bureau integration is provisioned (real credentials present). */
+    get ready(): boolean {
+        return this.provider !== null;
     }
 
     /**
@@ -43,6 +58,11 @@ export class CreditBureauService {
         });
         if (!borrower) throw new NotFoundException('Borrower not found');
         this.authz.assertBranchAccess(actor, borrower.branchId);
+
+        // Integration not provisioned yet — surface a clear message, never a fake score.
+        if (!this.provider) {
+            throw new ServiceUnavailableException(CBC_NOT_READY_MESSAGE);
+        }
 
         const actorId = this.authz.actorId(actor);
 

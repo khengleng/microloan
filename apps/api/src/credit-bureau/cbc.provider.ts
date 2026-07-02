@@ -26,6 +26,14 @@ export interface CbcProvider {
     checkCredit(subject: CbcSubject): Promise<CbcCreditReport>;
 }
 
+// Message shown when the bureau integration has not been provisioned yet.
+export const CBC_NOT_READY_MESSAGE = 'CBC integration is not ready.';
+
+/** True only when real CBC member credentials are configured. */
+export function isCbcConfigured(): boolean {
+    return !!(process.env.CBC_API_URL?.trim() && process.env.CBC_API_KEY?.trim());
+}
+
 function gradeForScore(score: number): string {
     if (score >= 750) return 'A';
     if (score >= 650) return 'B';
