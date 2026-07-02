@@ -28,7 +28,9 @@ export class AuditLogsController {
         const pageSize = Math.min(100, parseInt(limit || '50'));
         const skip = (pageNum - 1) * pageSize;
 
-        const where: any = { tenantId: user.tenantId };
+        // A platform SUPERADMIN has tenantId=null; AuditLog.tenantId is required,
+        // so filtering by null throws. Platform sees all logs; tenants see theirs.
+        const where: any = user.tenantId ? { tenantId: user.tenantId } : {};
         if (action) where.action = action;
         if (entity) where.entity = entity;
         if (from || to) {
@@ -69,7 +71,9 @@ export class AuditLogsController {
         @Query('action') action?: string,
         @Query('entity') entity?: string,
     ) {
-        const where: any = { tenantId: user.tenantId };
+        // A platform SUPERADMIN has tenantId=null; AuditLog.tenantId is required,
+        // so filtering by null throws. Platform sees all logs; tenants see theirs.
+        const where: any = user.tenantId ? { tenantId: user.tenantId } : {};
         if (action) where.action = action;
         if (entity) where.entity = entity;
         if (from || to) {

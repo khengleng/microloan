@@ -214,7 +214,8 @@ export default function UsersPage() {
                                                     value={user.role}
                                                     onChange={e => handleRoleChange(user.id, e.target.value)}
                                                     className={`appearance-none pl-4 pr-10 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] rounded-full border-0 cursor-pointer focus:outline-none focus:ring-4 focus:ring-white/50 transition-all ${ROLE_COLORS[user.role] || 'bg-slate-100 text-slate-400'}`}
-                                                    disabled={user.role === 'ADMIN' || user.role === 'SUPERADMIN'}
+                                                    disabled={user.role === 'ADMIN' || user.role === 'SUPERADMIN' || !user.isActive}
+                                                    title={!user.isActive ? 'Reactivate the account before changing its role' : undefined}
                                                 >
                                                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>
