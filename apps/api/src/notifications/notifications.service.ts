@@ -20,6 +20,7 @@ export class NotificationsService {
         try {
             const result = await sendEmailViaProvider(to, subject, html);
             if (!result.sent) this.logger.warn(`Email not sent: ${result.reason}`);
+            else this.logger.log(`Email sent (provider=${result.provider} ref=${result.ref || 'n/a'})`); // no recipient logged (PII)
             return result;
         } catch (err) {
             this.logger.error('Email send error', err instanceof Error ? err.stack : String(err));
