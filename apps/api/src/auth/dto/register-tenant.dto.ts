@@ -9,6 +9,6 @@ export class RegisterTenantDto {
     adminEmail: string;
 
     @IsNotEmpty()
-    @MinLength(6)
+    @MinLength(12, { message: 'Password must be at least 12 characters.' })
     adminPassword: string;
 }

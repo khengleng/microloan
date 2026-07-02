@@ -6,7 +6,15 @@ import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { normalizeCurrency, Currency } from '@microloan/shared';
+import { LoanStatus } from '@microloan/db';
 import * as XLSX from 'xlsx';
+
+// Whitelist of columns a client may sort loan reports by. Anything else falls
+// back to startDate — prevents an arbitrary key reaching Prisma orderBy (→ 500).
+const ALLOWED_LOAN_SORT = new Set([
+  'startDate', 'createdAt', 'updatedAt', 'principal', 'annualInterestRate', 'termMonths', 'status',
+]);
+const VALID_LOAN_STATUSES = new Set<string>(Object.values(LoanStatus));
 
 // Feature #1: converts monetary amounts from a source currency into a single
 // reporting currency so portfolio totals aren't a meaningless mix of USD + KHR.
@@ -114,7 +122,8 @@ export class ReportsService {
     if (query.loanOfficerId) where.createdByUserId = query.loanOfficerId;
     if (actorRole === 'LOAN_OFFICER') where.createdByUserId = actor.sub;
     if (query.productId) where.productId = query.productId;
-    if (query.status) where.status = query.status as any;
+    // Only apply a valid LoanStatus; an unknown value would crash the Prisma query.
+    if (query.status && VALID_LOAN_STATUSES.has(query.status)) where.status = query.status as any;
     if (query.borrowerId) where.borrowerId = query.borrowerId;
     if (query.search) {
       where.OR = [
@@ -278,7 +287,7 @@ export class ReportsService {
     if (nrm.emptyCurrency) return { filters: query, kpis: {}, charts: {}, rows: [], pagination: { page: nrm.page, limit: nrm.limit, total: 0 } };
     const where = this.baseLoanWhere(actor, query, nrm.from, nrm.to);
     const sortOrder = (query.sortOrder || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const sortBy = query.sortBy || 'startDate';
+    const sortBy = ALLOWED_LOAN_SORT.has(query.sortBy || '') ? (query.sortBy as string) : 'startDate';
 
     const fx = await this.buildConverter(actor, query);
     const loans = await this.prisma.loan.findMany({

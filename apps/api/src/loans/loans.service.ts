@@ -57,6 +57,15 @@ export class LoansService {
 
     const currency = normalizeCurrency(dto.currency) as unknown as Currency;
 
+    // Prevent referencing another tenant's loan product via a forged productId.
+    if (dto.productId) {
+      const product = await this.prisma.loanProduct.findFirst({
+        where: { id: dto.productId, tenantId: borrower.tenantId },
+        select: { id: true },
+      });
+      if (!product) throw new NotFoundException('Loan product not found');
+    }
+
     const params: LoanParams = {
       principal: dto.principal,
       annualInterestRate: dto.annualInterestRate,
