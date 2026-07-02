@@ -28,6 +28,7 @@ import { ProvisioningModule } from './provisioning/provisioning.module';
 import { CreditBureauModule } from './credit-bureau/credit-bureau.module';
 import { FxModule } from './fx/fx.module';
 import { CollectionsModule } from './collections/collections.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -77,6 +78,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     CreditBureauModule,
     FxModule,
     CollectionsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
