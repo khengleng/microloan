@@ -229,6 +229,11 @@ export class LoansService {
       data.reviewedByUserId = data.reviewedByUserId || actorId;
     } else if (targetStatus === LoanStatus.DISBURSED) {
       this.authz.assertPermission(actor, Permission.LOAN_DISBURSE);
+      // Control: a loan must be APPROVED before it can be disbursed (no PENDING/
+      // REJECTED → DISBURSED bypass of the approval gate).
+      if (currentStatus !== LoanStatus.APPROVED) {
+        throw new BadRequestException('Loan must be approved before disbursement.');
+      }
       if (loan.approvedBy && loan.approvedBy === actorId) {
         throw new BadRequestException('Approver cannot disburse the same loan.');
       }

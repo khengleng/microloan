@@ -107,7 +107,10 @@ export class ReportsService {
       if (direct) return amount * direct;
       const inverse = rateMap.get(`${reporting}->${f}`);
       if (inverse) return amount / inverse;
-      return amount; // no configured rate — best-effort passthrough
+      // No configured FX rate: EXCLUDE rather than add the raw foreign amount as
+      // if it were the reporting currency (which would grossly overstate totals).
+      // Configure the currency pair in FX rates to include it.
+      return 0;
     };
 
     return { reporting, convert };
@@ -174,10 +177,16 @@ export class ReportsService {
     loanWhere: any,
   ): Promise<Map<string, { outstanding: number; daysPastDue: number }>> {
     const now = new Date();
+    // Only the ACTIVE book carries real outstanding/PAR: exclude non-disbursed
+    // loans (PENDING/APPROVED/REJECTED — whose schedules exist from creation) and
+    // WRITTEN_OFF/CLOSED loans. Otherwise portfolio value and PAR are inflated.
+    const activeLoanWhere = {
+      AND: [loanWhere, { status: { in: [LoanStatus.DISBURSED, LoanStatus.DEFAULTED] } }],
+    };
     const [sums, overdue] = await Promise.all([
       this.prisma.repaymentSchedule.groupBy({
         by: ['loanId'],
-        where: { isPaid: false, loan: loanWhere },
+        where: { isPaid: false, loan: activeLoanWhere },
         _sum: {
           principalAmount: true,
           paidPrincipal: true,
@@ -189,7 +198,7 @@ export class ReportsService {
       }),
       this.prisma.repaymentSchedule.groupBy({
         by: ['loanId'],
-        where: { isPaid: false, dueDate: { lt: now }, loan: loanWhere },
+        where: { isPaid: false, dueDate: { lt: now }, loan: activeLoanWhere },
         _min: { dueDate: true },
       }),
     ]);

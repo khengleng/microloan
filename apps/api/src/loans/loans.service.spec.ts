@@ -75,6 +75,26 @@ describe('LoansService maker-checker', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('cannot disburse a loan that is not APPROVED (approval-gate bypass)', async () => {
+    prisma.loan.findFirst.mockResolvedValue({
+      id: 'l1',
+      tenantId: 't1',
+      branchId: 'b1',
+      status: LoanStatus.PENDING, // never approved
+      createdByUserId: 'maker',
+      reviewedByUserId: null,
+      approvedBy: null,
+    });
+
+    await expect(
+      service.changeStatus(
+        { sub: 'disburser', role: 'ACCOUNTANT', tenantId: 't1', branchId: 'b1', permissions: [] } as any,
+        'l1',
+        { status: LoanStatus.DISBURSED } as any,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('payoff quote waives future interest but keeps accrued interest + penalties', async () => {
     const past = new Date(Date.now() - 5 * 86400000);
     const future = new Date(Date.now() + 30 * 86400000);

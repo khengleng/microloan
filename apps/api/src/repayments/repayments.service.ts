@@ -25,15 +25,6 @@ export class RepaymentsService {
   async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
     this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);
 
-    // P0 #2: idempotency — if this key was already posted for the tenant, return
-    // the original repayment rather than posting a duplicate.
-    if (dto.idempotencyKey) {
-      const existing = await this.prisma.repayment.findFirst({
-        where: this.authz.scopeWhere(actor, { idempotencyKey: dto.idempotencyKey }),
-      });
-      if (existing) return existing;
-    }
-
     const loan = await this.prisma.loan.findFirst({
       where: this.authz.scopeWhere(actor, { id: dto.loanId }),
       include: {
@@ -52,6 +43,15 @@ export class RepaymentsService {
       );
     }
 
+    // P0 #2: idempotency — scoped to the loan's own tenant (keys are unique per
+    // tenant); a repeated key returns the original instead of double-posting.
+    if (dto.idempotencyKey) {
+      const existing = await this.prisma.repayment.findFirst({
+        where: { tenantId: loan.tenantId, idempotencyKey: dto.idempotencyKey },
+      });
+      if (existing) return existing;
+    }
+
     if (dto.amount <= 0) {
       throw new BadRequestException(
         'Repayment amount must be strictly greater than 0',
@@ -61,7 +61,8 @@ export class RepaymentsService {
     const totalDue = loan.schedules.reduce((acc, schedule) => {
       const dueInt = Math.max(0, Number(schedule.interestAmount) - Number(schedule.paidInterest));
       const duePrin = Math.max(0, Number(schedule.principalAmount) - Number(schedule.paidPrincipal));
-      return acc + dueInt + duePrin;
+      const duePen = Math.max(0, Number(schedule.penaltyAmount) - Number(schedule.paidPenalty));
+      return acc + dueInt + duePrin + duePen;
     }, 0);
 
     if (dto.amount > totalDue + 0.01) {
@@ -70,51 +71,57 @@ export class RepaymentsService {
       );
     }
 
-    // Allocate payment
+    // Allocate payment: interest → principal → penalty, across schedules.
     let remainingAmount = dto.amount;
     let totalInterestPaid = 0;
     let totalPrincipalPaid = 0;
-    const scheduleUpdates: { id: string; paidInterest: number; paidPrincipal: number; isPaid: boolean }[] = [];
+    let totalPenaltyPaid = 0;
+    const scheduleUpdates: { id: string; paidInterest: number; paidPrincipal: number; paidPenalty: number; isPaid: boolean }[] = [];
 
-    // "pay due interest first, then principal" across schedules
     for (const schedule of loan.schedules) {
       if (remainingAmount <= 0) break;
 
-      const scheduleInterest = Number(schedule.interestAmount);
-      const schedulePrincipal = Number(schedule.principalAmount);
       const alreadyPaidInterest = Number(schedule.paidInterest);
       const alreadyPaidPrincipal = Number(schedule.paidPrincipal);
+      const alreadyPaidPenalty = Number(schedule.paidPenalty);
 
-      const dueInterest = Math.max(0, scheduleInterest - alreadyPaidInterest);
-      const duePrincipal = Math.max(0, schedulePrincipal - alreadyPaidPrincipal);
+      const dueInterest = Math.max(0, Number(schedule.interestAmount) - alreadyPaidInterest);
+      const duePrincipal = Math.max(0, Number(schedule.principalAmount) - alreadyPaidPrincipal);
+      const duePenalty = Math.max(0, Number(schedule.penaltyAmount) - alreadyPaidPenalty);
 
       let interestToPay = 0;
       let principalToPay = 0;
+      let penaltyToPay = 0;
 
-      // 1. Pay Interest
       if (dueInterest > 0) {
         interestToPay = Math.min(remainingAmount, dueInterest);
         remainingAmount -= interestToPay;
         totalInterestPaid += interestToPay;
       }
-
-      // 2. Pay Principal
       if (remainingAmount > 0 && duePrincipal > 0) {
         principalToPay = Math.min(remainingAmount, duePrincipal);
         remainingAmount -= principalToPay;
         totalPrincipalPaid += principalToPay;
       }
+      if (remainingAmount > 0 && duePenalty > 0) {
+        penaltyToPay = Math.min(remainingAmount, duePenalty);
+        remainingAmount -= penaltyToPay;
+        totalPenaltyPaid += penaltyToPay;
+      }
 
-      if (interestToPay > 0 || principalToPay > 0) {
+      if (interestToPay > 0 || principalToPay > 0 || penaltyToPay > 0) {
         const newPaidInterest = alreadyPaidInterest + interestToPay;
         const newPaidPrincipal = alreadyPaidPrincipal + principalToPay;
+        const newPaidPenalty = alreadyPaidPenalty + penaltyToPay;
+        // isPaid now accounts for penalty, so penalised installments can close.
         const isPaid =
-          newPaidInterest + newPaidPrincipal >= Number(schedule.totalAmount);
+          newPaidInterest + newPaidPrincipal + newPaidPenalty >= Number(schedule.totalAmount) - 0.001;
 
         scheduleUpdates.push({
           id: schedule.id,
           paidInterest: newPaidInterest,
           paidPrincipal: newPaidPrincipal,
+          paidPenalty: newPaidPenalty,
           isPaid,
         });
       }
@@ -122,10 +129,12 @@ export class RepaymentsService {
 
     // Amount actually applied to the loan (guards GL balance against any
     // sub-cent rounding between the tendered amount and the allocation).
-    const appliedAmount = Math.round((totalInterestPaid + totalPrincipalPaid) * 100) / 100;
+    const appliedAmount = Math.round((totalInterestPaid + totalPrincipalPaid + totalPenaltyPaid) * 100) / 100;
 
     // Process repayment, schedule updates, and the GL posting atomically.
-    const repayment = await this.prisma.$transaction(async (tx) => {
+    let repayment;
+    try {
+      repayment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.repayment.create({
         data: {
           tenantId: loan.tenantId,
@@ -134,6 +143,7 @@ export class RepaymentsService {
           currency: loan.currency,
           interestPaid: totalInterestPaid,
           principalPaid: totalPrincipalPaid,
+          penaltyPaid: totalPenaltyPaid,
           date: new Date(dto.date),
           idempotencyKey: dto.idempotencyKey,
         },
@@ -142,12 +152,12 @@ export class RepaymentsService {
       for (const u of scheduleUpdates) {
         await tx.repaymentSchedule.update({
           where: { id: u.id },
-          data: { paidInterest: u.paidInterest, paidPrincipal: u.paidPrincipal, isPaid: u.isPaid },
+          data: { paidInterest: u.paidInterest, paidPrincipal: u.paidPrincipal, paidPenalty: u.paidPenalty, isPaid: u.isPaid },
         });
       }
 
       // Feature #3: GL posting — Dr Cash; Cr Loans Receivable (principal),
-      // Interest Income (interest). Skip if nothing was actually applied.
+      // Interest Income (interest), Penalty Income (penalty). Skip if nothing applied.
       if (appliedAmount > 0) {
         const lines = [{ accountCode: ACCOUNT_CODES.CASH, debit: appliedAmount }];
         if (totalPrincipalPaid > 0) {
@@ -155,6 +165,9 @@ export class RepaymentsService {
         }
         if (totalInterestPaid > 0) {
           lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, credit: totalInterestPaid } as any);
+        }
+        if (totalPenaltyPaid > 0) {
+          lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, credit: totalPenaltyPaid } as any);
         }
         await this.ledger.postEntry(
           {
@@ -172,7 +185,17 @@ export class RepaymentsService {
       }
 
       return created;
-    });
+      });
+    } catch (e: any) {
+      // Concurrent same-key post lost the race — return the winner instead of 500.
+      if (dto.idempotencyKey && e?.code === 'P2002') {
+        const existing = await this.prisma.repayment.findFirst({
+          where: { tenantId: loan.tenantId, idempotencyKey: dto.idempotencyKey },
+        });
+        if (existing) return existing;
+      }
+      throw e;
+    }
 
     await this.audit.logAction(
       loan.tenantId,
@@ -232,14 +255,16 @@ export class RepaymentsService {
     ]);
 
     // Rebuild schedule state from scratch by replaying the remaining repayments
-    // with the same interest-first allocation used when posting.
+    // with the same interest → principal → penalty allocation used when posting.
     const recomputed = schedules.map((s) => ({
       id: s.id,
       principalAmount: Number(s.principalAmount),
       interestAmount: Number(s.interestAmount),
+      penaltyAmount: Number(s.penaltyAmount),
       totalAmount: Number(s.totalAmount),
       paidInterest: 0,
       paidPrincipal: 0,
+      paidPenalty: 0,
       isPaid: false,
     }));
     for (const r of remaining) {
@@ -258,38 +283,52 @@ export class RepaymentsService {
           s.paidPrincipal += pay;
           left -= pay;
         }
-        s.isPaid = s.paidInterest + s.paidPrincipal >= s.totalAmount;
+        const duePenalty = Math.max(0, s.penaltyAmount - s.paidPenalty);
+        if (left > 0 && duePenalty > 0) {
+          const pay = Math.min(left, duePenalty);
+          s.paidPenalty += pay;
+          left -= pay;
+        }
+        s.isPaid = s.paidInterest + s.paidPrincipal + s.paidPenalty >= s.totalAmount - 0.001;
       }
     }
 
     const principalReversed = Number(repayment.principalPaid);
     const interestReversed = Number(repayment.interestPaid);
-    const cashReversed = Math.round((principalReversed + interestReversed) * 100) / 100;
+    const penaltyReversed = Number(repayment.penaltyPaid);
+    const cashReversed = Math.round((principalReversed + interestReversed + penaltyReversed) * 100) / 100;
     const allPaid = recomputed.every((s) => s.isPaid);
+    const willReopen = !allPaid && repayment.loan.status === LoanStatus.CLOSED;
     const actorId = this.authz.actorId(actor);
 
     await this.prisma.$transaction(async (tx) => {
+      // Bug #7: atomic guard — only one concurrent reversal wins.
+      const claim = await tx.repayment.updateMany({
+        where: { id: repaymentId, reversedAt: null },
+        data: { reversedAt: new Date(), reversedByUserId: actorId, reversalReason: reason.trim() },
+      });
+      if (claim.count !== 1) {
+        throw new BadRequestException('Repayment is already reversed.');
+      }
+
       for (const s of recomputed) {
         await tx.repaymentSchedule.update({
           where: { id: s.id },
           data: {
             paidInterest: Math.round(s.paidInterest * 100) / 100,
             paidPrincipal: Math.round(s.paidPrincipal * 100) / 100,
+            paidPenalty: Math.round(s.paidPenalty * 100) / 100,
             isPaid: s.isPaid,
           },
         });
       }
-
-      await tx.repayment.update({
-        where: { id: repaymentId },
-        data: { reversedAt: new Date(), reversedByUserId: actorId, reversalReason: reason.trim() },
-      });
 
       // GL contra-entry: reverse the original repayment postings.
       if (cashReversed > 0) {
         const lines: any[] = [{ accountCode: ACCOUNT_CODES.CASH, credit: cashReversed }];
         if (principalReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principalReversed });
         if (interestReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, debit: interestReversed });
+        if (penaltyReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, debit: penaltyReversed });
         await this.ledger.postEntry(
           {
             tenantId: repayment.tenantId,
@@ -306,7 +345,7 @@ export class RepaymentsService {
       }
 
       // Reopen a loan that was auto-closed but is no longer fully paid.
-      if (!allPaid && repayment.loan.status === LoanStatus.CLOSED) {
+      if (willReopen) {
         await tx.loan.update({ where: { id: loanId }, data: { status: LoanStatus.DISBURSED } });
       }
     });
@@ -322,7 +361,7 @@ export class RepaymentsService {
       result: 'SUCCESS',
     });
 
-    return { success: true, reversedRepaymentId: repaymentId, loanReopened: !allPaid && repayment.loan.status === LoanStatus.CLOSED };
+    return { success: true, reversedRepaymentId: repaymentId, loanReopened: willReopen };
   }
 
   /**

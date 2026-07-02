@@ -144,8 +144,10 @@ export class CollectionsService {
         }
         const ptp = await this.prisma.promiseToPay.findFirst({
             where: this.authz.scopeWhere(actor, { id: promiseId }),
+            include: { loan: { select: { branchId: true } } },
         });
         if (!ptp) throw new NotFoundException('Promise not found');
+        this.authz.assertBranchAccess(actor, ptp.loan.branchId);
         const updated = await this.prisma.promiseToPay.update({
             where: { id: promiseId },
             data: { status: status as PtpStatus },

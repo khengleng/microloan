@@ -43,7 +43,8 @@ export class LedgerController {
         @CurrentUser() user: JwtPayload,
         @Query('from') from?: string,
         @Query('to') to?: string,
+        @Query('currency') currency?: string,
     ) {
-        return this.ledger.trialBalance(user, { from, to });
+        return this.ledger.trialBalance(user, { from, to, currency });
     }
 }

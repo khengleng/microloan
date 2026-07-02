@@ -4,6 +4,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { Prisma, JournalSource, Currency } from '@microloan/db';
+import { normalizeCurrency } from '@microloan/shared';
 import { DEFAULT_CHART_OF_ACCOUNTS } from './chart-of-accounts';
 
 // Both PrismaService (extends PrismaClient) and an interactive transaction
@@ -170,12 +171,20 @@ export class LedgerService {
         return { data, total, page, limit, pages: Math.ceil(total / limit) };
     }
 
-    async trialBalance(actor: JwtPayload, opts: { from?: string; to?: string } = {}) {
+    async trialBalance(actor: JwtPayload, opts: { from?: string; to?: string; currency?: string } = {}) {
         this.authz.assertPermission(actor, Permission.LEDGER_VIEW);
         const tenantId = this.requireTenant(actor);
         await this.ensureChartOfAccounts(tenantId);
 
-        const entryWhere: Prisma.JournalEntryWhereInput = { tenantId };
+        // A trial balance is per-currency — summing USD and KHR lines into one
+        // figure is meaningless. Scope to a single currency (default = tenant base).
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { baseCurrency: true },
+        });
+        const currency = normalizeCurrency(opts.currency, tenant?.baseCurrency as any);
+
+        const entryWhere: Prisma.JournalEntryWhereInput = { tenantId, currency: currency as unknown as Currency };
         if (opts.from || opts.to) {
             entryWhere.date = {};
             if (opts.from) entryWhere.date.gte = new Date(opts.from);
@@ -209,6 +218,7 @@ export class LedgerService {
         });
 
         return {
+            currency,
             rows,
             totals: { debit: CENTS(totalDebit), credit: CENTS(totalCredit), balanced: CENTS(totalDebit) === CENTS(totalCredit) },
         };
