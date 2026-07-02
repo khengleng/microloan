@@ -57,12 +57,23 @@ async function main() {
         if (isDevelopment) {
             console.log(`Generated/Configured password: ${adminPassword}`);
         }
-    } else if (admin.role !== Role.SUPERADMIN) {
-        await prisma.user.update({
-            where: { id: admin.id },
-            data: { role: Role.SUPERADMIN }
-        });
-        console.log(`Promoted ${adminEmail} to SUPERADMIN`);
+    } else {
+        // Enforce the platform-scope invariant: a SUPERADMIN MUST have tenantId=null
+        // (the JWT guard rejects a SUPERADMIN that still has a tenant). Only touch the
+        // account when it isn't already correct, and set the password from env at the
+        // same time so the operator can sign in with the configured credentials.
+        const needsFix =
+            admin.role !== Role.SUPERADMIN || admin.tenantId !== null || admin.branchId !== null;
+        if (needsFix) {
+            const passwordHash = await bcrypt.hash(adminPassword, 10);
+            await prisma.user.update({
+                where: { id: admin.id },
+                data: { role: Role.SUPERADMIN, tenantId: null, branchId: null, passwordHash },
+            });
+            console.log(`Ensured ${adminEmail} is a platform SUPERADMIN (tenantId=null, password set).`);
+        } else {
+            console.log(`${adminEmail} is already a platform SUPERADMIN; no change.`);
+        }
     }
 
     if (!isDevelopment) {
