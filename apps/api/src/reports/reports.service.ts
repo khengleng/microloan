@@ -163,22 +163,57 @@ export class ReportsService {
     return 'Critical';
   }
 
-  private loanOutstandingAndDPD(loan: any) {
+  /**
+   * M4: compute per-loan outstanding + days-past-due in the DATABASE (two grouped
+   * aggregates), instead of loading every loan's full schedule array into Node.
+   * Returns a map keyed by loanId. `loanWhere` is applied via the schedule→loan
+   * relation, so tenant/branch scoping and all report filters carry through.
+   */
+  private async computeLoanAggregates(
+    loanWhere: any,
+  ): Promise<Map<string, { outstanding: number; daysPastDue: number }>> {
     const now = new Date();
-    let outstanding = 0;
-    let oldestDue: Date | null = null;
-    for (const s of loan.schedules || []) {
-      const duePrincipal = Math.max(0, n(s.principalAmount) - n(s.paidPrincipal));
-      const dueInterest = Math.max(0, n(s.interestAmount) - n(s.paidInterest));
-      const duePenalty = Math.max(0, n(s.penaltyAmount) - n(s.paidPenalty));
-      const due = duePrincipal + dueInterest + duePenalty;
-      outstanding += due;
-      if (!s.isPaid && new Date(s.dueDate) < now) {
-        if (!oldestDue || new Date(s.dueDate) < oldestDue) oldestDue = new Date(s.dueDate);
-      }
+    const [sums, overdue] = await Promise.all([
+      this.prisma.repaymentSchedule.groupBy({
+        by: ['loanId'],
+        where: { isPaid: false, loan: loanWhere },
+        _sum: {
+          principalAmount: true,
+          paidPrincipal: true,
+          interestAmount: true,
+          paidInterest: true,
+          penaltyAmount: true,
+          paidPenalty: true,
+        },
+      }),
+      this.prisma.repaymentSchedule.groupBy({
+        by: ['loanId'],
+        where: { isPaid: false, dueDate: { lt: now }, loan: loanWhere },
+        _min: { dueDate: true },
+      }),
+    ]);
+
+    const oldestDue = new Map(overdue.map((o) => [o.loanId, o._min.dueDate]));
+    const map = new Map<string, { outstanding: number; daysPastDue: number }>();
+    for (const s of sums) {
+      const outstanding = Math.max(
+        0,
+        (n(s._sum.principalAmount) - n(s._sum.paidPrincipal)) +
+          (n(s._sum.interestAmount) - n(s._sum.paidInterest)) +
+          (n(s._sum.penaltyAmount) - n(s._sum.paidPenalty)),
+      );
+      const due = oldestDue.get(s.loanId);
+      const daysPastDue = due ? Math.floor((now.getTime() - new Date(due).getTime()) / 86400000) : 0;
+      map.set(s.loanId, { outstanding, daysPastDue });
     }
-    const daysPastDue = oldestDue ? Math.floor((now.getTime() - oldestDue.getTime()) / 86400000) : 0;
-    return { outstanding, daysPastDue };
+    return map;
+  }
+
+  private aggFor(
+    map: Map<string, { outstanding: number; daysPastDue: number }>,
+    loanId: string,
+  ): { outstanding: number; daysPastDue: number } {
+    return map.get(loanId) || { outstanding: 0, daysPastDue: 0 };
   }
 
   async overview(actor: JwtPayload, query: ReportQueryDto) {
@@ -198,10 +233,10 @@ export class ReportsService {
     const repaymentWhere = this.baseRepaymentWhere(actor, query, nrm.from, nrm.to);
     const fx = await this.buildConverter(actor, query);
 
-    const [loans, borrowersCount, monthlyCollection, repayments] = await Promise.all([
+    const [loans, borrowersCount, monthlyCollection, repayments, aggMap] = await Promise.all([
       this.prisma.loan.findMany({
         where: loanWhere,
-        include: { schedules: true, borrower: true, product: true, branch: true },
+        include: { borrower: true, product: true, branch: true },
       }),
       this.prisma.borrower.count({ where: this.authz.scopeWhere(actor, {}) }),
       this.prisma.repayment.aggregate({
@@ -209,6 +244,7 @@ export class ReportsService {
         _sum: { amount: true },
       }),
       this.prisma.repayment.findMany({ where: repaymentWhere, orderBy: { date: 'asc' }, take: 1000 }),
+      this.computeLoanAggregates(loanWhere),
     ]);
 
     let outstanding = 0;
@@ -220,7 +256,7 @@ export class ReportsService {
     const overdueRows: any[] = [];
 
     for (const loan of loans) {
-      const { outstanding: outRaw, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const { outstanding: outRaw, daysPastDue } = this.aggFor(aggMap, loan.id);
       const out = fx.convert(outRaw, loan.currency);
       outstanding += out;
       if (daysPastDue >= 30) par30 += out;
@@ -290,21 +326,26 @@ export class ReportsService {
     const sortBy = ALLOWED_LOAN_SORT.has(query.sortBy || '') ? (query.sortBy as string) : 'startDate';
 
     const fx = await this.buildConverter(actor, query);
-    const loans = await this.prisma.loan.findMany({
-      where,
-      include: {
-        borrower: true,
-        product: true,
-        branch: true,
-        schedules: true,
-        tenant: true,
-      },
-      orderBy: { [sortBy]: sortOrder as any },
-    });
+    const [loans, aggMap] = await Promise.all([
+      this.prisma.loan.findMany({
+        where,
+        include: {
+          borrower: true,
+          product: true,
+          branch: true,
+          tenant: true,
+        },
+        orderBy: { [sortBy]: sortOrder as any },
+      }),
+      this.computeLoanAggregates(where),
+    ]);
 
     const rows = loans.map((loan) => {
-      const { outstanding, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const { outstanding, daysPastDue } = this.aggFor(aggMap, loan.id);
       const risk = this.riskGrade(daysPastDue, loan.creditRatingApplied);
+      // Maturity = start + term months (deterministic; matches the last schedule).
+      const maturity = new Date(loan.startDate);
+      maturity.setMonth(maturity.getMonth() + loan.termMonths);
       return {
         loanId: loan.id,
         borrowerName: `${loan.borrower?.firstName || ''} ${loan.borrower?.lastName || ''}`.trim(),
@@ -316,7 +357,7 @@ export class ReportsService {
         interestRate: n(loan.annualInterestRate),
         term: loan.termMonths,
         disbursementDate: loan.startDate,
-        maturityDate: loan.schedules?.length ? loan.schedules[loan.schedules.length - 1].dueDate : null,
+        maturityDate: maturity,
         status: loan.status,
         daysPastDue,
         riskGrade: risk,
@@ -403,12 +444,24 @@ export class ReportsService {
 
     const repayments = await this.prisma.repayment.findMany({
       where,
-      include: { loan: { include: { borrower: true, branch: true, schedules: true } } },
+      include: { loan: { include: { borrower: true, branch: true } } },
       orderBy: { date: 'desc' },
     });
 
+    // Earliest still-unpaid installment per loan (computed in the DB, not by
+    // loading every schedule of every repayment's loan into memory).
+    const loanIds = Array.from(new Set(repayments.map((r) => r.loanId)));
+    const firstUnpaid = loanIds.length
+      ? await this.prisma.repaymentSchedule.groupBy({
+        by: ['loanId'],
+        where: { loanId: { in: loanIds }, isPaid: false },
+        _min: { dueDate: true },
+      })
+      : [];
+    const dueByLoan = new Map(firstUnpaid.map((f) => [f.loanId, f._min.dueDate]));
+
     const rows = repayments.map((r) => {
-      const due = r.loan?.schedules?.find?.((s: any) => !s.isPaid)?.dueDate || r.date;
+      const due = dueByLoan.get(r.loanId) || r.date;
       const daysLate = Math.max(0, Math.floor((new Date(r.date).getTime() - new Date(due).getTime()) / 86400000));
       const cur = (r as any).currency;
       return {
@@ -516,20 +569,23 @@ export class ReportsService {
     if (nrm.from || nrm.to) where.createdAt = { ...(nrm.from ? { gte: nrm.from } : {}), ...(nrm.to ? { lte: nrm.to } : {}) };
 
     const fx = await this.buildConverter(actor, query);
-    const borrowers = await this.prisma.borrower.findMany({
-      where,
-      include: { loans: { include: { schedules: true } }, branch: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [borrowers, aggMap] = await Promise.all([
+      this.prisma.borrower.findMany({
+        where,
+        include: { loans: { select: { id: true, status: true, currency: true } }, branch: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      // Per-loan aggregates for every loan belonging to the in-scope borrowers.
+      this.computeLoanAggregates({ borrower: where }),
+    ]);
 
     const rows = borrowers.map((b) => {
       const activeLoans = b.loans.filter((l) => ['PENDING', 'APPROVED', 'DISBURSED'].includes(l.status));
       const activeLoanCount = activeLoans.length;
       const outstanding = activeLoans.reduce((acc, l) => {
-        const due = (l.schedules || []).reduce((a, s) => a + Math.max(0, n(s.totalAmount) - (n(s.paidPrincipal) + n(s.paidInterest) + n(s.paidPenalty))), 0);
-        return acc + fx.convert(due, (l as any).currency);
+        return acc + fx.convert(this.aggFor(aggMap, l.id).outstanding, (l as any).currency);
       }, 0);
-      const maxDpd = Math.max(0, ...activeLoans.map((l) => this.loanOutstandingAndDPD(l).daysPastDue));
+      const maxDpd = Math.max(0, ...activeLoans.map((l) => this.aggFor(aggMap, l.id).daysPastDue));
       const risk = this.riskGrade(maxDpd, undefined);
       return {
         borrowerId: b.id,
@@ -613,14 +669,17 @@ export class ReportsService {
     if (nrm.emptyCurrency) return { filters: query, kpis: {}, charts: {}, rows: [], pagination: { page: nrm.page, limit: nrm.limit, total: 0 } };
     const where = this.baseLoanWhere(actor, query, nrm.from, nrm.to);
     const fx = await this.buildConverter(actor, query);
-    const loans = await this.prisma.loan.findMany({
-      where,
-      include: { borrower: true, branch: true, product: true, schedules: true },
-      orderBy: { startDate: 'desc' },
-    });
+    const [loans, aggMap] = await Promise.all([
+      this.prisma.loan.findMany({
+        where,
+        include: { borrower: true, branch: true, product: true },
+        orderBy: { startDate: 'desc' },
+      }),
+      this.computeLoanAggregates(where),
+    ]);
 
     const rows = loans.map((loan) => {
-      const { outstanding: outRaw, daysPastDue } = this.loanOutstandingAndDPD(loan);
+      const { outstanding: outRaw, daysPastDue } = this.aggFor(aggMap, loan.id);
       const outstanding = fx.convert(outRaw, loan.currency);
       const overdueAmount = daysPastDue > 0 ? outstanding : 0;
       const agingBucket = daysPastDue <= 0 ? 'Current'

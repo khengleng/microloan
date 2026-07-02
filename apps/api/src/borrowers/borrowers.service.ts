@@ -9,6 +9,7 @@ import {
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { isCbcConfigured, CBC_NOT_READY_MESSAGE } from '../credit-bureau/cbc.provider';
 
 @Injectable()
 export class BorrowersService {
@@ -114,44 +115,54 @@ export class BorrowersService {
     return { success: true };
   }
 
+  /**
+   * Borrower credit-history check. Scoped to the actor's OWN organization only.
+   *
+   * M5 fix: previously this searched EVERY tenant and returned the existence and
+   * loan-count of matches at other lenders — a cross-tenant privacy leak (and a
+   * data-protection problem, since independent lenders' borrower data was shared
+   * without a bureau/consent framework). Cross-lender obligations must be checked
+   * through the Credit Bureau (CBC), never by peeking into other tenants' data.
+   */
   async checkCrossTenantCredit(actor: JwtPayload, query: { idNumber?: string; phone?: string }) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
-    // SECURITY: Reject empty queries to avoid unintentional full scans or privacy leaks
     if (!query.idNumber && !query.phone) {
       throw new BadRequestException('Provide at least an ID Number or Phone to search.');
     }
+    if (!actor.tenantId) {
+      throw new BadRequestException('Tenant scope is required for a credit check.');
+    }
 
-    // AUDIT: This is a privacy-sensitive cross-org check, so we log WHO did it and WHAT they looked for.
-    await this.audit.logAction(actor.tenantId!, this.authz.actorId(actor), 'SEARCH', 'Borrower', 'CROSS_ORG_SEARCH', {
-      event: 'CROSS_TENANT_CHECK',
+    await this.audit.logAction(actor.tenantId, this.authz.actorId(actor), 'SEARCH', 'Borrower', 'CREDIT_HISTORY_SEARCH', {
+      event: 'OWN_ORG_CREDIT_CHECK',
       query: { idNumber: query.idNumber ? '***' : null, phone: query.phone ? '***' : null },
-      action: 'Search across all organizations for credit risk'
     });
 
+    // Own-organization matches only.
     const borrowers = await this.prisma.borrower.findMany({
       where: {
+        tenantId: actor.tenantId,
         OR: [
           query.idNumber ? { idNumber: query.idNumber } : {},
           query.phone ? { phone: query.phone } : {},
-        ].filter(q => Object.keys(q).length > 0)
+        ].filter((q) => Object.keys(q).length > 0),
       },
-      include: {
-        tenant: { select: { name: true } },
-        loans: {
-          select: { status: true, principal: true, createdAt: true }
-        }
-      }
+      include: { loans: { select: { status: true, createdAt: true } } },
     });
 
-    return borrowers.map(b => {
-      const isOwnTenant = b.tenantId === actor.tenantId;
-      return {
-        organization: isOwnTenant ? 'Your Organization' : 'Another Organization',
-        // Never expose organization name or loan details for external tenants
-        loans: isOwnTenant
-          ? b.loans.map(l => ({ status: l.status, date: l.createdAt }))
-          : [{ summary: `${b.loans.length} loan(s) found at another lender` }],
-      };
-    });
+    const loans = borrowers.flatMap((b) => b.loans.map((l) => ({ status: l.status, date: l.createdAt })));
+
+    return {
+      scope: 'own-organization',
+      found: loans.length > 0,
+      loans,
+      // Cross-lender exposure is only available via the official bureau.
+      bureau: {
+        available: isCbcConfigured(),
+        message: isCbcConfigured()
+          ? 'For obligations at other lenders, run a Credit Bureau (CBC) check on the borrower profile.'
+          : `${CBC_NOT_READY_MESSAGE} Cross-lender obligations cannot be checked until it is enabled.`,
+      },
+    };
   }
 }

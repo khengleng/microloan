@@ -70,10 +70,18 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         } catch { /* malformed JWT — ignore */ }
     }
 
-    // 3. Forward the real browser IP so the throttler works for unauthenticated routes
+    // 3. Forward the real browser IP so the API throttler/audit get an IP that a
+    //    client cannot spoof. The platform edge APPENDS the true client IP as the
+    //    LAST entry of X-Forwarded-For; any values a client injects are prepended
+    //    (left) and must be ignored. So take the rightmost entry, not [0].
+    //    We overwrite (not echo) XFF downstream so the API sees a single clean IP.
+    const xffChain = (req.headers.get('x-forwarded-for') || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
     const realIp =
-        req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-        req.headers.get('x-real-ip') ||
+        (xffChain.length ? xffChain[xffChain.length - 1] : undefined) ||
+        req.headers.get('x-real-ip')?.trim() ||
         '127.0.0.1';
     headers.set('X-Forwarded-For', realIp);
     headers.set('X-Real-IP', realIp);

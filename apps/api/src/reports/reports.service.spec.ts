@@ -28,6 +28,23 @@ describe('ReportsService', () => {
         aggregate: overrides?.repaymentAggregate || jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
         findMany: overrides?.repaymentFindMany || jest.fn().mockResolvedValue([]),
       },
+      // M4: per-loan outstanding/DPD is now computed via DB groupBy. Mirror the
+      // test loans (l1: 650 outstanding, 35 days overdue; l2: 200, current).
+      repaymentSchedule: {
+        groupBy: jest.fn().mockImplementation((args: any) => {
+          if (args?.where?.dueDate) {
+            // overdue query → only l1 is past due
+            return Promise.resolve([
+              { loanId: 'l1', _min: { dueDate: new Date(Date.now() - 35 * 86400000) } },
+            ]);
+          }
+          // outstanding sums per loan
+          return Promise.resolve([
+            { loanId: 'l1', _sum: { principalAmount: 600, paidPrincipal: 0, interestAmount: 50, paidInterest: 0, penaltyAmount: 0, paidPenalty: 0 } },
+            { loanId: 'l2', _sum: { principalAmount: 300, paidPrincipal: 100, interestAmount: 20, paidInterest: 20, penaltyAmount: 0, paidPenalty: 0 } },
+          ]);
+        }),
+      },
     };
 
     const authz = {

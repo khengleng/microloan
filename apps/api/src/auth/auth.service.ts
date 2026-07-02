@@ -214,9 +214,29 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException();
 
+    // ── Per-user MFA lockout ─────────────────────────────────────────────────
+    // Prevents TOTP brute-force within the 5-minute challenge window. Reuses the
+    // same attempt counter/lock as password login (a shared account lock).
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      await this.auditSecurityEvent(user.tenantId, user.email, 'LOGIN_ACCOUNT_LOCKED', ip, user.id);
+      throw new ForbiddenException(
+        `Account is temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`,
+      );
+    }
+
     const isValid = verify({ token: code, secret: user.twoFactorSecret });
 
     if (!isValid) {
+      const newAttempts = (user.loginAttempts || 0) + 1;
+      const shouldLock = newAttempts >= MAX_FAILED_ATTEMPTS;
+      await (this.prisma.user as any).update({
+        where: { id: user.id },
+        data: {
+          loginAttempts: newAttempts,
+          lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : user.lockedUntil,
+        },
+      });
       await this.audit.logSecurityEvent({
         actorUserId: user.id,
         actorRole: user.role,
@@ -227,8 +247,19 @@ export class AuthService {
         ipAddress: ip || 'unknown',
         result: 'FAILURE',
       });
+      if (shouldLock) {
+        throw new ForbiddenException(
+          `Account locked for 30 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts.`,
+        );
+      }
       throw new UnauthorizedException('Invalid MFA code');
     }
+
+    // Success — clear any accumulated failed attempts.
+    await (this.prisma.user as any).update({
+      where: { id: user.id },
+      data: { loginAttempts: 0, lockedUntil: null },
+    });
 
     await this.audit.logSecurityEvent({
       actorUserId: user.id,

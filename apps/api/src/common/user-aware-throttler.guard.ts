@@ -21,14 +21,12 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
         const userId: string | undefined = req.user?.sub ?? req.user?.id;
         if (userId) return `user:${userId}`;
 
-        // Unauthenticated routes (login / register / MFA):
-        // use the real client IP forwarded by the Next.js proxy.
-        const forwarded = req.headers?.['x-forwarded-for'];
-        const ip: string =
-            (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0]?.trim()) ||
-            req.headers?.['x-real-ip'] ||
-            req.ip ||
-            '0.0.0.0';
+        // Unauthenticated routes (login / register / MFA): use Express's req.ip,
+        // derived from X-Forwarded-For honoring `trust proxy` — i.e. the real client
+        // IP set by the trusted proxy, NOT a client-spoofable header value.
+        // (Previously read x-forwarded-for[0], which a client fully controls,
+        // letting attackers rotate it to defeat login/registration throttling.)
+        const ip: string = req.ip || req.socket?.remoteAddress || '0.0.0.0';
 
         return `ip:${ip}`;
     }
