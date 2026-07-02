@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Put,
+  Patch,
   Delete,
   UseGuards,
   Query,
@@ -81,6 +82,17 @@ export class BorrowersController {
     @Body() dto: UpdateBorrowerDto,
   ) {
     return this.borrowersService.update(user, id, dto);
+  }
+
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'TENANT_ADMIN', 'CREDIT_OFFICER', 'CUSTOMER_SUPPORT')
+  @RequirePermissions(Permission.CUSTOMER_UPDATE)
+  @Patch(':id/kyc')
+  updateKyc(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: { kycStatus?: string; amlStatus?: string; notes?: string },
+  ) {
+    return this.borrowersService.updateKyc(user, id, dto);
   }
 
   @Roles('ADMIN')

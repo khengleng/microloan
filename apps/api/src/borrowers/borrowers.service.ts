@@ -21,11 +21,13 @@ export class BorrowersService {
 
   async create(actor: JwtPayload, dto: CreateBorrowerDto) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_CREATE);
+    const { dateOfBirth, ...rest } = dto;
     const b = await this.prisma.borrower.create({
       data: {
         tenantId: actor.tenantId!,
         branchId: actor.branchId || null,
-        ...dto,
+        ...rest,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       },
     });
     await this.audit.logAction(
@@ -85,13 +87,58 @@ export class BorrowersService {
     });
     if (!b) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, b.branchId);
+    const { dateOfBirth, ...rest } = dto;
     const updated = await this.prisma.borrower.update({
       where: { id },
-      data: dto,
+      data: {
+        ...rest,
+        ...(dateOfBirth !== undefined ? { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null } : {}),
+      },
     });
     await this.audit.logAction(actor.tenantId!, this.authz.actorId(actor), 'UPDATE', 'Borrower', b.id, {
       before: maskBorrowerForAudit(b),      // ← masked
       after: maskBorrowerDto(dto),          // ← masked
+    });
+    return updated;
+  }
+
+  /**
+   * P0 #4: basic KYC/AML status management (manual review; no external screening).
+   * Records who verified and when; a rejected/flagged borrower is visible in reports.
+   */
+  async updateKyc(
+    actor: JwtPayload,
+    id: string,
+    dto: { kycStatus?: string; amlStatus?: string; notes?: string },
+  ) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_UPDATE);
+    const b = await this.prisma.borrower.findFirst({ where: this.authz.scopeWhere(actor, { id }) });
+    if (!b) throw new NotFoundException('Borrower not found');
+    this.authz.assertBranchAccess(actor, b.branchId);
+
+    const kycAllowed = ['PENDING', 'VERIFIED', 'REJECTED'];
+    const amlAllowed = ['NOT_SCREENED', 'CLEAR', 'FLAGGED'];
+    if (dto.kycStatus && !kycAllowed.includes(dto.kycStatus)) {
+      throw new BadRequestException('Invalid KYC status.');
+    }
+    if (dto.amlStatus && !amlAllowed.includes(dto.amlStatus)) {
+      throw new BadRequestException('Invalid AML status.');
+    }
+
+    const data: any = {};
+    if (dto.kycStatus) {
+      data.kycStatus = dto.kycStatus as any;
+      data.kycVerifiedAt = dto.kycStatus === 'VERIFIED' ? new Date() : null;
+      data.kycVerifiedByUserId = dto.kycStatus === 'VERIFIED' ? this.authz.actorId(actor) : null;
+    }
+    if (dto.amlStatus) data.amlStatus = dto.amlStatus as any;
+
+    const updated = await this.prisma.borrower.update({ where: { id }, data });
+    await this.audit.logAction(b.tenantId, this.authz.actorId(actor), 'UPDATE', 'Borrower', b.id, {
+      event: 'KYC_AML_UPDATE',
+      kycStatus: dto.kycStatus,
+      amlStatus: dto.amlStatus,
+      notes: dto.notes ? '***' : undefined,
     });
     return updated;
   }

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateBorrowerDto {
   @IsString()
@@ -24,6 +24,19 @@ export class CreateBorrowerDto {
   @IsString()
   @IsOptional()
   telegramChatId?: string;
+
+  // P0 #4: basic KYC capture
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @IsString()
+  @IsOptional()
+  idType?: string;
+
+  @IsString()
+  @IsOptional()
+  occupation?: string;
 }
 
 export class UpdateBorrowerDto {
@@ -50,4 +63,16 @@ export class UpdateBorrowerDto {
   @IsString()
   @IsOptional()
   telegramChatId?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @IsString()
+  @IsOptional()
+  idType?: string;
+
+  @IsString()
+  @IsOptional()
+  occupation?: string;
 }

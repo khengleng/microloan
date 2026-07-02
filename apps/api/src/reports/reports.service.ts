@@ -596,7 +596,7 @@ export class ReportsService {
         branch: b.branch?.name || 'Unassigned',
         occupation: 'N/A',
         registrationDate: b.createdAt,
-        kycStatus: b.idNumber ? 'COMPLETE' : 'INCOMPLETE',
+        kycStatus: (b as any).kycStatus || 'PENDING',
         activeLoanCount,
         outstandingBalance: outstanding,
         riskGrade: risk,
@@ -615,7 +615,7 @@ export class ReportsService {
     const withActiveLoans = rows.filter((r) => r.activeLoanCount > 0).length;
     const avgLoanSize = withActiveLoans ? rows.reduce((a, r) => a + r.outstandingBalance, 0) / withActiveLoans : 0;
     const highRiskBorrowers = rows.filter((r) => ['High', 'Critical'].includes(r.riskGrade)).length;
-    const incompleteKyc = rows.filter((r) => r.kycStatus !== 'COMPLETE').length;
+    const incompleteKyc = rows.filter((r) => r.kycStatus !== 'VERIFIED').length;
 
     const growth = Object.entries(rows.reduce((m: Record<string, number>, r) => {
       const k = monthKey(new Date(r.registrationDate));
