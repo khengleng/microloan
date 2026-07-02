@@ -6,7 +6,7 @@ import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { LedgerService } from '../ledger/ledger.service';
 import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
-import { LoanStatus, JournalSource, LoanClassification as PrismaClassification } from '@microloan/db';
+import { LoanStatus, JournalSource, Currency, LoanClassification as PrismaClassification } from '@microloan/db';
 import { classifyByDaysOverdue, provisionAmount } from '@microloan/shared';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -65,16 +65,44 @@ export class ProvisioningService {
             };
         });
 
-        const totalProvision = CENTS(provisionRows.reduce((s, r) => s + r.provisionAmount, 0));
+        // QA #6: aggregate and post PER CURRENCY (never mix USD + KHR in one figure
+        // or GL entry). Stored total is converted to the tenant base currency using
+        // each loan's disbursement FX snapshot.
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { baseCurrency: true },
+        });
+        const baseCurrency = tenant?.baseCurrency ?? Currency.USD;
+        const loanById = new Map(loans.map((l) => [l.id, l]));
+        const toBase = (amt: number, loanId: string): number => {
+            const loan = loanById.get(loanId);
+            if (!loan || loan.currency === baseCurrency) return amt;
+            const rate = Number(loan.fxRateToBase ?? 0);
+            return rate > 0 ? amt * rate : 0; // exclude unconvertible rather than overstate
+        };
 
-        // Movement to post = difference vs the most recent run's total provision.
-        const previous = await this.prisma.provisionRun.findFirst({
+        const currentByCurrency = new Map<string, number>();
+        for (const r of provisionRows) {
+            currentByCurrency.set(r.currency, CENTS((currentByCurrency.get(r.currency) || 0) + r.provisionAmount));
+        }
+        const totalProvisionBase = CENTS(provisionRows.reduce((s, r) => s + toBase(r.provisionAmount, r.loanId), 0));
+
+        // Previous run's provisions grouped by native currency, for per-currency deltas.
+        const previousRun = await this.prisma.provisionRun.findFirst({
             where: { tenantId },
             orderBy: { runDate: 'desc' },
-            select: { totalProvision: true },
+            include: { provisions: true },
         });
-        const previousTotal = Number(previous?.totalProvision || 0);
-        const movement = CENTS(totalProvision - previousTotal);
+        const prevByCurrency = new Map<string, number>();
+        for (const p of previousRun?.provisions ?? []) {
+            prevByCurrency.set((p as any).currency, CENTS((prevByCurrency.get((p as any).currency) || 0) + Number(p.provisionAmount)));
+        }
+
+        const movements: { currency: Currency; movement: number }[] = [];
+        for (const c of new Set([...currentByCurrency.keys(), ...prevByCurrency.keys()])) {
+            const mv = CENTS((currentByCurrency.get(c) || 0) - (prevByCurrency.get(c) || 0));
+            if (mv !== 0) movements.push({ currency: c as Currency, movement: mv });
+        }
 
         const actorId = this.authz.actorId(actor);
 
@@ -83,7 +111,7 @@ export class ProvisioningService {
                 data: {
                     tenantId,
                     runDate: now,
-                    totalProvision,
+                    totalProvision: totalProvisionBase,
                     loanCount: provisionRows.length,
                     createdByUserId: actorId,
                 },
@@ -95,8 +123,8 @@ export class ProvisioningService {
                 });
             }
 
-            // GL: increase (Dr expense / Cr allowance) or release (reverse) provision.
-            if (movement !== 0) {
+            // One balanced GL movement per currency (Dr expense / Cr allowance, or reverse).
+            for (const { currency, movement } of movements) {
                 const amt = Math.abs(movement);
                 const lines =
                     movement > 0
@@ -112,7 +140,8 @@ export class ProvisioningService {
                     {
                         tenantId,
                         source: JournalSource.PROVISION,
-                        description: `Provision run ${run.id}: movement ${movement}`,
+                        currency,
+                        description: `Provision run ${run.id} (${currency}): movement ${movement}`,
                         referenceId: run.id,
                         createdByUserId: actorId,
                         lines,
@@ -125,18 +154,18 @@ export class ProvisioningService {
         });
 
         await this.audit.logAction(tenantId, actorId, 'CREATE', 'ProvisionRun', runResult.id, {
-            totalProvision,
-            previousTotal,
-            movement,
+            totalProvisionBase,
+            baseCurrency,
+            movements,
             loanCount: provisionRows.length,
         });
 
         return {
             id: runResult.id,
             runDate: runResult.runDate,
-            totalProvision,
-            previousTotal,
-            movement,
+            totalProvision: totalProvisionBase,
+            baseCurrency,
+            movements,
             loanCount: provisionRows.length,
         };
     }

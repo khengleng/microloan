@@ -154,6 +154,7 @@ model Borrower {
   firstName      String
   lastName       String
   phone          String?
+  email          String?
   address        String?
   idNumber       String?  @unique
   telegramChatId String?

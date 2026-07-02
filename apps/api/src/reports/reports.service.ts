@@ -243,19 +243,26 @@ export class ReportsService {
     const repaymentWhere = this.baseRepaymentWhere(actor, query, nrm.from, nrm.to);
     const fx = await this.buildConverter(actor, query);
 
-    const [loans, borrowersCount, monthlyCollection, repayments, aggMap] = await Promise.all([
+    const [loans, borrowersCount, collectionByCurrency, repayments, aggMap] = await Promise.all([
       this.prisma.loan.findMany({
         where: loanWhere,
         include: { borrower: true, product: true, branch: true },
       }),
       this.prisma.borrower.count({ where: this.authz.scopeWhere(actor, {}) }),
-      this.prisma.repayment.aggregate({
+      // QA #10: group by currency then convert, so the KPI is complete AND matches
+      // the (per-repayment converted) trend — no naive cross-currency sum.
+      this.prisma.repayment.groupBy({
+        by: ['currency'],
         where: repaymentWhere,
         _sum: { amount: true },
       }),
       this.prisma.repayment.findMany({ where: repaymentWhere, orderBy: { date: 'asc' }, take: 1000 }),
       this.computeLoanAggregates(loanWhere),
     ]);
+    const monthlyCollectionTotal = collectionByCurrency.reduce(
+      (acc, g) => acc + fx.convert(n(g._sum.amount), (g as any).currency),
+      0,
+    );
 
     let outstanding = 0;
     let par30 = 0;
@@ -303,7 +310,7 @@ export class ReportsService {
         totalPortfolioOutstanding: outstanding,
         totalBorrowers: borrowersCount,
         activeLoans: loans.filter((l) => l.status === 'DISBURSED').length,
-        monthlyCollection: fx.convert(n(monthlyCollection._sum.amount), fx.reporting),
+        monthlyCollection: monthlyCollectionTotal,
         par30Amount: par30,
         par30Pct: pct(par30, outstanding),
         nplAmount: npl,

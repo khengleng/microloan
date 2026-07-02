@@ -12,6 +12,8 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { LedgerService } from '../ledger/ledger.service';
 import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
+import { NotificationsService } from '../notifications/notifications.service';
+import { formatCurrency, Currency as SharedCurrency } from '@microloan/shared';
 
 @Injectable()
 export class RepaymentsService {
@@ -20,6 +22,7 @@ export class RepaymentsService {
     private audit: AuditService,
     private authz: AuthzService,
     private ledger: LedgerService,
+    private notifications: NotificationsService,
   ) { }
 
   async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
@@ -28,6 +31,7 @@ export class RepaymentsService {
     const loan = await this.prisma.loan.findFirst({
       where: this.authz.scopeWhere(actor, { id: dto.loanId }),
       include: {
+        borrower: true,
         schedules: {
           where: { isPaid: false },
           orderBy: { installmentNumber: 'asc' },
@@ -223,6 +227,21 @@ export class RepaymentsService {
       await this.audit.logAction(loan.tenantId, this.authz.actorId(actor), 'UPDATE', 'Loan', loan.id, {
         action: 'Auto-closed due to full repayment',
       });
+    }
+
+    // Best-effort receipt to the borrower via email/SMS (no-op unless a provider
+    // is configured and the borrower has an email/phone). Never blocks the post.
+    const paid = formatCurrency(dto.amount, loan.currency as unknown as SharedCurrency);
+    const b = loan.borrower;
+    if (b?.email) {
+      void this.notifications.sendEmail(
+        b.email,
+        'Payment received',
+        `<p>Dear ${b.firstName},</p><p>We have received your payment of <b>${paid}</b> toward loan ${loan.id}. Thank you.</p>`,
+      );
+    }
+    if (b?.phone) {
+      void this.notifications.sendSms(b.phone, `Payment of ${paid} received for your loan. Thank you.`);
     }
 
     return repayment;

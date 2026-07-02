@@ -65,7 +65,9 @@ export class AuthService {
     });
 
     const url = `${resetBaseUrl.replace(/\/$/, '')}/reset-password?token=${raw}`;
-    await this.notifications.sendEmail(
+    // Fire-and-forget so email network latency doesn't create a timing side-channel
+    // that would let an attacker distinguish existing vs non-existing accounts.
+    void this.notifications.sendEmail(
       user.email,
       'Reset your Magic Money password',
       `<p>We received a request to reset your password.</p>

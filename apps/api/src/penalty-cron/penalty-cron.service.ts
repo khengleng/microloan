@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BotService } from '../bot/bot.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PenaltyCronService {
@@ -9,6 +10,7 @@ export class PenaltyCronService {
 
     constructor(
         private prisma: PrismaService,
+        private notifications: NotificationsService,
         @Inject(forwardRef(() => BotService))
         private botService: BotService
     ) { }
@@ -75,13 +77,23 @@ export class PenaltyCronService {
             }
 
             // Send Alert via Telegram Bot
-            if (schedule.loan.borrower?.telegramChatId) {
+            const borrower = schedule.loan.borrower;
+            if (borrower?.telegramChatId) {
                 try {
-                    const msg = `⚠️ **OVERDUE PAYMENT ALERT** ⚠️\n\nDear ${schedule.loan.borrower.firstName},\nYour payment of **$${schedule.totalAmount}** was due on ${new Date(schedule.dueDate).toLocaleDateString()}.\nAccumulated Penalty: **$${schedule.penaltyAmount}**.\n\nPlease pay immediately to avoid further penalties.`;
-                    await this.botService.sendDisbursementAlert(schedule.loan.tenantId, schedule.loan.borrower.telegramChatId, msg);
+                    const msg = `⚠️ **OVERDUE PAYMENT ALERT** ⚠️\n\nDear ${borrower.firstName},\nYour payment of **$${schedule.totalAmount}** was due on ${new Date(schedule.dueDate).toLocaleDateString()}.\nAccumulated Penalty: **$${schedule.penaltyAmount}**.\n\nPlease pay immediately to avoid further penalties.`;
+                    await this.botService.sendDisbursementAlert(schedule.loan.tenantId, borrower.telegramChatId, msg);
                 } catch (e) {
-                    this.logger.error(`Failed to alert borrower ${schedule.loan.borrower.id} of late payment`, e);
+                    this.logger.error(`Failed to alert borrower ${borrower.id} of late payment`, e);
                 }
+            }
+            // Best-effort email/SMS (no-op unless a provider is configured).
+            const dueDateStr = new Date(schedule.dueDate).toLocaleDateString();
+            if ((borrower as any)?.email) {
+                void this.notifications.sendEmail((borrower as any).email, 'Overdue payment reminder',
+                    `<p>Dear ${borrower.firstName},</p><p>Your payment of $${schedule.totalAmount} was due on ${dueDateStr}. Please pay to avoid further penalties.</p>`);
+            }
+            if (borrower?.phone) {
+                void this.notifications.sendSms(borrower.phone, `Overdue: your payment of $${schedule.totalAmount} (due ${dueDateStr}) is outstanding. Please pay soon.`);
             }
 
             count++;
@@ -108,13 +120,21 @@ export class PenaltyCronService {
 
         for (const schedule of upcomingSchedules) {
             const borrower = schedule.loan.borrower;
+            const dueDateStr = new Date(schedule.dueDate).toLocaleDateString();
             if (borrower.telegramChatId) {
                 try {
-                    const msg = `📅 **UPCOMING PAYMENT REMINDER** 📅\n\nHi ${borrower.firstName},\nYour next payment of **$${schedule.totalAmount}** is due on **${new Date(schedule.dueDate).toLocaleDateString()}**.\n\nThank you for choosing Magic Money!`;
+                    const msg = `📅 **UPCOMING PAYMENT REMINDER** 📅\n\nHi ${borrower.firstName},\nYour next payment of **$${schedule.totalAmount}** is due on **${dueDateStr}**.\n\nThank you for choosing Magic Money!`;
                     await this.botService.sendDisbursementAlert(schedule.loan.tenantId, borrower.telegramChatId, msg);
                 } catch (e) {
                     this.logger.error(`Failed to send upcoming reminder to ${borrower.id}`, e);
                 }
+            }
+            if ((borrower as any)?.email) {
+                void this.notifications.sendEmail((borrower as any).email, 'Upcoming payment reminder',
+                    `<p>Hi ${borrower.firstName},</p><p>Your next payment of $${schedule.totalAmount} is due on ${dueDateStr}.</p>`);
+            }
+            if (borrower.phone) {
+                void this.notifications.sendSms(borrower.phone, `Reminder: your payment of $${schedule.totalAmount} is due on ${dueDateStr}.`);
             }
         }
     }
