@@ -43,6 +43,23 @@ export class ReportsController {
     return data;
   }
 
+  @RequirePermissions(Permission.PROVISION_VIEW)
+  @Get('regulatory')
+  async regulatory(@CurrentUser() user: JwtPayload, @Query() query: ReportQueryDto) {
+    const data = await this.reportsService.regulatory(user, query);
+    await this.audit.logSecurityEvent({
+      actorUserId: user.sub,
+      actorRole: user.role,
+      actorTenantId: user.tenantId,
+      targetType: 'Report',
+      targetId: 'regulatory',
+      action: 'REPORT_VIEW',
+      newValue: { filters: query },
+      result: 'SUCCESS',
+    });
+    return data;
+  }
+
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get('loan-portfolio')
   async loanPortfolio(@CurrentUser() user: JwtPayload, @Query() query: ReportQueryDto) {

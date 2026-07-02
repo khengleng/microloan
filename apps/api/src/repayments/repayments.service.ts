@@ -24,6 +24,16 @@ export class RepaymentsService {
 
   async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
     this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);
+
+    // P0 #2: idempotency — if this key was already posted for the tenant, return
+    // the original repayment rather than posting a duplicate.
+    if (dto.idempotencyKey) {
+      const existing = await this.prisma.repayment.findFirst({
+        where: this.authz.scopeWhere(actor, { idempotencyKey: dto.idempotencyKey }),
+      });
+      if (existing) return existing;
+    }
+
     const loan = await this.prisma.loan.findFirst({
       where: this.authz.scopeWhere(actor, { id: dto.loanId }),
       include: {
@@ -125,6 +135,7 @@ export class RepaymentsService {
           interestPaid: totalInterestPaid,
           principalPaid: totalPrincipalPaid,
           date: new Date(dto.date),
+          idempotencyKey: dto.idempotencyKey,
         },
       });
 

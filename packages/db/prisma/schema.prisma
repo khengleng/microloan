@@ -310,8 +310,14 @@ model Repayment {
   interestPaid  Decimal  @default(0) @db.Decimal(10, 2)
   penaltyPaid   Decimal  @default(0) @db.Decimal(10, 2)
   date          DateTime @default(now())
+  // P0 #2: client-supplied dedupe key — a retried/double-submitted repayment with
+  // the same key returns the original instead of posting twice. NULLs are allowed
+  // and treated as distinct by Postgres, so keyless posts are unaffected.
+  idempotencyKey String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, idempotencyKey])
 }
 
 model AuditLog {

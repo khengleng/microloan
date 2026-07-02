@@ -5,7 +5,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
 import { ReportQueryDto } from './dto/report-query.dto';
-import { normalizeCurrency, Currency } from '@microloan/shared';
+import { normalizeCurrency, Currency, NBC_CLASSIFICATION_TIERS } from '@microloan/shared';
 import { LoanStatus } from '@microloan/db';
 import * as XLSX from 'xlsx';
 
@@ -770,6 +770,70 @@ export class ReportsService {
       },
       rows: paged,
       pagination: { page: nrm.page, limit: nrm.limit, total },
+    };
+  }
+
+  /**
+   * P1 #12 — NBC portfolio-classification (provisioning) report for regulatory
+   * filing. Built from the latest ProvisionRun so it's consistent with what was
+   * posted to the ledger. Amounts are converted into a single reporting currency.
+   */
+  async regulatory(actor: JwtPayload, query: ReportQueryDto) {
+    this.authz.assertPermission(actor, Permission.PROVISION_VIEW);
+    const tenantId = this.authz.isPlatform(actor) ? query.tenantId : actor.tenantId;
+    if (!tenantId) throw new BadRequestException('Tenant scope is required.');
+    const fx = await this.buildConverter(actor, query);
+
+    const run = await this.prisma.provisionRun.findFirst({
+      where: { tenantId },
+      orderBy: { runDate: 'desc' },
+      include: { provisions: true },
+    });
+
+    // Always present every NBC class, even with zero exposure.
+    const buckets = new Map<string, { classification: string; label: string; provisionRate: number; loanCount: number; outstandingPrincipal: number; provisionRequired: number }>();
+    for (const tier of NBC_CLASSIFICATION_TIERS) {
+      buckets.set(tier.classification, {
+        classification: tier.classification,
+        label: tier.label,
+        provisionRate: tier.provisionRate,
+        loanCount: 0,
+        outstandingPrincipal: 0,
+        provisionRequired: 0,
+      });
+    }
+
+    if (run) {
+      for (const p of run.provisions) {
+        const b = buckets.get(p.classification);
+        if (!b) continue;
+        b.loanCount += 1;
+        b.outstandingPrincipal += fx.convert(n(p.outstandingPrincipal), (p as any).currency);
+        b.provisionRequired += fx.convert(n(p.provisionAmount), (p as any).currency);
+      }
+    }
+
+    const rows = Array.from(buckets.values());
+    const totalOutstanding = rows.reduce((a, r) => a + r.outstandingPrincipal, 0);
+    const totalProvision = rows.reduce((a, r) => a + r.provisionRequired, 0);
+    const totalLoans = rows.reduce((a, r) => a + r.loanCount, 0);
+
+    return {
+      hasRun: !!run,
+      asOf: run?.runDate ?? null,
+      currency: fx.reporting,
+      message: run ? undefined : 'No provisioning run yet. Run provisioning to generate the classification report.',
+      rows,
+      charts: {
+        outstandingByClass: rows.map((r) => ({ name: r.label, value: r.outstandingPrincipal })),
+        provisionByClass: rows.map((r) => ({ name: r.label, value: r.provisionRequired })),
+      },
+      kpis: {
+        totalLoans,
+        totalOutstandingPrincipal: totalOutstanding,
+        totalProvisionRequired: totalProvision,
+        provisionCoverageRatio: pct(totalProvision, totalOutstanding),
+      },
     };
   }
 
