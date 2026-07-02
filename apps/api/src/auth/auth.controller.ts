@@ -51,6 +51,26 @@ export class AuthController {
     return this.authService.refreshToken(refreshDto.refreshToken);
   }
 
+  /** Self-service forgot-password — generic response, throttled. */
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: { email: string }) {
+    const origin =
+      process.env.WEB_URL?.trim() ||
+      (process.env.CORS_ORIGINS || '').split(',')[0]?.trim() ||
+      '';
+    return this.authService.forgotPassword(dto?.email, `${origin}/en`);
+  }
+
+  /** Complete a self-service reset with the emailed token. */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  resetPassword(@Body() dto: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(dto?.token, dto?.newPassword);
+  }
+
   @SkipThrottle()
   @UseGuards(JwtAuthGuard)
   @Get('me')

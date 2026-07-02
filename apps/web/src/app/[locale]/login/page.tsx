@@ -19,7 +19,6 @@ export default function LoginPage() {
     const [mfaToken, setMfaToken] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [showForgotHelp, setShowForgotHelp] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
@@ -132,13 +131,8 @@ export default function LoginPage() {
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
                                     <label htmlFor="password" className="text-[12px] font-semibold text-muted-foreground">Password</label>
-                                    <button type="button" onClick={() => setShowForgotHelp(v => !v)} className="text-[12px] text-primary hover:text-primary/80 transition-colors">Forgot password?</button>
+                                    <Link href={`/${locale}/forgot-password`} className="text-[12px] text-primary hover:text-primary/80 transition-colors">Forgot password?</Link>
                                 </div>
-                                {showForgotHelp && (
-                                    <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-                                        For security, password resets are handled by your organization administrator. Please contact them to have your password reset. (A superadmin can reset an administrator&apos;s password.)
-                                    </div>
-                                )}
                                 <div className="relative">
                                     <input
                                         id="password"

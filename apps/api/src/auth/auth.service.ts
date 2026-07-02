@@ -14,9 +14,10 @@ import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import { verify, generateSecret } from 'otplib';
 import * as qrcode from 'qrcode';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID, randomBytes } from 'crypto';
 import { Prisma } from '@microloan/db';
 import { permissionsForRole } from '../authz/role-permissions';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
@@ -36,7 +37,94 @@ export class AuthService {
     private jwtService: JwtService,
     private prisma: PrismaService,
     private audit: AuditService,
+    private notifications: NotificationsService,
   ) { }
+
+  private hashResetToken(raw: string): string {
+    const pepper = process.env.JWT_REFRESH_TOKEN_PEPPER || '';
+    return createHash('sha256').update(`${raw}${pepper}`).digest('hex');
+  }
+
+  /**
+   * Self-service forgot-password. Always returns a generic response (no account
+   * enumeration). When an account exists, a single-use, 1-hour token is created
+   * and emailed as a reset link (delivery requires an email provider — #7).
+   */
+  async forgotPassword(email: string, resetBaseUrl: string) {
+    const generic = { message: 'If an account exists for that email, a password reset link has been sent.' };
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || !user.isActive) return generic;
+
+    const raw = randomBytes(32).toString('hex');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.hashResetToken(raw),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    const url = `${resetBaseUrl.replace(/\/$/, '')}/reset-password?token=${raw}`;
+    await this.notifications.sendEmail(
+      user.email,
+      'Reset your Magic Money password',
+      `<p>We received a request to reset your password.</p>
+       <p><a href="${url}">Click here to set a new password</a> (this link expires in 1 hour).</p>
+       <p>If you didn't request this, you can safely ignore this email.</p>`,
+    );
+
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'PASSWORD_RESET_REQUESTED',
+      result: 'SUCCESS',
+    });
+    return generic;
+  }
+
+  /**
+   * Complete a self-service reset: validate the token, set the new password,
+   * revoke all sessions, and consume the token.
+   */
+  async resetPassword(token: string, newPassword: string) {
+    if (!token) throw new UnauthorizedException('Invalid or expired reset link.');
+    if (!newPassword || newPassword.length < 12) {
+      throw new BadRequestException('Password must be at least 12 characters.');
+    }
+    const rec = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashResetToken(token) },
+    });
+    if (!rec || rec.usedAt || rec.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired reset link.');
+    }
+
+    const hash = await bcrypt.hash(newPassword, await bcrypt.genSalt());
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: rec.userId },
+        data: { passwordHash: hash, loginAttempts: 0, lockedUntil: null },
+      }),
+      this.prisma.passwordResetToken.update({ where: { id: rec.id }, data: { usedAt: new Date() } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: rec.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.logSecurityEvent({
+      actorUserId: rec.userId,
+      actorRole: null,
+      actorTenantId: null,
+      targetType: 'User',
+      targetId: rec.userId,
+      action: 'PASSWORD_RESET_COMPLETED',
+      result: 'SUCCESS',
+    });
+    return { success: true };
+  }
 
   async registerTenant(dto: RegisterTenantDto, ip?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.adminEmail } });
