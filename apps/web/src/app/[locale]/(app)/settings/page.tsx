@@ -129,7 +129,7 @@ function TenantSettings() {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [settings, setSettings] = useState<{ name: string; telegramBotToken: string; plan: string; billingEnabled?: boolean }>({ name: '', telegramBotToken: '', plan: 'FREE', billingEnabled: false });
+    const [settings, setSettings] = useState<{ name: string; telegramBotToken: string; plan: string; billingEnabled?: boolean; telegramBotConfigured?: boolean }>({ name: '', telegramBotToken: '', plan: 'FREE', billingEnabled: false });
 
     useEffect(() => {
         api.get('/settings')
@@ -222,7 +222,7 @@ function TenantSettings() {
                                     type="password"
                                     autoComplete="off"
                                     className={fieldCls}
-                                    placeholder={t('botTokenPlaceholder')}
+                                    placeholder={settings.telegramBotConfigured ? '•••••••• (configured — enter a new token to replace)' : t('botTokenPlaceholder')}
                                     value={settings.telegramBotToken || ''}
                                     onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
                                 />

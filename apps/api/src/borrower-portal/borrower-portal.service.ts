@@ -6,6 +6,7 @@ import { AgreementsService } from '../agreements/agreements.service';
 import type { BorrowerSession } from './borrower-jwt';
 import { UploadKycDto } from './dto/borrower-auth.dto';
 import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
+import { encryptField } from '../common/field-crypto';
 
 function outstandingOf(schedules: { totalAmount: any; paidPrincipal: any; paidInterest: any; paidPenalty: any }[]): number {
   return schedules.reduce(
@@ -191,7 +192,7 @@ export class BorrowerPortalService {
         tenantId: session.tenantId,
         borrowerId: session.borrowerId,
         type: dto.type,
-        content: dto.content,
+        content: encryptField(dto.content) as string,
         mimeType: dto.mimeType ?? null,
       },
       select: { id: true, type: true, createdAt: true },

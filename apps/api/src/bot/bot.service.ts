@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
+import { decryptField } from '../common/field-crypto';
 
 const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
@@ -60,7 +61,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
         for (const tenant of tenants) {
             try {
-                await this.startBotForTenant(tenant.id, tenant.telegramBotToken!);
+                await this.startBotForTenant(tenant.id, decryptField(tenant.telegramBotToken!)!);
             } catch (err) {
                 this.logger.error(`Failed to start bot for tenant ${tenant.id}`, err);
             }

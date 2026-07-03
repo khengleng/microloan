@@ -18,6 +18,7 @@ import { createHash, randomUUID, randomBytes } from 'crypto';
 import { Prisma } from '@microloan/db';
 import { permissionsForRole } from '../authz/role-permissions';
 import { NotificationsService } from '../notifications/notifications.service';
+import { encryptField, decryptField } from '../common/field-crypto';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
@@ -315,7 +316,7 @@ export class AuthService {
       );
     }
 
-    const isValid = verify({ token: code, secret: user.twoFactorSecret });
+    const isValid = verify({ token: code, secret: decryptField(user.twoFactorSecret)! });
 
     if (!isValid) {
       const newAttempts = (user.loginAttempts || 0) + 1;
@@ -375,7 +376,7 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret },
+      data: { twoFactorSecret: encryptField(secret) },
     });
 
     await this.audit.logSecurityEvent({
@@ -395,7 +396,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException('MFA not initiated');
 
-    const isValid = verify({ token: code, secret: user.twoFactorSecret });
+    const isValid = verify({ token: code, secret: decryptField(user.twoFactorSecret)! });
     if (!isValid) throw new UnauthorizedException('Invalid verification code');
 
     await this.prisma.user.update({

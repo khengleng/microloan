@@ -8,6 +8,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { BotService } from '../bot/bot.service';
 import { normalizeCurrency, NBC_ANNUAL_INTEREST_CAP_PCT } from '@microloan/shared';
 import { Currency } from '@microloan/db';
+import { encryptField } from '../common/field-crypto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('settings')
@@ -35,9 +36,16 @@ export class SettingsController {
                 createdAt: true,
             }
         });
-        // Whether online billing (Stripe) is provisioned — lets the UI show a
-        // clear "not enabled yet" state instead of erroring on Upgrade/Manage.
-        return { ...tenant, billingEnabled: !!process.env.STRIPE_SECRET_KEY?.trim() };
+        // Never return the bot token (bearer credential, encrypted at rest).
+        // Expose only whether it is configured; the token field is write-only.
+        const { telegramBotToken, ...rest } = tenant || {};
+        return {
+            ...rest,
+            telegramBotConfigured: !!telegramBotToken,
+            // Whether online billing (Stripe) is provisioned — lets the UI show a
+            // clear "not enabled yet" state instead of erroring on Upgrade/Manage.
+            billingEnabled: !!process.env.STRIPE_SECRET_KEY?.trim(),
+        };
     }
 
     @Roles('ADMIN')
@@ -69,7 +77,9 @@ export class SettingsController {
             where: { id: user.tenantId },
             data: {
                 name: data.name,
-                telegramBotToken: data.telegramBotToken,
+                // Only overwrite the token when a non-empty value is supplied
+                // (the field is write-only, so a blank on save must not clear it).
+                ...(data.telegramBotToken ? { telegramBotToken: encryptField(data.telegramBotToken) } : {}),
                 baseCurrency,
                 maxAnnualInterestRatePct: cap,
                 requireCreditCheckForApproval: data.requireCreditCheckForApproval,
@@ -77,11 +87,12 @@ export class SettingsController {
             }
         });
 
-        // Restart bot for this tenant if token changed
+        // Restart bot for this tenant if the token changed (uses the plaintext value)
         if (data.telegramBotToken) {
             await this.botService.startBotForTenant(tenant.id, data.telegramBotToken);
         }
 
-        return tenant;
+        const { telegramBotToken, ...rest } = tenant;
+        return { ...rest, telegramBotConfigured: !!telegramBotToken };
     }
 }

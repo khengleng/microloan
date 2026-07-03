@@ -12,6 +12,7 @@
         "db:push": "node ./scripts/guarded-db-push.mjs",
         "db:migrate:deploy": "pnpm --filter db migrate:deploy",
         "db:seed": "pnpm --filter db db:seed",
+        "encrypt:backfill": "tsx apps/api/src/scripts/encrypt-at-rest-backfill.ts",
         "start": "pnpm run db:migrate:deploy && eval \"${START_COMMAND:-node apps/api/dist/main}\"",
         "security:scan-hardcodes": "node ./scripts/security-scan.mjs hardcodes",
         "security:scan-timebombs": "node ./scripts/security-scan.mjs timebombs",

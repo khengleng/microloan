@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { KycReviewDto } from './dto/kyc-review.dto';
+import { decryptField } from '../common/field-crypto';
 
 // Staff-facing manual e-KYC review. Reads borrower-uploaded documents and
 // flips the borrower's aggregate kycStatus. Tenant/branch scoped via authz.
@@ -33,7 +34,9 @@ export class KycReviewService {
       where: { borrowerId },
       orderBy: { createdAt: 'desc' },
     });
-    return { kycStatus: borrower.kycStatus, documents };
+    // Decrypt the stored image content for staff review.
+    const decrypted = documents.map((d) => ({ ...d, content: decryptField(d.content) }));
+    return { kycStatus: borrower.kycStatus, documents: decrypted };
   }
 
   async setStatus(actor: JwtPayload, borrowerId: string, dto: KycReviewDto) {
