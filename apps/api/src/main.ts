@@ -1,12 +1,16 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { loadRuntimeConfig } from './config/runtime-config';
+import { initSentry } from './observability/sentry';
+import { SentryExceptionFilter } from './observability/sentry-exception.filter';
 
 async function bootstrap() {
+  // Initialise error tracking before anything else (no-op without SENTRY_DSN).
+  const sentryOn = initSentry();
   const runtime = loadRuntimeConfig();
   // Use NestExpressApplication so we can access the underlying express instance
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -74,8 +78,15 @@ async function bootstrap() {
     transformOptions: { enableImplicitConversion: true },
   }));
 
+  // Report unhandled/5xx exceptions to Sentry (no-op when disabled).
+  const httpAdapter = app.get(HttpAdapterHost).httpAdapter;
+  app.useGlobalFilters(new SentryExceptionFilter(httpAdapter));
+
   await app.listen(runtime.port);
-  Logger.log(`API running on port ${runtime.port} with production safety checks enabled`);
+  Logger.log(
+    `API running on port ${runtime.port} with production safety checks enabled` +
+      (sentryOn ? ' (Sentry active)' : ''),
+  );
 }
 
 bootstrap().catch((err) => {

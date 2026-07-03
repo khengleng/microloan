@@ -2,7 +2,10 @@
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
     "preDeployCommand": [
-      "pnpm --filter @microloan/db exec prisma migrate deploy"
-    ]
+      "pnpm --filter @microloan/db exec prisma migrate deploy",
+      "pnpm --filter @microloan/db run db:seed || echo 'seed skipped'"
+    ],
+    "healthcheckPath": "/v1/health",
+    "healthcheckTimeout": 300
   }
 }
