@@ -52,6 +52,21 @@ Hotfixes follow the same path; do not skip staging.
   **Redeploy** (or `railway redeploy`). For a bad migration, roll the code back
   via git *and* resolve the migration state in the DB (`prisma migrate resolve`).
 
+## ⚙️ Setup status — one manual step remains
+
+The Railway **CLI cannot set a per-environment deploy branch** (`service source
+connect` is service-level, last-write-wins). So the `staging`-branch binding
+must be done **once in the dashboard**:
+
+> Railway → **api** service → **Settings → Source** → in the **staging**
+> environment set **Deploy Branch = `staging`**. Repeat for the **web** service.
+> Leave production on `main`.
+
+**Until that is done, BOTH environments deploy from `main`** (staging is a
+mirror, not yet a pre-prod gate). Everything else — the `staging` branch, CI
+gating, branch protection, isolated staging DB/secrets — is already in place, so
+the moment you set those two dashboard toggles the full flow above is live.
+
 ## Guardrails in place
 
 - CI security scans on every PR and on pushes to `main`/`staging`.
