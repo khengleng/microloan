@@ -14,6 +14,8 @@ interface Borrower {
     phone: string;
     idNumber: string;
     address: string;
+    monthlyIncome?: number | null;
+    monthlyExpenses?: number | null;
 }
 
 interface BorrowerModalProps {
@@ -35,7 +37,9 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
         lastName: '',
         phone: '',
         idNumber: '',
-        address: ''
+        address: '',
+        monthlyIncome: '',
+        monthlyExpenses: ''
     });
     const [dirty, setDirty] = useState(false);
 
@@ -53,10 +57,12 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                 lastName: borrower.lastName || '',
                 phone: borrower.phone || '',
                 idNumber: borrower.idNumber || '',
-                address: borrower.address || ''
+                address: borrower.address || '',
+                monthlyIncome: borrower.monthlyIncome != null ? String(borrower.monthlyIncome) : '',
+                monthlyExpenses: borrower.monthlyExpenses != null ? String(borrower.monthlyExpenses) : ''
             });
         } else {
-            setFormData({ firstName: '', lastName: '', phone: '', idNumber: '', address: '' });
+            setFormData({ firstName: '', lastName: '', phone: '', idNumber: '', address: '', monthlyIncome: '', monthlyExpenses: '' });
         }
         setDirty(false);
     }, [borrower, open]);
@@ -73,10 +79,15 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
         clarityEvent('kyc_submit_attempt');
         setLoading(true);
         try {
+            const payload: any = {
+                ...formData,
+                monthlyIncome: formData.monthlyIncome === '' ? undefined : Number(formData.monthlyIncome),
+                monthlyExpenses: formData.monthlyExpenses === '' ? undefined : Number(formData.monthlyExpenses),
+            };
             if (borrower) {
-                await api.put(`/borrowers/${borrower.id}`, formData);
+                await api.put(`/borrowers/${borrower.id}`, payload);
             } else {
-                await api.post('/borrowers', formData);
+                await api.post('/borrowers', payload);
             }
             clarityEvent('kyc_submit_success');
             setDirty(false);
@@ -145,6 +156,24 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                                 setDirty(true);
                                 setFormData({ ...formData, address: e.target.value });
                             }} required />
+                        </div>
+
+                        {/* Affordability inputs (feed the risk scorecard / DSR) */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="monthlyIncome" className={labelCls}>Monthly Income (USD)</label>
+                                <input id="monthlyIncome" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyIncome} onChange={e => {
+                                    setDirty(true);
+                                    setFormData({ ...formData, monthlyIncome: e.target.value });
+                                }} />
+                            </div>
+                            <div>
+                                <label htmlFor="monthlyExpenses" className={labelCls}>Monthly Expenses (USD)</label>
+                                <input id="monthlyExpenses" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyExpenses} onChange={e => {
+                                    setDirty(true);
+                                    setFormData({ ...formData, monthlyExpenses: e.target.value });
+                                }} />
+                            </div>
                         </div>
                     </div>
 

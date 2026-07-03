@@ -13,6 +13,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { LoanPaymentQr } from '@/components/LoanPaymentQr';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
+import { RiskDecisionPanel } from '@/components/RiskDecisionPanel';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface ScheduleItem {
@@ -323,6 +324,9 @@ export default function LoanDetailsPage() {
                             )}
                         </div>
                     </div>
+
+                    {/* Risk scorecard, recommended pricing & restructuring */}
+                    <RiskDecisionPanel loanId={loan.id} loanStatus={loan.status} onRestructured={fetchLoan} />
 
                     {/* Static-QR collection panel (display-only) */}
                     <LoanPaymentQr loanId={loan.id} />

@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateBorrowerDto {
   @IsString()
@@ -41,6 +41,17 @@ export class CreateBorrowerDto {
   @IsString()
   @IsOptional()
   occupation?: string;
+
+  // Risk Batch #7: affordability inputs
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  monthlyIncome?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  monthlyExpenses?: number;
 }
 
 export class UpdateBorrowerDto {
@@ -83,4 +94,14 @@ export class UpdateBorrowerDto {
   @IsString()
   @IsOptional()
   occupation?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  monthlyIncome?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  monthlyExpenses?: number;
 }

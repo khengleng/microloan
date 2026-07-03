@@ -32,6 +32,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentInstrumentsModule } from './payment-instruments/payment-instruments.module';
 import { BorrowerPortalModule } from './borrower-portal/borrower-portal.module';
 import { AgreementsModule } from './agreements/agreements.module';
+import { RiskModule } from './risk/risk.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -84,6 +85,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     NotificationsModule,
     PaymentInstrumentsModule,
     AgreementsModule,
+    RiskModule,
     BorrowerPortalModule,
   ],
   controllers: [AppController],

@@ -165,6 +165,9 @@ model Borrower {
   dateOfBirth        DateTime?
   idType             String? // e.g., NATIONAL_ID, PASSPORT, FAMILY_BOOK
   occupation         String?
+  // Risk Batch #7: affordability / debt-service-ratio inputs
+  monthlyIncome      Decimal?  @db.Decimal(12, 2)
+  monthlyExpenses    Decimal?  @db.Decimal(12, 2)
   kycStatus          KycStatus @default(PENDING)
   kycVerifiedAt      DateTime?
   kycVerifiedByUserId String?
@@ -332,7 +335,52 @@ model Loan {
   writtenOffByUserId String?
   writeOffReason     String?
 
+  // Risk Batch #7: restructuring / rescheduling
+  isRestructured   Boolean   @default(false)
+  restructuredAt   DateTime?
+  restructureCount Int       @default(0)
+
+  creditScores CreditScore[]
+  restructures LoanRestructure[]
+
   @@index([tenantId, branchId])
+}
+
+// ── Risk Batch #7: internal scorecard result (persisted, explainable) ───────
+model CreditScore {
+  id              String   @id @default(uuid())
+  tenantId        String
+  loanId          String
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  borrowerId      String
+  score           Int
+  grade           String
+  decision        String // APPROVE | REFER | DECLINE
+  dsr             Decimal? @db.Decimal(6, 4)
+  recommendedRate Decimal? @db.Decimal(5, 2)
+  factors         Json
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, loanId])
+}
+
+// ── Risk Batch #7: loan restructuring / rescheduling audit ──────────────────
+model LoanRestructure {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  loanId                String
+  loan                  Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  reason                String
+  oldTermMonths         Int
+  oldAnnualInterestRate Decimal  @db.Decimal(5, 2)
+  oldOutstanding        Decimal  @db.Decimal(12, 2)
+  newTermMonths         Int
+  newAnnualInterestRate Decimal  @db.Decimal(5, 2)
+  createdByUserId       String?
+  createdAt             DateTime @default(now())
+
+  @@index([tenantId, loanId])
 }
 
 model Collateral {
