@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
-    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins
+    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
@@ -124,6 +124,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             {isFinance && (
                                 <>
                                     {navSection(t('secAccounting'))}
+                                    {navItem('/kpi', t('kpi'), Gauge)}
                                     {navItem('/accounting', t('accounting'), Landmark)}
                                     {navItem('/provisioning', t('provisioning'), ShieldCheck)}
                                     {navItem('/fx', t('fxRates'), Coins)}

@@ -45,7 +45,8 @@
         "secConfiguration": "Configuration",
         "secLendingOps": "Lending Operations",
         "secAccounting": "Accounting",
-        "secBusinessSettings": "Business Settings"
+        "secBusinessSettings": "Business Settings",
+        "kpi": "Performance"
     },
     "Auth": {
         "signIn": "Sign in",

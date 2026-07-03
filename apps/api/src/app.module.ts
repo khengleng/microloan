@@ -33,6 +33,7 @@ import { PaymentInstrumentsModule } from './payment-instruments/payment-instrume
 import { BorrowerPortalModule } from './borrower-portal/borrower-portal.module';
 import { AgreementsModule } from './agreements/agreements.module';
 import { RiskModule } from './risk/risk.module';
+import { KpiModule } from './kpi/kpi.module';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -86,6 +87,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     PaymentInstrumentsModule,
     AgreementsModule,
     RiskModule,
+    KpiModule,
     BorrowerPortalModule,
   ],
   controllers: [AppController],

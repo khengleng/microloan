@@ -45,7 +45,8 @@
         "secConfiguration": "ការកំណត់រចនាសម្ព័ន្ធ",
         "secLendingOps": "ប្រតិបត្តិការឥណទាន",
         "secAccounting": "គណនេយ្យ",
-        "secBusinessSettings": "ការកំណត់អាជីវកម្ម"
+        "secBusinessSettings": "ការកំណត់អាជីវកម្ម",
+        "kpi": "សូចនាករ"
     },
     "Auth": {
         "signIn": "ចូល",
