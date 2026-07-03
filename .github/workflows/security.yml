@@ -3,7 +3,7 @@ name: Security & Production Readiness
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   security:
