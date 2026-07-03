@@ -159,7 +159,10 @@ model Borrower {
   phone          String?
   email          String?
   address        String?
-  idNumber       String?  @unique
+  // Encrypted at rest; exact-match/uniqueness via the deterministic *Hash columns.
+  idNumber       String?
+  idNumberHash   String?
+  phoneHash      String?
   telegramChatId String?
   // P0 #4: basic KYC capture + manual KYC/AML status (no external screening).
   dateOfBirth        DateTime?
@@ -180,7 +183,11 @@ model Borrower {
   kycDocuments KycDocument[]
   otps         BorrowerOtp[]
 
+  // Per-tenant uniqueness of national ID via blind index (fixes the former
+  // GLOBAL @unique on idNumber, which leaked existence across tenants).
+  @@unique([tenantId, idNumberHash])
   @@index([tenantId, branchId])
+  @@index([phoneHash])
 }
 
 // ── CX Batch #6: Borrower self-service portal (phone + OTP auth) ─────────────

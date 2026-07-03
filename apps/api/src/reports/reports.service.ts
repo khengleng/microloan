@@ -5,6 +5,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
 import { ReportQueryDto } from './dto/report-query.dto';
+import { blindIndex } from '../common/field-crypto';
 import { normalizeCurrency, Currency, NBC_CLASSIFICATION_TIERS } from '@microloan/shared';
 import { LoanStatus } from '@microloan/db';
 import * as XLSX from 'xlsx';
@@ -580,7 +581,7 @@ export class ReportsService {
       where.OR = [
         { firstName: { contains: query.search, mode: 'insensitive' } },
         { lastName: { contains: query.search, mode: 'insensitive' } },
-        { phone: { contains: query.search, mode: 'insensitive' } },
+        { phoneHash: blindIndex(query.search, 'phone') },
       ];
     }
     if (nrm.from || nrm.to) where.createdAt = { ...(nrm.from ? { gte: nrm.from } : {}), ...(nrm.to ? { lte: nrm.to } : {}) };

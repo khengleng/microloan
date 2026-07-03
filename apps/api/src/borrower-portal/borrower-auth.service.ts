@@ -4,6 +4,7 @@ import { createHash, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { borrowerJwtSecret, BORROWER_TOKEN_TTL } from './borrower-jwt';
+import { blindIndex } from '../common/field-crypto';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -30,8 +31,9 @@ export class BorrowerAuthService {
    */
   async requestOtp(phoneRaw: string): Promise<{ sent: true }> {
     const phone = phoneRaw.trim();
+    const phoneHash = blindIndex(phone, 'phone');
     const borrower = await this.prisma.borrower.findFirst({
-      where: { phone, tenant: { status: 'ACTIVE' } },
+      where: { phoneHash, tenant: { status: 'ACTIVE' } },
       orderBy: { updatedAt: 'desc' },
       select: { id: true, tenantId: true },
     });
@@ -40,7 +42,8 @@ export class BorrowerAuthService {
       const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
       await this.prisma.borrowerOtp.create({
         data: {
-          phone,
+          // Store the phone blind index (not the raw number) as the lookup key.
+          phone: phoneHash as string,
           borrowerId: borrower.id,
           tenantId: borrower.tenantId,
           codeHash: this.hash(code),
@@ -58,8 +61,9 @@ export class BorrowerAuthService {
 
   async verifyOtp(phoneRaw: string, code: string) {
     const phone = phoneRaw.trim();
+    const phoneHash = blindIndex(phone, 'phone') as string;
     const otp = await this.prisma.borrowerOtp.findFirst({
-      where: { phone, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: { phone: phoneHash, consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -78,7 +82,7 @@ export class BorrowerAuthService {
 
     // Consume the code (single-use) and invalidate any other outstanding codes.
     await this.prisma.borrowerOtp.updateMany({
-      where: { phone, consumedAt: null },
+      where: { phone: phoneHash, consumedAt: null },
       data: { consumedAt: new Date() },
     });
 

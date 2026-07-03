@@ -10,6 +10,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { isCbcConfigured, CBC_NOT_READY_MESSAGE } from '../credit-bureau/cbc.provider';
+import { blindIndex } from '../common/field-crypto';
 
 @Injectable()
 export class BorrowersService {
@@ -46,11 +47,13 @@ export class BorrowersService {
     const where: any = this.authz.scopeWhere(actor, {});
     if (actor.branchId) where.branchId = actor.branchId;
     if (search) {
+      // Name is substring-searchable; phone/idNumber are encrypted so they match
+      // exactly via their blind index (a full phone/ID finds the borrower).
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
         { lastName: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        { idNumber: { contains: search, mode: 'insensitive' } },
+        { phoneHash: blindIndex(search, 'phone') },
+        { idNumberHash: blindIndex(search, 'id') },
       ];
     }
     const skip = (page - 1) * limit;
@@ -190,8 +193,8 @@ export class BorrowersService {
       where: {
         tenantId: actor.tenantId,
         OR: [
-          query.idNumber ? { idNumber: query.idNumber } : {},
-          query.phone ? { phone: query.phone } : {},
+          query.idNumber ? { idNumberHash: blindIndex(query.idNumber, 'id') } : {},
+          query.phone ? { phoneHash: blindIndex(query.phone, 'phone') } : {},
         ].filter((q) => Object.keys(q).length > 0),
       },
       include: { loans: { select: { status: true, createdAt: true } } },

@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
-import { decryptField } from '../common/field-crypto';
+import { decryptField, blindIndex } from '../common/field-crypto';
 
 const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
@@ -183,7 +183,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
         // 1. Check or Create Borrower
         let borrower = await this.prisma.borrower.findFirst({
-            where: { phone: args.phone, tenantId }
+            where: { phoneHash: blindIndex(args.phone, 'phone'), tenantId }
         });
 
         if (!borrower) {

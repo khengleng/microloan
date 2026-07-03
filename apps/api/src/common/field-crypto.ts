@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync } from 'crypto';
 
 /**
  * Application-layer field encryption for sensitive data at rest (AES-256-GCM).
@@ -62,6 +62,29 @@ export function encryptField(plaintext: string | null | undefined): string | nul
   const ct = Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return PREFIX + [iv.toString('base64'), tag.toString('base64'), ct.toString('base64')].join(':');
+}
+
+/**
+ * Deterministic blind index (HMAC-SHA256) for exact-match lookup and uniqueness
+ * over an ENCRYPTED column. Same input → same token, so it can back a WHERE
+ * lookup and a UNIQUE constraint without exposing the plaintext. Derived from
+ * the encryption key with a distinct label so it can't be confused with it.
+ */
+let cachedIndexKey: Buffer | null = null;
+function indexKey(): Buffer {
+  if (!cachedIndexKey) cachedIndexKey = createHmac('sha256', resolveKey()).update('blind-index-v1').digest();
+  return cachedIndexKey;
+}
+
+export function normalizeForIndex(value: string, kind: 'phone' | 'id' | 'raw' = 'raw'): string {
+  if (kind === 'phone') return value.replace(/[\s\-()]/g, '');
+  if (kind === 'id') return value.trim().toUpperCase();
+  return value.trim();
+}
+
+export function blindIndex(value: string | null | undefined, kind: 'phone' | 'id' | 'raw' = 'raw'): string | null {
+  if (value == null || value === '') return null;
+  return createHmac('sha256', indexKey()).update(normalizeForIndex(String(value), kind)).digest('hex');
 }
 
 export function decryptField(value: string | null | undefined): string | null {
