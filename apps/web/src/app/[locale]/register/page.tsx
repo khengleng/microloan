@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { SignupPaymentPanel, type SignupPayment } from '@/components/auth/signup-payment-panel';
 import { BrandMark } from '@/components/brand-mark';
+import { LocaleSwitch } from '@/components/auth/locale-switch';
 
 type Plan = {
     /** Stable key sent back on submit. */
@@ -27,8 +29,8 @@ type Plan = {
 };
 
 /** Render a quota ceiling, where null is unlimited rather than missing. */
-const quota = (n: number | null | undefined) =>
-    n === null || n === undefined ? 'Unlimited' : n.toLocaleString();
+const quota = (n: number | null | undefined, t: (k: string) => string) =>
+    n === null || n === undefined ? t('unlimited') : n.toLocaleString();
 
 type RegisterResult = {
     tenantName: string;
@@ -38,6 +40,7 @@ type RegisterResult = {
 };
 
 export default function RegisterTenantPage() {
+    const t = useTranslations('Register');
     const router = useRouter();
     const { locale } = useParams();
     const [submitting, setSubmitting] = useState(false);
@@ -145,7 +148,7 @@ export default function RegisterTenantPage() {
                                 <CheckCircle2 size={24} className="text-[#26a69a]" />
                             </div>
                             <h1 className="text-[18px] font-bold text-foreground mb-2">
-                                {result.paymentRequired ? 'Almost there' : 'Account created'}
+                                {result.paymentRequired ? t('pendingTitle') : t('doneTitle')}
                             </h1>
                             <p className="text-[13px] text-muted-foreground mb-6">
                                 <strong className="text-foreground">{result.tenantName}</strong>
@@ -162,7 +165,7 @@ export default function RegisterTenantPage() {
                                 onClick={() => router.push(`/${locale}/login`)}
                                 className="tv-button w-full h-10 text-[13px]"
                             >
-                                Sign in now
+                                {t('signInNow')}
                             </button>
                         )}
                     </div>
@@ -184,17 +187,16 @@ export default function RegisterTenantPage() {
                 <div className="hidden lg:block">
                     <BrandMark size={40} className="mb-8 [&>span]:text-[20px]" />
                     <h2 className="text-[28px] font-bold text-foreground leading-tight mb-3">
-                        Run your loan book<br />with confidence.
+                        {t('heroTitle')}
                     </h2>
                     <p className="text-[14px] text-muted-foreground leading-relaxed mb-8 max-w-[420px]">
-                        Origination, underwriting, repayments and reporting — for
-                        microfinance institutions in Cambodia and beyond.
+{t('heroSubtitle')}
                     </p>
                     <ul className="space-y-3">
                         {[
-                            'Borrower KYC and document vault, encrypted at rest',
-                            'Automated schedules, penalties and collections',
-                            'Double-entry ledger with portfolio and profitability KPIs',
+                            t('feature1'),
+                            t('feature2'),
+                            t('feature3'),
                         ].map(item => (
                             <li key={item} className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
                                 <CheckCircle2 size={15} className="text-primary mt-0.5 shrink-0" />
@@ -206,20 +208,23 @@ export default function RegisterTenantPage() {
 
                 {/* ── Form ─────────────────────────────────────────────── */}
                 <div className="w-full">
-                    <BrandMark className="mb-6 lg:hidden" />
+                    <div className="flex items-center justify-between mb-6">
+                        <BrandMark className="lg:invisible" />
+                        <LocaleSwitch />
+                    </div>
 
                     <div className="bg-card border border-border rounded-xl p-6 sm:p-7">
-                        <h1 className="text-[18px] font-bold text-foreground mb-1">Create your account</h1>
+                        <h1 className="text-[18px] font-bold text-foreground mb-1">{t('title')}</h1>
                         <p className="text-[13px] text-muted-foreground mb-6">
-                            Set up your organization to start managing your portfolio.
+                            {t('subtitle')}
                         </p>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label htmlFor="org" className={labelClass}>Organization name</label>
+                                <label htmlFor="org" className={labelClass}>{t('orgName')}</label>
                                 <input
                                     id="org"
-                                    placeholder="Acme Microfinance"
+                                    placeholder={t('orgPlaceholder')}
                                     className={inputClass}
                                     required
                                     value={formData.organizationName}
@@ -229,7 +234,7 @@ export default function RegisterTenantPage() {
 
                         {plans.length > 0 && (
                             <div>
-                                <label className={labelClass}>Plan</label>
+                                <label className={labelClass}>{t('plan')}</label>
                                 {/* A grid, not a stack. Four full-width cards each
                                     carrying a description turned this form into
                                     several screens of scrolling; the chosen plan's
@@ -263,11 +268,11 @@ export default function RegisterTenantPage() {
                                                         {plan.displayName || plan.name}
                                                     </span>
                                                     <span className="text-[12px] font-bold text-foreground whitespace-nowrap">
-                                                        {plan.requiresPayment ? `$${plan.amount}` : 'Free'}
+                                                        {plan.requiresPayment ? `$${plan.amount}` : t('free')}
                                                     </span>
                                                 </span>
                                                 <span className="text-[11px] text-muted-foreground">
-                                                    {quota(plan.limits.maxUsers)} users · {quota(plan.limits.maxBorrowers)} borrowers
+                                                    {quota(plan.limits.maxUsers, t)} {t('users')} · {quota(plan.limits.maxBorrowers, t)} {t('borrowers')}
                                                 </span>
                                             </label>
                                         );
@@ -281,14 +286,14 @@ export default function RegisterTenantPage() {
                                 )}
                                 {!khqrConfigured && (
                                     <p className="text-[11px] text-muted-foreground mt-1.5">
-                                        Paid plans are unavailable — this platform has no payment merchant configured yet.
+                                        {t('paidUnavailable')}
                                     </p>
                                 )}
                             </div>
                         )}
 
                         <div>
-                            <label htmlFor="email" className={labelClass}>Admin email</label>
+                            <label htmlFor="email" className={labelClass}>{t('adminEmail')}</label>
                             <input
                                 id="email"
                                 type="email"
@@ -303,13 +308,13 @@ export default function RegisterTenantPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="pass" className={labelClass}>Password</label>
+                            <label htmlFor="pass" className={labelClass}>{t('password')}</label>
                             <input
                                 id="pass"
                                 type="password"
                                 data-clarity-mask="true"
                                 autoComplete="new-password"
-                                placeholder="Minimum 12 characters"
+                                placeholder={t('passwordHint')}
                                 minLength={12}
                                 className={inputClass}
                                 required
@@ -330,7 +335,7 @@ export default function RegisterTenantPage() {
                             disabled={submitting}
                         >
                             {submitting && <Loader2 size={14} className="animate-spin mr-2" />}
-                            {submitting ? 'Creating account...' : 'Create account'}
+                            {submitting ? t('submitting') : t('submit')}
                         </button>
 
                         {/* Signing up with Google skips the password fields but not
@@ -340,21 +345,22 @@ export default function RegisterTenantPage() {
                             text="signup_with"
                             disabled={submitting}
                             onCredential={handleGoogleSignup}
+                            locale={typeof locale === 'string' ? locale : undefined}
                         />
 
                         <p className="text-center text-[12px] text-muted-foreground leading-relaxed">
-                            By creating an account you agree to our{' '}
+                            {t('agree')}{' '}
                             <Link href="/terms-and-conditions" className="text-primary hover:text-primary/80 transition-colors">Terms</Link>
-                            {' '}and{' '}
+                            {' '}{t('and')}{' '}
                             <Link href="/privacy-policy" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
                         </p>
                         </form>
                     </div>
 
                     <p className="text-center text-[13px] text-muted-foreground mt-5">
-                        Already have an account?{' '}
+                        {t('haveAccount')}{' '}
                         <Link href={`/${locale}/login`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
-                            Sign in
+                            {t('signIn')}
                         </Link>
                     </p>
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { BrandMark } from '@/components/brand-mark';
+import { LocaleSwitch } from '@/components/auth/locale-switch';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { SignupPaymentPanel, type SignupPayment } from '@/components/auth/signup-payment-panel';
 
@@ -44,7 +45,10 @@ export default function SignupPaymentStatusPage() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-background py-10">
             <div className="w-full max-w-[420px] px-4">
-                <BrandMark className="mb-8" />
+                <div className="flex items-center justify-between mb-8">
+                    <BrandMark />
+                    <LocaleSwitch />
+                </div>
 
                 <div className="bg-card border border-border rounded-lg p-7">
                     <h1 className="text-[18px] font-bold text-foreground mb-1">Activation status</h1>

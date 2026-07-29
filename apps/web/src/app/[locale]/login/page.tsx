@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/brand-mark';
+import { LocaleSwitch } from '@/components/auth/locale-switch';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 
@@ -127,7 +128,10 @@ export default function LoginPage() {
         <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-full max-w-[360px] px-4">
                 {/* Logo */}
-                <BrandMark className="mb-8" />
+                <div className="flex items-center justify-between mb-8">
+                    <BrandMark />
+                    <LocaleSwitch />
+                </div>
 
                 <div className="bg-card border border-border rounded-lg p-7">
                     <h1 className="text-[18px] font-bold text-foreground mb-1">
@@ -197,12 +201,15 @@ export default function LoginPage() {
                                 {loading ? t('signingIn') : t('signIn')}
                             </button>
 
-                            {/* Renders nothing when Google is not configured, so
-                                the divider must not appear on its own either. */}
+                            {/* Renders nothing when Google is not configured —
+                                the divider is inside the component so it
+                                disappears with it. */}
                             <GoogleSignInButton
                                 text="signin_with"
                                 disabled={loading}
                                 onCredential={handleGoogle}
+                                locale={typeof locale === 'string' ? locale : undefined}
+                                dividerLabel={t('or')}
                             />
                         </form>
                     ) : (
