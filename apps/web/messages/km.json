@@ -493,6 +493,7 @@
     "orgNamePlaceholder": "Acme Microfinance",
     "organization": "អង្គភាព",
     "organizationDesc": "ឈ្មោះបង្ហាញនៃអង្គភាពរបស់អ្នក។",
+    "planChangeAdminOnly": "មានតែអ្នកគ្រប់គ្រងស្ថាប័នប៉ុណ្ណោះ ដែលអាចប្តូរគម្រោងបាន។",
     "planChangeError": "មិនអាចចាប់ផ្តើមការប្តូរគម្រោងបានទេ។",
     "planChangeLead": "ជ្រើសរើសគម្រោង រួចទូទាត់ដោយ KHQR។ ការងាររបស់អ្នកនៅតែដំណើរការ ខណៈពេលរង់ចាំការបញ្ជាក់។",
     "planChangeTitle": "ប្តូរគម្រោង",

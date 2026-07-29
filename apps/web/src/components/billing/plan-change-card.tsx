@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { CreditCard, Loader2, ShieldCheck, Zap } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 /**
  * Plan changes for the tenant admin.
@@ -47,6 +48,12 @@ type Options = {
 
 export function PlanChangeCard() {
     const t = useTranslations('Settings');
+    const { user } = useAuth();
+    // The settings page renders TenantSettings for every non-SUPERADMIN role,
+    // so a loan officer or accountant lands here too. Billing is the admin's
+    // job and the endpoint enforces that — without this check they would be
+    // shown an upgrade button that answers 403.
+    const canManage = user?.role === 'TENANT_ADMIN' || user?.role === 'ADMIN';
     const [data, setData] = useState<Options | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -57,8 +64,9 @@ export function PlanChangeCard() {
     }, []);
 
     useEffect(() => {
+        if (!canManage) return;
         void load().catch(() => setData(null));
-    }, [load]);
+    }, [load, canManage]);
 
     const choose = async (plan: string) => {
         setBusy(true);
@@ -104,8 +112,15 @@ export function PlanChangeCard() {
                 <p className="text-2xl font-bold">{data?.currentPlan ?? '—'}</p>
             </div>
 
-            {/* ── A payment is already in flight ─────────────────────────── */}
-            {data?.pending ? (
+            {!canManage ? (
+                <div className="px-5 pb-5">
+                    <p className="flex items-start gap-1.5 text-[12px] text-primary-foreground/70">
+                        <ShieldCheck size={12} className="mt-0.5 shrink-0" />
+                        {t('planChangeAdminOnly')}
+                    </p>
+                </div>
+            ) : /* ── A payment is already in flight ─────────────────────── */
+            data?.pending ? (
                 <div className="px-5 pb-5">
                     <div className="rounded-lg bg-white/10 border border-white/20 p-4">
                         <div className="flex flex-col sm:flex-row gap-4">
