@@ -5,21 +5,17 @@ import {
     Param,
     UseInterceptors,
     UploadedFile,
-    UseGuards,
     Res,
     BadRequestException,
     UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentVaultService } from './document-vault.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
@@ -42,7 +38,6 @@ const uploadOptions: MulterOptions = {
     },
 };
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
 @Controller('documents')
 export class DocumentVaultController {
     constructor(private readonly documentVaultService: DocumentVaultService) { }

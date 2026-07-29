@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BotService } from '../bot/bot.service';
+import { SystemContext } from '../prisma/tenant-context';
 
 @Injectable()
 export class ReminderService {
@@ -16,6 +17,7 @@ export class ReminderService {
      * Daily job at 8:00 AM to send reminders for payments due tomorrow.
      */
     @Cron(CronExpression.EVERY_DAY_AT_8AM)
+    @SystemContext('cron: scans installments across all tenants')
     async sendDailyReminders() {
         this.logger.log('[ReminderService] Starting daily payment reminders scan...');
 

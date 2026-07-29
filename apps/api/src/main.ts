@@ -27,15 +27,31 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // ── Security Headers (Helmet) ──────────────────────────────────────────────
+  // Google Identity Services allowances, applied only when Google sign-in is
+  // configured — an unconfigured deployment keeps the strict original policy:
+  //   script-src  accounts.google.com  — the GIS client library
+  //   frame-src   accounts.google.com  — the One Tap / consent iframe
+  //   connect-src accounts.google.com  — token and certificate fetches
+  //
+  // NOTE: this policy rides on API responses, which are JSON. The sign-in page
+  // is served by the Next.js app, which currently sends no CSP of its own, so
+  // the browser loads GIS without needing anything here. These directives
+  // matter only if the API ever serves HTML — and if you add a CSP to the web
+  // app, the same three origins must be allowed THERE or the button will not
+  // render.
+  const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID?.trim());
+  const GOOGLE_ORIGINS = ['https://accounts.google.com', 'https://www.gstatic.com'];
+  const allowGoogle = (base: string[]) => (googleEnabled ? [...base, ...GOOGLE_ORIGINS] : base);
+
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: allowGoogle(["'self'"]),
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        frameSrc: ["'none'"],
+        connectSrc: allowGoogle(["'self'"]),
+        frameSrc: googleEnabled ? GOOGLE_ORIGINS : ["'none'"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },

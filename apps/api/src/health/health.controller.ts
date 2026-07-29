@@ -1,11 +1,9 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, MemoryHealthIndicator } from '@nestjs/terminus';
 import { PrismaHealthIndicator } from './prisma.health';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
-
+import { Public } from '../auth/auth-scope.decorator';
 @Controller('health')
 export class HealthController {
     constructor(
@@ -18,6 +16,7 @@ export class HealthController {
      * Minimal public health check for load-balancer / uptime probes.
      * Does NOT expose internal metrics (heap, RSS) to anonymous callers.
      */
+    @Public()
     @SkipThrottle()
     @Get()
     publicCheck() {
@@ -28,7 +27,6 @@ export class HealthController {
      * Detailed health check with memory + DB diagnostics.
      * Restricted to authenticated SUPERADMIN users only.
      */
-    @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles('SUPERADMIN')
     @Get('detailed')
     @HealthCheck()

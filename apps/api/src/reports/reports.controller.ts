@@ -2,23 +2,18 @@ import {
   Controller,
   Get,
   Query,
-  UseGuards,
   Res,
   BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 import { ReportsService } from './reports.service';
 import { ReportExportQueryDto, ReportQueryDto } from './dto/report-query.dto';
 import { AuditService } from '../audit/audit.service';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(

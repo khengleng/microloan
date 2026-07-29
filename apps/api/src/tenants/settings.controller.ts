@@ -1,7 +1,5 @@
-import { Controller, Get, Put, Body, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Put, Body, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -10,7 +8,6 @@ import { normalizeCurrency, NBC_ANNUAL_INTEREST_CAP_PCT } from '@microloan/share
 import { Currency } from '@microloan/db';
 import { encryptField } from '../common/field-crypto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('settings')
 export class SettingsController {
     constructor(

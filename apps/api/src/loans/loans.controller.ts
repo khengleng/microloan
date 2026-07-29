@@ -11,17 +11,14 @@ import {
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto, ChangeLoanStatusDto, CreateInteractionDto } from './dto/create-loan.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard, QuotaGuard)
+@UseGuards(QuotaGuard)
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) { }

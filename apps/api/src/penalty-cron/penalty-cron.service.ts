@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BotService } from '../bot/bot.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SystemContext } from '../prisma/tenant-context';
 
 @Injectable()
 export class PenaltyCronService {
@@ -16,6 +17,7 @@ export class PenaltyCronService {
     ) { }
 
     @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    @SystemContext('cron: applies penalties across all tenants')
     async applyLatePenalties() {
         this.logger.log('Starting daily penalty and late fee calculation...');
         const now = new Date();
@@ -103,6 +105,7 @@ export class PenaltyCronService {
     }
 
     @Cron(CronExpression.EVERY_DAY_AT_9AM)
+    @SystemContext('cron: scans upcoming dues across all tenants')
     async sendUpcomingReminders() {
         this.logger.log('Checking for upcoming repayments (next 2 days)...');
         const tomorrow = new Date();

@@ -1,18 +1,14 @@
-import { Body, Controller, Get, Ip, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Post } from '@nestjs/common';
 import { AgreementsService } from './agreements.service';
 import { SignAgreementDto } from './dto/sign-agreement.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 import { AuthzService } from '../authz/authz.service';
 import { AuditService } from '../audit/audit.service';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
 @Controller('agreements')
 export class AgreementsController {
   constructor(

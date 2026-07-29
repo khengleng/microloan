@@ -19,6 +19,12 @@ import { Prisma } from '@microloan/db';
 import { permissionsForRole } from '../authz/role-permissions';
 import { NotificationsService } from '../notifications/notifications.service';
 import { encryptField, decryptField } from '../common/field-crypto';
+import { SystemContext } from '../prisma/tenant-context';
+import { GoogleIdentityService } from './google-identity.service';
+import { GoogleRegisterTenantDto } from './dto/google-auth.dto';
+import { SignupPaymentService } from '../billing/signup-payment.service';
+import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import type { PlanTierView } from '../plan-tiers/plan-tier.service';
 
 // ── Security constants ───────────────────────────────────────────────────────
 const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
@@ -39,7 +45,30 @@ export class AuthService {
     private prisma: PrismaService,
     private audit: AuditService,
     private notifications: NotificationsService,
+    private google: GoogleIdentityService,
+    private signupPayments: SignupPaymentService,
+    private planTiers: PlanTierService,
   ) { }
+
+  /**
+   * Resolve the tier a signup asked for.
+   *
+   * An explicit choice must be a real, currently-offered tier — an unknown or
+   * retired name is refused rather than quietly downgraded, because the
+   * applicant is choosing what to pay for. Omitting the plan means "whatever
+   * the free tier is", which the operator defines.
+   */
+  private async resolveSignupTier(requested?: string | null): Promise<PlanTierView> {
+    if (requested) return this.planTiers.requireSelectable(requested);
+
+    const fallback = await this.planTiers.defaultTier();
+    if (!fallback) {
+      throw new BadRequestException(
+        'Signup is unavailable: this platform has no subscription plans configured.',
+      );
+    }
+    return fallback;
+  }
 
   private hashResetToken(raw: string): string {
     const pepper = process.env.JWT_REFRESH_TOKEN_PEPPER || '';
@@ -51,6 +80,7 @@ export class AuthService {
    * enumeration). When an account exists, a single-use, 1-hour token is created
    * and emailed as a reset link (delivery requires an email provider — #7).
    */
+  @SystemContext('pre-auth: resolving an account by email')
   async forgotPassword(email: string, resetBaseUrl: string) {
     const generic = { message: 'If an account exists for that email, a password reset link has been sent.' };
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -92,6 +122,7 @@ export class AuthService {
    * Complete a self-service reset: validate the token, set the new password,
    * revoke all sessions, and consume the token.
    */
+  @SystemContext('pre-auth: redeeming a reset token')
   async resetPassword(token: string, newPassword: string) {
     if (!token) throw new UnauthorizedException('Invalid or expired reset link.');
     if (!newPassword || newPassword.length < 12) {
@@ -129,28 +160,84 @@ export class AuthService {
     return { success: true };
   }
 
-  async registerTenant(dto: RegisterTenantDto, ip?: string) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.adminEmail } });
-    if (existing) {
-      throw new ConflictException('Registration failed. This email is already tied to an existing organization (possibly suspended or in the Trash). To reuse this email, the organization must be permanently PURGED from the platform by a Superadmin.');
+  private readonly EMAIL_TAKEN =
+    'Registration failed. This email is already tied to an existing organization ' +
+    '(possibly suspended or in the Trash). To reuse this email, the organization must ' +
+    'be permanently PURGED from the platform by a Superadmin.';
+
+  /**
+   * Provision a workspace and its first TENANT_ADMIN.
+   *
+   * Shared by the password and Google signup paths so the payment gate cannot
+   * be sidestepped by picking the other one. FREE activates immediately;
+   * every other plan lands in PENDING_PAYMENT with a KHQR attached, and
+   * `JwtStrategy` refuses to issue a session for a non-ACTIVE tenant until a
+   * SUPERADMIN confirms the transfer.
+   */
+  private async provisionTenant(params: {
+    organizationName: string;
+    adminEmail: string;
+    tier: PlanTierView;
+    passwordHash?: string;
+    googleIdentity?: { providerAccountId: string; email: string };
+    ip?: string;
+  }) {
+    const { organizationName, adminEmail, tier, ip } = params;
+    const plan = tier.name;
+    // Priced, therefore gated. Derived from the tier's amount rather than its
+    // name, so an operator who creates a second free tier gets a free tier
+    // instead of one that silently demands payment for $0.00.
+    const paid = tier.requiresPayment;
+
+    // Where a paid workspace parks while it waits for confirmation. It must be
+    // a tier that actually exists, or the tenant's first quota check would fall
+    // back to the cheapest tier with a warning.
+    const holdingTier = paid ? await this.planTiers.defaultTier() : null;
+
+    // Fail before creating anything if a paid plan is impossible to settle.
+    if (paid && !(await this.signupPayments.isConfigured())) {
+      throw new BadRequestException(
+        'Paid plans are unavailable: this platform has no KHQR merchant configured. ' +
+          'Choose the FREE plan or contact platform support.',
+      );
     }
 
-    const salt = await bcrypt.genSalt(12); // 12 rounds for stronger hashing
-    const passwordHash = await bcrypt.hash(dto.adminPassword, salt);
-
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
-        data: { name: dto.organizationName }
+        data: {
+          name: organizationName,
+          // A paid workspace is inert until payment is confirmed. The plan is
+          // NOT applied yet — it is stored on the PlanPayment and only written
+          // to the tenant on confirmation, so an unpaid workspace can never
+          // hold paid quota limits.
+          status: paid ? 'PENDING_PAYMENT' : 'ACTIVE',
+          plan: paid ? (holdingTier?.name ?? plan) : plan,
+        },
       });
 
       const user = await tx.user.create({
         data: {
           tenantId: tenant.id,
-          email: dto.adminEmail,
-          passwordHash,
+          email: adminEmail,
+          passwordHash: params.passwordHash ?? null,
           role: Role.TENANT_ADMIN,
-        }
+        },
       });
+
+      if (params.googleIdentity) {
+        await tx.federatedIdentity.create({
+          data: {
+            userId: user.id,
+            provider: GoogleIdentityService.PROVIDER,
+            providerAccountId: params.googleIdentity.providerAccountId,
+            email: params.googleIdentity.email,
+          },
+        });
+      }
+
+      const payment = paid
+        ? await this.signupPayments.createForTenant(tenant.id, tier, tx)
+        : null;
 
       await this.audit.logSecurityEvent({
         actorUserId: user.id,
@@ -159,20 +246,280 @@ export class AuthService {
         targetType: 'Tenant',
         targetId: tenant.id,
         action: 'TENANT_CREATE',
-        newValue: { organizationName: dto.organizationName },
+        newValue: {
+          organizationName,
+          plan,
+          status: tenant.status,
+          signupMethod: params.googleIdentity ? 'GOOGLE' : 'PASSWORD',
+          paymentReference: payment?.reference,
+        },
         ipAddress: ip || 'unknown',
         result: 'SUCCESS',
       });
 
+      return { tenant, user, payment };
+    });
+
+    if (!result.payment) {
       return {
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-        adminEmail: user.email,
+        tenantId: result.tenant.id,
+        tenantName: result.tenant.name,
+        adminEmail: result.user.email,
+        plan,
+        status: result.tenant.status,
+        paymentRequired: false as const,
         message: 'Organization registered successfully. You can now log in.',
       };
+    }
+
+    return {
+      tenantId: result.tenant.id,
+      tenantName: result.tenant.name,
+      adminEmail: result.user.email,
+      plan,
+      status: result.tenant.status,
+      paymentRequired: true as const,
+      payment: {
+        reference: result.payment.reference,
+        amount: result.payment.amount,
+        currency: result.payment.currency,
+        qrPayload: result.payment.qrPayload,
+        qrImage: await this.signupPayments.renderQr(result.payment.qrPayload),
+      },
+      message:
+        'Organization created. Scan the QR to pay for your plan — your workspace ' +
+        'activates once the platform team confirms the transfer. Keep your payment ' +
+        'reference to check the status.',
+    };
+  }
+
+  @SystemContext('pre-auth: provisioning a new organization')
+  async registerTenant(dto: RegisterTenantDto, ip?: string) {
+    const email = dto.adminEmail.toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException(this.EMAIL_TAKEN);
+    }
+
+    // Resolved before hashing: a bad plan should cost a 400, not 12 rounds of
+    // bcrypt.
+    const tier = await this.resolveSignupTier(dto.plan);
+    const salt = await bcrypt.genSalt(12); // 12 rounds for stronger hashing
+    const passwordHash = await bcrypt.hash(dto.adminPassword, salt);
+
+    return this.provisionTenant({
+      organizationName: dto.organizationName,
+      adminEmail: email,
+      tier,
+      passwordHash,
+      ip,
     });
   }
 
+  /**
+   * Public plan catalogue for the signup page — price, currency and whether
+   * the plan goes through the payment gate. Served from the API so the web
+   * bundle never carries a second, drifting copy of the pricing.
+   */
+  @SystemContext('pre-auth: public plan catalogue for the signup page')
+  async plans() {
+    return {
+      khqrConfigured: await this.signupPayments.isConfigured(),
+      plans: (await this.planTiers.catalogue()).map((tier) => ({
+        name: tier.name,
+        displayName: tier.displayName,
+        description: tier.description,
+        amount: tier.amount,
+        currency: tier.currency,
+        requiresPayment: tier.requiresPayment,
+        // `null` on a ceiling means unlimited — the signup page renders it as
+        // "Unlimited" rather than as a missing value.
+        limits: tier.limits,
+      })),
+    };
+  }
+
+  /** Whether the client should offer a Google button at all. */
+  googleAvailable() {
+    return {
+      enabled: this.google.isConfigured(),
+      clientId: this.google.clientId ?? null,
+    };
+  }
+
+  /**
+   * Sign in with Google.
+   *
+   * Resolution order matters. A linked identity wins outright. Failing that,
+   * the account is matched on the provider-verified email and linked on first
+   * use — `GoogleIdentityService` has already refused to return an unverified
+   * email, which is what makes that link safe. An unknown email is NOT
+   * auto-provisioned: staff accounts belong to a tenant and are created by
+   * that tenant's admin.
+   */
+  @SystemContext('pre-auth: resolving a Google identity')
+  async loginWithGoogle(idToken: string, ip?: string) {
+    const profile = await this.google.verify(idToken);
+
+    const identity = await this.prisma.federatedIdentity.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: GoogleIdentityService.PROVIDER,
+          providerAccountId: profile.subject,
+        },
+      },
+      include: { user: { include: { tenant: { select: { status: true, name: true } } } } },
+    });
+
+    let user = identity?.user ?? null;
+
+    if (!user) {
+      const byEmail = await this.prisma.user.findUnique({
+        where: { email: profile.email },
+        include: { tenant: { select: { status: true, name: true } } },
+      });
+
+      if (!byEmail) {
+        await this.auditSecurityEvent(null, profile.email, 'GOOGLE_LOGIN_UNKNOWN_EMAIL', ip);
+        throw new UnauthorizedException(
+          'No account is registered for this Google address. Ask your administrator ' +
+            'to invite you, or register a new organization.',
+        );
+      }
+
+      await this.prisma.federatedIdentity.create({
+        data: {
+          userId: byEmail.id,
+          provider: GoogleIdentityService.PROVIDER,
+          providerAccountId: profile.subject,
+          email: profile.email,
+        },
+      });
+      await this.audit.logSecurityEvent({
+        actorUserId: byEmail.id,
+        actorRole: byEmail.role,
+        actorTenantId: byEmail.tenantId,
+        targetType: 'User',
+        targetId: byEmail.id,
+        action: 'GOOGLE_IDENTITY_LINKED',
+        ipAddress: ip || 'unknown',
+        result: 'SUCCESS',
+      });
+      user = byEmail;
+    }
+
+    // Same gates as password login, in the same order.
+    if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
+      throw new ForbiddenException(this.inactiveTenantMessage(user.tenant?.status, user.tenant?.name));
+    }
+    if (user.isActive === false) {
+      await this.auditSecurityEvent(user.tenantId, profile.email, 'LOGIN_SUSPENDED', ip, user.id);
+      throw new ForbiddenException('Your staff account has been suspended by your administrator.');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        loginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+        lastLoginIp: ip || null,
+      },
+    });
+    await this.prisma.federatedIdentity.updateMany({
+      where: {
+        provider: GoogleIdentityService.PROVIDER,
+        providerAccountId: profile.subject,
+      },
+      data: { lastLoginAt: new Date(), email: profile.email },
+    });
+
+    // Federated sign-in does not bypass MFA: if the account has TOTP enrolled,
+    // the second factor is still required.
+    if (user.twoFactorEnabled) {
+      await this.audit.logAction(user.tenantId!, user.id, 'LOGIN', 'User', user.id, {
+        event: 'MFA_CHALLENGE_ISSUED',
+        method: 'GOOGLE',
+        ip: ip || 'unknown',
+      });
+      const mfaToken = this.jwtService.sign(
+        { sub: user.id, mfaChallenge: true },
+        { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: '5m' },
+      );
+      return { mfaRequired: true, mfaToken, message: 'Please provide your TOTP code' };
+    }
+
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'LOGIN',
+      newValue: { method: 'GOOGLE' },
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
+    });
+
+    return this.generateTokens(
+      user.id,
+      user.email,
+      user.role,
+      user.tenantId || null,
+      user.branchId || null,
+    );
+  }
+
+  /** Register a new workspace using a Google account as the admin credential. */
+  @SystemContext('pre-auth: provisioning a new organization via Google')
+  async registerTenantWithGoogle(dto: GoogleRegisterTenantDto, ip?: string) {
+    const profile = await this.google.verify(dto.idToken);
+
+    const existingIdentity = await this.prisma.federatedIdentity.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: GoogleIdentityService.PROVIDER,
+          providerAccountId: profile.subject,
+        },
+      },
+    });
+    if (existingIdentity) {
+      throw new ConflictException(
+        'This Google account is already linked to an organization. Sign in instead.',
+      );
+    }
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    if (existingUser) {
+      throw new ConflictException(this.EMAIL_TAKEN);
+    }
+
+    const tier = await this.resolveSignupTier(dto.plan);
+
+    return this.provisionTenant({
+      organizationName: dto.organizationName,
+      adminEmail: profile.email,
+      tier,
+      googleIdentity: { providerAccountId: profile.subject, email: profile.email },
+      ip,
+    });
+  }
+
+  /** Distinguishes "not paid yet" from "suspended" — very different fixes. */
+  private inactiveTenantMessage(status?: string | null, name?: string | null): string {
+    if (status === 'PENDING_PAYMENT') {
+      return (
+        `${name || 'Your organization'} is awaiting plan payment confirmation. ` +
+        'Once the platform team confirms your transfer, you can sign in.'
+      );
+    }
+    return (
+      `Organization ${name || 'Isolated Environment'} has been suspended or is pending ` +
+      'data erasure. Please contact platform support.'
+    );
+  }
+
+  @SystemContext('pre-auth: resolving credentials by email')
   async login(loginDto: LoginDto, ip?: string) {
     const user: any = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
@@ -189,7 +536,9 @@ export class AuthService {
 
     // ── Organization Suspended check ─────────────────────────────────────
     if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
-      throw new ForbiddenException(`Organization ${user.tenant?.name || 'Isolated Environment'} has been suspended or is pending data erasure. Please contact platform support.`);
+      throw new ForbiddenException(
+        this.inactiveTenantMessage(user.tenant?.status, user.tenant?.name),
+      );
     }
 
     // ── User Suspended check ────────────────────────────────────────────
@@ -208,6 +557,20 @@ export class AuthService {
     }
 
     // ── Password check ───────────────────────────────────────────────────
+    // A federated-only account (Google signup) has no password hash. Burn the
+    // same time as a real comparison, then refuse — telling the caller to use
+    // Google is safe here because they have already proven the account exists
+    // by getting past the lookup, and it avoids a dead end.
+    if (!user.passwordHash) {
+      await bcrypt.compare(loginDto.password, '$2b$12$dummyhashfortimingnormalisation');
+      await this.auditSecurityEvent(
+        user.tenantId, loginDto.email, 'LOGIN_NO_PASSWORD_CREDENTIAL', ip, user.id,
+      );
+      throw new UnauthorizedException(
+        'This account signs in with Google. Use the “Continue with Google” button.',
+      );
+    }
+
     const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isMatch) {
@@ -288,6 +651,7 @@ export class AuthService {
     return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null);
   }
 
+  @SystemContext('pre-auth: completing the MFA challenge')
   async verifyMfa(mfaToken: string, code: string, ip?: string) {
     // Verify the short-lived MFA challenge token — never accept a raw userId directly
     let userId: string;
@@ -449,6 +813,7 @@ export class AuthService {
     return { superadmins: admins, count: admins.length };
   }
 
+  @SystemContext('pre-auth: redeeming a refresh token')
   async refreshToken(refreshToken: string) {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token is required');

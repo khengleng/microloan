@@ -6,8 +6,8 @@ import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
-    Settings, Building, LogOut, AlertTriangle, UserCog, Shield,
-    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge
+    Settings, Building, LogOut, AlertTriangle, UserCog, Shield, QrCode,
+    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge, Layers
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
@@ -100,6 +100,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         <>
                             {navSection(t('secPlatformOps'))}
                             {navItem('/tenants', t('organizations'), Building)}
+                            {navItem('/platform-payments', 'Payments', QrCode)}
+                            {navItem('/plan-tiers', 'Subscription Plans', Layers)}
 
                             {isAdmin && (
                                 <>

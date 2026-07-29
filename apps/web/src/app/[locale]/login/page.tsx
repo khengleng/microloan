@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
+import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 
 export default function LoginPage() {
     const t = useTranslations('Auth');
@@ -59,6 +60,34 @@ export default function LoginPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const finishLogin = async () => {
+        const me = await fetch('/api/proxy/auth/me').then(r => r.json()).catch(() => ({}));
+        router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
+    };
+
+    const handleGoogle = async (idToken: string) => {
+        clarityEvent('login_google_attempt');
+        setError('');
+        const res = await fetch('/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            clarityEvent('login_google_failed');
+            throw new Error(data?.message || t('invalidCredentials'));
+        }
+        if (data.mfaRequired) {
+            clarityEvent('login_mfa_challenge');
+            setMfaToken(data.mfaToken);
+            setMfaStep(true);
+            return;
+        }
+        clarityEvent('login_google_success');
+        await finishLogin();
     };
 
     const handleMfaVerify = async (e: React.FormEvent) => {
@@ -169,6 +198,14 @@ export default function LoginPage() {
                                 {loading && <Loader2 size={14} className="animate-spin mr-2" />}
                                 {loading ? t('signingIn') : t('signIn')}
                             </button>
+
+                            {/* Renders nothing when Google is not configured, so
+                                the divider must not appear on its own either. */}
+                            <GoogleSignInButton
+                                text="signin_with"
+                                disabled={loading}
+                                onCredential={handleGoogle}
+                            />
                         </form>
                     ) : (
                         <form onSubmit={handleMfaVerify} className="space-y-4">
