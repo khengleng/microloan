@@ -65,9 +65,33 @@ export function setRequestContext(ctx: TenantContext): void {
  * Run `fn` with the tenant wall lifted, for paths that legitimately have no
  * request principal. The `reason` is required so every bypass is greppable
  * and shows up in audit review.
+ *
+ * ⚠️ The await is INSIDE the scope, deliberately, and that is not cosmetic.
+ *
+ * A Prisma call returns a lazy `PrismaPromise`: `findFirst()` builds the query
+ * but does not execute it until something awaits it. With the previous
+ * signature, the natural call site
+ *
+ *     await runAsSystem(reason, () => prisma.thing.findFirst(...))
+ *
+ * built the query inside the scope and executed it *outside* — so the guard
+ * middleware saw the caller's tenant context, not `system`. That is how
+ * `/billing/plan-change` returned "PlatformPaymentQr.findFirst: platform-owned
+ * configuration is not readable by tenant principals" while visibly wrapped in
+ * `runAsSystem`.
+ *
+ * Two call sites inside `tenant-guard.ts` — its own ownership lookups — had the
+ * same defect, which would have re-entered the middleware under the caller's
+ * context instead of bypassing it.
+ *
+ * Awaiting here means every caller gets the guarantee, and a lazily-built query
+ * cannot escape the scope it was written into.
  */
-export function runAsSystem<T>(reason: string, fn: () => T): T {
-  return overrideStore.run({ mode: 'system', reason }, fn);
+export function runAsSystem<T>(
+  reason: string,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  return overrideStore.run({ mode: 'system', reason }, async () => await fn());
 }
 
 /**
@@ -76,8 +100,13 @@ export function runAsSystem<T>(reason: string, fn: () => T): T {
  * each tenant's work re-enters the wall so a bug inside the loop body cannot
  * bleed across tenants.
  */
-export function runAsTenant<T>(tenantId: string, fn: () => T): T {
-  return overrideStore.run({ mode: 'tenant', tenantId }, fn);
+export function runAsTenant<T>(
+  tenantId: string,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  // Awaited inside the scope for the same reason as `runAsSystem` — see the
+  // lazy-PrismaPromise note there.
+  return overrideStore.run({ mode: 'tenant', tenantId }, async () => await fn());
 }
 
 /** Resolve the effective context: an explicit override wins over the request. */
