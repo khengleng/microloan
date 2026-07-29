@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, ServiceUnavailableException, Logger } 
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import Stripe from 'stripe';
+import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import { SystemContext } from '../prisma/tenant-context';
 
 @Injectable()
 export class BillingService {
@@ -11,6 +13,7 @@ export class BillingService {
     constructor(
         private prisma: PrismaService,
         private audit: AuditService,
+        private planTiers: PlanTierService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key', {
             apiVersion: '2024-12-18.acacia' as any,
@@ -40,13 +43,29 @@ export class BillingService {
             });
         }
 
-        const planPriceIds: Record<string, string> = {
-            'PRO': process.env.STRIPE_PRICE_PRO || 'price_1234',
-            'ENTERPRISE': process.env.STRIPE_PRICE_ENTERPRISE || 'price_5678',
+        // The plan key MUST be a tier that exists, because it is what gets
+        // written to Tenant.plan and therefore what the quota guard resolves
+        // ceilings from. Checkout once accepted "PRO" while quotas only knew
+        // "PROFESSIONAL", and paying tenants silently ran on free-tier limits.
+        // Checking against the tier table closes that off permanently — there
+        // is no second list to drift from.
+        const tier = await this.planTiers.byName(plan);
+        if (!tier || !tier.requiresPayment) {
+            throw new BadRequestException('Invalid plan selected');
+        }
+
+        const planPriceIds: Record<string, string | undefined> = {
+            BASIC: process.env.STRIPE_PRICE_BASIC,
+            PROFESSIONAL: process.env.STRIPE_PRICE_PROFESSIONAL || process.env.STRIPE_PRICE_PRO,
+            ENTERPRISE: process.env.STRIPE_PRICE_ENTERPRISE,
         };
 
         const priceId = planPriceIds[plan];
-        if (!priceId) throw new BadRequestException('Invalid plan selected');
+        if (!priceId) {
+            throw new ServiceUnavailableException(
+                `No Stripe price is configured for the ${plan} plan.`,
+            );
+        }
 
         const session = await this.stripe.checkout.sessions.create({
             customer: customerId,
@@ -85,6 +104,9 @@ export class BillingService {
         return { url: session.url };
     }
 
+    // Stripe calls this with no user principal — authentication is the
+    // signature check inside, not a JWT — so it is an explicit system path.
+    @SystemContext('webhook: Stripe subscription events')
     async handleStripeWebhook(signature: string, payload: Buffer) {
         if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
             this.logger.warn('Stripe Webhook hit without env variables configured');

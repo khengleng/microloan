@@ -1,14 +1,11 @@
-import { Controller, Get, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
 import { ExportsService } from './exports.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 import { BadRequestException } from '@nestjs/common';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('exports')
 export class ExportsController {
     constructor(private readonly exportsService: ExportsService) { }

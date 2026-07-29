@@ -3,18 +3,27 @@ import { Reflector } from '@nestjs/core';
 import { Role } from '@microloan/db';
 import { ROLES_KEY } from './roles.decorator';
 import { canonicalRole } from '../authz/role-permissions';
+import { PERMISSIONS_KEY } from '../authz/require-permissions.decorator';
+import { IS_ANY_AUTHENTICATED_KEY, IS_PUBLIC_KEY } from './auth-scope.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    // No @Roles() decorator → route is accessible to any authenticated user
-    if (!requiredRoles) return true;
+    const targets = [context.getHandler(), context.getClass()];
+    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, targets);
+
+    if (!requiredRoles?.length) {
+      // Fail closed. A missing @Roles() used to mean "any authenticated user",
+      // which made an omission indistinguishable from a deliberate decision.
+      // The route must now say what it allows — either explicitly public, or
+      // gated on a permission instead of a role.
+      if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) return true;
+      if (this.reflector.getAllAndOverride<boolean>(IS_ANY_AUTHENTICATED_KEY, targets)) return true;
+      const permissions = this.reflector.getAllAndOverride<unknown[]>(PERMISSIONS_KEY, targets);
+      return (permissions?.length ?? 0) > 0;
+    }
 
     const { user } = context.switchToHttp().getRequest();
     if (!user?.role) return false;

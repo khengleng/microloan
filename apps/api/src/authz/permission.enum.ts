@@ -4,6 +4,7 @@ export enum Permission {
   USER_UPDATE_ROLE = 'USER_UPDATE_ROLE',
   USER_DISABLE = 'USER_DISABLE',
   USER_DELETE = 'USER_DELETE',
+  TENANT_VIEW = 'TENANT_VIEW',
   TENANT_CREATE = 'TENANT_CREATE',
   TENANT_UPDATE = 'TENANT_UPDATE',
   TENANT_SUSPEND = 'TENANT_SUSPEND',
@@ -27,7 +28,12 @@ export enum Permission {
   FX_MANAGE = 'FX_MANAGE',
   // Feature #3: General Ledger
   LEDGER_VIEW = 'LEDGER_VIEW',
-  LEDGER_MANAGE = 'LEDGER_MANAGE',
+  // LEDGER_MANAGE removed: it was granted to TENANT_ADMIN and ACCOUNTANT but
+  // never checked anywhere, because the ledger has no user-facing write
+  // surface — journal entries are posted internally by loan disbursement and
+  // repayment, which are already gated on LOAN_DISBURSE / LOAN_REPAYMENT_POST.
+  // A permission that is granted but never enforced reads as a real
+  // capability in a role review while conferring nothing.
   // Feature #3: Loan-loss provisioning
   PROVISION_VIEW = 'PROVISION_VIEW',
   PROVISION_RUN = 'PROVISION_RUN',

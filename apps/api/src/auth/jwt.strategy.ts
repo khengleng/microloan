@@ -5,6 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { Permission } from '../authz/permission.enum';
 import { permissionsForRole } from '../authz/role-permissions';
+import { SystemContext, setRequestContext } from '../prisma/tenant-context';
 
 export type JwtPayload = {
   sub: string;
@@ -31,6 +32,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+  // Token validation must read the user and tenant rows before any principal
+  // exists, so it runs as an explicitly-declared system path. The resolved
+  // principal is published to the request context at the end of this method.
+  @SystemContext('validating a staff access token')
   async validate(payload: JwtPayload) {
     if (!payload.sub || !payload.email || !payload.role) {
       throw new UnauthorizedException('Invalid token');
@@ -58,8 +63,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Organization not found');
     }
     if (tenant && tenant.status !== 'ACTIVE' && payload.role !== 'SUPERADMIN') {
+      // PENDING_PAYMENT is the signup gate, not a punishment — say so, or the
+      // applicant reads "suspended" and contacts support about a brand-new
+      // workspace that is simply waiting on their transfer.
       throw new ForbiddenException(
-        `Organization Suspended. Please contact support or upgrade your subscription.`
+        tenant.status === 'PENDING_PAYMENT'
+          ? 'Your organization is awaiting plan payment confirmation. You can sign in once the platform team confirms your transfer.'
+          : 'Organization Suspended. Please contact support or upgrade your subscription.',
       );
     }
 
@@ -88,6 +98,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!isPlatform && !user.tenantId) {
       throw new UnauthorizedException('Invalid tenant user scope.');
     }
+
+    // Publish the verified principal so the Prisma tenant guard can enforce
+    // the wall on every query this request goes on to make. SUPERADMIN gets
+    // `platform` (unrestricted, by design); everyone else is pinned to their
+    // own tenantId — the value read from the database, never the token claim.
+    setRequestContext(
+      isPlatform
+        ? { mode: 'platform', actorId: payload.sub }
+        : { mode: 'tenant', tenantId: user.tenantId!, actorId: payload.sub, branchId: user.branchId },
+    );
 
     return {
       id: payload.sub,

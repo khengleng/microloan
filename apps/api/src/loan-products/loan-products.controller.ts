@@ -2,8 +2,6 @@ import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nes
 import { LoanProductsService } from './loan-products.service';
 import { CreateLoanProductDto } from './dto/create-loan-product.dto';
 import { UpdateLoanProductDto } from './dto/update-loan-product.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -16,7 +14,7 @@ import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 // Loan products are tenant configuration: reads require CUSTOMER_VIEW, writes
 // require CONFIG_UPDATE (TENANT_ADMIN). Enforced by PermissionGuard so access
 // can't be granted by the coarse legacy role names alone.
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard, QuotaGuard)
+@UseGuards(QuotaGuard)
 @Controller('loan-products')
 export class LoanProductsController {
     constructor(private readonly loanProductsService: LoanProductsService) { }

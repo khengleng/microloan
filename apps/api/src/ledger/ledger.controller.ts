@@ -1,14 +1,16 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { LedgerService } from './ledger.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
+import { Permission } from '../authz/permission.enum';
 
-// Coarse role gate; fine-grained enforcement is in LedgerService.assertPermission.
-@UseGuards(JwtAuthGuard, RolesGuard)
+// Role gate plus an explicit permission gate. The service still asserts
+// LEDGER_VIEW per method — the declaration here makes the policy visible on
+// the route rather than only discoverable by reading the service.
 @Roles('TENANT_ADMIN', 'ADMIN', 'ACCOUNTANT', 'FINANCE', 'AUDITOR')
+@RequirePermissions(Permission.LEDGER_VIEW)
 @Controller('ledger')
 export class LedgerController {
     constructor(private readonly ledger: LedgerService) { }

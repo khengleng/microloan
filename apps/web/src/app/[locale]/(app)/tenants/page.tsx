@@ -25,6 +25,9 @@ const PLAN_COLORS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
     ACTIVE: 'bg-emerald-100 text-emerald-700',
     SUSPENDED: 'bg-rose-100 text-rose-700',
+    // Self-serve signup awaiting a confirmed plan payment — distinct from
+    // SUSPENDED, which is a punishment rather than a pending step.
+    PENDING_PAYMENT: 'bg-amber-100 text-amber-700',
 };
 
 interface Tenant {
