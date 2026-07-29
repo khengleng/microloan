@@ -1,6 +1,7 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@microloan/db';
 import { encryptField, decryptField, isEncrypted, blindIndex } from '../common/field-crypto';
+import { createTenantGuardMiddleware, TenantGuardMode } from './tenant-guard';
 
 // Model fields encrypted at rest on write, with optional deterministic blind
 // index columns for exact-match lookup / uniqueness. Reads are decrypted
@@ -41,7 +42,25 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger(PrismaService.name);
+
   async onModuleInit() {
+    // ── Tenant wall ─────────────────────────────────────────────────────────
+    // Registered FIRST so it is the outermost middleware: a cross-tenant query
+    // is rejected before any encryption work is done on its payload.
+    //
+    // TENANT_GUARD_MODE=warn downgrades unscoped-context queries from a 403 to
+    // a log line. It exists as an operational escape hatch for rollout only —
+    // production should run the default `enforce`.
+    const guardMode: TenantGuardMode =
+      process.env.TENANT_GUARD_MODE === 'warn' ? 'warn' : 'enforce';
+    if (guardMode === 'warn') {
+      this.logger.warn(
+        'TENANT_GUARD_MODE=warn — cross-tenant isolation is NOT enforced at the database layer.',
+      );
+    }
+    this.$use(createTenantGuardMiddleware(this, { mode: guardMode, logger: this.logger }));
+
     this.$use(async (params, next) => {
       // ── Write: encrypt configured fields + populate blind-index hashes ──────
       const spec = params.model ? ENCRYPTED_WRITE[params.model] : undefined;

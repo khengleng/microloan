@@ -1,50 +1,53 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException, Query } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
 import { PlatformGuard } from '../auth/platform.guard';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PlatformGuard, PermissionGuard)
+/**
+ * Platform-owner surface. Every route is SUPERADMIN-only, enforced in three
+ * independent places: PlatformGuard (role + tenantId === null), the
+ * TENANT_* permissions (held by no other role), and `assertPlatformOnly` in
+ * the service. No tenant principal can reach any of this.
+ */
+@UseGuards(PlatformGuard)
 @Controller('tenants')
 export class TenantsController {
     constructor(private readonly tenantsService: TenantsService) { }
 
-    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES')
-    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
     @Get('stats/platform')
     platformStats(@CurrentUser() user: JwtPayload) {
         return this.tenantsService.platformStats(user);
     }
 
-    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
-    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
     @Get()
     findAll(@CurrentUser() user: JwtPayload, @Query('archived') archived?: string) {
         return this.tenantsService.findAll(user, archived === 'true');
     }
 
-    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
-    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
     @Get(':id')
     findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.tenantsService.findOne(user, id);
     }
 
-    @Roles('SUPERADMIN', 'ADMIN', 'SALES')
+    @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_CREATE)
     @Post()
     create(@CurrentUser() user: JwtPayload, @Body() data: { name: string; adminEmail?: string; adminPassword?: string }) {
         return this.tenantsService.create(user, data);
     }
 
-    @Roles('SUPERADMIN', 'ADMIN')
+    @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_UPDATE)
     @Put(':id')
     update(
@@ -59,7 +62,7 @@ export class TenantsController {
         return this.tenantsService.update(user, id, data);
     }
 
-    @Roles('SUPERADMIN', 'ADMIN')
+    @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_SUSPEND)
     @Put(':id/suspend')
     suspend(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
@@ -69,7 +72,7 @@ export class TenantsController {
         return this.tenantsService.setStatus(user, id, 'SUSPENDED');
     }
 
-    @Roles('SUPERADMIN', 'ADMIN')
+    @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_SUSPEND)
     @Put(':id/activate')
     activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
@@ -98,9 +101,35 @@ export class TenantsController {
         return this.tenantsService.hardDelete(user, id);
     }
 
+    // ── Signup payment gate (self-serve workspace activation) ──────────────
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
+    @Get('plan-payments/list')
+    planPayments(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
+        return this.tenantsService.listPlanPayments(user, status || 'PENDING');
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Put('plan-payments/:paymentId/confirm')
+    confirmPlanPayment(@CurrentUser() user: JwtPayload, @Param('paymentId') paymentId: string) {
+        return this.tenantsService.confirmPlanPayment(user, paymentId);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Put('plan-payments/:paymentId/reject')
+    rejectPlanPayment(
+        @CurrentUser() user: JwtPayload,
+        @Param('paymentId') paymentId: string,
+        @Body() body: { reason?: string },
+    ) {
+        return this.tenantsService.rejectPlanPayment(user, paymentId, body?.reason || '');
+    }
+
     // Platform user management
-    @Roles('SUPERADMIN', 'ADMIN', 'FINANCE', 'SALES', 'CX')
-    @RequirePermissions(Permission.USER_UPDATE)
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
     @Get(':id/users')
     tenantUsers(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
         return this.tenantsService.getTenantUsers(user, id);

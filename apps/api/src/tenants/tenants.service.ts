@@ -158,6 +158,124 @@ export class TenantsService {
     }
 
     /**
+     * Signup payments awaiting a decision.
+     *
+     * Platform-only, like everything else on this service. Deliberately
+     * returns the applicant organization and plan but no user PII — a
+     * SUPERADMIN confirming a bank transfer needs the reference and the
+     * amount, not the admin's details.
+     */
+    async listPlanPayments(actor: JwtPayload, status = 'PENDING') {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_VIEW);
+        return this.prisma.planPayment.findMany({
+            where: { status },
+            orderBy: { createdAt: 'asc' },
+            select: {
+                id: true,
+                reference: true,
+                plan: true,
+                amount: true,
+                currency: true,
+                status: true,
+                expiresAt: true,
+                createdAt: true,
+                tenant: { select: { id: true, name: true, status: true } },
+            },
+        });
+    }
+
+    /**
+     * Confirm a signup payment and activate the workspace.
+     *
+     * This is the only place a PENDING_PAYMENT tenant becomes ACTIVE, and the
+     * only place the paid plan is written to the tenant — provisioning stores
+     * the requested plan on the payment and leaves the tenant on FREE, so an
+     * unconfirmed workspace can never hold paid quota limits.
+     */
+    async confirmPlanPayment(actor: JwtPayload, paymentId: string) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_UPDATE);
+
+        const payment = await this.prisma.planPayment.findUnique({
+            where: { id: paymentId },
+            include: { tenant: { select: { id: true, name: true, status: true } } },
+        });
+        if (!payment) throw new BadRequestException('Payment not found');
+        if (payment.status !== 'PENDING') {
+            throw new BadRequestException(`Payment is already ${payment.status}.`);
+        }
+
+        const [updatedPayment, tenant] = await this.prisma.$transaction([
+            this.prisma.planPayment.update({
+                where: { id: paymentId },
+                data: {
+                    status: 'CONFIRMED',
+                    confirmedByUserId: this.authz.actorId(actor as any),
+                    confirmedAt: new Date(),
+                },
+            }),
+            this.prisma.tenant.update({
+                where: { id: payment.tenantId },
+                data: { status: 'ACTIVE', plan: payment.plan },
+            }),
+        ]);
+
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: payment.tenantId,
+            action: 'PLAN_PAYMENT_CONFIRMED',
+            newValue: {
+                reference: payment.reference,
+                plan: payment.plan,
+                amount: payment.amount.toString(),
+                currency: payment.currency,
+            },
+            result: 'SUCCESS',
+        });
+
+        return { payment: updatedPayment, tenant };
+    }
+
+    /** Reject a signup payment. The workspace stays inert. */
+    async rejectPlanPayment(actor: JwtPayload, paymentId: string, reason: string) {
+        this.authz.assertPlatformOnly(actor);
+        this.authz.assertPermission(actor, Permission.TENANT_UPDATE);
+
+        const payment = await this.prisma.planPayment.findUnique({ where: { id: paymentId } });
+        if (!payment) throw new BadRequestException('Payment not found');
+        if (payment.status !== 'PENDING') {
+            throw new BadRequestException(`Payment is already ${payment.status}.`);
+        }
+
+        const updated = await this.prisma.planPayment.update({
+            where: { id: paymentId },
+            data: {
+                status: 'REJECTED',
+                rejectedReason: reason?.slice(0, 500) || 'No reason supplied',
+                confirmedByUserId: this.authz.actorId(actor as any),
+                confirmedAt: new Date(),
+            },
+        });
+
+        await this.audit.logSecurityEvent({
+            actorUserId: actor.sub,
+            actorRole: actor.role,
+            actorTenantId: actor.tenantId,
+            targetType: 'Tenant',
+            targetId: payment.tenantId,
+            action: 'PLAN_PAYMENT_REJECTED',
+            newValue: { reference: payment.reference, reason },
+            result: 'SUCCESS',
+        });
+
+        return updated;
+    }
+
+    /**
      * Fix 9 – Phase 1: GDPR soft-delete / erasure request.
      * Suspends the tenant and marks deletedAt. A SUPERADMIN (or background job)
      * calls hardDelete() after the required retention period (e.g. 30 days).

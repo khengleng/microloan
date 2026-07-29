@@ -2,18 +2,15 @@ import { Controller, Get, Post, Body, Param, Delete, Put, Patch, UseGuards } fro
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard, QuotaGuard)
+@UseGuards(QuotaGuard)
 @Controller('users')
 export class UsersController {
     constructor(private readonly usersService: UsersService) { }

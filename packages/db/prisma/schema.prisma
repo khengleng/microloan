@@ -12,7 +12,12 @@ model Tenant {
   name                     String
   telegramBotToken         String?   @unique // Per-tenant bot token
   plan                     String    @default("FREE") // Basic subscription visibility
-  status                   String    @default("ACTIVE") // ACTIVE, SUSPENDED
+  // ACTIVE, SUSPENDED, PENDING_PAYMENT.
+  // PENDING_PAYMENT is the self-serve signup gate: the organization exists but
+  // no one can authenticate into it until a SUPERADMIN confirms the plan
+  // payment. JwtStrategy rejects any non-ACTIVE tenant, so the gate is the
+  // same one that enforces suspension.
+  status                   String    @default("ACTIVE")
   stripeCustomerId         String?
   stripeSubscriptionId     String?
   // Fix 5: configurable late penalty in $USD per overdue installment per day
@@ -46,6 +51,111 @@ model Tenant {
   promisesToPay  PromiseToPay[]
   paymentInstruments PaymentInstrument[]
   loanAgreements LoanAgreement[]
+  planPayments   PlanPayment[]
+}
+
+/// Plan payment for a self-serve workspace signup.
+///
+/// A paid plan cannot activate itself: signup mints one of these with a KHQR
+/// payload, the tenant sits in PENDING_PAYMENT, and a SUPERADMIN confirms
+/// receipt out of band (there is no Bakong settlement API to verify against).
+/// `reference` is the unguessable handle the applicant uses to re-open their
+/// QR without being able to authenticate yet.
+model PlanPayment {
+  id                String    @id @default(uuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan              String
+  amount            Decimal   @db.Decimal(12, 2)
+  currency          Currency  @default(USD)
+  /// Public, unguessable lookup key shown alongside the QR as the payment memo.
+  reference         String    @unique
+  /// EMVCo/KHQR payload string. Regenerated on demand; never a credential.
+  qrPayload         String
+  /// PENDING, CONFIRMED, REJECTED, EXPIRED
+  status            String    @default("PENDING")
+  confirmedByUserId String?
+  confirmedAt       DateTime?
+  rejectedReason    String?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([status, createdAt])
+}
+
+/// The platform operator's own KHQR merchant details, digested from a QR they
+/// uploaded. Replaces the KHQR_* environment variables as the source of truth
+/// for minting signup payment codes.
+///
+/// Platform-scoped: it has no tenantId because it does not belong to a tenant,
+/// and the Prisma tenant guard denies it to tenant principals outright rather
+/// than letting it fall outside the wall by omission. Only one row is ever
+/// active — `isActive` lets a replaced QR stay as history for audit.
+model PlatformPaymentQr {
+  id                   String   @id @default(uuid())
+  /// Bakong account id recovered from the uploaded code.
+  bakongAccountId      String
+  merchantName         String
+  merchantCity         String
+  merchantCategoryCode String   @default("6012")
+  /// The exact payload that was uploaded, kept verbatim for audit and re-parse.
+  sourcePayload        String
+  /// How it arrived: IMAGE or PAYLOAD.
+  sourceType           String
+  isActive             Boolean  @default(true)
+  uploadedByUserId     String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([isActive, createdAt])
+}
+
+/// A subscription tier, defined by the platform owner.
+///
+/// Tiers were previously a hardcoded union (FREE/BASIC/PROFESSIONAL/ENTERPRISE)
+/// with quotas in `plan-limits.ts` and prices in `PLAN_PRICE_*` env vars. They
+/// are rows now, so the operator adds, reprices and retires tiers without a
+/// deploy.
+///
+/// Platform-scoped: no tenantId. Deliberately NOT in the Prisma guard's
+/// PLATFORM_ONLY set — a tenant principal legitimately reads its own tier's
+/// quota ceilings on every quota-checked write, and the catalogue holds no
+/// secret. The guard instead classifies it as a platform *catalogue*: readable
+/// by tenants, writable only by the platform.
+model PlanTier {
+  id          String   @id @default(uuid())
+  /// Stable key, stored on `Tenant.plan` and `PlanPayment.plan`. Immutable
+  /// after creation — renaming would orphan every tenant already on the tier,
+  /// since those columns hold the name rather than a foreign key. Rename the
+  /// customer-visible `displayName` instead.
+  name        String   @unique
+  displayName String
+  description String?
+  priceAmount Decimal  @default(0) @db.Decimal(12, 2)
+  currency    Currency @default(USD)
+
+  /// Quota ceilings. NULL means unlimited — chosen over a magic large integer
+  /// so "unlimited" survives a round trip through the UI unambiguously, and so
+  /// a forgotten field cannot read as a quota of zero.
+  maxUsers        Int?
+  maxBorrowers    Int?
+  maxLoanProducts Int?
+  maxLoans        Int?
+
+  /// Display order on the signup page. Ties break by price, then name.
+  sortOrder Int @default(0)
+
+  /// Whether the tier can be chosen at signup. A retired tier (false) keeps
+  /// serving quota ceilings to tenants already on it — retiring must never
+  /// silently demote a paying customer to FREE limits.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 enum Currency {
@@ -98,7 +208,10 @@ model User {
   branchId         String?
   branch           Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   email            String    @unique
-  passwordHash     String
+  // Optional: an account created through a federated provider (Google) has no
+  // local password. At least one credential — a password hash or a linked
+  // identity — must exist for the account to be usable.
+  passwordHash     String?
   twoFactorSecret  String? // For MFA
   twoFactorEnabled Boolean   @default(false)
   isActive         Boolean   @default(true) // For soft delete / suspension
@@ -114,10 +227,34 @@ model User {
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  identities    FederatedIdentity[]
 
   @@index([tenantId])
   @@index([branchId])
   @@index([email])
+}
+
+/// A third-party login (currently Google) linked to a staff account.
+/// Separate from User so a second provider can be added without a schema
+/// change, and so unlinking is a delete rather than a nullable-column dance.
+/// Has no tenantId of its own — it is scoped through its owning user.
+model FederatedIdentity {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Provider key, e.g. "GOOGLE".
+  provider          String
+  /// The provider's stable subject id ("sub"), NOT the email — emails change
+  /// and are reassignable within a Workspace domain, subjects are not.
+  providerAccountId String
+  /// Email as asserted by the provider at link time, for display and audit.
+  email             String
+  lastLoginAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 // Self-service password reset (forgot-password). The raw token is emailed; only

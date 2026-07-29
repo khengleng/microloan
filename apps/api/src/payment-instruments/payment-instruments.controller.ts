@@ -6,23 +6,18 @@ import {
   Param,
   Post,
   Put,
-  UseGuards,
-} from '@nestjs/common';
+  } from '@nestjs/common';
 import { PaymentInstrumentsService } from './payment-instruments.service';
 import {
   CreatePaymentInstrumentDto,
   UpdatePaymentInstrumentDto,
 } from './dto/payment-instrument.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
-import { PermissionGuard } from '../authz/permission.guard';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
 @Controller('payment-instruments')
 export class PaymentInstrumentsController {
   constructor(private readonly service: PaymentInstrumentsService) {}

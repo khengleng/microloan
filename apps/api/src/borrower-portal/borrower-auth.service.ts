@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { borrowerJwtSecret, BORROWER_TOKEN_TTL } from './borrower-jwt';
 import { blindIndex } from '../common/field-crypto';
+import { SystemContext } from '../prisma/tenant-context';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -29,6 +30,7 @@ export class BorrowerAuthService {
    * borrower with this phone exists in an ACTIVE tenant, an SMS OTP is sent.
    * The OTP is bound to the most-recently-updated matching borrower.
    */
+  @SystemContext('pre-auth: resolving a borrower by phone')
   async requestOtp(phoneRaw: string): Promise<{ sent: true }> {
     const phone = phoneRaw.trim();
     const phoneHash = blindIndex(phone, 'phone');
@@ -59,6 +61,7 @@ export class BorrowerAuthService {
     return { sent: true };
   }
 
+  @SystemContext('pre-auth: redeeming a borrower OTP')
   async verifyOtp(phoneRaw: string, code: string) {
     const phone = phoneRaw.trim();
     const phoneHash = blindIndex(phone, 'phone') as string;

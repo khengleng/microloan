@@ -7,6 +7,7 @@ import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
 import { decryptField, blindIndex } from '../common/field-crypto';
+import { SystemContext, TenantScopedByArg } from '../prisma/tenant-context';
 
 const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
@@ -33,6 +34,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         private readonly loansService: LoansService,
     ) { }
 
+    @SystemContext('startup: loads bot tokens for every tenant')
     async onModuleInit() {
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
@@ -47,6 +49,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         await this.reloadAllBots();
     }
 
+    @SystemContext('startup: enumerates tenants with a configured bot')
     async reloadAllBots() {
         // Stop existing bots
         for (const [tenantId, bot] of this.bots.entries()) {
@@ -68,6 +71,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    @TenantScopedByArg(0)
     async startBotForTenant(tenantId: string, token: string) {
         if (this.bots.has(tenantId)) {
             this.bots.get(tenantId)?.stop('SIGINT');
@@ -175,6 +179,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Telegram Bot started for tenant: ${tenantId}`);
     }
 
+    @TenantScopedByArg(0)
     async handleOriginateLoan(tenantId: string, chatId: number, args: any) {
         // Find a valid user in this tenant for audit log
         const user = await this.prisma.user.findFirst({ where: { tenantId } });
@@ -240,6 +245,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         });
     }
 
+    @TenantScopedByArg(0)
     async getLoanProducts(tenantId: string): Promise<string> {
         const products = await this.prisma.loanProduct.findMany({
             where: { isActive: true, tenantId },
@@ -248,6 +254,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         return JSON.stringify(products);
     }
 
+    @TenantScopedByArg(0)
     async checkLoanBalance(tenantId: string, chatId: number): Promise<string> {
         const borrower = await this.prisma.borrower.findFirst({
             where: { telegramChatId: chatId.toString(), tenantId },
@@ -272,6 +279,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         return JSON.stringify({ loans: accountSummary });
     }
 
+    @TenantScopedByArg(0)
     async sendDisbursementAlert(tenantId: string, chatId: string, message: string) {
         const bot = this.bots.get(tenantId);
         if (bot) {
@@ -280,6 +288,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     @Cron(CronExpression.EVERY_DAY_AT_10AM)
+    @SystemContext('cron: scans overdue loans across all tenants')
     async sendLatePaymentAlerts() {
         this.logger.log('Running daily late payment checks across all tenants...');
         const lateSchedules = await this.prisma.repaymentSchedule.findMany({

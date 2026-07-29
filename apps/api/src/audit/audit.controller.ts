@@ -1,13 +1,10 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Res } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import type { Response } from 'express';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('audit-logs')
 export class AuditLogsController {
     constructor(private prisma: PrismaService) { }
