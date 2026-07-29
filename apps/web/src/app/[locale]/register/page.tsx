@@ -10,6 +10,7 @@ import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { SignupPaymentPanel, type SignupPayment } from '@/components/auth/signup-payment-panel';
 import { BrandMark } from '@/components/brand-mark';
 import { LocaleSwitch } from '@/components/auth/locale-switch';
+import { SignupJourney } from '@/components/auth/signup-journey';
 
 type Plan = {
     /** Stable key sent back on submit. */
@@ -135,6 +136,12 @@ export default function RegisterTenantPage() {
         applyResult(data);
     };
 
+    const journeyLabels = {
+        details: t('stepDetails'),
+        payment: t('stepPayment'),
+        active: t('stepActive'),
+    };
+
     const inputClass = "w-full h-10 px-3 bg-secondary border border-border rounded text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors";
     const labelClass = "block text-[12px] font-semibold text-muted-foreground mb-1.5";
 
@@ -143,6 +150,12 @@ export default function RegisterTenantPage() {
             <div className="min-h-screen flex items-center justify-center bg-background py-10">
                 <div className="w-full max-w-[420px] px-4">
                     <div className="bg-card border border-border rounded-lg p-8">
+                        <SignupJourney
+                            current={result.paymentRequired ? 'payment' : 'active'}
+                            includePayment={result.paymentRequired}
+                            labels={journeyLabels}
+                            className="mb-7"
+                        />
                         <div className="text-center">
                             <div className="w-12 h-12 bg-[#26a69a]/15 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <CheckCircle2 size={24} className="text-[#26a69a]" />
@@ -213,6 +226,15 @@ export default function RegisterTenantPage() {
                     </div>
 
                     <div className="bg-card border border-border rounded-xl p-6 sm:p-7">
+                        {/* includePayment tracks the *selected* plan, so choosing
+                            a paid tier makes the payment step appear before you
+                            submit rather than surprising you afterwards. */}
+                        <SignupJourney
+                            current="details"
+                            includePayment={Boolean(selected?.requiresPayment)}
+                            labels={journeyLabels}
+                            className="mb-6"
+                        />
                         <h1 className="text-[18px] font-bold text-foreground mb-1">{t('title')}</h1>
                         <p className="text-[13px] text-muted-foreground mb-6">
                             {t('subtitle')}

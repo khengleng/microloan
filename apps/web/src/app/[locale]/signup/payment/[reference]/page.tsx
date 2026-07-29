@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { BrandMark } from '@/components/brand-mark';
 import { LocaleSwitch } from '@/components/auth/locale-switch';
+import { SignupJourney } from '@/components/auth/signup-journey';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { SignupPaymentPanel, type SignupPayment } from '@/components/auth/signup-payment-panel';
 
@@ -18,6 +20,7 @@ type PaymentView = SignupPayment & { plan: string; organizationName: string; sta
  * the URL is the only credential they have. The API throttles this route.
  */
 export default function SignupPaymentStatusPage() {
+    const t = useTranslations('Register');
     const { locale, reference } = useParams();
     const [payment, setPayment] = useState<PaymentView | null>(null);
     const [error, setError] = useState('');
@@ -51,6 +54,12 @@ export default function SignupPaymentStatusPage() {
                 </div>
 
                 <div className="bg-card border border-border rounded-lg p-7">
+                    <SignupJourney
+                        current={payment?.status === 'CONFIRMED' ? 'active' : 'payment'}
+                        includePayment
+                        labels={{ details: t('stepDetails'), payment: t('stepPayment'), active: t('stepActive') }}
+                        className="mb-6"
+                    />
                     <h1 className="text-[18px] font-bold text-foreground mb-1">Activation status</h1>
 
                     {loading && (
