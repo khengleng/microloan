@@ -9,6 +9,7 @@ import {
 } from './khqr';
 import { readQrFromImage, bufferFromUpload } from './qr-image';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import { runAsSystem } from '../prisma/tenant-context';
 
 export type UploadKhqrInput = {
   /** Base64 image (optionally a data: URI). PNG or JPEG. */
@@ -144,10 +145,30 @@ export class PlatformQrService {
 
   /** The active merchant profile, or null when none has been uploaded. */
   async active(): Promise<KhqrMerchant | null> {
-    const row = await this.prisma.platformPaymentQr.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    /*
+     * Read as system.
+     *
+     * PlatformPaymentQr is PLATFORM_ONLY in the Prisma tenant guard, so a
+     * tenant principal is denied it outright — correctly, since it is the
+     * operator's own merchant profile. But a tenant admin upgrading their plan
+     * legitimately needs two things derived from it: whether paid plans are
+     * possible at all, and a payment code minted from those details. Without
+     * this, `/billing/plan-change` died with
+     * "Cross-tenant access is forbidden (PlatformPaymentQr.findFirst)".
+     *
+     * The wall is not weakened. This method is internal; what callers receive
+     * is either a boolean (`isConfigured`) or a KHQR payload the payer has to
+     * see in order to pay. The one route that returns the raw merchant profile
+     * is `status()`, and that is behind PlatformGuard + SUPERADMIN.
+     */
+    const row = await runAsSystem(
+      'platform KHQR merchant lookup: minting a payment code for a tenant',
+      () =>
+        this.prisma.platformPaymentQr.findFirst({
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+    );
     if (!row) return null;
     return {
       bakongAccountId: row.bakongAccountId,
