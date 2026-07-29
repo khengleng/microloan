@@ -62,6 +62,22 @@ export type GoogleSignInButtonProps = {
     text?: 'signin_with' | 'signup_with' | 'continue_with';
     disabled?: boolean;
     onUnavailable?: () => void;
+    /**
+     * BCP-47 language for Google's own button label, e.g. "en" or "km".
+     *
+     * Without this GIS picks the *browser's* language, which produced a Khmer
+     * button sitting under an English form on /en/login. The page's locale is
+     * the only thing that should decide this.
+     */
+    locale?: string;
+    /**
+     * Rule and label rendered above the button, e.g. "or".
+     *
+     * Lives here rather than in the page because this component renders
+     * nothing when Google is unconfigured — a divider owned by the page would
+     * be left stranded above empty space.
+     */
+    dividerLabel?: string;
 };
 
 export function GoogleSignInButton({
@@ -69,6 +85,8 @@ export function GoogleSignInButton({
     text = 'continue_with',
     disabled = false,
     onUnavailable,
+    locale,
+    dividerLabel,
 }: GoogleSignInButtonProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [clientId, setClientId] = useState<string | null>(null);
@@ -130,13 +148,22 @@ export function GoogleSignInButton({
                     ux_mode: 'popup',
                 });
                 containerRef.current.innerHTML = '';
+                // GIS renders a fixed-width iframe, so a hardcoded 320 sat
+                // narrower than the submit button above it on wide cards and
+                // overflowed narrow ones. Match the container instead; 400 is
+                // Google's documented maximum.
+                const available = containerRef.current.offsetWidth;
                 window.google.accounts.id.renderButton(containerRef.current, {
                     theme: 'outline',
                     size: 'large',
-                    width: 320,
+                    width: Math.min(400, Math.max(200, available || 320)),
                     text,
                     shape: 'rectangular',
                     logo_alignment: 'center',
+                    // Undefined lets GIS fall back to the browser language,
+                    // which is the bug this replaces — callers pass the page
+                    // locale.
+                    locale,
                 });
                 setStatus('ready');
             })
@@ -147,12 +174,21 @@ export function GoogleSignInButton({
         return () => {
             cancelled = true;
         };
-    }, [clientId, handleCredential, text]);
+    }, [clientId, handleCredential, text, locale]);
 
     if (status === 'unavailable') return null;
 
     return (
         <div className="space-y-2">
+            {dividerLabel && (
+                <div className="flex items-center gap-3 pt-1 pb-2" aria-hidden>
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {dividerLabel}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
+                </div>
+            )}
             <div
                 ref={containerRef}
                 aria-busy={status === 'loading'}
