@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { PlanChangeCard } from '@/components/billing/plan-change-card';
 import { useAuth } from '@/lib/auth-context';
 import { Input } from '@/components/ui/input';
 import {
-    Building2, MessageSquare, Save, Loader2, CreditCard,
-    Link2, Zap, ShieldCheck, ExternalLink, Globe, Key, Users, Server
+    Building2, MessageSquare, Save, Loader2,
+    Link2, ShieldCheck, ExternalLink, Globe, Key, Users, Server
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -22,7 +23,6 @@ const labelCls = "block text-sm font-medium text-foreground mb-1";
 function PlatformSettings() {
     const { locale } = useParams();
     const t = useTranslations('Settings');
-    const { showToast } = useToast();
     return (
         <div className="max-w-4xl space-y-6">
             <div>
@@ -151,24 +151,6 @@ function TenantSettings() {
         }
     };
 
-    const handleUpgrade = async (plan: string) => {
-        try {
-            const res = await api.post('/billing/checkout', { plan });
-            window.location.href = res.data.url;
-        } catch (err: any) {
-            showToast('Checkout failed: ' + (err.response?.data?.message || err.message), 'error');
-        }
-    };
-
-    const handleManageSubscription = async () => {
-        try {
-            const res = await api.post('/billing/portal');
-            window.location.href = res.data.url;
-        } catch (err: any) {
-            showToast('Could not open billing portal: ' + (err.response?.data?.message || err.message), 'error');
-        }
-    };
-
     if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
             <Loader2 className="animate-spin mr-2" size={16} /> {t('loadingSettings')}
@@ -247,61 +229,8 @@ function TenantSettings() {
                     {/* Static-QR collection instruments (display-only payment rail) */}
                     <PaymentInstruments />
 
-                    {/* Subscription */}
-                    <div className="bg-primary text-primary-foreground border border-primary rounded-md">
-                        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/20">
-                            <CreditCard size={16} />
-                            <div>
-                                <h3 className="text-sm font-bold">{t('subscription')}</h3>
-                                <p className="text-xs text-primary-foreground/70">{t('subscriptionDesc')}</p>
-                            </div>
-                        </div>
-                        <div className="px-5 py-4 flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-xs text-primary-foreground/60 uppercase tracking-wide mb-1 flex items-center gap-1.5">
-                                    <Zap size={12} /> {t('currentPlan')}
-                                </p>
-                                <p className="text-2xl font-bold">{settings.plan}</p>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                {settings.billingEnabled === false ? (
-                                    <span className="text-xs font-semibold text-white/70 bg-white/10 border border-white/20 px-4 py-2 rounded">
-                                        {t('billingSoon')}
-                                    </span>
-                                ) : settings.plan === 'FREE' ? (
-                                    <button
-                                        onClick={() => handleUpgrade('PRO')}
-                                        className="bg-white text-primary font-bold text-sm px-5 py-2 rounded hover:bg-white/90 transition-colors"
-                                    >
-                                        {t('upgradePro')}
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={() => handleUpgrade('ENTERPRISE')}
-                                            className="border border-white/30 text-white font-semibold text-sm px-5 py-2 rounded hover:bg-white/10 transition-colors"
-                                        >
-                                            {t('upgradeEnterprise')}
-                                        </button>
-                                        <button
-                                            onClick={handleManageSubscription}
-                                            className="flex items-center justify-center gap-1.5 border border-white/20 text-white/80 font-medium text-xs px-5 py-1.5 rounded hover:bg-white/10 transition-colors"
-                                        >
-                                            <ExternalLink size={11} /> {t('manageSubscription')}
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        <div className="px-5 pb-4">
-                            <p className="text-xs text-primary-foreground/50 flex items-center gap-1.5">
-                                <ShieldCheck size={12} />
-                                {settings.billingEnabled === false
-                                    ? t('billingNotEnabled')
-                                    : t('billingStripe')}
-                            </p>
-                        </div>
-                    </div>
+                    {/* Subscription — KHQR plan change */}
+                    <PlanChangeCard />
                 </div>
 
                 <div className="space-y-5">
