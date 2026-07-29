@@ -52,14 +52,37 @@ Hotfixes follow the same path; do not skip staging.
   **Redeploy** (or `railway redeploy`). For a bad migration, roll the code back
   via git *and* resolve the migration state in the DB (`prisma migrate resolve`).
 
-## ✅ Setup status — pipeline is fully active
+## Setup status — pipeline active (api trigger corrected 2026-07-29)
 
-Per-environment deploy branches are configured and **verified end-to-end** (a
-tagged commit pushed to `staging` deployed to staging only; production was
-untouched):
+| Service | Environment | Deploy branch |
+|---|---|---|
+| api | staging | `staging` |
+| api | production | `main` |
+| web | staging | `staging` |
+| web | production | `main` |
 
-- **production** deploys from `main`
-- **staging** deploys from `staging`
+⚠️ **This was wrong until 2026-07-29 and is worth knowing about.** The **api**
+service in the **staging** environment was pointing at `main`, not `staging`.
+The earlier "verified end-to-end" claim held for `web` only — the tagged-commit
+test exercised the web service, and nobody checked that api had the same wiring.
+
+Two things followed from it, both of which invalidate past assumptions:
+
+- **The staging gate was not real for the api.** Migrations run in `start:prod`
+  on the api service, so "migrations pass on staging" was never actually
+  validating a `staging`-branch migration. Any migration merged to `staging`
+  before this date reached production without a staging rehearsal.
+- **Staging and production ran the same api code.** Both tracked `main`, so
+  staging was isolated by data and secrets but not by code.
+
+Symptom to recognise if it regresses: a merge to `staging` lands on
+`origin/staging`, but `railway deployment list -e staging -s api` shows no new
+deployment. Verify the wiring with:
+
+```bash
+railway api 'query { project(id: "<projectId>") { services { edges { node {
+  name repoTriggers { edges { node { branch environmentId } } } } } } } }'
+```
 
 Note: the per-environment branch is set in the Railway **dashboard** (api & web
 service → Settings → Source → Deploy Branch, per environment) — the CLI's
