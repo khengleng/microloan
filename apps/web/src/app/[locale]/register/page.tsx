@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { Check, CheckCircle2, Loader2, Info } from 'lucide-react';
 import Link from 'next/link';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
@@ -106,7 +106,7 @@ export default function RegisterTenantPage() {
             applyResult(data);
         } catch (err: unknown) {
             clarityEvent('register_submit_failed');
-            setError(err instanceof Error ? err.message : 'An error occurred during registration.');
+            setError(err instanceof Error ? err.message : t('errorGeneric'));
         } finally {
             setSubmitting(false);
         }
@@ -116,7 +116,7 @@ export default function RegisterTenantPage() {
         clarityEvent('register_google_attempt');
         setError('');
         if (!formData.organizationName.trim()) {
-            throw new Error('Enter your organization name before continuing with Google.');
+            throw new Error(t('errorNeedOrg'));
         }
         const res = await fetch('/api/proxy/auth/google/register-tenant', {
             method: 'POST',
@@ -152,9 +152,8 @@ export default function RegisterTenantPage() {
                             </h1>
                             <p className="text-[13px] text-muted-foreground mb-6">
                                 <strong className="text-foreground">{result.tenantName}</strong>
-                                {result.paymentRequired
-                                    ? ' has been created on the ' + result.plan + ' plan. Complete payment to activate it.'
-                                    : ' has been registered. Redirecting to login...'}
+                                {' '}
+                                {result.paymentRequired ? t('pendingDesc') : t('doneDesc')}
                             </p>
                         </div>
 
@@ -178,7 +177,7 @@ export default function RegisterTenantPage() {
 
     return (
         <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
-            <div className="w-full max-w-5xl grid lg:grid-cols-[1fr_460px] gap-10 lg:gap-14 items-center">
+            <div className="w-full max-w-5xl grid lg:grid-cols-[1fr_460px] gap-10 lg:gap-14 items-start lg:pt-6">
 
                 {/* ── Brand panel ──────────────────────────────────────────
                     Hidden below lg: on a phone it would just add another
@@ -235,23 +234,29 @@ export default function RegisterTenantPage() {
                         {plans.length > 0 && (
                             <div>
                                 <label className={labelClass}>{t('plan')}</label>
-                                {/* A grid, not a stack. Four full-width cards each
-                                    carrying a description turned this form into
-                                    several screens of scrolling; the chosen plan's
-                                    description moves below, where only one shows at
-                                    a time. */}
-                                <div className="grid grid-cols-2 gap-2">
+                                {/* A grid, not a stack: four full-width cards each
+                                    carrying a description made this form several
+                                    screens tall. Only the chosen plan's description
+                                    shows, below the grid.
+
+                                    auto-rows-fr keeps every card the same height:
+                                    "Unlimited users · Unlimited borrowers" wraps
+                                    to two lines while "3 users" does not, and
+                                    ragged card heights read as broken. */}
+                                <div className="grid grid-cols-2 gap-2 auto-rows-fr">
                                     {plans.map(plan => {
                                         const unavailable = plan.requiresPayment && !khqrConfigured;
                                         const active = selectedPlan === plan.name;
                                         return (
                                             <label
                                                 key={plan.name}
-                                                className={`flex flex-col gap-1 px-3 py-2.5 rounded-lg border transition-colors ${unavailable
-                                                    ? 'opacity-45 cursor-not-allowed border-border bg-secondary'
+                                                className={`relative flex h-full flex-col rounded-lg border px-3 py-2.5 transition-all ${unavailable
+                                                    // 60%, not 45%: a disabled plan still has to be
+                                                    // legible enough to be worth upgrading to.
+                                                    ? 'opacity-60 cursor-not-allowed border-border bg-secondary/60'
                                                     : active
-                                                        ? 'border-primary bg-primary/5 cursor-pointer ring-1 ring-primary'
-                                                        : 'border-border bg-secondary hover:border-primary/50 cursor-pointer'
+                                                        ? 'border-primary bg-primary/5 cursor-pointer ring-1 ring-primary shadow-sm'
+                                                        : 'border-border bg-secondary cursor-pointer hover:border-primary/50 hover:bg-secondary/80'
                                                     }`}
                                             >
                                                 <input
@@ -263,17 +268,50 @@ export default function RegisterTenantPage() {
                                                     onChange={() => setSelectedPlan(plan.name)}
                                                     className="sr-only"
                                                 />
-                                                <span className="flex items-baseline justify-between gap-2">
-                                                    <span className="text-[13px] font-semibold text-foreground truncate">
-                                                        {plan.displayName || plan.name}
+
+                                                {active && (
+                                                    <span
+                                                        className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary"
+                                                        title={t('selected')}
+                                                    >
+                                                        <Check size={11} className="text-white" strokeWidth={3} />
                                                     </span>
-                                                    <span className="text-[12px] font-bold text-foreground whitespace-nowrap">
-                                                        {plan.requiresPayment ? `$${plan.amount}` : t('free')}
+                                                )}
+
+                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    {plan.displayName || plan.name}
+                                                </span>
+
+                                                {/* Price leads. Every card shows a figure —
+                                                    a free tier reading "Free / Free" said the
+                                                    same thing twice and broke the column. */}
+                                                <span className="mt-0.5 flex items-baseline gap-0.5">
+                                                    <span className="text-[17px] font-bold leading-none text-foreground">
+                                                        ${plan.amount}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {t('perMonth')}
                                                     </span>
                                                 </span>
-                                                <span className="text-[11px] text-muted-foreground">
-                                                    {quota(plan.limits.maxUsers, t)} {t('users')} · {quota(plan.limits.maxBorrowers, t)} {t('borrowers')}
+
+                                                {/* One limit per line. On a single line
+                                                    "Unlimited users · Unlimited borrowers"
+                                                    wrapped mid-phrase and only on the widest
+                                                    tier, which is what made the row ragged. */}
+                                                <span className="mt-1.5 space-y-0.5 text-[11px] leading-snug text-muted-foreground">
+                                                    <span className="block">
+                                                        {quota(plan.limits.maxUsers, t)} {t('users')}
+                                                    </span>
+                                                    <span className="block">
+                                                        {quota(plan.limits.maxBorrowers, t)} {t('borrowers')}
+                                                    </span>
                                                 </span>
+
+                                                {unavailable && (
+                                                    <span className="mt-auto pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                        {t('unavailable')}
+                                                    </span>
+                                                )}
                                             </label>
                                         );
                                     })}
@@ -285,8 +323,9 @@ export default function RegisterTenantPage() {
                                     </p>
                                 )}
                                 {!khqrConfigured && (
-                                    <p className="text-[11px] text-muted-foreground mt-1.5">
-                                        {t('paidUnavailable')}
+                                    <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+                                        <Info size={12} className="mt-0.5 shrink-0" />
+                                        <span>{t('paidUnavailable')}</span>
                                     </p>
                                 )}
                             </div>

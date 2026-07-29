@@ -539,6 +539,8 @@
     "borrowers": "borrowers",
     "doneDesc": "has been registered. Redirecting to login...",
     "doneTitle": "Account created",
+    "errorGeneric": "An error occurred during registration.",
+    "errorNeedOrg": "Enter your organization name before continuing with Google.",
     "feature1": "Borrower KYC and document vault, encrypted at rest",
     "feature2": "Automated schedules, penalties and collections",
     "feature3": "Double-entry ledger with portfolio and profitability KPIs",
@@ -555,12 +557,14 @@
     "pendingTitle": "Almost there",
     "perMonth": "/mo",
     "plan": "Plan",
+    "selected": "Selected",
     "signIn": "Sign in",
     "signInNow": "Sign in now",
     "submit": "Create account",
     "submitting": "Creating account...",
     "subtitle": "Set up your organization to start managing your portfolio.",
     "title": "Create your account",
+    "unavailable": "Unavailable",
     "unlimited": "Unlimited",
     "users": "users"
   }
