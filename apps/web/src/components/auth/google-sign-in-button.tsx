@@ -34,6 +34,22 @@ declare global {
 
 let scriptPromise: Promise<void> | null = null;
 
+/**
+ * GIS state is global to the page, not per component.
+ *
+ * `google.accounts.id.initialize()` registers ONE client id and ONE callback
+ * for the whole document. Calling it per mount produced
+ * "initialize() is called multiple times ... only the last initialized
+ * instance will be used" in the console — and the warning understates it: with
+ * two buttons mounted, one of them silently ends up wired to the other's
+ * handler.
+ *
+ * So initialize runs once per client id with a stable dispatcher, and whichever
+ * button is currently mounted registers itself as the recipient.
+ */
+let initializedClientId: string | null = null;
+let activeHandler: ((r: GoogleCredentialResponse) => void) | null = null;
+
 /** Load the GIS library once per page, no matter how many buttons mount. */
 function loadGis(): Promise<void> {
     if (typeof window === 'undefined') return Promise.resolve();
@@ -142,11 +158,17 @@ export function GoogleSignInButton({
         loadGis()
             .then(() => {
                 if (cancelled || !containerRef.current || !window.google) return;
-                window.google.accounts.id.initialize({
-                    client_id: clientId,
-                    callback: handleCredential,
-                    ux_mode: 'popup',
-                });
+                activeHandler = handleCredential;
+                if (initializedClientId !== clientId) {
+                    window.google.accounts.id.initialize({
+                        client_id: clientId,
+                        // Dispatch, so re-initialising is never needed just to
+                        // change which button receives the credential.
+                        callback: (r: GoogleCredentialResponse) => activeHandler?.(r),
+                        ux_mode: 'popup',
+                    });
+                    initializedClientId = clientId;
+                }
                 containerRef.current.innerHTML = '';
                 // GIS renders a fixed-width iframe, so a hardcoded 320 sat
                 // narrower than the submit button above it on wide cards and
@@ -173,6 +195,9 @@ export function GoogleSignInButton({
 
         return () => {
             cancelled = true;
+            // Leave the dispatcher pointing at nothing rather than at a
+            // component that has gone away.
+            if (activeHandler === handleCredential) activeHandler = null;
         };
     }, [clientId, handleCredential, text, locale]);
 

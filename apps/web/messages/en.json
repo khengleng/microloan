@@ -493,6 +493,7 @@
     "orgNamePlaceholder": "Acme Microfinance",
     "organization": "Organization",
     "organizationDesc": "Your organization's display name.",
+    "planChangeAdminOnly": "Only an organization admin can change the subscription plan.",
     "planChangeError": "Could not start the plan change.",
     "planChangeLead": "Pick a plan and pay with KHQR. Your workspace keeps working while payment is confirmed.",
     "planChangeTitle": "Change plan",
