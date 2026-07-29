@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { SignupPaymentPanel, type SignupPayment } from '@/components/auth/signup-payment-panel';
+import { BrandMark } from '@/components/brand-mark';
 
 type Plan = {
     /** Stable key sent back on submit. */
@@ -170,81 +171,116 @@ export default function RegisterTenantPage() {
         );
     }
 
+    const selected = plans.find(p => p.name === selectedPlan);
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background py-10">
-            <div className="w-full max-w-[420px] px-4">
-                {/* Logo */}
-                <div className="flex items-center gap-2 mb-8">
-                    <div className="w-7 h-7 bg-primary rounded flex items-center justify-center text-white text-xs font-bold">M</div>
-                    <span className="text-[16px] font-bold text-foreground">MicroLoan</span>
+        <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+            <div className="w-full max-w-5xl grid lg:grid-cols-[1fr_460px] gap-10 lg:gap-14 items-center">
+
+                {/* ── Brand panel ──────────────────────────────────────────
+                    Hidden below lg: on a phone it would just add another
+                    screenful above the form, which is the problem this
+                    layout exists to solve. */}
+                <div className="hidden lg:block">
+                    <BrandMark size={40} className="mb-8 [&>span]:text-[20px]" />
+                    <h2 className="text-[28px] font-bold text-foreground leading-tight mb-3">
+                        Run your loan book<br />with confidence.
+                    </h2>
+                    <p className="text-[14px] text-muted-foreground leading-relaxed mb-8 max-w-[420px]">
+                        Origination, underwriting, repayments and reporting — for
+                        microfinance institutions in Cambodia and beyond.
+                    </p>
+                    <ul className="space-y-3">
+                        {[
+                            'Borrower KYC and document vault, encrypted at rest',
+                            'Automated schedules, penalties and collections',
+                            'Double-entry ledger with portfolio and profitability KPIs',
+                        ].map(item => (
+                            <li key={item} className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
+                                <CheckCircle2 size={15} className="text-primary mt-0.5 shrink-0" />
+                                <span>{item}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
 
-                <div className="bg-card border border-border rounded-lg p-7">
-                    <h1 className="text-[18px] font-bold text-foreground mb-1">Create your account</h1>
-                    <p className="text-[13px] text-muted-foreground mb-6">
-                        Set up your organization to start managing your portfolio.
-                    </p>
+                {/* ── Form ─────────────────────────────────────────────── */}
+                <div className="w-full">
+                    <BrandMark className="mb-6 lg:hidden" />
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label htmlFor="org" className={labelClass}>Organization name</label>
-                            <input
-                                id="org"
-                                placeholder="Acme Microfinance"
-                                className={inputClass}
-                                required
-                                value={formData.organizationName}
-                                onChange={e => setFormData({ ...formData, organizationName: e.target.value })}
-                            />
-                        </div>
+                    <div className="bg-card border border-border rounded-xl p-6 sm:p-7">
+                        <h1 className="text-[18px] font-bold text-foreground mb-1">Create your account</h1>
+                        <p className="text-[13px] text-muted-foreground mb-6">
+                            Set up your organization to start managing your portfolio.
+                        </p>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label htmlFor="org" className={labelClass}>Organization name</label>
+                                <input
+                                    id="org"
+                                    placeholder="Acme Microfinance"
+                                    className={inputClass}
+                                    required
+                                    value={formData.organizationName}
+                                    onChange={e => setFormData({ ...formData, organizationName: e.target.value })}
+                                />
+                            </div>
 
                         {plans.length > 0 && (
                             <div>
                                 <label className={labelClass}>Plan</label>
-                                <div className="space-y-2">
+                                {/* A grid, not a stack. Four full-width cards each
+                                    carrying a description turned this form into
+                                    several screens of scrolling; the chosen plan's
+                                    description moves below, where only one shows at
+                                    a time. */}
+                                <div className="grid grid-cols-2 gap-2">
                                     {plans.map(plan => {
                                         const unavailable = plan.requiresPayment && !khqrConfigured;
+                                        const active = selectedPlan === plan.name;
                                         return (
                                             <label
                                                 key={plan.name}
-                                                className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded border cursor-pointer transition-colors ${selectedPlan === plan.name
-                                                    ? 'border-primary bg-primary/5'
-                                                    : 'border-border bg-secondary hover:border-primary/50'
-                                                    } ${unavailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                className={`flex flex-col gap-1 px-3 py-2.5 rounded-lg border transition-colors ${unavailable
+                                                    ? 'opacity-45 cursor-not-allowed border-border bg-secondary'
+                                                    : active
+                                                        ? 'border-primary bg-primary/5 cursor-pointer ring-1 ring-primary'
+                                                        : 'border-border bg-secondary hover:border-primary/50 cursor-pointer'
+                                                    }`}
                                             >
-                                                <span className="flex items-center gap-2.5">
-                                                    <input
-                                                        type="radio"
-                                                        name="plan"
-                                                        value={plan.name}
-                                                        checked={selectedPlan === plan.name}
-                                                        disabled={unavailable}
-                                                        onChange={() => setSelectedPlan(plan.name)}
-                                                        className="accent-primary"
-                                                    />
-                                                    <span>
-                                                        <span className="block text-[13px] font-semibold text-foreground">
-                                                            {plan.displayName || plan.name}
-                                                        </span>
-                                                        <span className="block text-[11px] text-muted-foreground">
-                                                            {quota(plan.limits.maxUsers)} users · {quota(plan.limits.maxBorrowers)} borrowers
-                                                        </span>
-                                                        {plan.description && (
-                                                            <span className="block text-[11px] text-muted-foreground mt-0.5">
-                                                                {plan.description}
-                                                            </span>
-                                                        )}
+                                                <input
+                                                    type="radio"
+                                                    name="plan"
+                                                    value={plan.name}
+                                                    checked={active}
+                                                    disabled={unavailable}
+                                                    onChange={() => setSelectedPlan(plan.name)}
+                                                    className="sr-only"
+                                                />
+                                                <span className="flex items-baseline justify-between gap-2">
+                                                    <span className="text-[13px] font-semibold text-foreground truncate">
+                                                        {plan.displayName || plan.name}
+                                                    </span>
+                                                    <span className="text-[12px] font-bold text-foreground whitespace-nowrap">
+                                                        {plan.requiresPayment ? `$${plan.amount}` : 'Free'}
                                                     </span>
                                                 </span>
-                                                <span className="text-[13px] font-semibold text-foreground whitespace-nowrap">
-                                                    {plan.requiresPayment ? `${plan.currency} ${plan.amount}/mo` : 'Free'}
+                                                <span className="text-[11px] text-muted-foreground">
+                                                    {quota(plan.limits.maxUsers)} users · {quota(plan.limits.maxBorrowers)} borrowers
                                                 </span>
                                             </label>
                                         );
                                     })}
                                 </div>
-                                {!khqrConfigured && (
+
+                                {selected?.description && (
                                     <p className="text-[11px] text-muted-foreground mt-2">
+                                        {selected.description}
+                                    </p>
+                                )}
+                                {!khqrConfigured && (
+                                    <p className="text-[11px] text-muted-foreground mt-1.5">
                                         Paid plans are unavailable — this platform has no payment merchant configured yet.
                                     </p>
                                 )}
@@ -312,20 +348,21 @@ export default function RegisterTenantPage() {
                             {' '}and{' '}
                             <Link href="/privacy-policy" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
                         </p>
-                    </form>
-                </div>
+                        </form>
+                    </div>
 
-                <p className="text-center text-[13px] text-muted-foreground mt-5">
-                    Already have an account?{' '}
-                    <Link href={`/${locale}/login`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
-                        Sign in
-                    </Link>
-                </p>
+                    <p className="text-center text-[13px] text-muted-foreground mt-5">
+                        Already have an account?{' '}
+                        <Link href={`/${locale}/login`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
+                            Sign in
+                        </Link>
+                    </p>
 
-                <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
-                    <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
-                    <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
-                    <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
+                    <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
+                        <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
+                        <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
+                        <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
+                    </div>
                 </div>
             </div>
         </div>
