@@ -27,10 +27,23 @@ function build(row: typeof ROW | null = ROW) {
   const seen: (string | undefined)[] = [];
   const prisma = {
     platformPaymentQr: {
-      findFirst: jest.fn(async () => {
-        seen.push(getTenantContext()?.mode);
-        return row;
-      }),
+      /*
+       * Lazy, like a real PrismaPromise — and this is the whole point of the
+       * test.
+       *
+       * The first version of this fake was `jest.fn(async () => ...)`, which
+       * runs the moment it is called. It passed against code that was still
+       * broken in production, because Prisma does NOT behave that way:
+       * `findFirst()` builds the query and executes it only when awaited. The
+       * bug was that the await happened after the AsyncLocalStorage scope had
+       * unwound, and an eager mock cannot express that.
+       */
+      findFirst: jest.fn(() => ({
+        then<R>(onFulfilled: (v: typeof row) => R) {
+          seen.push(getTenantContext()?.mode);
+          return Promise.resolve(row).then(onFulfilled);
+        },
+      })),
     },
   };
   const service = new PlatformQrService(prisma as never, {} as never);

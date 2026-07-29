@@ -60,7 +60,12 @@ export class PlanChangeService {
     const [tenant, catalogue, khqrConfigured, pending] = await Promise.all([
       this.prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { plan: true },
+        // `id` is required, not decorative. The Prisma tenant guard verifies
+        // ownership of a findUnique result by reading `row.id` for the Tenant
+        // model; a select that omits it yields undefined, the guard sees a
+        // mismatch and returns null, and this read 404s on the caller's own
+        // organization.
+        select: { id: true, plan: true },
       }),
       this.planTiers.catalogue(),
       this.signupPayments.isConfigured(),
@@ -117,7 +122,8 @@ export class PlanChangeService {
   async request(tenantId: string, planName: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { plan: true, status: true },
+      // See `options()` — the guard needs `id` to confirm this row is ours.
+      select: { id: true, plan: true, status: true },
     });
     if (!tenant) throw new NotFoundException('Organization not found.');
 
