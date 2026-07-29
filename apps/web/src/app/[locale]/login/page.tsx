@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter, useParams } from 'next/navigation';
 import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { BrandMark } from '@/components/brand-mark';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 
@@ -126,10 +127,7 @@ export default function LoginPage() {
         <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-full max-w-[360px] px-4">
                 {/* Logo */}
-                <div className="flex items-center gap-2 mb-8">
-                    <div className="w-7 h-7 bg-primary rounded flex items-center justify-center text-white text-xs font-bold">M</div>
-                    <span className="text-[16px] font-bold text-foreground">MicroLoan</span>
-                </div>
+                <BrandMark className="mb-8" />
 
                 <div className="bg-card border border-border rounded-lg p-7">
                     <h1 className="text-[18px] font-bold text-foreground mb-1">
