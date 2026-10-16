@@ -68,6 +68,20 @@ d('Settlement and recovery (integration)', () => {
       c.operations.writeOffMinDpd = 180;
     });
 
+  /**
+   * As above, but writeable off at any age.
+   *
+   * The recovery suite is about what happens *after* a write-off, not about
+   * ageing a loan to 180 days past due; the DPD gate itself is covered by the
+   * Phase 1 lifecycle tests.
+   */
+  const writeOffAtAnyAge = (code: string) =>
+    activeProduct(f, 'PERSONAL_INSTALMENT', code, (c: any) => {
+      c.restructuring.allowNegotiatedSettlement = true;
+      c.restructuring.allowedOptions = ['CHARGE_WAIVER', 'TERM_EXTENSION'];
+      c.operations.writeOffMinDpd = 0;
+    });
+
   /** A product that may also forgive principal. */
   const withPrincipal = (code: string) =>
     activeProduct(f, 'PERSONAL_INSTALMENT', code, (c: any) => {
@@ -248,7 +262,7 @@ d('Settlement and recovery (integration)', () => {
     let loanId: string;
 
     beforeAll(async () => {
-      const { productId } = await chargesOnly('REC-STD');
+      const { productId } = await writeOffAtAnyAge('REC-STD');
       const r = await originateAndDisburse(f, productId, {
         principal: '3000',
         numberOfInstalments: 12,
@@ -351,7 +365,7 @@ d('Settlement and recovery (integration)', () => {
     });
 
     it('refuses a recovery on a loan that is not written off', async () => {
-      const { productId } = await chargesOnly('REC-ACTIVE');
+      const { productId } = await writeOffAtAnyAge('REC-ACTIVE');
       const other = await originateAndDisburse(f, productId, {
         principal: '1000',
         numberOfInstalments: 12,
