@@ -24,6 +24,7 @@ d('Settlement and recovery (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'approver2', 'RESTRUCTURE_COMMITTEE');
+    await grant(f, f.t1, 'opsMaker', 'COLLECTIONS_OFFICER');
     await authority(
       f,
       f.t1,
@@ -294,7 +295,7 @@ d('Settlement and recovery (integration)', () => {
 
     it('posts a recovery to income without reviving the loan', async () => {
       const r = expectOk(
-        await f.as('finance').post(
+        await f.as('opsMaker').post(
           `/lending/loans/${loanId}/recoveries`,
           {
             amount: '1000',
@@ -323,7 +324,7 @@ d('Settlement and recovery (integration)', () => {
     it('continues where the last recovery stopped', async () => {
       const r = expectOk(
         await f
-          .as('finance')
+          .as('opsMaker')
           .post(
             `/lending/loans/${loanId}/recoveries`,
             { amount: '500' },
@@ -335,7 +336,7 @@ d('Settlement and recovery (integration)', () => {
 
     it('refuses a recovery larger than what is still written off', async () => {
       const r = await f
-        .as('finance')
+        .as('opsMaker')
         .post(
           `/lending/loans/${loanId}/recoveries`,
           { amount: '99999' },
@@ -349,12 +350,12 @@ d('Settlement and recovery (integration)', () => {
       const body = { amount: '100' };
       expectOk(
         await f
-          .as('finance')
+          .as('opsMaker')
           .post(`/lending/loans/${loanId}/recoveries`, body, 'recovery-idem'),
       );
       const again = expectOk(
         await f
-          .as('finance')
+          .as('opsMaker')
           .post(`/lending/loans/${loanId}/recoveries`, body, 'recovery-idem'),
       );
       expect(again.replayed).toBe(true);
@@ -372,7 +373,7 @@ d('Settlement and recovery (integration)', () => {
         disbursementDate: '2026-01-05',
       });
       const r = await f
-        .as('finance')
+        .as('opsMaker')
         .post(
           `/lending/loans/${other.loanId}/recoveries`,
           { amount: '100' },
