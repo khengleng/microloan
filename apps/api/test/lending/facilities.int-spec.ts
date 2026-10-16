@@ -173,7 +173,7 @@ d('Lending facilities (integration)', () => {
         .post(
           `/lending/facilities/${facilityId}/drawdowns/${dd.id}/release`,
           { externalReference: `BANK-${tag}` },
-          `fac-${tag}`,
+          `facility-${tag}`,
         ),
     );
   }
@@ -293,7 +293,7 @@ d('Lending facilities (integration)', () => {
           .post(
             `/lending/facilities/${facilityId}/drawdowns/${dd.id}/release`,
             { externalReference: 'BANK-RC2' },
-            'fac-rc2',
+            'facility-rc2',
           ),
       );
       const v = expectOk(await facility(facilityId));
@@ -526,7 +526,7 @@ d('Lending facilities (integration)', () => {
           principal: '100000',
           numberOfInstalments: 240,
           disbursementDate: '2026-03-01',
-          annualRate: '0.09',
+          annualRate: '0.12',
         },
         {
           collateral: {
