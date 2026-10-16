@@ -225,9 +225,10 @@ Lending to a group:
 
 Removing a member:
 
-* Allowed freely once the loan is repaid. While money is outstanding it is
-  refused unless the product sets `allowExitWithOutstanding`, and then the
-  leaver settles their share first.
+* Allowed freely once no live loan names the member. While one does — booked
+  or active, even before the money is disbursed — it is refused unless the
+  product sets `allowExitWithOutstanding`, and then the leaver settles their
+  share of the outstanding balance first.
 * Leaving cannot drop the group below the product minimum, and the leader
   cannot leave without a successor.
 * A group with a live loan cannot be disbanded.

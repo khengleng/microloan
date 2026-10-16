@@ -293,19 +293,33 @@ export interface ExitCheck {
   settlementAmount: string | null;
 }
 
+export interface GroupExposure {
+  /** Principal still owed across the group's live loans. */
+  outstanding: string;
+  /**
+   * Loans the member is bound to that are still live — booked or active.
+   *
+   * This, not the balance, is what governs exit. A loan that is booked but
+   * not yet disbursed owes nothing and still binds every member to it, so a
+   * member who left in between would have walked away from a contract that
+   * names them.
+   */
+  liveLoans: number;
+}
+
 /**
  * Whether a member may leave, and on what terms.
  *
- * Under joint liability a member who leaves while the loan is outstanding is
- * walking away from a debt the others would inherit, so the product decides
- * whether that is allowed at all; when it is, they settle their share first.
- * Leaving must also not drop the group below its minimum size.
+ * Under joint liability a member who leaves while a loan is live is walking
+ * away from a debt the others would inherit, so the product decides whether
+ * that is allowed at all; when it is, they settle their share of whatever is
+ * outstanding. Leaving must also not drop the group below its minimum size.
  */
 export function checkMemberExit(
   terms: GroupTerms,
   members: GroupMember[],
   borrowerId: string,
-  outstanding: string,
+  exposure: GroupExposure,
   memberFraction: string,
   currency: string,
   rounding: RoundingRule,
@@ -319,11 +333,17 @@ export function checkMemberExit(
     return { ok: false, issues: [{ path: 'borrowerId', message: `Borrower ${borrowerId} is not an active member of this group.` }], settlementAmount: null };
   }
 
-  const balance = parseMoney(outstanding, currency, 'outstanding');
+  const balance = parseMoney(exposure.outstanding, currency, 'outstanding');
+  const bound = exposure.liveLoans > 0;
   let settlement: Dec | null = null;
-  if (balance.gt(0)) {
+  if (bound) {
     if (!terms.allowExitWithOutstanding) {
-      add('outstanding', `The group still owes ${balance.toString()}; under this product a member cannot leave until it is repaid.`);
+      add(
+        'outstanding',
+        balance.gt(0)
+          ? `The group still owes ${balance.toString()}; under this product a member cannot leave until it is repaid.`
+          : 'The group has a loan booked that this member is bound to; under this product they cannot leave until it is repaid.',
+      );
     } else {
       settlement = roundMoney(balance.times(dec(memberFraction, 'memberFraction')), rounding);
     }
@@ -331,7 +351,7 @@ export function checkMemberExit(
       add('members', `Leaving would drop the group to ${active.length - 1} member(s), below the minimum of ${terms.minMembers} while a loan is outstanding.`);
     }
   }
-  if (leaving.role === 'LEADER' && terms.requireLeader && balance.gt(0)) {
+  if (leaving.role === 'LEADER' && terms.requireLeader && bound) {
     add('members', 'The leader cannot leave while a loan is outstanding; appoint a new leader first.');
   }
 

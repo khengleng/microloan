@@ -262,18 +262,14 @@ export class GroupsService {
         tx,
       );
       const businessDate = await this.businessDate.get(tenantId, tx);
-      const { outstanding, fraction, terms } = await this.outstandingFor(
-        tx,
-        tenantId,
-        id,
-        borrowerId,
-      );
+      const { outstanding, liveLoans, fraction, terms } =
+        await this.outstandingFor(tx, tenantId, id, borrowerId);
       const check = engineCall(() =>
         lending.checkMemberExit(
           terms,
           members.map(toEngineMember),
           borrowerId,
-          outstanding,
+          { outstanding, liveLoans },
           fraction,
           'USD',
           { increment: '0.01', mode: 'HALF_UP' },
@@ -551,7 +547,12 @@ export class GroupsService {
       where: { tenantId, groupId },
     });
     if (!bindings.length) {
-      return { outstanding: '0', fraction: '0', terms: DEFAULT_EXIT_TERMS };
+      return {
+        outstanding: '0',
+        liveLoans: 0,
+        fraction: '0',
+        terms: DEFAULT_EXIT_TERMS,
+      };
     }
     const accounts = await tx.loanAccount.findMany({
       where: {
@@ -571,6 +572,9 @@ export class GroupsService {
         accounts.some((a) => a.id === b.loanAccountId),
     );
     const fraction = mine.length ? decStr(mine[0].shareFraction) : '0';
+    // A booked-but-undisbursed loan owes nothing and still binds its members,
+    // so exit is governed by how many live loans name them, not the balance.
+    const liveLoans = mine.length;
 
     // Exit policy comes from the product the live loan was booked under.
     let terms = DEFAULT_EXIT_TERMS;
@@ -583,7 +587,7 @@ export class GroupsService {
       const parsed = lending.validateProductConfig(version?.productConfig);
       if (parsed.ok && parsed.config.group) terms = groupTermsOf(parsed.config);
     }
-    return { outstanding: outstanding.toString(), fraction, terms };
+    return { outstanding: outstanding.toString(), liveLoans, fraction, terms };
   }
 
   private resource(group: GroupRow) {

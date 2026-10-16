@@ -261,8 +261,8 @@ describe('contributions', () => {
 });
 
 describe('member exit', () => {
-  const exit = (t: L.GroupTerms, outstanding: string, borrowerId = 'b2') =>
-    L.checkMemberExit(t, GROUP, borrowerId, outstanding, '0.3333', 'USD', USD, ASOF);
+  const exit = (t: L.GroupTerms, outstanding: string, borrowerId = 'b2', liveLoans = outstanding === '0' ? 0 : 1) =>
+    L.checkMemberExit(t, GROUP, borrowerId, { outstanding, liveLoans }, '0.3333', 'USD', USD, ASOF);
 
   test('a member may leave freely once the loan is repaid', () => {
     const r = exit(terms(), '0');
@@ -293,7 +293,7 @@ describe('member exit', () => {
       terms({ allowExitWithOutstanding: true, minMembers: 2 }),
       GROUP,
       'b1',
-      '600',
+      { outstanding: '600', liveLoans: 1 },
       '0.3333',
       'USD',
       USD,
@@ -301,6 +301,37 @@ describe('member exit', () => {
     );
     assert.equal(r.ok, false);
     assert.match(r.issues.map((i) => i.message).join(' '), /appoint a new leader first/);
+  });
+
+  test('a loan booked but not yet disbursed still binds the member', () => {
+    // Nothing is owed yet, but the contract names them: leaving here would
+    // walk away from a loan about to be drawn.
+    const r = L.checkMemberExit(
+      terms(),
+      GROUP,
+      'b2',
+      { outstanding: '0', liveLoans: 1 },
+      '0.3333',
+      'USD',
+      USD,
+      ASOF,
+    );
+    assert.equal(r.ok, false);
+    assert.match(r.issues.map((i) => i.message).join(' '), /has a loan booked that this member is bound to/);
+  });
+
+  test('no live loan means no constraint, whatever the balance says', () => {
+    const r = L.checkMemberExit(
+      terms(),
+      GROUP,
+      'b2',
+      { outstanding: '0', liveLoans: 0 },
+      '0.3333',
+      'USD',
+      USD,
+      ASOF,
+    );
+    assert.equal(r.ok, true);
   });
 
   test('someone who is not a member cannot leave', () => {

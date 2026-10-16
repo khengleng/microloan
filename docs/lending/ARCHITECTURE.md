@@ -181,9 +181,11 @@ that matters when a member stops paying:
 * **A surplus from one member covers another's shortfall** and the group is
   current: the loan does not care who paid. Per-member positions are still
   reported, because that is what the group meeting acts on.
-* **Exit is governed.** Under joint liability a member cannot leave while the
-  loan is outstanding unless the product allows it, and then only by settling
-  their share; leaving must not drop the group below its minimum, and the
+* **Exit is governed by whether a live loan names the member**, not by the
+  balance: a loan booked but not yet disbursed owes nothing and still binds
+  everyone on it. Under joint liability a member cannot leave while such a
+  loan exists unless the product allows it, and then only by settling their
+  share of whatever is outstanding; leaving must not drop the group below its minimum, and the
   leader cannot leave without a successor.
 * **A borrower belongs to one active group at a time**, and a group with a
   live loan cannot be disbanded.
