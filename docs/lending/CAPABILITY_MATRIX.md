@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 39 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 21
+✅ Fully implemented: 41 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 19
 
 ## Capabilities
 
@@ -80,7 +80,7 @@ A product version can be activated only when every capability it requires is **F
 | `servicing.delinquency` | ✅ Fully implemented | 1 | Days past due, delinquency buckets and collections stage assignment | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.write_off` | ✅ Fully implemented | 1 | Write-off proposal and approval (maker-checker) | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.closure` | ✅ Fully implemented | 1 | Automatic closure on full repayment or settlement | Tests: `apps/api/test/lending/*.int-spec.ts` |
-| `servicing.recovery_after_write_off` | ⛔ Not implemented | 2 | Post-write-off recoveries |  |
+| `servicing.recovery_after_write_off` | ✅ Fully implemented | 2 | Post-write-off recoveries: cash attributed against what was written off, principal first, posted to recovery income without reviving the loan | Tests: `packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts` |
 
 ### Restructuring
 
@@ -90,7 +90,7 @@ A product version can be activated only when every capability it requires is **F
 | `restructure.affordability` | ✅ Fully implemented | 1 | Individual, household, business (DSCR) and seasonal affordability templates | Tests: `packages/shared/test/restructure.test.ts` |
 | `restructure.customer_self_service` | ✅ Fully implemented | 1 | Customers request restructuring and accept their own proposals in the borrower portal | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.refinance` | ⛔ Not implemented | 2 | Refinancing into a new loan linked to the original agreement |  |
-| `servicing.negotiated_settlement` | ⛔ Not implemented | 2 | Negotiated (discounted) settlement workflow linked to the original agreement |  |
+| `servicing.negotiated_settlement` | ✅ Fully implemented | 2 | Negotiated settlement: close a loan for less than it owes, with the concession itemised by component, posted as an expense and authorized separately when principal is forgiven | Tests: `packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts` |
 | `servicing.payment_holiday` | ⛔ Not implemented | 2 | Stand-alone payment holiday programme (relief is available inside a restructure as a payment deferral) |  |
 
 ### Facility

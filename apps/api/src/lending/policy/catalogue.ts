@@ -306,6 +306,24 @@ export const PERMISSIONS: PermissionDefinition[] = [
     platformAllowed: true,
   },
   {
+    code: 'loan.settlement.negotiate',
+    description: 'Close a loan for less than it owes, waiving charges',
+    category: 'Servicing',
+    financial: true,
+  },
+  {
+    code: 'loan.settlement.negotiate_principal',
+    description: 'Negotiate a settlement that forgives principal',
+    category: 'Servicing',
+    financial: true,
+  },
+  {
+    code: 'loan.recovery.post',
+    description: 'Post money recovered on a written-off loan',
+    category: 'Servicing',
+    financial: true,
+  },
+  {
     code: 'borrower_group.read',
     description: 'View solidarity groups and their membership',
     category: 'Origination',
@@ -552,6 +570,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     permissions: [
       'loan.read',
       'loan.repayment.post',
+      'loan.recovery.post',
       'restructure.request',
       'restructure.simulate',
       'restructure.monitor',
@@ -561,8 +580,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     code: 'RESTRUCTURE_COMMITTEE',
     name: 'Restructure committee',
     description:
-      'Approves restructures with concessions: waivers, rate reductions and principal forgiveness, within authority.',
+      'Approves restructures with concessions: waivers, rate reductions, principal forgiveness and negotiated settlements, within authority.',
     permissions: [
+      'loan.settlement.negotiate',
+      'loan.settlement.negotiate_principal',
       'loan.read',
       'restructure.simulate',
       'restructure.approve',

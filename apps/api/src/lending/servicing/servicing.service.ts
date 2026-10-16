@@ -16,6 +16,7 @@ import {
   LendingActor,
   concurrentModification,
   decStr,
+  engineCall,
   fromLocalDate,
   requestHash,
   requireTenant,
@@ -1315,6 +1316,390 @@ export class ServicingService {
 
   // ── Write-off ─────────────────────────────────────────────────────────────
 
+  // ── Negotiated settlement ─────────────────────────────────────────────────
+
+  /** Price a negotiated settlement without writing anything. */
+  async negotiatedSettlementQuote(
+    actor: LendingActor,
+    id: string,
+    q: { agreedAmount: string; asOf?: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id, { lock: false });
+      await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const asOf = q.asOf ?? businessDate;
+      const position = await this.settlementPosition(tx, state, asOf);
+      return {
+        position,
+        settlement: engineCall(() =>
+          lending.calculateNegotiatedSettlement(
+            position,
+            {
+              agreedAmount: q.agreedAmount,
+              allocationOrder:
+                state.config.restructuring.settlementAllocationOrder,
+              forgivable: forgivableComponents(state.config),
+            },
+            state.account.currency,
+            state.config.pricing.rounding,
+          ),
+        ),
+        businessDate,
+        note: 'Quote only — nothing has been posted.',
+      };
+    });
+  }
+
+  /**
+   * Close a loan for less than it owes.
+   *
+   * The concession is posted to its own expense account, separately from the
+   * cash received, so the loss is visible in the ledger rather than implied by
+   * a receivable that simply stopped existing. Forgiving principal is a
+   * heavier concession than waiving charges, and the decision engine is told
+   * which one this is through the action it is asked to authorize.
+   */
+  async negotiatedSettlement(
+    actor: LendingActor,
+    id: string,
+    body: {
+      agreedAmount: string;
+      reason: string;
+      valueDate?: string;
+      externalReference?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    if (!body.reason?.trim()) {
+      throw new BadRequestException(
+        'A negotiated settlement gives up money owed; record why.',
+      );
+    }
+    const hash = requestHash({ op: 'negotiated-settlement', id, body });
+    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
+      let state = await loadLoanState(tx, tenantId, id);
+      if (state.account.status !== 'ACTIVE') {
+        throw new ConflictException(`Loan is ${state.account.status}.`);
+      }
+      if (!state.config.restructuring.allowNegotiatedSettlement) {
+        throw new BadRequestException(
+          'This product does not permit negotiated settlement.',
+        );
+      }
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const valueDate = body.valueDate ?? businessDate;
+      BusinessDateService.checkValueDate(
+        valueDate,
+        businessDate,
+        state.config.repayment.maxBackdateDays,
+      );
+      state = await this.catchUp(tx, state, valueDate, businessDate, actor);
+
+      const position = await this.settlementPosition(tx, state, valueDate);
+      const result = engineCall(() =>
+        lending.calculateNegotiatedSettlement(
+          position,
+          {
+            agreedAmount: body.agreedAmount,
+            allocationOrder:
+              state.config.restructuring.settlementAllocationOrder,
+            forgivable: forgivableComponents(state.config),
+          },
+          state.account.currency,
+          state.config.pricing.rounding,
+        ),
+      );
+      // Forgiving principal is authorized separately from waiving charges:
+      // they are different credit decisions with different authorities.
+      await this.policy.enforce(
+        actor,
+        result.forgivesPrincipal
+          ? 'loan.settlement.negotiate_principal'
+          : 'loan.settlement.negotiate',
+        resourceOf(state, [], result.concession),
+        tx,
+      );
+
+      const amount = D(result.agreedAmount);
+      const concession = D(result.concession);
+      const acc = state.config.accounting;
+      const a = state.account;
+      const forgivenOf = (component: string) =>
+        D(
+          result.forgiven.find((x) => x.component === component)?.amount ?? '0',
+        );
+
+      await tx.scheduleInstalment.updateMany({
+        where: { tenantId, loanAccountId: id, status: 'DUE' },
+        data: { status: 'SUPERSEDED' },
+      });
+      const event = await this.recordEvent(tx, state, {
+        type: 'SETTLEMENT',
+        amount,
+        businessDate,
+        valueDate,
+        components: {
+          negotiated: true,
+          fullAmount: result.fullAmount,
+          concession: result.concession,
+          concessionRate: result.concessionRate,
+          allocations: result.allocations,
+          forgiven: result.forgiven,
+          reason: body.reason.slice(0, 500),
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Negotiated settlement at ${result.agreedAmount} against ${result.fullAmount} owed`,
+        externalReference: body.externalReference?.slice(0, 120) ?? null,
+        lines: [
+          { accountCode: acc.cash, debit: amount.toString() },
+          // The shortfall is an expense, not a vanished receivable.
+          ...(concession.gt(0)
+            ? [
+                {
+                  accountCode: forgivenOf('PRINCIPAL').gt(0)
+                    ? acc.principalForgivenessExpense
+                    : acc.concessionsExpense,
+                  debit: concession.toString(),
+                },
+              ]
+            : []),
+          {
+            accountCode: acc.loansReceivable,
+            credit: decStr(a.principalOutstanding),
+          },
+          {
+            accountCode: acc.interestReceivable,
+            credit: decStr(a.interestReceivable),
+          },
+          { accountCode: acc.feesReceivable, credit: decStr(a.feesReceivable) },
+          {
+            accountCode: acc.penaltyReceivable,
+            credit: decStr(a.penaltyReceivable),
+          },
+        ],
+      });
+      await this.casAccount(tx, state, 'ACTIVE', {
+        status: 'CLOSED',
+        closedAt: new Date(),
+        principalOutstanding: '0',
+        interestReceivable: '0',
+        feesReceivable: '0',
+        penaltyReceivable: '0',
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: result.forgivesPrincipal
+            ? 'loan.settlement.negotiate_principal'
+            : 'loan.settlement.negotiate',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            event: event.id,
+            agreed: result.agreedAmount,
+            full: result.fullAmount,
+            concession: result.concession,
+            concessionRate: result.concessionRate,
+            forgivesPrincipal: result.forgivesPrincipal,
+            reason: body.reason,
+          },
+          businessDate: fromLocalDate(businessDate),
+        },
+        tx,
+      );
+      return { event, settlement: result };
+    });
+  }
+
+  // ── Recovery after write-off ──────────────────────────────────────────────
+
+  /**
+   * Post money received on a loan already written off.
+   *
+   * A written-off loan has no balance, so a recovery cannot reduce one: the
+   * cash is income, attributed against what was written off so that recovered
+   * principal is distinguishable from recovered penalties. The loan stays
+   * WRITTEN_OFF — recovering some of a loss does not make the loan perform
+   * again.
+   */
+  async recordRecovery(
+    actor: LendingActor,
+    id: string,
+    body: {
+      amount: string;
+      valueDate?: string;
+      externalReference?: string;
+      note?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    const hash = requestHash({ op: 'recovery', id, body });
+    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      if (state.account.status !== 'WRITTEN_OFF') {
+        throw new ConflictException(
+          `A recovery applies to a written-off loan; this one is ${state.account.status}.`,
+        );
+      }
+      if (!state.config.restructuring.allowPostWriteOffRecovery) {
+        throw new BadRequestException(
+          'This product does not permit post-write-off recoveries.',
+        );
+      }
+      await this.policy.enforce(
+        actor,
+        'loan.recovery.post',
+        resourceOf(state, [], body.amount),
+        tx,
+      );
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const valueDate = body.valueDate ?? businessDate;
+      BusinessDateService.checkValueDate(
+        valueDate,
+        businessDate,
+        state.config.repayment.maxBackdateDays,
+      );
+
+      const { writtenOff, recovered } = await this.writeOffHistory(tx, state);
+      const result = engineCall(() =>
+        lending.allocateRecovery(
+          writtenOff,
+          recovered,
+          body.amount,
+          state.account.currency,
+          state.config.pricing.rounding,
+        ),
+      );
+      const amount = D(result.amount);
+      const acc = state.config.accounting;
+      const event = await this.recordEvent(tx, state, {
+        type: 'RECOVERY',
+        amount,
+        businessDate,
+        valueDate,
+        components: {
+          allocations: result.allocations,
+          recoveredToDate: result.recoveredToDate,
+          remainingWrittenOff: result.remainingWrittenOff,
+          fullyRecovered: result.fullyRecovered,
+          note: body.note?.slice(0, 500) ?? null,
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Recovery on written-off loan (${result.remainingWrittenOff} still written off)`,
+        externalReference: body.externalReference?.slice(0, 120) ?? null,
+        lines: [
+          { accountCode: acc.cash, debit: amount.toString() },
+          { accountCode: acc.recoveryIncome, credit: amount.toString() },
+        ],
+      });
+      // The loan stays WRITTEN_OFF; only the version moves, so a concurrent
+      // recovery loses its compare-and-set rather than double-posting.
+      await this.casAccount(tx, state, 'WRITTEN_OFF', {});
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.recovery.post',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            event: event.id,
+            amount: result.amount,
+            recoveredToDate: result.recoveredToDate,
+            remainingWrittenOff: result.remainingWrittenOff,
+          },
+          businessDate: fromLocalDate(businessDate),
+        },
+        tx,
+      );
+      return { event, recovery: result };
+    });
+  }
+
+  /** What the loan owes right now, as the settlement engine expects it. */
+  private async settlementPosition(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+  ): Promise<lending.SettlementPosition> {
+    const posted = await tx.accrualEvent.aggregate({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+      },
+      _sum: { amount: true },
+    });
+    const pendingAccrual = lending.D.max(
+      0,
+      contractualAccrual(state, asOf).minus(D(posted._sum.amount ?? '0')),
+    );
+    return {
+      principal: decStr(state.account.principalOutstanding),
+      interest: D(state.account.interestReceivable)
+        .plus(pendingAccrual)
+        .toString(),
+      fees: decStr(state.account.feesReceivable),
+      penalties: decStr(state.account.penaltyReceivable),
+    };
+  }
+
+  /** What was written off on this loan, and what has been recovered since. */
+  private async writeOffHistory(tx: Tx, state: LoanState) {
+    const writeOff = await tx.financialEvent.findFirst({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        type: 'WRITE_OFF',
+        status: 'POSTED',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!writeOff) {
+      throw new ConflictException(
+        'This loan has no posted write-off, so there is nothing to recover against.',
+      );
+    }
+    const c = writeOff.components as {
+      principal?: string;
+      interest?: string;
+      fees?: string;
+      penalties?: string;
+    };
+    const recoveries = await tx.financialEvent.findMany({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        type: 'RECOVERY',
+        status: 'POSTED',
+      },
+    });
+    const recovered: lending.ComponentAmount[] = [];
+    for (const r of recoveries) {
+      const allocations =
+        (r.components as { allocations?: lending.ComponentAmount[] })
+          .allocations ?? [];
+      recovered.push(...allocations);
+    }
+    return {
+      writtenOff: {
+        principal: decStr(c.principal ?? '0'),
+        interest: decStr(c.interest ?? '0'),
+        fees: decStr(c.fees ?? '0'),
+        penalties: decStr(c.penalties ?? '0'),
+      },
+      recovered,
+    };
+  }
+
   async proposeWriteOff(
     actor: LendingActor,
     id: string,
@@ -2011,4 +2396,24 @@ function lineView(l: Line) {
     dueDate: toLocalDate(l.dueDate),
     penaltyAssessedThrough: toLocalDate(l.penaltyAssessedThrough),
   };
+}
+
+/**
+ * Components a product is willing to forgive in a settlement.
+ *
+ * Charge waiver and principal forgiveness are separate product permissions,
+ * so a product that waives charges does not thereby permit a principal
+ * haircut.
+ */
+function forgivableComponents(
+  config: lending.ProductConfig,
+): lending.DueComponent[] {
+  const allowed: lending.DueComponent[] = [];
+  if (config.restructuring.allowedOptions.includes('CHARGE_WAIVER')) {
+    allowed.push('PENALTY', 'FEE', 'TAX', 'INTEREST');
+  }
+  if (config.restructuring.allowedOptions.includes('PRINCIPAL_FORGIVENESS')) {
+    allowed.push('PRINCIPAL');
+  }
+  return allowed;
 }

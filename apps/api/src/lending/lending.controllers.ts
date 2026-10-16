@@ -501,6 +501,43 @@ export class LendingLoansController {
     return this.servicing.postRepayment(actor(req), id, body, key);
   }
 
+  /** What a settlement at this amount gives up. Nothing is posted. */
+  @LendingAction('loan.read')
+  @Get(':id/negotiated-settlement-quote')
+  negotiatedQuote(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Query('agreedAmount') agreedAmount: string,
+    @Query('asOf') asOf?: string,
+  ) {
+    return this.servicing.negotiatedSettlementQuote(actor(req), id, {
+      agreedAmount,
+      asOf,
+    });
+  }
+
+  @LendingAction('loan.settlement.negotiate')
+  @Post(':id/negotiated-settlement')
+  negotiatedSettlement(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.negotiatedSettlement)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.servicing.negotiatedSettlement(actor(req), id, body, key);
+  }
+
+  @LendingAction('loan.recovery.post')
+  @Post(':id/recoveries')
+  recovery(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.recovery)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.servicing.recordRecovery(actor(req), id, body, key);
+  }
+
   @LendingAction('loan.repayment.post')
   @Post(':id/settlement')
   settle(

@@ -2051,7 +2051,7 @@ model FinancialEvent {
   tenantId          String
   loanAccountId     String
   loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
-  /// DISBURSEMENT, REPAYMENT, ACCRUAL, PENALTY, SETTLEMENT, WRITE_OFF, REVERSAL
+  /// DISBURSEMENT, REPAYMENT, ACCRUAL, PENALTY, SETTLEMENT, WRITE_OFF, RECOVERY, REVERSAL
   type              String
   /// POSTED, REVERSED
   status            String      @default("POSTED")

@@ -22,6 +22,7 @@ export const ACCOUNT_CODES = {
     FEES_RECEIVABLE: '1220',
     PENALTY_RECEIVABLE: '1230',
     TAX_PAYABLE: '2200',
+    RECOVERY_INCOME: '4300',
     ROUNDING_DIFFERENCES: '4900',
     // Restructuring concessions
     PRINCIPAL_FORGIVEN: '5110',
@@ -41,6 +42,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     { code: ACCOUNT_CODES.FEES_RECEIVABLE, name: 'Fees Receivable', type: LedgerAccountType.ASSET },
     { code: ACCOUNT_CODES.PENALTY_RECEIVABLE, name: 'Penalties Receivable', type: LedgerAccountType.ASSET },
     { code: ACCOUNT_CODES.TAX_PAYABLE, name: 'Tax Payable', type: LedgerAccountType.LIABILITY },
+    { code: ACCOUNT_CODES.RECOVERY_INCOME, name: 'Recoveries on Written-Off Loans', type: LedgerAccountType.INCOME },
     { code: ACCOUNT_CODES.ROUNDING_DIFFERENCES, name: 'Rounding Differences', type: LedgerAccountType.INCOME },
     { code: ACCOUNT_CODES.PRINCIPAL_FORGIVEN, name: 'Principal Forgiven (Restructuring)', type: LedgerAccountType.EXPENSE },
     { code: ACCOUNT_CODES.RESTRUCTURE_CONCESSIONS, name: 'Restructure Concessions (Waivers)', type: LedgerAccountType.EXPENSE },

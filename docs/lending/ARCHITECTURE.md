@@ -197,6 +197,36 @@ The application for a group loan names the group and carries the leader as its
 borrower. Group lending is flag-gated (`lending.group.joint_liability`), off by
 default.
 
+## Settling for less, and recovering after a loss
+
+Both deal with a loan the lender no longer expects to collect in full, and
+both name the gap rather than letting it disappear into a balancing figure.
+
+**Negotiated settlement** closes a loan for an agreed amount below the
+balance. By default the money recovers **principal first**, so the concession
+falls on charges — deliberately the opposite of the ordinary repayment order,
+which clears penalties first to stop them compounding. Allocating charges
+first in a settlement would protect the penalties and forgive the principal,
+which is not what settling for less is ever meant to mean; a product may still
+choose that order explicitly.
+
+* Anything left unpaid in a component the product has not agreed to forgive is
+  an **error**, not a silent write-off. `CHARGE_WAIVER` and
+  `PRINCIPAL_FORGIVENESS` are separate permissions, so a product that waives
+  charges does not thereby permit a principal haircut.
+* Forgiving principal is authorized under its own action
+  (`loan.settlement.negotiate_principal`) with its own approval authority,
+  measured on the **concession**, not the amount received.
+* The concession posts to an expense account — principal forgiveness and
+  charge concessions to different ones — so the loss is visible in the ledger.
+
+**Recovery after write-off** posts money that arrives on a loan already
+written off. The balance is already zero, so a recovery cannot reduce one: the
+cash is income, attributed against what *was* written off, principal first, so
+recovered principal is distinguishable from recovered penalties. A payment
+larger than the amount still written off is refused, and the loan stays
+`WRITTEN_OFF` — recovering part of a loss does not make a loan perform again.
+
 ## Money, dates and the engine
 
 * **Decimal arithmetic everywhere.** The engine uses `decimal.js` at 40

@@ -304,6 +304,22 @@ export const productConfigSchema = z
         /** Balance change between proposal and execution tolerated without re-approval. */
         materialityTolerance: decimalString.default('0'),
         proposalValidityDays: z.number().int().min(1).max(180).default(30),
+        /**
+         * Whether the loan may be closed for less than it owes. Off by
+         * default: giving up money owed is a decision a product opts into.
+         */
+        allowNegotiatedSettlement: z.boolean().default(false),
+        /**
+         * Order a negotiated settlement clears components in. The default
+         * (principal first) puts the concession on charges; reversing it
+         * protects the charges and forgives principal instead.
+         */
+        settlementAllocationOrder: z
+          .array(z.enum(['PENALTY', 'FEE', 'TAX', 'INTEREST', 'PRINCIPAL']))
+          .length(5)
+          .default(['PRINCIPAL', 'INTEREST', 'FEE', 'TAX', 'PENALTY']),
+        /** Whether money received after a write-off may be posted as a recovery. */
+        allowPostWriteOffRecovery: z.boolean().default(true),
       })
       .strict()
       .default({}),
@@ -321,6 +337,8 @@ export const productConfigSchema = z
         writeOffExpense: code,
         roundingDifferences: code,
         concessionsExpense: code.default('5200'),
+        /** Income from money recovered on loans already written off. */
+        recoveryIncome: code.default('4300'),
         principalForgivenessExpense: code.default('5110'),
       })
       .strict(),
@@ -403,6 +421,19 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');
   if (c.security.guaranteeRequired && c.security.minGuarantors < 1) add('security.minGuarantors', 'at least one guarantor is required');
 
+  if (
+    c.restructuring.allowNegotiatedSettlement &&
+    !c.restructuring.allowedOptions.includes('CHARGE_WAIVER') &&
+    !c.restructuring.allowedOptions.includes('PRINCIPAL_FORGIVENESS')
+  ) {
+    add(
+      'restructuring.allowNegotiatedSettlement',
+      'a negotiated settlement gives something up; allow CHARGE_WAIVER or PRINCIPAL_FORGIVENESS',
+    );
+  }
+  if (new Set(c.restructuring.settlementAllocationOrder).size !== 5) {
+    add('restructuring.settlementAllocationOrder', 'must list each component exactly once');
+  }
   validateGroupBlock(c, add);
   validateFacilityBlock(c, add);
 
@@ -535,6 +566,10 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.repayment.earlySettlement.allowed) req.add('servicing.early_settlement');
   if (c.operations.writeOffMinDpd !== null) req.add('servicing.write_off');
   if (c.operations.restructureAllowed) req.add('servicing.restructure');
+  if (c.restructuring.allowNegotiatedSettlement) req.add('servicing.negotiated_settlement');
+  if (c.restructuring.allowPostWriteOffRecovery && c.operations.writeOffMinDpd !== null) {
+    req.add('servicing.recovery_after_write_off');
+  }
   if (c.security.collateralRequired) req.add('collateral.ltv');
   if (c.security.guaranteeRequired) req.add('guarantee.basic');
   req.add(c.identity.liability === 'INDIVIDUAL' ? 'liability.individual' : 'liability.group_joint');

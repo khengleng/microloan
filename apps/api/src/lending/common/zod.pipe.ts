@@ -91,6 +91,22 @@ export const S = {
       segmentCode: z.string().max(48).optional(),
     })
     .strict(),
+  negotiatedSettlement: z
+    .object({
+      agreedAmount: money,
+      reason: z.string().min(1).max(500),
+      valueDate: date.optional(),
+      externalReference: z.string().max(120).optional(),
+    })
+    .strict(),
+  recovery: z
+    .object({
+      amount: money,
+      valueDate: date.optional(),
+      externalReference: z.string().max(120).optional(),
+      note: z.string().max(500).optional(),
+    })
+    .strict(),
   createGroup: z
     .object({
       code: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/),

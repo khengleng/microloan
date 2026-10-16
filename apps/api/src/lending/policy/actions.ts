@@ -186,6 +186,23 @@ export const ACTIONS: ActionDefinition[] = [
     makerChecker: true,
     minAssurance: 'MFA',
   }),
+  // Settling for less and forgiving principal are different credit calls, so
+  // they carry different authorities. The amount measured is the concession.
+  A('loan.settlement.negotiate', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    workflowStates: ['ACTIVE'],
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('loan.settlement.negotiate_principal', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    workflowStates: ['ACTIVE'],
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  // A recovery arrives on a loan that is already written off, which is the
+  // only state it is permitted in.
+  A('loan.recovery.post', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    workflowStates: ['WRITTEN_OFF'],
+  }),
   A('loan.writeoff.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     workflowStates: ['ACTIVE'],
   }),

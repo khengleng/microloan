@@ -65,7 +65,7 @@ pnpm test:api             # API unit tests, including the decision-engine securi
 # Integration — real HTTP API, guards and PostgreSQL with the migration's triggers and RLS:
 export LENDING_TEST_DATABASE_URL=<throwaway database whose name contains "test" or "ci">
 pnpm test:lending:db      # resets that database: schema push + migration invariants
-pnpm test:lending:int     # Phase 1 slice, security, restructuring, facilities, floating rates, groups
+pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating rates, groups, settlement
 ```
 
 CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`.
@@ -232,6 +232,32 @@ Removing a member:
 * Leaving cannot drop the group below the product minimum, and the leader
   cannot leave without a successor.
 * A group with a live loan cannot be disbanded.
+
+## Settling for less, and recoveries
+
+**Negotiated settlement** (`loan.settlement.negotiate`, or
+`…negotiate_principal` when principal is forgiven — both need MFA and an
+approval authority measured on the concession):
+
+* `GET /lending/loans/:id/negotiated-settlement-quote?agreedAmount=…` shows
+  what the settlement gives up, by component, without posting anything.
+* `POST /lending/loans/:id/negotiated-settlement` with an
+  `Idempotency-Key`, an `agreedAmount` and a `reason`.
+* The product must set `restructuring.allowNegotiatedSettlement`, and must
+  allow `CHARGE_WAIVER` and/or `PRINCIPAL_FORGIVENESS`. A settlement that
+  would forgive a component the product does not permit is refused outright —
+  it is not quietly written off.
+* By default the payment clears **principal first**, so the concession lands
+  on charges. `restructuring.settlementAllocationOrder` changes that, but
+  reversing it means the penalties survive and the principal takes the loss.
+
+**Recovery after write-off** (`loan.recovery.post`, held by collections):
+
+* `POST /lending/loans/:id/recoveries` with an `Idempotency-Key` and an
+  `amount`, on a loan whose status is `WRITTEN_OFF`.
+* The cash is posted to recovery income (`4300`) and attributed against what
+  was written off, principal first. The loan stays `WRITTEN_OFF`.
+* A recovery larger than the amount still written off is refused.
 
 ## Known limitations
 

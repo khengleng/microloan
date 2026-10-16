@@ -76,9 +76,9 @@ export const CAPABILITIES: Capability[] = [
   C('restructure.affordability', 'Restructuring', 'IMPLEMENTED', 1, 'Individual, household, business (DSCR) and seasonal affordability templates', 'packages/shared/test/restructure.test.ts'),
   C('restructure.customer_self_service', 'Restructuring', 'IMPLEMENTED', 1, 'Customers request restructuring and accept their own proposals in the borrower portal', FLOW_TESTS),
   C('servicing.refinance', 'Restructuring', 'NOT_IMPLEMENTED', 2, 'Refinancing into a new loan linked to the original agreement'),
-  C('servicing.negotiated_settlement', 'Restructuring', 'NOT_IMPLEMENTED', 2, 'Negotiated (discounted) settlement workflow linked to the original agreement'),
+  C('servicing.negotiated_settlement', 'Restructuring', 'IMPLEMENTED', 2, 'Negotiated settlement: close a loan for less than it owes, with the concession itemised by component, posted as an expense and authorized separately when principal is forgiven', 'packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts'),
   C('servicing.payment_holiday', 'Restructuring', 'NOT_IMPLEMENTED', 2, 'Stand-alone payment holiday programme (relief is available inside a restructure as a payment deferral)'),
-  C('servicing.recovery_after_write_off', 'Servicing', 'NOT_IMPLEMENTED', 2, 'Post-write-off recoveries'),
+  C('servicing.recovery_after_write_off', 'Servicing', 'IMPLEMENTED', 2, 'Post-write-off recoveries: cash attributed against what was written off, principal first, posted to recovery income without reviving the loan', 'packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts'),
   // Facilities (Phase 2)
   C('facility.revolving', 'Facility', 'IMPLEMENTED', 2, 'Revolving facilities: limit, availability window, maker-checker drawdowns, interest on the drawn balance, commitment fee on the undrawn, limit changes, statements and term-out', FACILITY_TESTS),
   C('facility.overdraft', 'Facility', 'IMPLEMENTED', 2, 'Overdraft: debit balance against a limit, minimum payment, over-limit pricing', FACILITY_TESTS),

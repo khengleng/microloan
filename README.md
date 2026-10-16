@@ -154,6 +154,12 @@ tenure, equal or negotiated shares, and joint liability for the whole balance
 rather than a share of it. Liability is frozen onto the loan at booking, so a
 later membership change never alters a contract already running.
 
+A loan can also be closed for less than it owes: a negotiated settlement
+itemises the concession by component, posts it as an expense rather than
+letting a receivable vanish, and authorizes forgiving principal separately
+from waiving charges. Money arriving after a write-off is posted as a
+recovery, attributed against what was written off, without reviving the loan.
+
 ### Administration screens
 
 Under **Lending** in the web app: product catalogue and capability matrix,
@@ -165,12 +171,12 @@ The borrower portal adds restructure requests and proposal acceptance.
 
 ### What is not implemented yet
 
-Borrowing bases, connected-party exposure, and the specialised modules
-(cards, BNPL, trade, factoring, income-contingent, syndicated, project
-finance, Islamic) are still outstanding. Revolving facilities, overdrafts,
-staged drawdowns, contractual floating-rate resets and joint-liability group
-lending shipped in Phase 2, each behind a feature flag that is off by default.
-Payment rails,
+Refinancing, stand-alone payment holidays, borrowing bases, connected-party
+exposure, break-glass access and the specialised modules (cards, BNPL, trade,
+factoring, income-contingent, syndicated, project finance, Islamic) are still
+outstanding. Revolving facilities, overdrafts, staged drawdowns, contractual
+floating-rate resets, joint-liability group lending, negotiated settlement and
+post-write-off recovery shipped in Phase 2. Payment rails,
 external KYC, credit bureau, notifications and external accounting have adapter
 interfaces with clearly labelled mocks that are refused in production. The full
 list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
@@ -219,7 +225,7 @@ pnpm test:api             # API unit tests (incl. decision-engine security tests
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
 pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1 slice, security, restructuring, facilities, floating rates, groups
+pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating rates, groups, settlement
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```
