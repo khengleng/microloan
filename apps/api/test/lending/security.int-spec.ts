@@ -582,21 +582,16 @@ d('Lending security and lifecycle (integration)', () => {
       const tpl = expectOk(
         await f.as('maker').get('/lending/templates/PERSONAL_INSTALMENT'),
       );
+      // Murabaha needs islamic.murabaha, which is not implemented. (This
+      // used to be the floating-rate example; floating ships in Phase 2 and
+      // activates, so it no longer demonstrates a blocked capability.)
       const cfg = structuredClone(tpl.defaultConfig);
-      cfg.attributes.rateType = 'FLOATING';
-      cfg.pricing.fixed = null;
-      cfg.pricing.floating = {
-        benchmarkCode: 'SOFR',
-        margin: '0.03',
-        resetFrequency: 'QUARTERLY',
-        floor: '0',
-        cap: null,
-      };
+      cfg.attributes.structure = 'MURABAHA';
       const created = expectOk(
         await f.as('maker').post('/lending/products', {
           templateCode: 'PERSONAL_INSTALMENT',
-          code: 'PL-FLOAT',
-          name: 'Floating',
+          code: 'PL-MRBH',
+          name: 'Murabaha structured',
           config: cfg,
         }),
       );

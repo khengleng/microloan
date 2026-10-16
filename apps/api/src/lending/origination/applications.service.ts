@@ -15,6 +15,7 @@ import {
   LendingActor,
   concurrentModification,
   decStr,
+  engineCall,
   fromLocalDate,
   newReference,
   requireTenant,
@@ -1381,15 +1382,28 @@ export class ApplicationsService {
       }
     }
 
-    // Age and income eligibility.
-    const sim = lending.generateSchedule(
-      lending.toScheduleInput(
-        config,
-        terms,
-        terms.principal,
-        config.repayment.holidayCalendarCode
-          ? { code: 'X', weekendDays: [], holidays: [] }
-          : undefined,
+    // Age and income eligibility, measured on an indicative schedule. A
+    // floating product has no fixed rate to fall back on, so it is priced off
+    // today's benchmark here exactly as the booking would be.
+    const assessmentRates =
+      config.attributes.rateType === 'FLOATING'
+        ? await this.products.projectedRates(
+            app.tenantId,
+            config,
+            terms.disbursementDate,
+          )
+        : undefined;
+    const sim = engineCall(() =>
+      lending.generateSchedule(
+        lending.toScheduleInput(
+          config,
+          terms,
+          terms.principal,
+          config.repayment.holidayCalendarCode
+            ? { code: 'X', weekendDays: [], holidays: [] }
+            : undefined,
+          assessmentRates,
+        ),
       ),
     );
     if (borrower?.dateOfBirth) {
