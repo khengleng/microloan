@@ -213,6 +213,10 @@ Lending to a group:
 * The application names the group and carries the **leader** as its borrower.
 * Composition is checked when the application is created and again at
   booking, because membership can change in between.
+* **Affordability is assessed on the group's combined income**, not the
+  leader's: one instalment is serviced by every member together. The
+  assessment records `groupMembers` and `groupCombinedIncome` alongside the
+  debt-service ratio.
 * At booking every member is bound to the loan with their share and what they
   are liable for. Under `GROUP_JOINT` that is the **whole balance**, not the
   share — read `liableFor`, not `shareAmount`, when deciding who to pursue.

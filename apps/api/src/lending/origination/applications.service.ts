@@ -1402,6 +1402,8 @@ export class ApplicationsService {
       id: string;
       tenantId: string;
       borrowerId: string;
+      /** Set on a group application; null for individual lending. */
+      groupId?: string | null;
       requestedAmount: unknown;
       currency: string;
       terms: unknown;
@@ -1508,7 +1510,30 @@ export class ApplicationsService {
         message: 'The borrower’s date of birth is required for this product.',
       });
     }
-    const income = borrower?.monthlyIncome ? D(borrower.monthlyIncome) : null;
+    // Affordability on a group loan is a property of the group: one
+    // instalment is serviced by every member together, so it is measured
+    // against their combined income, not the leader's alone.
+    let income = borrower?.monthlyIncome ? D(borrower.monthlyIncome) : null;
+    if (config.identity.liability !== 'INDIVIDUAL' && app.groupId) {
+      const members = await tx.groupMembership.findMany({
+        where: { tenantId: app.tenantId, groupId: app.groupId, leftOn: null },
+        select: { borrowerId: true },
+      });
+      const incomes = await tx.borrower.findMany({
+        where: {
+          tenantId: app.tenantId,
+          id: { in: members.map((m) => m.borrowerId) },
+        },
+        select: { monthlyIncome: true },
+      });
+      const combined = incomes.reduce(
+        (t, b) => t.plus(b.monthlyIncome ? D(b.monthlyIncome) : D('0')),
+        D('0'),
+      );
+      income = combined.gt(0) ? combined : null;
+      metrics.groupMembers = members.length;
+      metrics.groupCombinedIncome = combined.toString();
+    }
     if (
       config.eligibility.minMonthlyIncome &&
       (!income || income.lt(config.eligibility.minMonthlyIncome))

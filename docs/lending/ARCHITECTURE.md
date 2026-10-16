@@ -187,6 +187,9 @@ that matters when a member stops paying:
   leader cannot leave without a successor.
 * **A borrower belongs to one active group at a time**, and a group with a
   live loan cannot be disbanded.
+* **Affordability is measured on the group's combined income.** One instalment
+  is serviced by the whole group, so assessing it against the leader's income
+  alone would refuse loans a solidarity group can comfortably service.
 
 The application for a group loan names the group and carries the leader as its
 borrower. Group lending is flag-gated (`lending.group.joint_liability`), off by
