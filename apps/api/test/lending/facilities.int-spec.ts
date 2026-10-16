@@ -601,10 +601,10 @@ d('Lending facilities (integration)', () => {
       expectOk(
         await f
           .as('opsMaker')
-          .post(`/lending/facilities/${facilityId}/conditions/${cond.id}`, {
-            outcome: 'SATISFY',
-            evidence: 'Surveyor report 2026-07-01, ref SR-114',
-          }),
+          .post(
+            `/lending/facilities/${facilityId}/conditions/${cond.id}/satisfy`,
+            { evidence: 'Surveyor report 2026-09-01, ref SR-114' },
+          ),
       );
       await drawdown(
         facilityId,
@@ -651,25 +651,25 @@ d('Lending facilities (integration)', () => {
       );
       const noReason = await f
         .as('approver')
-        .post(`/lending/facilities/${facilityId}/conditions/${cond.id}`, {
-          outcome: 'WAIVE',
-        });
+        .post(
+          `/lending/facilities/${facilityId}/conditions/${cond.id}/waive`,
+          {},
+        );
       expect(noReason.status).toBe(400);
       // Operations cannot waive; waiving is a credit decision.
       const wrongRole = await f
         .as('opsMaker')
-        .post(`/lending/facilities/${facilityId}/conditions/${cond.id}`, {
-          outcome: 'WAIVE',
+        .post(`/lending/facilities/${facilityId}/conditions/${cond.id}/waive`, {
           reason: 'Certificate delayed by the municipality',
         });
       expect(wrongRole.status).toBe(403);
       expectOk(
         await f
           .as('approver')
-          .post(`/lending/facilities/${facilityId}/conditions/${cond.id}`, {
-            outcome: 'WAIVE',
-            reason: 'Certificate delayed by the municipality',
-          }),
+          .post(
+            `/lending/facilities/${facilityId}/conditions/${cond.id}/waive`,
+            { reason: 'Certificate delayed by the municipality' },
+          ),
       );
       const after = expectOk(await facility(facilityId));
       expect(after.conditions.find((c: any) => c.id === cond.id).status).toBe(

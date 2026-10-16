@@ -129,10 +129,10 @@ export class FacilitiesService {
         terms: state.terms,
         position,
         loanAccountId: state.account.id,
-        drawdowns,
+        drawdowns: drawdowns.map(drawdownView),
         conditions,
-        statements,
-        limitChanges,
+        statements: statements.map(statementView),
+        limitChanges: limitChanges.map(limitChangeView),
       };
     });
   }
@@ -222,7 +222,7 @@ export class FacilitiesService {
         valueDate,
         tranche: body.trancheCode ?? null,
       });
-      return drawdown;
+      return drawdownView(drawdown);
     });
   }
 
@@ -650,7 +650,7 @@ export class FacilitiesService {
         periodEnd,
         charges: charges.toString(),
       });
-      return { statement: row, detail: statement };
+      return { statement: statementView(row), detail: statement };
     });
   }
 
@@ -868,7 +868,7 @@ export class FacilitiesService {
         from: decStr(state.facility.limitAmount),
         to: newLimit.toString(),
       });
-      return change;
+      return limitChangeView(change);
     });
   }
 
@@ -1207,6 +1207,42 @@ export class FacilitiesService {
       tx,
     );
   }
+}
+
+/**
+ * `@db.Date` columns come back from Prisma as UTC-midnight `Date`s, which
+ * serialize as full timestamps. Business dates leave this API as plain
+ * `YYYY-MM-DD`, as they do everywhere else on the platform.
+ */
+function drawdownView(d: {
+  valueDate: Date;
+  approvedAt: Date | null;
+  releasedAt: Date | null;
+  rejectedAt: Date | null;
+  amount: unknown;
+}) {
+  return {
+    ...d,
+    amount: decStr(d.amount as string),
+    valueDate: toLocalDate(d.valueDate),
+  };
+}
+
+function statementView(st: {
+  periodStart: Date;
+  periodEnd: Date;
+  minimumPaymentDue: Date | null;
+}) {
+  return {
+    ...st,
+    periodStart: toLocalDate(st.periodStart),
+    periodEnd: toLocalDate(st.periodEnd),
+    minimumPaymentDue: toLocalDate(st.minimumPaymentDue),
+  };
+}
+
+function limitChangeView(c: { effectiveDate: Date }) {
+  return { ...c, effectiveDate: toLocalDate(c.effectiveDate) };
 }
 
 function view(f: {

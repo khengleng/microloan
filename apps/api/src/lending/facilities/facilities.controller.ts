@@ -35,12 +35,11 @@ const release = z
   .strict();
 const rejection = z.object({ reason: z.string().min(1).max(500) }).strict();
 
-const conditionDecision = z
-  .object({
-    outcome: z.enum(['SATISFY', 'WAIVE']),
-    evidence: z.string().max(500).optional(),
-    reason: z.string().max(500).optional(),
-  })
+const satisfyCondition = z
+  .object({ evidence: z.string().min(1).max(500) })
+  .strict();
+const waiveCondition = z
+  .object({ reason: z.string().min(1).max(500) })
   .strict();
 
 const limitRequest = z
@@ -177,15 +176,34 @@ export class LendingFacilitiesController {
     return this.svc.releaseDrawdown(actor(req), id, drawdownId, b, key);
   }
 
+  // Satisfying and waiving are different permissions, so they are different
+  // routes: the action guard resolves one action per route.
   @LendingAction('facility.condition.manage')
-  @Post(':id/conditions/:conditionId')
-  decideCondition(
+  @Post(':id/conditions/:conditionId/satisfy')
+  satisfyCondition(
     @Req() req: Request,
     @Param('id', ID) id: string,
     @Param('conditionId', ID) conditionId: string,
-    @Body(new ZodPipe(conditionDecision)) b: never,
+    @Body(new ZodPipe(satisfyCondition)) b: { evidence: string },
   ) {
-    return this.svc.decideCondition(actor(req), id, conditionId, b);
+    return this.svc.decideCondition(actor(req), id, conditionId, {
+      outcome: 'SATISFY',
+      evidence: b.evidence,
+    });
+  }
+
+  @LendingAction('facility.condition.waive')
+  @Post(':id/conditions/:conditionId/waive')
+  waiveCondition(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Param('conditionId', ID) conditionId: string,
+    @Body(new ZodPipe(waiveCondition)) b: { reason: string },
+  ) {
+    return this.svc.decideCondition(actor(req), id, conditionId, {
+      outcome: 'WAIVE',
+      reason: b.reason,
+    });
   }
 
   @LendingAction('facility.statement.generate')
