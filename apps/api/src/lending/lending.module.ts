@@ -13,6 +13,8 @@ import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { ApplicationsService } from './origination/applications.service';
 import { ServicingService } from './servicing/servicing.service';
+import { FacilitiesService } from './facilities/facilities.service';
+import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
@@ -46,6 +48,7 @@ import {
     LendingIntegrationsController,
     LendingAccessController,
     LendingOperationsController,
+    LendingFacilitiesController,
   ],
   providers: [
     LendingPrisma,
@@ -60,6 +63,7 @@ import {
     WorkflowsService,
     ApplicationsService,
     ServicingService,
+    FacilitiesService,
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,

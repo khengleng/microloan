@@ -139,3 +139,64 @@ export function tenantResource(
     workflowState: workflowState ?? null,
   };
 }
+
+/**
+ * A facility as the decision engine sees it.
+ *
+ * `workflowState` is the facility's own status for governance actions, but a
+ * drawdown decision is about the *drawdown*, so the caller passes that status
+ * instead — the action table names the states it accepts and never has to
+ * know which of the two it is looking at.
+ */
+export function facilityResource(
+  f: {
+    id: string;
+    tenantId: string;
+    branchId: string;
+    portfolioId: string | null;
+    legalEntityId: string | null;
+    status: string;
+    limitAmount: unknown;
+    currency: string;
+    familyCode: string;
+  },
+  productCode: string | null,
+  productVersionStatus: string | null,
+  config: ProductConfig | null,
+  configValid: boolean,
+  makerIds: string[] = [],
+  opts: { workflowState?: string; amount?: string } = {},
+): Resource {
+  return {
+    type: 'FACILITY',
+    id: f.id,
+    tenantId: f.tenantId,
+    branchId: f.branchId,
+    portfolioId: f.portfolioId,
+    legalEntityId: f.legalEntityId,
+    productCode,
+    familyCode: f.familyCode,
+    productStatus: productVersionStatus,
+    productConfigValid: configValid,
+    amount: opts.amount ?? decStr(f.limitAmount as string),
+    currency: f.currency,
+    dataClassification: 'CONFIDENTIAL',
+    workflowState: opts.workflowState ?? f.status,
+    makerIds,
+    requiredFlags: [...configFlags(config), ...facilityFlags(config)],
+  };
+}
+
+/** Facility behaviour is flag-gated on top of the product's own flags. */
+function facilityFlags(config: ProductConfig | null): string[] {
+  switch (config?.facility.type) {
+    case 'REVOLVING':
+      return ['lending.revolving.drawdown'];
+    case 'OVERDRAFT':
+      return ['lending.facility.overdraft'];
+    case 'STAGED_DRAWDOWN':
+      return ['lending.facility.staged_drawdown'];
+    default:
+      return [];
+  }
+}

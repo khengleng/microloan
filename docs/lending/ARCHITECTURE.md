@@ -10,13 +10,16 @@ module is untouched and keeps working; the two do not share loan records.
 ```
 packages/shared/src/lending/   pure engine: money, dates, schedules, fees, APR, servicing,
                                affordability, restructuring, config schema, catalogue, capabilities
-packages/db/prisma/            schema (+ lending models) and migration 20261016_lending_platform_phase1
+packages/db/prisma/            schema (+ lending models), migrations 20261016_lending_platform_phase1
+                               and 20261017_lending_facilities_phase2
 apps/api/src/lending/
   policy/        RBAC + ABAC + feature-flag decision engine, permission/role/flag catalogue
   products/      product catalogue, versions (maker-checker lifecycle), workflows, simulation
   origination/   applications, documents, collateral, guarantees, assessment, decisions, booking
   servicing/     disbursement, accrual, repayment, prepayment, settlement, reversal,
                  penalties, delinquency, write-off, export, end-of-day batch
+  facilities/    limits, availability, drawdown governance, tranche conditions,
+                 facility charges, statements, limit changes, term-out
   restructuring/ hardship cases, affordability, proposals, approval/acceptance, amendments, monitoring
   accounting/    balanced postings, trial balance, reconciliation, journal, audit explorer, outbox
   access/        roles, assignments, delegations, authorities, ABAC policies, flags, service accounts,
@@ -60,7 +63,7 @@ Some names already existed in the app, so lending models use distinct names:
 | BorrowerGroup, GroupMembership | same names (structure only — group liability is Phase 2) |
 | Application, CreditDecision, ApprovalTask | same names |
 | Collateral, Guarantee, Valuation | `CollateralAsset` (+ `CollateralPledge`), `Guarantee`, `Valuation` |
-| Facility, Drawdown | same names (structure only — Phase 2) |
+| Facility, Drawdown | same names (+ `FacilityCondition`, `FacilityStatement`, `FacilityLimitChange`) |
 | LoanAgreement | `LendingAgreement` + `AgreementVersion` (the existing `LoanAgreement` is the key-facts e-signature record) |
 | RateObservation | same name |
 | RepaymentSchedule | `ScheduleInstalment` |
@@ -68,6 +71,48 @@ Some names already existed in the app, so lending models use distinct names:
 | JournalEntry, JournalLine | `LendingJournalEntry`, `LendingJournalLine` (posting to the tenant's existing `LedgerAccount` chart) |
 | RestructureAgreement | `RestructureCase`, `RestructureProposal`, `RestructureApproval`, `RestructureAcceptance`, `LoanAmendment`, … |
 | AuditEvent | `AuditEvent` |
+
+## Facilities
+
+A facility is a limit the borrower draws against, not a principal disbursed
+once. Three behaviours differ in one respect each and share one
+implementation:
+
+| Type | Limit reinstates on repayment | Drawdowns | At the end of availability |
+|---|---|---|---|
+| `REVOLVING` | yes | repeated | terms out, if configured |
+| `OVERDRAFT` | yes | continuous balance | repayable on demand |
+| `STAGED_DRAWDOWN` | no | tranches, released in full | terms out |
+
+* **The drawn balance is an ordinary loan account.** A facility's balance,
+  accrual postings, repayments, reversals, delinquency, reconciliation and GL
+  entries all live on its `LoanAccount` and move through the servicing path
+  that term loans use. `Facility` owns only the limit and the governance
+  around drawing against it, so there is still one servicing path.
+* **Interest is charged on the drawn balance day by day**, never on the limit,
+  through the same `dailyAccrual` the term-loan engine uses. A balance above
+  the limit is split out and priced at `overlimitRate`, so the penalty element
+  is visible on the statement; with no over-limit rate configured, an
+  over-limit balance is refused rather than silently charged.
+* **A commitment fee is priced like interest** on the daily *undrawn* amount.
+* **Drawdowns are maker-checker**: `REQUESTED → APPROVED → RELEASED`, with one
+  in flight at a time. The limit is re-checked against committed movements at
+  request, at approval and again at release, because the limit can be consumed
+  between any two of them. Releasing posts a `DISBURSEMENT` financial event
+  with a balanced journal and requires an `Idempotency-Key`.
+* **A staged tranche releases in full or not at all**, on or after its date,
+  with every condition precedent satisfied or waived. Satisfying a condition is
+  evidence-backed; waiving one is a credit concession and needs the credit
+  approver's permission and a reason.
+* **A limit cannot be cut below what is already drawn** — outstanding for a
+  reinstating limit, cumulative advances for a staged one.
+* **Term-out** returns the principal and remaining months; the schedule itself
+  is built by `generateSchedule`, so a termed-out facility is serviced from
+  then on by exactly the term-loan code.
+
+Facility behaviour is flag-gated per type (`lending.revolving.drawdown`,
+`lending.facility.overdraft`, `lending.facility.staged_drawdown`), all off by
+default.
 
 ## Money, dates and the engine
 

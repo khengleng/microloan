@@ -20,10 +20,13 @@ export type ActionKind =
   /** Platform catalogue actions, open to platform administrators. */
   | 'PLATFORM'
   /** Restructuring workflow: gated by restructure flags, never by origination flags. */
-  | 'RESTRUCTURE';
+  | 'RESTRUCTURE'
+  /** Drawing against a limit: new money out, like a disbursement. */
+  | 'DRAWDOWN';
 
 export type ResourceType =
   | 'RESTRUCTURE_CASE'
+  | 'FACILITY'
   | 'APPLICATION'
   | 'LOAN_ACCOUNT'
   | 'PRODUCT'
@@ -67,7 +70,8 @@ const A = (
     opts.scoped ??
     (resourceType === 'APPLICATION' ||
       resourceType === 'LOAN_ACCOUNT' ||
-      resourceType === 'RESTRUCTURE_CASE'),
+      resourceType === 'RESTRUCTURE_CASE' ||
+      resourceType === 'FACILITY'),
   ...opts,
 });
 
@@ -284,6 +288,62 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('restructure.monitor', 'RESTRUCTURE_CASE', 'RESTRUCTURE', {
     workflowStates: ['MONITORING', 'COMPLETED'],
+  }),
+  // Facilities. Resource state is the facility status, except the drawdown
+  // decisions, whose state is the drawdown's own status.
+  A('facility.read', 'FACILITY', 'READ'),
+  A('facility.drawdown.request', 'FACILITY', 'DRAWDOWN', {
+    workflowStates: ['ACTIVE'],
+    requiresActiveProduct: true,
+  }),
+  A('facility.drawdown.approve', 'FACILITY', 'DRAWDOWN', {
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+    requiresActiveProduct: true,
+  }),
+  A('facility.drawdown.release', 'FACILITY', 'DRAWDOWN', {
+    workflowStates: ['APPROVED'],
+    makerChecker: true,
+    requiresActiveProduct: true,
+  }),
+  A('facility.drawdown.reject', 'FACILITY', 'DRAWDOWN', {
+    permission: 'facility.drawdown.approve',
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+  }),
+  A('facility.drawdown.cancel', 'FACILITY', 'DRAWDOWN', {
+    permission: 'facility.drawdown.request',
+    workflowStates: ['REQUESTED'],
+  }),
+  A('facility.condition.manage', 'FACILITY', 'ORIGINATION', {
+    workflowStates: ['PENDING', 'ACTIVE'],
+  }),
+  A('facility.condition.waive', 'FACILITY', 'ORIGINATION', {
+    workflowStates: ['PENDING', 'ACTIVE'],
+    makerChecker: true,
+    minAssurance: 'MFA',
+  }),
+  A('facility.limit.request', 'FACILITY', 'CONFIG', {
+    workflowStates: ['PENDING', 'ACTIVE', 'SUSPENDED'],
+  }),
+  A('facility.limit.approve', 'FACILITY', 'CONFIG', {
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('facility.limit.reject', 'FACILITY', 'CONFIG', {
+    permission: 'facility.limit.approve',
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+  }),
+  A('facility.manage', 'FACILITY', 'SERVICING_MONEY', {
+    workflowStates: ['PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  A('facility.statement.generate', 'FACILITY', 'SERVICING_MONEY', {
+    workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
   }),
   A('servicing.batch.run', 'TENANT', 'SERVICING_MONEY'),
   A('loan_data.export', 'TENANT', 'READ'),

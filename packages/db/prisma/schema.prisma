@@ -1595,31 +1595,187 @@ model Guarantee {
 
 // ── Facilities (Phase 2 behaviour; structure in place) ──────────────────────
 
+/// A limit the borrower draws against, rather than a principal disbursed once.
+///
+/// The drawn balance, its accrual, repayments, delinquency and journals all
+/// live on the facility's `LoanAccount`, exactly as for a term loan — there is
+/// one servicing path. This model owns only what a limit adds: the committed
+/// amount, the availability window, drawdown governance and the tranche plan.
 model Facility {
-  id               String     @id @default(uuid())
+  id               String   @id @default(uuid())
   tenantId         String
-  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference        String
   borrowerId       String
+  branchId         String
+  portfolioId      String?
+  legalEntityId    String?
+  productId        String
   productVersionId String
+  familyCode       String
+  /// REVOLVING, OVERDRAFT, STAGED_DRAWDOWN
+  facilityType     String
   currency         String
-  limitAmount      Decimal    @db.Decimal(24, 4)
-  maturityDate     DateTime   @db.Date
-  status           String     @default("PENDING")
-  createdAt        DateTime   @default(now())
-  drawdowns        Drawdown[]
+  /// The agreement (and so the loan account) carrying the drawn balance.
+  agreementId      String   @unique
+  /// REVOLVING / OVERDRAFT reinstate the limit on repayment; STAGED_DRAWDOWN does not.
+  limitReinstates  Boolean
+  limitAmount      Decimal  @db.Decimal(24, 4)
+  availabilityFrom DateTime @db.Date
+  availabilityTo   DateTime @db.Date
+  maturityDate     DateTime @db.Date
+  /// PENDING, ACTIVE, SUSPENDED, EXPIRED, TERMED_OUT, CLOSED, CANCELLED
+  status           String   @default("PENDING")
+  /// Cumulative amount ever advanced; never reduced by repayment.
+  totalDrawn       Decimal  @default(0) @db.Decimal(24, 4)
+  /// Interest and fees charged to the facility since inception.
+  chargesRaised    Decimal  @default(0) @db.Decimal(24, 4)
+  lastAccrualDate  DateTime? @db.Date
+  lastStatementTo  DateTime? @db.Date
+  suspendedAt      DateTime?
+  suspendedReason  String?
+  termedOutAt      DateTime?
+  closedAt         DateTime?
+  /// Optimistic concurrency token; every drawdown or limit change bumps it.
+  version          Int      @default(0)
+  createdBy        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
+  drawdowns   Drawdown[]
+  conditions  FacilityCondition[]
+  statements  FacilityStatement[]
+  limitEvents FacilityLimitChange[]
+
+  @@unique([tenantId, reference])
   @@unique([tenantId, id])
+  @@unique([tenantId, agreementId])
+  @@index([tenantId, status])
+  @@index([tenantId, borrowerId])
+  @@index([tenantId, branchId])
 }
 
+/// A request to release money against a facility, under maker-checker.
+///
+/// REQUESTED → APPROVED → RELEASED, or REJECTED / CANCELLED. Releasing posts a
+/// DISBURSEMENT financial event on the facility's loan account; `eventId` is
+/// the link, and it is set exactly once.
 model Drawdown {
-  id         String   @id @default(uuid())
-  tenantId   String
-  facilityId String
-  facility   Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
-  amount     Decimal  @db.Decimal(24, 4)
-  valueDate  DateTime @db.Date
-  status     String   @default("REQUESTED")
-  createdAt  DateTime @default(now())
+  id             String   @id @default(uuid())
+  tenantId       String
+  facilityId     String
+  facility       Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  sequence       Int
+  amount         Decimal  @db.Decimal(24, 4)
+  currency       String
+  valueDate      DateTime @db.Date
+  /// STAGED_DRAWDOWN: the tranche this releases. Null for the other types.
+  trancheCode    String?
+  purpose        String   @default("")
+  /// REQUESTED, APPROVED, RELEASED, REJECTED, CANCELLED
+  status         String   @default("REQUESTED")
+  /// The posted disbursement, once released.
+  eventId        String?  @unique
+  requestedBy    String
+  approvedBy     String?
+  approvedAt     DateTime?
+  releasedBy     String?
+  releasedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  rejectionReason String?
+  idempotencyKey String?
+  version        Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([facilityId, sequence])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, facilityId, status])
+}
+
+/// A condition gating a staged tranche. Satisfying one is evidence-backed;
+/// waiving one is a credit concession and is recorded as such.
+model FacilityCondition {
+  id          String    @id @default(uuid())
+  tenantId    String
+  facilityId  String
+  facility    Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  trancheCode String
+  code        String
+  label       String
+  /// PENDING, SATISFIED, WAIVED
+  status      String    @default("PENDING")
+  evidence    String?
+  satisfiedBy String?
+  satisfiedAt DateTime?
+  waivedBy    String?
+  waivedAt    DateTime?
+  waiverReason String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([facilityId, trancheCode, code])
+  @@unique([tenantId, id])
+  @@index([tenantId, facilityId])
+}
+
+/// A period statement: what moved, what was charged and what is now due.
+/// Append-only — a correction is a later statement, never an edit.
+model FacilityStatement {
+  id                String   @id @default(uuid())
+  tenantId          String
+  facilityId        String
+  facility          Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  sequence          Int
+  periodStart       DateTime @db.Date
+  /// Exclusive.
+  periodEnd         DateTime @db.Date
+  openingBalance    Decimal  @db.Decimal(24, 4)
+  drawdowns         Decimal  @db.Decimal(24, 4)
+  repayments        Decimal  @db.Decimal(24, 4)
+  interest          Decimal  @db.Decimal(24, 4)
+  overlimitInterest Decimal  @default(0) @db.Decimal(24, 4)
+  commitmentFee     Decimal  @default(0) @db.Decimal(24, 4)
+  closingBalance    Decimal  @db.Decimal(24, 4)
+  chargesRaised     Decimal  @db.Decimal(24, 4)
+  minimumPayment    Decimal? @db.Decimal(24, 4)
+  minimumPaymentDue DateTime? @db.Date
+  /// Engine inputs and the computed breakdown, for audit.
+  calculation       Json
+  engineVersion     String
+  createdBy         String
+  createdAt         DateTime @default(now())
+
+  @@unique([facilityId, sequence])
+  @@unique([tenantId, id])
+  @@index([tenantId, facilityId, periodEnd])
+}
+
+/// A change to the committed limit, under maker-checker. Append-only: the
+/// facility's current limit is the latest APPROVED row applied to it.
+model FacilityLimitChange {
+  id             String   @id @default(uuid())
+  tenantId       String
+  facilityId     String
+  facility       Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  previousLimit  Decimal  @db.Decimal(24, 4)
+  newLimit       Decimal  @db.Decimal(24, 4)
+  /// INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT
+  changeType     String
+  reason         String
+  effectiveDate  DateTime @db.Date
+  /// REQUESTED, APPROVED, REJECTED
+  status         String   @default("REQUESTED")
+  requestedBy    String
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedBy     String?
+  rejectedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, facilityId, createdAt])
 }
 
 // ── Agreements and accounts ────────────────────────────────────────────────

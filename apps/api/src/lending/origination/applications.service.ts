@@ -916,6 +916,20 @@ export class ApplicationsService {
         ...(approved!.terms as unknown as lending.NegotiatedTerms),
         disbursementDate: planned,
       };
+      // A facility books a limit, not a schedule: there is no principal to
+      // amortize until it terms out, so the booking calculation (which
+      // generates a schedule) does not apply to it.
+      if (config!.facility.type !== 'TERM') {
+        return this.bookFacility(tx, actor, {
+          app,
+          config: config!,
+          version: version!,
+          product: product!,
+          terms,
+          businessDate,
+          effectiveDate: planned,
+        });
+      }
       const booking = await this.bookingCalculation(
         tx,
         tenantId,
@@ -1002,6 +1016,208 @@ export class ApplicationsService {
       );
       return { agreement, account, preview: booking };
     });
+  }
+
+  /**
+   * Book a facility: a limit the borrower may draw against.
+   *
+   * The agreement and loan account are created exactly as for a term loan — a
+   * facility is serviced by the same code — but with no schedule and a booked
+   * principal of the committed limit, which is the exposure the approval
+   * authority was measured against. Tranche conditions come from the product
+   * configuration so they cannot be edited away on an individual facility.
+   */
+  private async bookFacility(
+    tx: Tx,
+    actor: LendingActor,
+    input: {
+      app: {
+        id: string;
+        reference: string;
+        tenantId: string;
+        borrowerId: string;
+        branchId: string;
+        portfolioId: string | null;
+        legalEntityId: string | null;
+        productId: string;
+        currency: string;
+      };
+      config: lending.ProductConfig;
+      version: { id: string; version: number; configHash: string };
+      product: { familyCode: string };
+      terms: lending.NegotiatedTerms;
+      businessDate: string;
+      effectiveDate: string;
+    },
+  ) {
+    const { app, config, version, product, terms, effectiveDate } = input;
+    const tenantId = app.tenantId;
+    const fc = config.facility;
+    const availabilityFrom = effectiveDate;
+    const availabilityTo = lending.addMonths(
+      availabilityFrom,
+      fc.availabilityMonths!,
+    );
+    const maturityDate = fc.termOutOnExpiry
+      ? lending.addMonths(availabilityTo, terms.numberOfInstalments ?? 12)
+      : availabilityTo;
+
+    const engineTerms: lending.FacilityTerms = {
+      type: fc.type as lending.FacilityType,
+      currency: app.currency,
+      limitAmount: terms.principal,
+      availabilityStart: availabilityFrom,
+      availabilityEnd: availabilityTo,
+      maturityDate,
+      annualRate:
+        terms.annualRate ?? config.pricing.fixed?.defaultAnnualRate ?? '0',
+      dayCount: config.pricing.dayCount,
+      rounding: config.pricing.rounding,
+      minimumDrawdown: fc.minimumDrawdown,
+      maximumDrawdown: fc.maximumDrawdown,
+      commitmentFeeRate: fc.commitmentFeeRate,
+      minimumPaymentRate: fc.minimumPaymentRate,
+      minimumPaymentFloor: fc.minimumPaymentFloor,
+      overlimitRate: fc.overlimitRate,
+      tranches: fc.tranches.map((t) => ({
+        code: t.code,
+        amount: new lending.D(terms.principal).times(t.shareOfLimit).toString(),
+        availableFrom: lending.addMonths(
+          availabilityFrom,
+          t.availableAfterMonths,
+        ),
+        conditions: t.conditions,
+      })),
+    };
+    const issues = lending.validateFacilityTerms(engineTerms);
+    if (issues.length) {
+      throw new BadRequestException({
+        message: issues.map((i) => `${i.path}: ${i.message}`).join('; '),
+        code: 'FACILITY_TERMS_INVALID',
+        issues,
+      });
+    }
+
+    const agreement = await tx.lendingAgreement.create({
+      data: {
+        tenantId,
+        reference: newReference('AGR'),
+        applicationId: app.id,
+        borrowerId: app.borrowerId,
+        productId: app.productId,
+        productVersionId: version.id,
+        currency: app.currency,
+        createdBy: actor.id,
+      },
+    });
+    await tx.agreementVersion.create({
+      data: {
+        tenantId,
+        agreementId: agreement.id,
+        version: 1,
+        reason: 'BOOKING',
+        productConfig: config as unknown as Json,
+        configHash: version.configHash,
+        terms: terms as unknown as Json,
+        // A facility has no schedule input; the facility terms are what the
+        // engine is driven by, so they are what the snapshot must carry.
+        scheduleInput: engineTerms as unknown as Json,
+        calculation: {
+          facilityTerms: engineTerms,
+          engineVersion: lending.LENDING_ENGINE_VERSION,
+        } as unknown as Json,
+        engineVersion: lending.LENDING_ENGINE_VERSION,
+        effectiveDate: fromLocalDate(effectiveDate),
+        createdBy: actor.id,
+      },
+    });
+    const account = await tx.loanAccount.create({
+      data: {
+        tenantId,
+        reference: newReference('LN'),
+        agreementId: agreement.id,
+        applicationId: app.id,
+        borrowerId: app.borrowerId,
+        branchId: app.branchId,
+        portfolioId: app.portfolioId,
+        legalEntityId: app.legalEntityId,
+        productId: app.productId,
+        productVersionId: version.id,
+        familyCode: product.familyCode,
+        currency: app.currency,
+        status: 'BOOKED',
+        bookedPrincipal: terms.principal,
+        maturityDate: fromLocalDate(maturityDate),
+        createdBy: actor.id,
+      },
+    });
+    const facility = await tx.facility.create({
+      data: {
+        tenantId,
+        reference: newReference('FAC'),
+        borrowerId: app.borrowerId,
+        branchId: app.branchId,
+        portfolioId: app.portfolioId,
+        legalEntityId: app.legalEntityId,
+        productId: app.productId,
+        productVersionId: version.id,
+        familyCode: product.familyCode,
+        facilityType: fc.type,
+        currency: app.currency,
+        agreementId: agreement.id,
+        limitReinstates: lending.limitReinstates(
+          fc.type as lending.FacilityType,
+        ),
+        limitAmount: terms.principal,
+        availabilityFrom: fromLocalDate(availabilityFrom),
+        availabilityTo: fromLocalDate(availabilityTo),
+        maturityDate: fromLocalDate(maturityDate),
+        status: 'ACTIVE',
+        createdBy: actor.id,
+      },
+    });
+    const conditions = fc.tranches.flatMap((t) =>
+      t.conditions.map((c) => ({
+        tenantId,
+        facilityId: facility.id,
+        trancheCode: t.code,
+        code: c,
+        label: `${t.label}: ${c}`,
+      })),
+    );
+    if (conditions.length) {
+      await tx.facilityCondition.createMany({ data: conditions });
+    }
+    await this.cas(tx, app as never, 'APPROVED', 'BOOKED');
+    await this.audit.write(
+      {
+        actor,
+        action: 'loan.agreement.book',
+        resourceType: 'Facility',
+        resourceId: facility.id,
+        outcome: 'SUCCESS',
+        details: {
+          application: app.reference,
+          agreement: agreement.reference,
+          facility: facility.reference,
+          facilityType: fc.type,
+          limitAmount: terms.principal,
+        },
+        configVersions: {
+          productVersion: version.version,
+          configHash: version.configHash,
+          engine: lending.LENDING_ENGINE_VERSION,
+        },
+        businessDate: fromLocalDate(input.businessDate),
+      },
+      tx,
+    );
+    return {
+      agreement,
+      account,
+      facility,
+      preview: { facilityTerms: engineTerms },
+    };
   }
 
   async bookingCalculation(

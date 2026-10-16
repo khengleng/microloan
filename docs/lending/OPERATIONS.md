@@ -9,7 +9,7 @@ pnpm install
 cp .env.example .env               # set DATABASE_URL, JWT_* secrets, CORS_ORIGINS …
 pnpm --filter @microloan/db build  # prisma generate
 pnpm --filter @microloan/shared build
-pnpm db:migrate:deploy             # applies 20261016_lending_platform_phase1 (see "Migrations" below)
+pnpm db:migrate:deploy             # applies the lending migrations (see "Migrations" below)
 pnpm dev                           # API :3001, web :3000
 ```
 
@@ -65,7 +65,7 @@ pnpm test:api             # API unit tests, including the decision-engine securi
 # Integration — real HTTP API, guards and PostgreSQL with the migration's triggers and RLS:
 export LENDING_TEST_DATABASE_URL=<throwaway database whose name contains "test" or "ci">
 pnpm test:lending:db      # resets that database: schema push + migration invariants
-pnpm test:lending:int     # 48 tests: Phase 1 slice, security & lifecycle, restructuring
+pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities
 ```
 
 CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`.
@@ -83,6 +83,7 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 ## Migrations and deployment
 
 * `packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql`
+* `packages/db/prisma/migrations/20261017_lending_facilities_phase2/migration.sql`
   is additive: new tables, a new `Tenant.authzVersion` column, new unique
   indexes on `(tenantId, id)` for `User`, `Borrower`, `LedgerAccount`, plus the
   triggers, constraints and RLS policies. It was rehearsed against the
@@ -109,18 +110,55 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 | Document storage | S3 when configured; otherwise a local-disk mock in development (refused in production). |
 | External accounting | Not wired; the lending journal and reconciliation are internal. |
 
-## Known limitations (Phase 1 + restructuring)
+## Facilities
+
+Revolving lines, overdrafts and staged drawdowns are live. Each type is behind
+its own flag, all **off by default**; switch one on under Access → Feature
+flags (two administrators), then activate a facility product:
+
+| Type | Flag | Templates |
+|---|---|---|
+| Revolving | `lending.revolving.drawdown` | `REVOLVING_CREDIT`, `HOME_EQUITY_LINE` |
+| Overdraft | `lending.facility.overdraft` | `OVERDRAFT` |
+| Staged drawdown | `lending.facility.staged_drawdown` | `CONSTRUCTION` |
+
+Day-to-day operation:
+
+* **Booking** an approved application on a facility product creates the
+  facility, its agreement and its loan account; the approved principal is the
+  committed limit. Tranche conditions are created from the product
+  configuration.
+* **Drawing**: operations request a drawdown, a second person approves it
+  (MFA + approval authority), and release posts the payout against an external
+  bank or cash reference with an `Idempotency-Key`. One drawdown is in flight
+  at a time.
+* **Charges** are raised by generating a statement for a period
+  (`POST /lending/facilities/:id/statements`). Periods never overlap: the next
+  one starts where the last ended, and a statement cannot close after the
+  business date. Interest, over-limit interest and the commitment fee post as
+  one `ACCRUAL` event.
+* **Repayments** go through the ordinary loan endpoints — a facility's balance
+  is a loan account.
+* **Limit changes** are maker-checker and cannot cut a limit below what is
+  already drawn.
+* **Suspension** blocks new drawdowns and leaves servicing untouched.
+* **Term-out** converts the drawn balance to an amortizing loan once
+  availability ends; an overdraft is repayable on demand and does not term out.
+
+Nothing is reversed by editing: a released drawdown is immutable at the
+database level, and a correction is a reversal of its disbursement.
+
+## Known limitations
 
 * Floating-rate products are **simulation only** (projected schedules from the
   latest benchmark + margin, with floor/cap); contractual resets on booked loans
-  are Phase 2.
-* Not implemented (templates seeded unavailable): revolving facilities,
-  overdrafts, staged drawdowns, group/joint liability, borrowing bases,
-  connected-party exposure, credit cards, BNPL, trade finance, factoring,
-  forfaiting, supply-chain finance, income-contingent education, syndication,
-  project finance, institutional lending, Murabaha, Ijarah, post-write-off
-  recoveries, refinancing, negotiated settlement, stand-alone payment holidays,
-  emergency (break-glass) access.
+  are still outstanding.
+* Not implemented (templates seeded unavailable): group/joint liability,
+  borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
+  factoring, forfaiting, supply-chain finance, income-contingent education,
+  syndication, project finance, institutional lending, Murabaha, Ijarah,
+  post-write-off recoveries, refinancing, negotiated settlement, stand-alone
+  payment holidays, emergency (break-glass) access.
 * Reversal is latest-first and not available for repayments that triggered a
   prepayment reschedule; amendment reversal only before later activity.
 * No unapplied-cash (suspense) account: overpayments beyond the payoff are refused.

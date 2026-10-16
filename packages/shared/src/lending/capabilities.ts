@@ -33,6 +33,7 @@ const C = (id: string, area: string, status: CapabilityStatus, phase: 1 | 2 | 3,
 
 const ENGINE_TESTS = 'packages/shared/test/*.test.ts';
 const FLOW_TESTS = 'apps/api/test/lending/*.int-spec.ts';
+const FACILITY_TESTS = 'packages/shared/test/facility.test.ts, apps/api/test/lending/facilities.int-spec.ts';
 
 export const CAPABILITIES: Capability[] = [
   // Schedules
@@ -79,9 +80,9 @@ export const CAPABILITIES: Capability[] = [
   C('servicing.payment_holiday', 'Restructuring', 'NOT_IMPLEMENTED', 2, 'Stand-alone payment holiday programme (relief is available inside a restructure as a payment deferral)'),
   C('servicing.recovery_after_write_off', 'Servicing', 'NOT_IMPLEMENTED', 2, 'Post-write-off recoveries'),
   // Facilities (Phase 2)
-  C('facility.revolving', 'Facility', 'NOT_IMPLEMENTED', 2, 'Revolving facilities with limits and drawdowns'),
-  C('facility.overdraft', 'Facility', 'NOT_IMPLEMENTED', 2, 'Overdraft'),
-  C('facility.staged_drawdown', 'Facility', 'NOT_IMPLEMENTED', 2, 'Staged construction drawdowns'),
+  C('facility.revolving', 'Facility', 'IMPLEMENTED', 2, 'Revolving facilities: limit, availability window, maker-checker drawdowns, interest on the drawn balance, commitment fee on the undrawn, limit changes, statements and term-out', FACILITY_TESTS),
+  C('facility.overdraft', 'Facility', 'IMPLEMENTED', 2, 'Overdraft: debit balance against a limit, minimum payment, over-limit pricing', FACILITY_TESTS),
+  C('facility.staged_drawdown', 'Facility', 'IMPLEMENTED', 2, 'Staged construction drawdowns: tranches released in full, gated by date and conditions precedent, with no limit reinstatement', FACILITY_TESTS),
   C('collateral.borrowing_base', 'Security', 'NOT_IMPLEMENTED', 2, 'Borrowing-base eligibility and advance rates'),
   C('limits.connected_exposure', 'Limits', 'NOT_IMPLEMENTED', 2, 'Group and connected-party exposure checks'),
   // Accounting & integrations

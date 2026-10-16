@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 34 · 🧪 Simulation only: 1 · 🔌 Requires integration: 5 · ⛔ Not implemented: 25
+✅ Fully implemented: 37 · 🧪 Simulation only: 1 · 🔌 Requires integration: 5 · ⛔ Not implemented: 22
 
 ## Capabilities
 
@@ -97,9 +97,9 @@ A product version can be activated only when every capability it requires is **F
 
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
-| `facility.revolving` | ⛔ Not implemented | 2 | Revolving facilities with limits and drawdowns |  |
-| `facility.overdraft` | ⛔ Not implemented | 2 | Overdraft |  |
-| `facility.staged_drawdown` | ⛔ Not implemented | 2 | Staged construction drawdowns |  |
+| `facility.revolving` | ✅ Fully implemented | 2 | Revolving facilities: limit, availability window, maker-checker drawdowns, interest on the drawn balance, commitment fee on the undrawn, limit changes, statements and term-out | Tests: `packages/shared/test/facility.test.ts, apps/api/test/lending/facilities.int-spec.ts` |
+| `facility.overdraft` | ✅ Fully implemented | 2 | Overdraft: debit balance against a limit, minimum payment, over-limit pricing | Tests: `packages/shared/test/facility.test.ts, apps/api/test/lending/facilities.int-spec.ts` |
+| `facility.staged_drawdown` | ✅ Fully implemented | 2 | Staged construction drawdowns: tranches released in full, gated by date and conditions precedent, with no limit reinstatement | Tests: `packages/shared/test/facility.test.ts, apps/api/test/lending/facilities.int-spec.ts` |
 
 ### Limits
 
@@ -162,14 +162,14 @@ A product version can be activated only when every capability it requires is **F
 | Personal / consumer | Salary advance (`SALARY_ADVANCE`) |  | ✅ |  |
 | Personal / consumer | Emergency loan (`EMERGENCY_LOAN`) |  | ✅ |  |
 | Personal / consumer | Debt consolidation (`DEBT_CONSOLIDATION`) |  | ✅ |  |
-| Personal / consumer | Credit card (`CREDIT_CARD`) |  | ⛔ | `card.revolving_credit` (not implemented), `facility.revolving` (not implemented) |
+| Personal / consumer | Credit card (`CREDIT_CARD`) |  | ⛔ | `card.revolving_credit` (not implemented) |
 | Personal / consumer | Buy now, pay later (`BNPL`) |  | ⛔ | `bnpl.merchant_settlement` (not implemented) |
 | Personal / consumer | Murabaha financing (`MURABAHA`) |  | ⛔ | `islamic.murabaha` (not implemented) |
 | Property | Home mortgage (`HOME_MORTGAGE`) | Yes | ✅ |  |
-| Property | Construction loan (`CONSTRUCTION`) |  | ⛔ | `facility.staged_drawdown` (not implemented) |
+| Property | Construction loan (`CONSTRUCTION`) |  | ✅ |  |
 | Property | Renovation loan (`RENOVATION`) |  | ✅ |  |
 | Property | Home equity term loan (`HOME_EQUITY_TERM`) |  | ✅ |  |
-| Property | Home equity line (`HOME_EQUITY_LINE`) |  | ⛔ | `facility.revolving` (not implemented) |
+| Property | Home equity line (`HOME_EQUITY_LINE`) |  | ✅ |  |
 | Property | Investment property loan (`INVESTMENT_PROPERTY`) |  | ✅ |  |
 | Property | Bridge loan (`BRIDGE_LOAN`) |  | ✅ |  |
 | Vehicle / assets | Car loan (`CAR_LOAN`) |  | ✅ |  |
@@ -188,8 +188,8 @@ A product version can be activated only when every capability it requires is **F
 | Microfinance | Seasonal microloan (`MICRO_SEASONAL`) |  | ✅ |  |
 | SME / commercial | SME business term loan (`SME_TERM`) | Yes | ✅ |  |
 | SME / commercial | Working capital loan (`WORKING_CAPITAL`) |  | ✅ |  |
-| SME / commercial | Overdraft (`OVERDRAFT`) |  | ⛔ | `facility.overdraft` (not implemented) |
-| SME / commercial | Revolving credit facility (`REVOLVING_CREDIT`) |  | ⛔ | `facility.revolving` (not implemented) |
+| SME / commercial | Overdraft (`OVERDRAFT`) |  | ✅ |  |
+| SME / commercial | Revolving credit facility (`REVOLVING_CREDIT`) |  | ✅ |  |
 | SME / commercial | Inventory-backed loan (`INVENTORY_BACKED`) |  | ⛔ | `collateral.borrowing_base` (not implemented) |
 | SME / commercial | Commercial property loan (`COMMERCIAL_PROPERTY`) |  | ✅ |  |
 | Agriculture | Seasonal crop loan (`AGRI_CROP_SEASONAL`) | Yes | ✅ |  |

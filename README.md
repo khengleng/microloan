@@ -155,10 +155,11 @@ The borrower portal adds restructure requests and proposal acceptance.
 
 ### What is not implemented yet
 
-Contractual floating-rate resets, revolving facilities / overdrafts / staged
-drawdowns, group liability, borrowing bases, connected-party exposure, and the
-specialised modules (cards, BNPL, trade, factoring, income-contingent,
-syndicated, project finance, Islamic) are Phase 2 / Phase 3. Payment rails,
+Contractual floating-rate resets, group liability, borrowing bases,
+connected-party exposure, and the specialised modules (cards, BNPL, trade,
+factoring, income-contingent, syndicated, project finance, Islamic) are still
+outstanding. Revolving facilities, overdrafts and staged drawdowns shipped in
+Phase 2 and are behind per-type feature flags, off by default. Payment rails,
 external KYC, credit bureau, notifications and external accounting have adapter
 interfaces with clearly labelled mocks that are refused in production. The full
 list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
@@ -207,7 +208,7 @@ pnpm test:api             # API unit tests (incl. decision-engine security tests
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
 pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1 vertical slice, security & lifecycle, restructuring
+pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```
@@ -251,6 +252,16 @@ environment layout and the backup caveat).
 * Required API variables: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
   `JWT_REFRESH_TOKEN_PEPPER`, `CORS_ORIGINS`, `REDIS_URL`, `AWS_*`, `NODE_ENV=production`;
   recommended `FIELD_ENCRYPTION_KEY`; optional lending variables are listed in `.env.example`.
-* The lending migration (`20261016_lending_platform_phase1`) is additive and was
-  rehearsed against the production schema with no drift — but there is no
-  staging environment, so take a database snapshot before deploying it.
+* The Phase 1 lending migration (`20261016_lending_platform_phase1`) is
+  additive and was rehearsed against the production schema with no drift — but
+  there is no staging environment, so take a database snapshot before
+  deploying it.
+* The facilities migration (`20261017_lending_facilities_phase2`) has **not**
+  been rehearsed against a production-shaped database. Its invariants
+  (constraints, triggers, row-level security) run in CI through
+  `scripts/lending-test-db.mjs`, but its `DROP TABLE` / `CREATE TABLE` of
+  `Facility` and `Drawdown` has not been executed anywhere. Those two tables
+  shipped in Phase 1 as structure only and no code path ever wrote to them, so
+  they are expected to be empty — confirm that against the target database
+  (`SELECT count(*) FROM "Facility"; SELECT count(*) FROM "Drawdown";`) before
+  applying it, because the migration discards their contents.

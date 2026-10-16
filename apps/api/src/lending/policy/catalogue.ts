@@ -305,6 +305,63 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Flags',
     platformAllowed: true,
   },
+  {
+    code: 'facility.read',
+    description: 'View facilities, drawdowns and statements',
+    category: 'Facilities',
+  },
+  {
+    code: 'facility.drawdown.request',
+    description: 'Request a drawdown against a facility (maker)',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.drawdown.approve',
+    description: 'Approve a drawdown (checker)',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.drawdown.release',
+    description: 'Release an approved drawdown',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.condition.manage',
+    description: 'Satisfy a tranche condition with evidence',
+    category: 'Facilities',
+  },
+  {
+    code: 'facility.condition.waive',
+    description: 'Waive a tranche condition (a credit concession)',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.limit.request',
+    description: 'Request a change to a facility limit (maker)',
+    category: 'Facilities',
+  },
+  {
+    code: 'facility.limit.approve',
+    description: 'Approve a facility limit change (checker)',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.manage',
+    description: 'Suspend, reinstate, expire or term out a facility',
+    category: 'Facilities',
+    financial: true,
+  },
+  {
+    code: 'facility.statement.generate',
+    description: 'Raise facility interest, fees and period statements',
+    category: 'Facilities',
+    financial: true,
+  },
 ];
 
 export const PERMISSION_CODES = new Set(PERMISSIONS.map((p) => p.code));
@@ -419,6 +476,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan_product.read',
       'restructure.simulate',
       'restructure.approve',
+      'facility.read',
+      'facility.limit.approve',
+      'facility.condition.waive',
     ],
   },
   {
@@ -433,6 +493,11 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan.repayment.post',
       'loan.writeoff.propose',
       'servicing.batch.run',
+      'facility.read',
+      'facility.drawdown.request',
+      'facility.condition.manage',
+      'facility.limit.request',
+      'facility.statement.generate',
     ],
   },
   {
@@ -448,6 +513,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan.writeoff.approve',
       'restructure.execute',
       'restructure.monitor',
+      'facility.read',
+      'facility.drawdown.approve',
+      'facility.drawdown.release',
+      'facility.manage',
     ],
   },
   {
@@ -595,7 +664,21 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   },
   {
     key: 'lending.revolving.drawdown',
-    description: 'New drawdowns on revolving facilities (Phase 2)',
+    description: 'New drawdowns on revolving facilities',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.facility.overdraft',
+    description: 'Overdraft facilities',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.facility.staged_drawdown',
+    description: 'Staged (construction) drawdown facilities',
     category: 'Capabilities',
     sensitive: true,
     defaultEnabled: false,

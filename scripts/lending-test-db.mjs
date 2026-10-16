@@ -35,12 +35,24 @@ const run = (cmd) => execSync(cmd, { env, stdio: 'inherit' });
 
 run('pnpm --filter @microloan/db exec prisma db push --skip-generate --force-reset --accept-data-loss');
 
-const migration = fs.readFileSync('packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql', 'utf8');
-const marker = migration.indexOf('-- Database-level invariants for the lending platform.');
-if (marker < 0) throw new Error('Invariant section not found in the lending migration.');
-const start = migration.lastIndexOf('-- ═', marker);
-const file = path.join(os.tmpdir(), `lending-invariants-${process.pid}.sql`);
-fs.writeFileSync(file, migration.slice(start));
-run(`pnpm --filter @microloan/db exec prisma db execute --file ${file}`);
-fs.unlinkSync(file);
+/**
+ * Each lending migration ends with an invariant section introduced by a
+ * banner. `db push` builds the tables but applies none of it, so the sections
+ * are re-applied here in migration order.
+ */
+const INVARIANT_SECTIONS = [
+  ['20261016_lending_platform_phase1', '-- Database-level invariants for the lending platform.'],
+  ['20261017_lending_facilities_phase2', '-- Database-level invariants for lending facilities.'],
+];
+
+for (const [dir, marker] of INVARIANT_SECTIONS) {
+  const migration = fs.readFileSync(`packages/db/prisma/migrations/${dir}/migration.sql`, 'utf8');
+  const at = migration.indexOf(marker);
+  if (at < 0) throw new Error(`Invariant section not found in ${dir}.`);
+  const start = migration.lastIndexOf('-- ═', at);
+  const file = path.join(os.tmpdir(), `lending-invariants-${process.pid}-${dir}.sql`);
+  fs.writeFileSync(file, migration.slice(start));
+  run(`pnpm --filter @microloan/db exec prisma db execute --file ${file}`);
+  fs.unlinkSync(file);
+}
 console.log(`Lending test database "${dbName}" is ready.`);

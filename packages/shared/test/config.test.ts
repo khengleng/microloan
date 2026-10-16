@@ -28,13 +28,26 @@ describe('product catalogue', () => {
   test('specialized products are seeded unavailable until their capabilities exist', () => {
     for (const code of [
       'CREDIT_CARD', 'BNPL', 'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA', 'IJARAH',
-      'SYNDICATED', 'PROJECT_FINANCE', 'CONSTRUCTION', 'HOME_EQUITY_LINE', 'OVERDRAFT', 'REVOLVING_CREDIT',
+      'SYNDICATED', 'PROJECT_FINANCE',
       'MICRO_GROUP', 'INVOICE_BACKED', 'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
     ]) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
       assert.equal(a.available, false, `${code} must be unavailable`);
       assert.ok(a.missing.length > 0);
     }
+  });
+
+  test('the facility templates became available with the Phase 2 facility capabilities', () => {
+    for (const code of ['CONSTRUCTION', 'HOME_EQUITY_LINE', 'OVERDRAFT', 'REVOLVING_CREDIT']) {
+      const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
+      assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
+    }
+  });
+
+  test('a credit card still needs its own Phase 3 capability, not just a revolving limit', () => {
+    const a = L.templateAvailability(L.TEMPLATE_BY_CODE['CREDIT_CARD']);
+    assert.equal(a.available, false);
+    assert.deepEqual(a.missing.map((m) => m.id), ['card.revolving_credit']);
   });
 
   test('Murabaha and Ijarah are distinct structures, not relabelled loans', () => {
