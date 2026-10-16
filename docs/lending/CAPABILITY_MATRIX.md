@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 37 · 🧪 Simulation only: 1 · 🔌 Requires integration: 5 · ⛔ Not implemented: 22
+✅ Fully implemented: 38 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 22
 
 ## Capabilities
 
@@ -29,7 +29,7 @@ A product version can be activated only when every capability it requires is **F
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
 | `pricing.fixed_rate` | ✅ Fully implemented | 1 | Fixed nominal or effective annual rate; ACT/365F, ACT/360, ACT/ACT ISDA, 30/360 ISDA, 30E/360 | Tests: `packages/shared/test/*.test.ts` |
-| `pricing.floating_rate` | 🧪 Simulation only | 2 | Floating rate: benchmark + margin with floor/cap, projected schedule | Tests: `packages/shared/test/*.test.ts`<br>Contractual rate resets on booked loans arrive in Phase 2; floating products cannot be activated. |
+| `pricing.floating_rate` | ✅ Fully implemented | 2 | Floating rate: benchmark + margin with floor/cap, projected schedule, and contractual resets on booked loans applied in the end-of-day batch | Tests: `packages/shared/test/floating.test.ts, apps/api/test/lending/floating.int-spec.ts` |
 | `pricing.upfront_fees` | ✅ Fully implemented | 1 | Upfront fees: deducted, financed or separately collected, with tax | Tests: `packages/shared/test/*.test.ts` |
 | `pricing.late_penalty` | ✅ Fully implemented | 1 | Late penalties: flat per overdue instalment or penalty rate on overdue amounts | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `pricing.effective_rate_disclosure` | ✅ Fully implemented | 1 | Effective annual rate (XIRR) including fees | Tests: `packages/shared/test/*.test.ts` |

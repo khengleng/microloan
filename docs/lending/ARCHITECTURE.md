@@ -10,14 +10,15 @@ module is untouched and keeps working; the two do not share loan records.
 ```
 packages/shared/src/lending/   pure engine: money, dates, schedules, fees, APR, servicing,
                                affordability, restructuring, config schema, catalogue, capabilities
-packages/db/prisma/            schema (+ lending models), migrations 20261016_lending_platform_phase1
-                               and 20261017_lending_facilities_phase2
+packages/db/prisma/            schema (+ lending models), migrations 20261016_lending_platform_phase1,
+                               20261017_lending_facilities_phase2, 20261017_lending_rate_resets
 apps/api/src/lending/
   policy/        RBAC + ABAC + feature-flag decision engine, permission/role/flag catalogue
   products/      product catalogue, versions (maker-checker lifecycle), workflows, simulation
   origination/   applications, documents, collateral, guarantees, assessment, decisions, booking
   servicing/     disbursement, accrual, repayment, prepayment, settlement, reversal,
-                 penalties, delinquency, write-off, export, end-of-day batch
+                 penalties, delinquency, write-off, floating-rate resets, export,
+                 end-of-day batch
   facilities/    limits, availability, drawdown governance, tranche conditions,
                  facility charges, statements, limit changes, term-out
   restructuring/ hardship cases, affordability, proposals, approval/acceptance, amendments, monitoring
@@ -112,6 +113,48 @@ implementation:
 
 Facility behaviour is flag-gated per type (`lending.revolving.drawdown`,
 `lending.facility.overdraft`, `lending.facility.staged_drawdown`), all off by
+default.
+
+## Floating rates
+
+A floating product prices at `benchmark + margin`, bounded by an optional
+floor and cap, and re-prices on a fixed cycle (`MONTHLY`, `QUARTERLY`,
+`SEMI_ANNUAL`, `ANNUAL`). Projection and re-pricing are deliberately separate:
+
+* **Projection** is what a quote or a newly booked schedule looks like if the
+  benchmark never moved. The opening rate is contractual; every point after
+  the first reset carries `projected: true`, and so do the instalments it
+  produces, so a floating loan's later payments are never presented as fixed.
+* **A reset** is the contract actually re-pricing. On each reset date the
+  benchmark observed *on or before* that date is read, bounded, and the unpaid
+  tail of the schedule is rebuilt at the new rate.
+
+Rules the engine holds to:
+
+* **A reset takes effect from the first interest period starting on or after
+  the reset date.** Interest already earned in a part period is never
+  re-priced, so a reset cannot change what the borrower has been billed.
+* **The balance and the remaining term do not change** — only the rate does,
+  so the instalment is recomputed over the same number of payments. An
+  equal-principal or explicitly dated plan keeps its principal amounts and
+  re-prices only the interest.
+* **A reset date re-prices a loan exactly once**, enforced by a unique index
+  on `(loanAccountId, resetDate)`, so a batch re-run cannot double-apply it.
+* **Missed resets are caught up oldest first**, each at the benchmark that
+  applied then — never by jumping the loan to today's rate.
+* **An absent benchmark stops the reset** rather than inventing a rate: the
+  loan waits for the observation.
+* **Nothing is posted.** A reset moves no money; it changes what future
+  interest will be, and accrual follows the new schedule from there.
+
+Each reset writes an immutable `RateReset` row — the observation, the
+unbounded `benchmark + margin`, which of benchmark/floor/cap bound it, and the
+`AgreementVersion` it produced (reason `RATE_RESET`). The schedule it replaced
+survives as `SUPERSEDED` instalments on the previous version. Resets run in
+the end-of-day batch and can also be applied on demand
+(`POST /lending/loans/:id/rate-resets`).
+
+Floating pricing is flag-gated (`lending.pricing.floating_rate`), off by
 default.
 
 ## Money, dates and the engine

@@ -50,7 +50,7 @@ export const CAPABILITIES: Capability[] = [
   C('schedule.custom_day_frequency', 'Schedule', 'IMPLEMENTED', 1, 'Custom day/week/month frequency (day-based requires DAILY accrual)', ENGINE_TESTS),
   // Pricing
   C('pricing.fixed_rate', 'Pricing', 'IMPLEMENTED', 1, 'Fixed nominal or effective annual rate; ACT/365F, ACT/360, ACT/ACT ISDA, 30/360 ISDA, 30E/360', ENGINE_TESTS),
-  C('pricing.floating_rate', 'Pricing', 'SIMULATION_ONLY', 2, 'Floating rate: benchmark + margin with floor/cap, projected schedule', ENGINE_TESTS, 'Contractual rate resets on booked loans arrive in Phase 2; floating products cannot be activated.'),
+  C('pricing.floating_rate', 'Pricing', 'IMPLEMENTED', 2, 'Floating rate: benchmark + margin with floor/cap, projected schedule, and contractual resets on booked loans applied in the end-of-day batch', 'packages/shared/test/floating.test.ts, apps/api/test/lending/floating.int-spec.ts'),
   C('pricing.upfront_fees', 'Pricing', 'IMPLEMENTED', 1, 'Upfront fees: deducted, financed or separately collected, with tax', ENGINE_TESTS),
   C('pricing.late_penalty', 'Pricing', 'IMPLEMENTED', 1, 'Late penalties: flat per overdue instalment or penalty rate on overdue amounts', FLOW_TESTS),
   C('pricing.effective_rate_disclosure', 'Pricing', 'IMPLEMENTED', 1, 'Effective annual rate (XIRR) including fees', ENGINE_TESTS),

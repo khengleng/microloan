@@ -88,15 +88,16 @@ describe('configuration validation', () => {
     assert.equal(L.validateProductConfig(e).ok, false);
   });
 
-  test('a floating-rate product requires a capability that is simulation-only', () => {
+  test('a floating-rate product can now be activated: resets are implemented', () => {
     const c = good();
     c.attributes.rateType = 'FLOATING';
     c.pricing.fixed = null;
     c.pricing.floating = { benchmarkCode: 'SOFR', margin: '0.03', resetFrequency: 'QUARTERLY', floor: '0', cap: null };
     const r = L.validateProductConfig(c);
     assert.ok(r.ok, JSON.stringify(!r.ok && r.issues));
-    const missing = L.missingCapabilities(L.requiredCapabilitiesFor(r.ok ? r.config : (null as never)));
-    assert.deepEqual(missing.map((m) => `${m.id}:${m.status}`), ['pricing.floating_rate:SIMULATION_ONLY']);
+    const required = L.requiredCapabilitiesFor(r.ok ? r.config : (null as never));
+    assert.ok(required.includes('pricing.floating_rate'));
+    assert.deepEqual(L.missingCapabilities(required), []);
   });
 
   test('negotiated terms are checked against product limits', () => {

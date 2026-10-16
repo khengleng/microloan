@@ -345,6 +345,11 @@ export const ACTIONS: ActionDefinition[] = [
   A('facility.statement.generate', 'FACILITY', 'SERVICING_MONEY', {
     workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
   }),
+  // Re-pricing moves no money, but it changes a booked contract, so it is
+  // gated like servicing rather than like a read.
+  A('loan.rate_reset.apply', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    workflowStates: ['ACTIVE'],
+  }),
   A('servicing.batch.run', 'TENANT', 'SERVICING_MONEY'),
   A('loan_data.export', 'TENANT', 'READ'),
   A('accounting.read', 'TENANT', 'READ'),

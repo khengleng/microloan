@@ -96,9 +96,14 @@ effective rate conventions, ACT/365F · ACT/360 · ACT/ACT ISDA · 30/360 ISDA �
 financed / separately collected) with tax, effective annual rate (XIRR),
 prepayment with recast or shortened tenor, configurable payment allocation,
 currency-specific minor units and rounding with final-instalment residuals.
-Floating-rate pricing is **simulation only** in this phase. Every calculation
-records its inputs, product and engine versions, rate sources, rounding rule and
-an operator-readable explanation.
+Floating-rate pricing re-prices booked loans on their reset cycle: the
+benchmark observed on or before each reset date, plus the margin, bounded by
+the product's floor and cap. A reset takes effect from the next interest
+period, keeps the balance and remaining term, and applies exactly once per
+reset date; missed resets catch up oldest first, each at the benchmark that
+applied then. Instalments beyond the next reset are marked **projected**, never
+contractual. Every calculation records its inputs, product and engine versions,
+rate sources, rounding rule and an operator-readable explanation.
 
 ### Lending operations
 
@@ -155,11 +160,12 @@ The borrower portal adds restructure requests and proposal acceptance.
 
 ### What is not implemented yet
 
-Contractual floating-rate resets, group liability, borrowing bases,
-connected-party exposure, and the specialised modules (cards, BNPL, trade,
-factoring, income-contingent, syndicated, project finance, Islamic) are still
-outstanding. Revolving facilities, overdrafts and staged drawdowns shipped in
-Phase 2 and are behind per-type feature flags, off by default. Payment rails,
+Group liability, borrowing bases, connected-party exposure, and the
+specialised modules (cards, BNPL, trade, factoring, income-contingent,
+syndicated, project finance, Islamic) are still outstanding. Revolving
+facilities, overdrafts, staged drawdowns and contractual floating-rate resets
+shipped in Phase 2, each behind a feature flag that is off by default. Payment
+rails,
 external KYC, credit bureau, notifications and external accounting have adapter
 interfaces with clearly labelled mocks that are refused in production. The full
 list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
@@ -208,7 +214,7 @@ pnpm test:api             # API unit tests (incl. decision-engine security tests
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
 pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities
+pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities, floating rates
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```
@@ -256,6 +262,9 @@ environment layout and the backup caveat).
   additive and was rehearsed against the production schema with no drift — but
   there is no staging environment, so take a database snapshot before
   deploying it.
+* The rate-reset migration (`20261017_lending_rate_resets`) is additive — one
+  new table — but has not been run against a production-shaped database; its
+  invariants run in CI through `scripts/lending-test-db.mjs`.
 * The facilities migration (`20261017_lending_facilities_phase2`) has **not**
   been rehearsed against a production-shaped database. Its invariants
   (constraints, triggers, row-level security) run in CI through

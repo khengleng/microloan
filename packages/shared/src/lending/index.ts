@@ -11,3 +11,4 @@ export * from './catalogue.js';
 export * from './affordability.js';
 export * from './restructure.js';
 export * from './facility.js';
+export * from './floating.js';

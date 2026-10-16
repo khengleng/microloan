@@ -14,6 +14,7 @@ import { WorkflowsService } from './products/workflows.service';
 import { ApplicationsService } from './origination/applications.service';
 import { ServicingService } from './servicing/servicing.service';
 import { FacilitiesService } from './facilities/facilities.service';
+import { RateResetService } from './servicing/rate-reset.service';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
@@ -64,6 +65,7 @@ import {
     ApplicationsService,
     ServicingService,
     FacilitiesService,
+    RateResetService,
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,

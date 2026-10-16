@@ -306,6 +306,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
     platformAllowed: true,
   },
   {
+    code: 'loan.rate_reset.apply',
+    description: 'Apply contractual floating-rate resets to booked loans',
+    category: 'Servicing',
+    financial: true,
+  },
+  {
     code: 'facility.read',
     description: 'View facilities, drawdowns and statements',
     category: 'Facilities',
@@ -493,6 +499,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan.repayment.post',
       'loan.writeoff.propose',
       'servicing.batch.run',
+      'loan.rate_reset.apply',
       'facility.read',
       'facility.drawdown.request',
       'facility.condition.manage',
@@ -692,7 +699,7 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   },
   {
     key: 'lending.pricing.floating_rate',
-    description: 'Floating-rate pricing (simulation only in Phase 1)',
+    description: 'Floating-rate pricing and contractual resets',
     category: 'Capabilities',
     sensitive: true,
     defaultEnabled: false,

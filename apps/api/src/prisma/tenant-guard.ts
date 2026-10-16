@@ -79,6 +79,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'FacilityCondition',
   'FacilityStatement',
   'FacilityLimitChange',
+  'RateReset',
   'LendingAgreement',
   'AgreementVersion',
   'LoanAccount',

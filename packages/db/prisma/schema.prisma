@@ -1809,7 +1809,7 @@ model AgreementVersion {
   agreementId   String
   agreement     LendingAgreement @relation(fields: [tenantId, agreementId], references: [tenantId, id], onDelete: Cascade)
   version       Int
-  /// BOOKING, PREPAYMENT_RECAST, PREPAYMENT_SHORTEN
+  /// BOOKING, DISBURSEMENT_DATE, PREPAYMENT_RECAST, PREPAYMENT_SHORTEN, RATE_RESET, RESTRUCTURE
   reason        String
   productConfig Json
   configHash    String
@@ -1878,6 +1878,46 @@ model LoanAccount {
   @@unique([tenantId, agreementId])
   @@index([tenantId, status])
   @@index([tenantId, branchId])
+}
+
+/// A contractual floating-rate re-pricing applied to a booked loan.
+///
+/// Append-only: one row per reset date per loan, recording the observation it
+/// priced off, what the benchmark would have given before any floor or cap,
+/// and the agreement version it produced. Re-pricing is never an edit — the
+/// schedule it replaced survives as the previous AgreementVersion.
+model RateReset {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  loanAccountId      String
+  agreementId        String
+  /// The contractual reset date.
+  resetDate          DateTime @db.Date
+  /// The period start the new rate took effect from.
+  effectiveFrom      DateTime @db.Date
+  benchmarkCode      String
+  observationDate    DateTime @db.Date
+  /// The benchmark itself, before the margin.
+  observedRate       Decimal  @db.Decimal(18, 10)
+  margin             Decimal  @db.Decimal(18, 10)
+  /// benchmark + margin, before any floor or cap.
+  indicatedRate      Decimal  @db.Decimal(18, 10)
+  /// BENCHMARK, FLOOR, CAP
+  bound              String
+  previousAnnualRate Decimal  @db.Decimal(18, 10)
+  newAnnualRate      Decimal  @db.Decimal(18, 10)
+  /// The agreement version this reset created.
+  agreementVersion   Int
+  instalmentAmount   Decimal? @db.Decimal(24, 4)
+  /// Engine inputs, the re-priced lines and the explanation, for audit.
+  calculation        Json
+  engineVersion      String
+  appliedBy          String
+  createdAt          DateTime @default(now())
+
+  @@unique([loanAccountId, resetDate])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId, resetDate])
 }
 
 model ScheduleInstalment {

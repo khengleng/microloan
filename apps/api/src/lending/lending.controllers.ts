@@ -22,6 +22,7 @@ import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { ApplicationsService } from './origination/applications.service';
 import { ServicingService } from './servicing/servicing.service';
+import { RateResetService } from './servicing/rate-reset.service';
 import { AccessAdminService } from './access/access-admin.service';
 import { LendingOperationsService } from './accounting/operations.service';
 import { PolicyService } from './policy/policy.service';
@@ -317,7 +318,24 @@ export class LendingApplicationsController {
 
 @Controller('lending/loans')
 export class LendingLoansController {
-  constructor(private readonly servicing: ServicingService) {}
+  constructor(
+    private readonly servicing: ServicingService,
+    private readonly rateResets: RateResetService,
+  ) {}
+
+  /** Reset history, the full reset cycle, and what is currently due. */
+  @LendingAction('loan.read')
+  @Get(':id/rate-resets')
+  rateResets_(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.rateResets.history(actor(req), id);
+  }
+
+  /** Apply every reset that has fallen due, oldest first. */
+  @LendingAction('loan.rate_reset.apply')
+  @Post(':id/rate-resets')
+  applyRateResets(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.rateResets.applyDue(actor(req), id);
+  }
 
   @LendingAction('loan.read')
   @Get()

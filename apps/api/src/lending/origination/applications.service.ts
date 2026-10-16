@@ -1234,10 +1234,16 @@ export class ApplicationsService {
           tx,
         )
       : undefined;
-    if (config.attributes.rateType !== 'FIXED')
-      throw new BadRequestException(
-        'Floating-rate products cannot be booked in Phase 1.',
-      );
+    // A floating loan books at the rate its benchmark gives today; the
+    // contract then re-prices on its reset cycle (RateResetService).
+    const rates =
+      config.attributes.rateType === 'FLOATING'
+        ? await this.products.projectedRates(
+            tenantId,
+            config,
+            terms.disbursementDate,
+          )
+        : undefined;
     const fees = lending.computeUpfrontFees(
       terms.principal,
       config.identity.currency,
@@ -1245,22 +1251,62 @@ export class ApplicationsService {
       lending.feesOf(config),
       terms.waivedFeeCodes,
     );
-    const input = lending.toScheduleInput(
+    let input = lending.toScheduleInput(
       config,
       terms,
       fees.bookedPrincipal,
       calendar,
+      rates,
     );
-    let schedule: lending.ScheduleResult;
-    try {
-      schedule = lending.generateSchedule(input);
-    } catch (e) {
-      if ((e as Error).name === 'EngineError')
-        throw new BadRequestException({
-          message: (e as Error).message,
-          code: (e as { code?: string }).code,
-        });
-      throw e;
+    const build = (i: lending.ScheduleInput): lending.ScheduleResult => {
+      try {
+        return lending.generateSchedule(i);
+      } catch (e) {
+        if ((e as Error).name === 'EngineError')
+          throw new BadRequestException({
+            message: (e as Error).message,
+            code: (e as { code?: string }).code,
+          });
+        throw e;
+      }
+    };
+    let schedule = build(input);
+    if (rates?.length) {
+      // Maturity is only known once the schedule exists, so the projected
+      // timeline is built on a second pass. Every point after the opening
+      // rate is marked projected, so a floating loan's later instalments are
+      // never presented as contractually fixed.
+      const fl = config.pricing.floating!;
+      const timeline = lending.projectRateTimeline(
+        {
+          benchmarkCode: fl.benchmarkCode,
+          margin: fl.margin,
+          resetFrequency: fl.resetFrequency,
+          floor: fl.floor,
+          cap: fl.cap,
+        },
+        {
+          annualRate: rates[0].annualRate,
+          bound: 'BENCHMARK',
+          indicated: rates[0].annualRate,
+          observation: {
+            benchmarkCode: fl.benchmarkCode,
+            observationDate: terms.disbursementDate,
+            rate: rates[0].annualRate,
+          },
+          source: rates[0].source,
+        },
+        terms.disbursementDate,
+        schedule.maturityDate,
+      );
+      input = lending.toScheduleInput(
+        config,
+        terms,
+        fees.bookedPrincipal,
+        calendar,
+        timeline,
+      );
+      schedule = build(input);
     }
     const apr = lending.effectiveAnnualRate([
       {
