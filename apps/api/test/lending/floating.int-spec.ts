@@ -366,15 +366,23 @@ d('Floating-rate resets (integration)', () => {
         },
       );
       const b = await borrower(f, f.t1, f.b1, { monthlyIncome: '20000' });
-      const res = await f.as('ro').post('/lending/applications', {
-        borrowerId: b.id,
-        productId: unobserved,
-        terms: {
-          principal: '3000',
-          numberOfInstalments: 12,
-          disbursementDate: '2027-04-30',
-        },
-      });
+      // Capturing the application is fine — nothing is priced yet.
+      const app = expectOk(
+        await f.as('ro').post('/lending/applications', {
+          borrowerId: b.id,
+          productId: unobserved,
+          terms: {
+            principal: '3000',
+            numberOfInstalments: 12,
+            disbursementDate: '2027-04-30',
+          },
+        }),
+      );
+      await docs(f, app.id, ['ID_DOCUMENT']);
+      // Submitting assesses affordability, which has to price the loan.
+      const res = await f
+        .as('ro')
+        .post(`/lending/applications/${app.id}/submit`);
       expect(res.status).toBe(400);
       expect(JSON.stringify(res.body)).toMatch(/NEVER_SEEN/);
     });
@@ -431,12 +439,12 @@ d('Floating-rate resets (integration)', () => {
           .as('analyst')
           .post(`/lending/applications/${app.id}/recommend`, {
             recommendation: 'APPROVE',
-            rationale: 'ok',
+            rationale: 'Within policy',
           }),
       );
       expectOk(
         await f.as('approver').post(`/lending/applications/${app.id}/approve`, {
-          rationale: 'ok',
+          rationale: 'Within policy',
         }),
       );
       const booked = expectOk(
