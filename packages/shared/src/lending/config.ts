@@ -202,9 +202,51 @@ export const productConfigSchema = z
         minGuarantors: z.number().int().min(0).default(0),
       })
       .strict(),
+    /**
+     * Facility terms. A TERM product disburses once against a schedule and
+     * ignores everything below `type`; the other three draw against a limit,
+     * so they carry the bounds a facility negotiated under this product must
+     * respect. The per-facility limit itself is negotiated, not configured —
+     * these are the product's outer limits on it.
+     */
     facility: z
       .object({
         type: z.enum(['TERM', 'REVOLVING', 'OVERDRAFT', 'STAGED_DRAWDOWN']),
+        /** Smallest and largest limit a facility under this product may carry. */
+        minLimit: decimalString.nullable().default(null),
+        maxLimit: decimalString.nullable().default(null),
+        /** How long drawdowns stay available, from the facility's start date. */
+        availabilityMonths: z.number().int().min(1).max(600).nullable().default(null),
+        minimumDrawdown: decimalString.nullable().default(null),
+        maximumDrawdown: decimalString.nullable().default(null),
+        /** Annual fee on the undrawn commitment. */
+        commitmentFeeRate: rateFraction.nullable().default(null),
+        /** OVERDRAFT: the minimum payment formula. */
+        minimumPaymentRate: rateFraction.nullable().default(null),
+        minimumPaymentFloor: decimalString.nullable().default(null),
+        /**
+         * Annual rate on any balance above the limit. Null refuses over-limit
+         * balances outright rather than pricing them.
+         */
+        overlimitRate: rateFraction.nullable().default(null),
+        /** Whether the drawn balance amortizes when availability ends. */
+        termOutOnExpiry: z.boolean().default(false),
+        /** STAGED_DRAWDOWN: the tranche plan a facility inherits. */
+        tranches: z
+          .array(
+            z
+              .object({
+                code,
+                label: text(80),
+                /** Share of the facility limit this tranche releases. */
+                shareOfLimit: rateFraction,
+                /** Months after the facility starts before it may be drawn. */
+                availableAfterMonths: z.number().int().min(0).max(600).default(0),
+                conditions: z.array(code).default([]),
+              })
+              .strict(),
+          )
+          .default([]),
       })
       .strict(),
     operations: z
@@ -343,6 +385,8 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');
   if (c.security.guaranteeRequired && c.security.minGuarantors < 1) add('security.minGuarantors', 'at least one guarantor is required');
 
+  validateFacilityBlock(c, add);
+
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
   if (buckets[0].minDpd !== 0) add('operations.delinquencyBuckets', 'buckets must start at 0 DPD');
   for (let i = 1; i < buckets.length; i++) {
@@ -351,6 +395,75 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (buckets[buckets.length - 1].maxDpd !== null) add('operations.delinquencyBuckets', 'the last bucket must be open-ended');
 
   return issues.length ? { ok: false, issues } : { ok: true, config: c };
+}
+
+/**
+ * Facility cross-field rules.
+ *
+ * A TERM product must not carry facility terms at all: leaving them settable
+ * would let a product look like a line of credit in the admin UI while the
+ * servicing path still treated it as a one-off disbursement. Each of the other
+ * types then requires exactly the terms its behaviour needs.
+ */
+function validateFacilityBlock(c: ProductConfig, add: (path: string, message: string) => void): void {
+  const f = c.facility;
+  if (f.type === 'TERM') {
+    const set: string[] = [];
+    if (f.minLimit !== null || f.maxLimit !== null) set.push('limits');
+    if (f.availabilityMonths !== null) set.push('availabilityMonths');
+    if (f.minimumDrawdown !== null || f.maximumDrawdown !== null) set.push('drawdown bounds');
+    if (f.commitmentFeeRate !== null) set.push('commitmentFeeRate');
+    if (f.minimumPaymentRate !== null || f.minimumPaymentFloor !== null) set.push('minimum payment');
+    if (f.overlimitRate !== null) set.push('overlimitRate');
+    if (f.termOutOnExpiry) set.push('termOutOnExpiry');
+    if (f.tranches.length) set.push('tranches');
+    if (set.length) add('facility', `a TERM product draws no limit; remove ${set.join(', ')}`);
+    return;
+  }
+
+  if (f.availabilityMonths === null) add('facility.availabilityMonths', 'a facility needs an availability period');
+  if (f.minLimit !== null && f.maxLimit !== null && dec(f.minLimit).gt(dec(f.maxLimit))) {
+    add('facility', 'minLimit exceeds maxLimit');
+  }
+  if (f.minimumDrawdown !== null && f.maximumDrawdown !== null && dec(f.minimumDrawdown).gt(dec(f.maximumDrawdown))) {
+    add('facility', 'minimumDrawdown exceeds maximumDrawdown');
+  }
+  if (c.pricing.accrualBasis !== 'DAILY') {
+    add('pricing.accrualBasis', 'a facility accrues on a fluctuating drawn balance and requires DAILY accrual');
+  }
+  if (c.pricing.interestMethod === 'FLAT') {
+    add('pricing.interestMethod', 'flat interest prices a fixed principal; a facility has none');
+  }
+
+  if (f.type === 'OVERDRAFT') {
+    if (f.minimumPaymentRate === null && f.minimumPaymentFloor === null) {
+      add('facility.minimumPaymentRate', 'an overdraft needs a minimum payment rate or floor, or nothing is ever due');
+    }
+  } else if (f.minimumPaymentRate !== null || f.minimumPaymentFloor !== null) {
+    add('facility.minimumPaymentRate', `minimum payment terms apply to an overdraft, not to a ${f.type} facility`);
+  }
+
+  if (f.type === 'STAGED_DRAWDOWN') {
+    if (!f.tranches.length) add('facility.tranches', 'a staged drawdown needs at least one tranche');
+    const codes = new Set<string>();
+    let share = dec('0');
+    f.tranches.forEach((t, i) => {
+      if (codes.has(t.code)) add(`facility.tranches.${i}.code`, `duplicate tranche code ${t.code}`);
+      codes.add(t.code);
+      share = share.plus(dec(t.shareOfLimit));
+      if (f.availabilityMonths !== null && t.availableAfterMonths > f.availabilityMonths) {
+        add(`facility.tranches.${i}.availableAfterMonths`, `tranche ${t.code} becomes available after the facility stops being available`);
+      }
+    });
+    if (f.tranches.length && !share.eq(1)) {
+      add('facility.tranches', `tranche shares must total exactly 1 (they total ${share.toString()})`);
+    }
+    if (!f.termOutOnExpiry) {
+      add('facility.termOutOnExpiry', 'a staged drawdown must term out: the drawn balance has to amortize once construction ends');
+    }
+  } else if (f.tranches.length) {
+    add('facility.tranches', `tranches apply to a staged drawdown, not to a ${f.type} facility`);
+  }
 }
 
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
