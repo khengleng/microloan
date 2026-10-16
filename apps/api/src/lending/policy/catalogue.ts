@@ -401,7 +401,12 @@ export interface RoleDefinition {
   permissions: string[];
 }
 
-const READ_ALL = ['loan.read', 'loan_application.read', 'loan_product.read'];
+const READ_ALL = [
+  'loan.read',
+  'loan_application.read',
+  'loan_product.read',
+  'borrower_group.read',
+];
 
 export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
@@ -451,8 +456,11 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     code: 'RELATIONSHIP_OFFICER',
     name: 'Relationship officer',
-    description: 'Originates applications for borrowers in their scope.',
+    description:
+      'Originates applications and runs solidarity groups for borrowers in their scope.',
     permissions: [
+      'borrower_group.read',
+      'borrower_group.manage',
       'loan_application.create',
       'loan_application.read',
       'loan_application.update',
