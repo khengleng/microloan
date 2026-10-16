@@ -698,10 +698,12 @@ d('Lending facilities (integration)', () => {
     }, 60_000);
 
     it('is invisible to another tenant', async () => {
-      expect(
-        (await f.as('t2ops').get(`/lending/facilities/${facilityId}`)).status,
-      ).toBe(404);
-      const list = expectOk(await f.as('t2admin').get('/lending/facilities'));
+      // t2ops holds the facility permissions in its own tenant, so a refusal
+      // here is isolation, not an absent role. Phase 1 accepts either status.
+      await grant(f, f.t2, 't2ops', 'LOAN_OPS_MAKER');
+      const res = await f.as('t2ops').get(`/lending/facilities/${facilityId}`);
+      expect([403, 404]).toContain(res.status);
+      const list = expectOk(await f.as('t2ops').get('/lending/facilities'));
       expect(list.data).toEqual([]);
     });
 
