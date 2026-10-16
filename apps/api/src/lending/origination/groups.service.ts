@@ -21,7 +21,7 @@ import {
   toLocalDate,
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
-import { tenantResource } from '../policy/resources';
+import { loanAccountResource } from '../policy/resources';
 
 type GroupRow = NonNullable<
   Awaited<ReturnType<Tx['borrowerGroup']['findFirst']>>
@@ -109,12 +109,6 @@ export class GroupsService {
   ) {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
-      await this.policy.enforce(
-        actor,
-        'borrower_group.manage',
-        tenantResource(tenantId, 'TENANT'),
-        tx,
-      );
       const businessDate = await this.businessDate.get(tenantId, tx);
       const branchId = body.branchId ?? actor.branchId ?? null;
       if (!branchId) {
@@ -122,6 +116,21 @@ export class GroupsService {
           'A group belongs to a branch; name one or sign in as a branch user.',
         );
       }
+      // The group does not exist yet, so authorization runs against the group
+      // it is about to become: the branch decides scope, and FORMING is the
+      // state it starts in.
+      await this.policy.enforce(
+        actor,
+        'borrower_group.manage',
+        this.resource({
+          id: 'new',
+          tenantId,
+          branchId,
+          status: 'FORMING',
+          createdBy: actor.id,
+        } as GroupRow),
+        tx,
+      );
       const group = await tx.borrowerGroup.create({
         data: {
           tenantId,
@@ -426,10 +435,12 @@ export class GroupsService {
         where: { id: loanAccountId, tenantId },
       });
       if (!account) throw new NotFoundException('Loan account not found');
+      // Scoped against the loan itself, not the tenant: a branch-scoped
+      // officer must not read the membership of another branch's loan.
       await this.policy.enforce(
         actor,
         'loan.read',
-        tenantResource(tenantId, 'TENANT'),
+        loanAccountResource(account, null, null, true, []),
         tx,
       );
       const [bindings, contributions] = await Promise.all([
