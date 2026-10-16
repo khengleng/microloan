@@ -27,6 +27,7 @@ export type ActionKind =
 export type ResourceType =
   | 'RESTRUCTURE_CASE'
   | 'FACILITY'
+  | 'BORROWER_GROUP'
   | 'APPLICATION'
   | 'LOAN_ACCOUNT'
   | 'PRODUCT'
@@ -71,7 +72,8 @@ const A = (
     (resourceType === 'APPLICATION' ||
       resourceType === 'LOAN_ACCOUNT' ||
       resourceType === 'RESTRUCTURE_CASE' ||
-      resourceType === 'FACILITY'),
+      resourceType === 'FACILITY' ||
+      resourceType === 'BORROWER_GROUP'),
   ...opts,
 });
 
@@ -152,6 +154,11 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.agreement.book', 'APPLICATION', 'ORIGINATION', {
     workflowStates: ['APPROVED'],
     requiresActiveProduct: true,
+  }),
+  // Solidarity groups
+  A('borrower_group.read', 'BORROWER_GROUP', 'READ'),
+  A('borrower_group.manage', 'BORROWER_GROUP', 'ORIGINATION', {
+    workflowStates: ['FORMING', 'ACTIVE', 'DORMANT'],
   }),
   // Servicing
   A('loan.read', 'LOAN_ACCOUNT', 'READ'),

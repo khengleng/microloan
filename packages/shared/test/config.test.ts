@@ -29,7 +29,7 @@ describe('product catalogue', () => {
     for (const code of [
       'CREDIT_CARD', 'BNPL', 'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA', 'IJARAH',
       'SYNDICATED', 'PROJECT_FINANCE',
-      'MICRO_GROUP', 'INVOICE_BACKED', 'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
+      'INVOICE_BACKED', 'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
     ]) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
       assert.equal(a.available, false, `${code} must be unavailable`);
@@ -37,8 +37,8 @@ describe('product catalogue', () => {
     }
   });
 
-  test('the facility templates became available with the Phase 2 facility capabilities', () => {
-    for (const code of ['CONSTRUCTION', 'HOME_EQUITY_LINE', 'OVERDRAFT', 'REVOLVING_CREDIT']) {
+  test('the Phase 2 templates became available with their capabilities', () => {
+    for (const code of ['CONSTRUCTION', 'HOME_EQUITY_LINE', 'OVERDRAFT', 'REVOLVING_CREDIT', 'MICRO_GROUP']) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
       assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
     }

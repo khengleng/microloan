@@ -81,6 +81,8 @@ export const S = {
   createApplication: z
     .object({
       borrowerId: uuid,
+      /** Required by group-liability products; refused by individual ones. */
+      groupId: uuid.optional(),
       productId: uuid,
       portfolioId: uuid.optional(),
       legalEntityId: uuid.optional(),
@@ -88,6 +90,31 @@ export const S = {
       purpose: z.string().max(500).optional(),
       segmentCode: z.string().max(48).optional(),
     })
+    .strict(),
+  createGroup: z
+    .object({
+      code: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/),
+      name: z.string().min(2).max(120),
+      branchId: uuid.optional(),
+      formedOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    })
+    .strict(),
+  addGroupMember: z
+    .object({
+      borrowerId: uuid,
+      role: z.enum(['LEADER', 'MEMBER']).optional(),
+      joinedOn: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    })
+    .strict(),
+  removeGroupMember: z.object({ reason: z.string().min(1).max(500) }).strict(),
+  groupStatus: z
+    .object({ status: z.enum(['ACTIVE', 'DORMANT', 'DISBANDED']) })
     .strict(),
   updateTerms: z
     .object({ terms: termsSchema, purpose: z.string().max(500).optional() })

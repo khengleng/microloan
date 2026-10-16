@@ -21,6 +21,7 @@ import { ZodPipe, S } from './common/zod.pipe';
 import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { ApplicationsService } from './origination/applications.service';
+import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { AccessAdminService } from './access/access-admin.service';
@@ -180,7 +181,70 @@ export class LendingProductsController {
 
 @Controller('lending/applications')
 export class LendingApplicationsController {
-  constructor(private readonly apps: ApplicationsService) {}
+  constructor(
+    private readonly apps: ApplicationsService,
+    private readonly groups: GroupsService,
+  ) {}
+
+  // ── Solidarity groups ─────────────────────────────────────────────────────
+
+  @LendingAction('borrower_group.read')
+  @Get('groups')
+  listGroups(
+    @Req() req: Req_,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.groups.list(actor(req), {
+      status,
+      search,
+      page: page ? Number(page) : 1,
+    });
+  }
+
+  @LendingAction('borrower_group.manage')
+  @Post('groups')
+  createGroup(@Req() req: Req_, @Body(new ZodPipe(S.createGroup)) b: never) {
+    return this.groups.create(actor(req), b);
+  }
+
+  @LendingAction('borrower_group.read')
+  @Get('groups/:id')
+  getGroup(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.groups.get(actor(req), id);
+  }
+
+  @LendingAction('borrower_group.manage')
+  @Post('groups/:id/members')
+  addGroupMember(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.addGroupMember)) b: never,
+  ) {
+    return this.groups.addMember(actor(req), id, b);
+  }
+
+  @LendingAction('borrower_group.manage')
+  @Post('groups/:id/members/:borrowerId/remove')
+  removeGroupMember(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('borrowerId', ID) borrowerId: string,
+    @Body(new ZodPipe(S.removeGroupMember)) b: { reason: string },
+  ) {
+    return this.groups.removeMember(actor(req), id, borrowerId, b);
+  }
+
+  @LendingAction('borrower_group.manage')
+  @Post('groups/:id/status')
+  setGroupStatus(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.groupStatus)) b: never,
+  ) {
+    return this.groups.changeStatus(actor(req), id, b);
+  }
 
   @LendingAction('loan_application.read')
   @Get()
@@ -321,9 +385,17 @@ export class LendingLoansController {
   constructor(
     private readonly servicing: ServicingService,
     private readonly rateResets: RateResetService,
+    private readonly groups: GroupsService,
   ) {}
 
   /** Reset history, the full reset cycle, and what is currently due. */
+  /** Who is bound to this loan, what each agreed to carry, and who has paid. */
+  @LendingAction('loan.read')
+  @Get(':id/group-members')
+  groupMembers(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.groups.loanMembers(actor(req), id);
+  }
+
   @LendingAction('loan.read')
   @Get(':id/rate-resets')
   rateResets_(@Req() req: Req_, @Param('id', ID) id: string) {

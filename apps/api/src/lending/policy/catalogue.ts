@@ -306,6 +306,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
     platformAllowed: true,
   },
   {
+    code: 'borrower_group.read',
+    description: 'View solidarity groups and their membership',
+    category: 'Origination',
+  },
+  {
+    code: 'borrower_group.manage',
+    description: 'Form groups, admit and remove members',
+    category: 'Origination',
+  },
+  {
     code: 'loan.rate_reset.apply',
     description: 'Apply contractual floating-rate resets to booked loans',
     category: 'Servicing',
@@ -460,6 +470,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit analyst',
     description: 'Assesses applications and recommends decisions.',
     permissions: [
+      'borrower_group.read',
       'loan_application.read',
       'credit_decision.recommend',
       'collateral.manage',
@@ -692,7 +703,7 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   },
   {
     key: 'lending.group.joint_liability',
-    description: 'Group / joint-liability lending (Phase 2)',
+    description: 'Group / joint-liability lending',
     category: 'Capabilities',
     sensitive: true,
     defaultEnabled: false,

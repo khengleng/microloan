@@ -276,7 +276,21 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     eligibility: { minBusinessAgeMonths: 6 },
     security: { guaranteeRequired: true, minGuarantors: 1 },
   }, [], true),
-  template('MICRO_GROUP', 'MICROFINANCE', 'Group lending', 'Joint-liability group loan.', { identity: { liability: 'GROUP_JOINT' } }),
+  // A classic solidarity group: five to ten members who have met for a month,
+  // an equal split, a leader who signs, and nobody leaves mid-cycle.
+  template('MICRO_GROUP', 'MICROFINANCE', 'Group lending', 'Joint-liability group loan.', {
+    identity: { liability: 'GROUP_JOINT' },
+    group: {
+      minMembers: 5,
+      maxMembers: 10,
+      shareBasis: 'EQUAL',
+      minMembershipDays: 30,
+      requireLeader: true,
+      allowExitWithOutstanding: false,
+    },
+    limits: { minAmount: '500', maxAmount: '25000', minInstalments: 6, maxInstalments: 52 },
+    security: { guaranteeRequired: false, minGuarantors: 0 },
+  }),
   template('MICRO_LIVELIHOOD', 'MICROFINANCE', 'Livelihood loan', 'Household livelihood loan.', { limits: { maxAmount: '3000' } }),
   template('MICRO_SEASONAL', 'MICROFINANCE', 'Seasonal microloan', 'Small loan repaid on seasonal income dates.', {
     repayment: { method: 'EXPLICIT', frequency: null, prepayment: { allowedStrategies: ['RECAST', 'SHORTEN'] } },

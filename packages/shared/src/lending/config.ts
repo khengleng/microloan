@@ -203,6 +203,24 @@ export const productConfigSchema = z
       })
       .strict(),
     /**
+     * Group lending terms. Only meaningful when `identity.liability` is a
+     * GROUP_* value; an individual product may carry none of them.
+     */
+    group: z
+      .object({
+        minMembers: z.number().int().min(2).max(50).default(3),
+        maxMembers: z.number().int().min(2).max(50).default(10),
+        shareBasis: z.enum(['EQUAL', 'NEGOTIATED']).default('EQUAL'),
+        /** Days a member must have been in the group before a loan includes them. */
+        minMembershipDays: z.number().int().min(0).max(3650).default(0),
+        requireLeader: z.boolean().default(true),
+        /** Whether a member may leave while the group's loan is outstanding. */
+        allowExitWithOutstanding: z.boolean().default(false),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
      * Facility terms. A TERM product disburses once against a schedule and
      * ignores everything below `type`; the other three draw against a limit,
      * so they carry the bounds a facility negotiated under this product must
@@ -385,6 +403,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');
   if (c.security.guaranteeRequired && c.security.minGuarantors < 1) add('security.minGuarantors', 'at least one guarantor is required');
 
+  validateGroupBlock(c, add);
   validateFacilityBlock(c, add);
 
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
@@ -395,6 +414,33 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (buckets[buckets.length - 1].maxDpd !== null) add('operations.delinquencyBuckets', 'the last bucket must be open-ended');
 
   return issues.length ? { ok: false, issues } : { ok: true, config: c };
+}
+
+/**
+ * Group cross-field rules.
+ *
+ * A group product needs its terms, and an individual product must not carry
+ * them: leaving them settable would let an individual loan look like a
+ * solidarity group in the admin UI while nothing in the servicing path ever
+ * applied joint liability.
+ */
+function validateGroupBlock(c: ProductConfig, add: (path: string, message: string) => void): void {
+  const isGroup = c.identity.liability !== 'INDIVIDUAL';
+  if (!isGroup) {
+    if (c.group) add('group', 'an individual-liability product has no group terms; remove them');
+    return;
+  }
+  if (!c.group) {
+    add('group', `a ${c.identity.liability} product needs group terms`);
+    return;
+  }
+  const g = c.group;
+  if (g.minMembers > g.maxMembers) add('group', 'minMembers exceeds maxMembers');
+  // Joint liability is the reason a solidarity group exists; a group that can
+  // shed members mid-loan without settling is not jointly liable in practice.
+  if (c.identity.liability === 'GROUP_JOINT' && g.allowExitWithOutstanding && !g.requireLeader) {
+    add('group.requireLeader', 'a joint-liability group that allows exit mid-loan must name a leader accountable for the balance');
+  }
 }
 
 /**

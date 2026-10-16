@@ -65,7 +65,7 @@ pnpm test:api             # API unit tests, including the decision-engine securi
 # Integration — real HTTP API, guards and PostgreSQL with the migration's triggers and RLS:
 export LENDING_TEST_DATABASE_URL=<throwaway database whose name contains "test" or "ci">
 pnpm test:lending:db      # resets that database: schema push + migration invariants
-pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities, floating rates
+pnpm test:lending:int     # Phase 1 slice, security, restructuring, facilities, floating rates, groups
 ```
 
 CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`.
@@ -85,6 +85,7 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 * `packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql`
 * `packages/db/prisma/migrations/20261017_lending_facilities_phase2/migration.sql`
 * `packages/db/prisma/migrations/20261017_lending_rate_resets/migration.sql`
+* `packages/db/prisma/migrations/20261017_lending_group_liability/migration.sql`
   is additive: new tables, a new `Tenant.authzVersion` column, new unique
   indexes on `(tenantId, id)` for `User`, `Borrower`, `LedgerAccount`, plus the
   triggers, constraints and RLS policies. It was rehearsed against the
@@ -149,6 +150,14 @@ Day-to-day operation:
 Nothing is reversed by editing: a released drawdown is immutable at the
 database level, and a correction is a reversal of its disbursement.
 
+Not yet covered for groups:
+
+* **Contributions are recorded, not collected.** A repayment is posted against
+  the loan as a whole; who paid is captured separately and does not change
+  what the loan owes.
+* **Delinquency is at loan level**, not per member: the group is in arrears or
+  it is not.
+
 Not yet covered for facilities:
 
 * **Delinquency is not computed.** Days past due and collections stages are
@@ -186,10 +195,42 @@ Reading a reset: `indicatedRate` is what `benchmark + margin` gave,
 `BENCHMARK`, `FLOOR` or `CAP` decided it. When they differ, a floor or cap
 bound the rate.
 
+## Solidarity groups
+
+Group lending is behind `lending.group.joint_liability`, **off by default**.
+
+Forming and running a group (relationship officers):
+
+* `POST /lending/applications/groups` — form the group, then add members with
+  `POST /lending/applications/groups/:id/members` (one `LEADER`, the rest
+  `MEMBER`), then set it `ACTIVE`.
+* Member tenure matters: `MICRO_GROUP` requires 30 days in the group before a
+  member can be on a loan, so record the real `joinedOn`.
+* A borrower can be in only one active group at a time.
+
+Lending to a group:
+
+* The application names the group and carries the **leader** as its borrower.
+* Composition is checked when the application is created and again at
+  booking, because membership can change in between.
+* At booking every member is bound to the loan with their share and what they
+  are liable for. Under `GROUP_JOINT` that is the **whole balance**, not the
+  share — read `liableFor`, not `shareAmount`, when deciding who to pursue.
+* `GET /lending/loans/:id/group-members` shows the binding, each member's
+  contributions and their exposure against today's balance.
+
+Removing a member:
+
+* Allowed freely once the loan is repaid. While money is outstanding it is
+  refused unless the product sets `allowExitWithOutstanding`, and then the
+  leaver settles their share first.
+* Leaving cannot drop the group below the product minimum, and the leader
+  cannot leave without a successor.
+* A group with a live loan cannot be disbanded.
+
 ## Known limitations
 
-* Not implemented (templates seeded unavailable): group/joint liability,
-  borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
+* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
   factoring, forfaiting, supply-chain finance, income-contingent education,
   syndication, project finance, institutional lending, Murabaha, Ijarah,
   post-write-off recoveries, refinancing, negotiated settlement, stand-alone

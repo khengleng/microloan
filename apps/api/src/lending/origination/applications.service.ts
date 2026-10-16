@@ -27,6 +27,7 @@ import { applicationResource, parseConfig } from '../policy/resources';
 import { ProductsService } from '../products/products.service';
 import { WorkflowsService } from '../products/workflows.service';
 import { AdapterRegistry } from '../integrations/adapters';
+import { GroupsService } from './groups.service';
 
 type Json = Prisma.InputJsonValue;
 const ALLOWED_MIME = new Set([
@@ -39,7 +40,10 @@ const ALLOWED_MIME = new Set([
 const MAX_DOCUMENT_BYTES = 3.5 * 1024 * 1024;
 
 export interface CreateApplicationBody {
+  /** For a group loan, the group's leader; they sign for the group. */
   borrowerId: string;
+  /** Required when the product carries group liability. */
+  groupId?: string;
   productId: string;
   portfolioId?: string;
   legalEntityId?: string;
@@ -66,6 +70,7 @@ export class ApplicationsService {
     private readonly products: ProductsService,
     private readonly workflows: WorkflowsService,
     private readonly adapters: AdapterRegistry,
+    private readonly groups: GroupsService,
   ) {}
 
   // ── Reads (scope-filtered) ────────────────────────────────────────────────
@@ -217,6 +222,36 @@ export class ApplicationsService {
           issues: check.issues,
         });
 
+      // Group liability is decided by the product, not the request: a group
+      // product must name a group, and an individual product must not.
+      const isGroupProduct = config.identity.liability !== 'INDIVIDUAL';
+      if (isGroupProduct && !body.groupId) {
+        throw new BadRequestException(
+          'This product lends to a group; name the group the loan is for.',
+        );
+      }
+      if (!isGroupProduct && body.groupId) {
+        throw new BadRequestException(
+          'This product lends to an individual borrower, not a group.',
+        );
+      }
+      if (isGroupProduct) {
+        const businessDate = await this.businessDate.get(tenantId, tx);
+        const { members } = await this.groups.composition(
+          tx,
+          tenantId,
+          body.groupId!,
+          config,
+          terms.principal,
+          businessDate,
+        );
+        if (!members.some((m) => m.borrowerId === borrower.id)) {
+          throw new BadRequestException(
+            'The borrower on a group application must be an active member of that group.',
+          );
+        }
+      }
+
       const draft = {
         id: 'new',
         tenantId,
@@ -245,6 +280,7 @@ export class ApplicationsService {
           portfolioId: body.portfolioId,
           legalEntityId: body.legalEntityId,
           borrowerId: borrower.id,
+          groupId: body.groupId ?? null,
           productId: product.id,
           productVersionId: version.id,
           channel: actor.channel,
@@ -993,6 +1029,35 @@ export class ApplicationsService {
           createdBy: actor.id,
         },
       });
+      // Freeze who is liable, and for how much, as part of the contract: a
+      // later change to the group must not alter a loan already running.
+      if (config!.identity.liability !== 'INDIVIDUAL' && app.groupId) {
+        const { members } = await this.groups.composition(
+          tx,
+          tenantId,
+          app.groupId,
+          config!,
+          decStr(booking.fees.bookedPrincipal),
+          planned,
+        );
+        const roles = new Map(
+          (
+            await tx.groupMembership.findMany({
+              where: { tenantId, groupId: app.groupId, leftOn: null },
+              select: { borrowerId: true, role: true },
+            })
+          ).map((m) => [m.borrowerId, m.role]),
+        );
+        await this.groups.bindLoan(
+          tx,
+          tenantId,
+          account.id,
+          app.groupId,
+          config!.identity.liability,
+          members,
+          roles,
+        );
+      }
       await this.cas(tx, app, 'APPROVED', 'BOOKED');
       await this.audit.write(
         {

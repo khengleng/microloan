@@ -12,6 +12,7 @@ import { AdapterRegistry } from './integrations/adapters';
 import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { ApplicationsService } from './origination/applications.service';
+import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -63,6 +64,7 @@ import {
     ProductsService,
     WorkflowsService,
     ApplicationsService,
+    GroupsService,
     ServicingService,
     FacilitiesService,
     RateResetService,

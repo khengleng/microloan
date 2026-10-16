@@ -60,7 +60,7 @@ export const CAPABILITIES: Capability[] = [
   C('collateral.ltv', 'Security', 'IMPLEMENTED', 1, 'Collateral pledges, valuations, haircuts and LTV threshold at approval', FLOW_TESTS),
   C('guarantee.basic', 'Security', 'IMPLEMENTED', 1, 'Personal / corporate guarantee capture and minimum-count requirement', FLOW_TESTS),
   C('liability.individual', 'Liability', 'IMPLEMENTED', 1, 'Individual liability', FLOW_TESTS),
-  C('liability.group_joint', 'Liability', 'NOT_IMPLEMENTED', 2, 'Group / joint liability'),
+  C('liability.group_joint', 'Liability', 'IMPLEMENTED', 2, 'Solidarity groups: formation, membership tenure and leadership, share allocation, joint liability for the whole balance, per-member contributions and governed member exit', 'packages/shared/test/group.test.ts, apps/api/test/lending/groups.int-spec.ts'),
   // Disbursement & servicing
   C('disbursement.manual', 'Disbursement', 'IMPLEMENTED', 1, 'Single disbursement recorded by operations with external reference (maker-checker)', FLOW_TESTS),
   C('disbursement.payment_rail', 'Disbursement', 'REQUIRES_INTEGRATION', 2, 'Automated payout through a payment provider', undefined, 'Only a mock adapter exists; it is blocked in production.'),

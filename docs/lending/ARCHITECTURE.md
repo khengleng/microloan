@@ -11,11 +11,13 @@ module is untouched and keeps working; the two do not share loan records.
 packages/shared/src/lending/   pure engine: money, dates, schedules, fees, APR, servicing,
                                affordability, restructuring, config schema, catalogue, capabilities
 packages/db/prisma/            schema (+ lending models), migrations 20261016_lending_platform_phase1,
-                               20261017_lending_facilities_phase2, 20261017_lending_rate_resets
+                               20261017_lending_facilities_phase2, 20261017_lending_rate_resets,
+                               20261017_lending_group_liability
 apps/api/src/lending/
   policy/        RBAC + ABAC + feature-flag decision engine, permission/role/flag catalogue
   products/      product catalogue, versions (maker-checker lifecycle), workflows, simulation
-  origination/   applications, documents, collateral, guarantees, assessment, decisions, booking
+  origination/   applications, documents, collateral, guarantees, assessment, decisions,
+                 booking, solidarity groups and joint liability
   servicing/     disbursement, accrual, repayment, prepayment, settlement, reversal,
                  penalties, delinquency, write-off, floating-rate resets, export,
                  end-of-day batch
@@ -61,7 +63,7 @@ Some names already existed in the app, so lending models use distinct names:
 | FeatureFlag, FlagRule, FlagChangeApproval | `FeatureFlag`, `FlagRule` (+ `PlatformFlagRule`), `FlagChangeApproval` |
 | LoanFamily, ProductTemplate, ProductVersion | same names (+ `LendingProduct`) |
 | PricingConfiguration, RepaymentConfiguration, WorkflowVersion | same names |
-| BorrowerGroup, GroupMembership | same names (structure only — group liability is Phase 2) |
+| BorrowerGroup, GroupMembership | same names (+ `LoanGroupMember`, `GroupContribution`) |
 | Application, CreditDecision, ApprovalTask | same names |
 | Collateral, Guarantee, Valuation | `CollateralAsset` (+ `CollateralPledge`), `Guarantee`, `Valuation` |
 | Facility, Drawdown | same names (+ `FacilityCondition`, `FacilityStatement`, `FacilityLimitChange`) |
@@ -155,6 +157,39 @@ the end-of-day batch and can also be applied on demand
 (`POST /lending/loans/:id/rate-resets`).
 
 Floating pricing is flag-gated (`lending.pricing.floating_rate`), off by
+default.
+
+## Group lending
+
+Two arrangements are distinguished, because they differ in the one respect
+that matters when a member stops paying:
+
+| `identity.liability` | One loan or many | A member is liable for |
+|---|---|---|
+| `GROUP_JOINT` | one loan for the group | **the whole balance** |
+| `GROUP_INDIVIDUAL` | one loan, shares tracked | their own share only |
+
+* **A share is not a liability cap.** Under `GROUP_JOINT` each member's
+  `liableFor` is the entire principal; the share only records what they agreed
+  to carry internally. `LoanGroupMember` stores both, so the difference cannot
+  be lost by a later configuration edit.
+* **Liability is frozen at booking.** Admitting or removing a member afterwards
+  changes the group, never a loan already running — the binding is append-only.
+* **An equal split puts the residual on the leader** rather than spreading
+  sub-unit amounts the currency cannot settle; shares always sum to the
+  principal exactly.
+* **A surplus from one member covers another's shortfall** and the group is
+  current: the loan does not care who paid. Per-member positions are still
+  reported, because that is what the group meeting acts on.
+* **Exit is governed.** Under joint liability a member cannot leave while the
+  loan is outstanding unless the product allows it, and then only by settling
+  their share; leaving must not drop the group below its minimum, and the
+  leader cannot leave without a successor.
+* **A borrower belongs to one active group at a time**, and a group with a
+  live loan cannot be disbanded.
+
+The application for a group loan names the group and carries the leader as its
+borrower. Group lending is flag-gated (`lending.group.joint_liability`), off by
 default.
 
 ## Money, dates and the engine

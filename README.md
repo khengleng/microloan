@@ -149,6 +149,11 @@ accounts, a capabilities endpoint for the UI, and a side-effect-free policy
 simulator answering *"can this user do this to this loan, and why?"*. See
 [ACCESS_CONTROL.md](docs/lending/ACCESS_CONTROL.md).
 
+Group lending adds solidarity groups: formation, leadership and member
+tenure, equal or negotiated shares, and joint liability for the whole balance
+rather than a share of it. Liability is frozen onto the loan at booking, so a
+later membership change never alters a contract already running.
+
 ### Administration screens
 
 Under **Lending** in the web app: product catalogue and capability matrix,
@@ -160,12 +165,12 @@ The borrower portal adds restructure requests and proposal acceptance.
 
 ### What is not implemented yet
 
-Group liability, borrowing bases, connected-party exposure, and the
-specialised modules (cards, BNPL, trade, factoring, income-contingent,
-syndicated, project finance, Islamic) are still outstanding. Revolving
-facilities, overdrafts, staged drawdowns and contractual floating-rate resets
-shipped in Phase 2, each behind a feature flag that is off by default. Payment
-rails,
+Borrowing bases, connected-party exposure, and the specialised modules
+(cards, BNPL, trade, factoring, income-contingent, syndicated, project
+finance, Islamic) are still outstanding. Revolving facilities, overdrafts,
+staged drawdowns, contractual floating-rate resets and joint-liability group
+lending shipped in Phase 2, each behind a feature flag that is off by default.
+Payment rails,
 external KYC, credit bureau, notifications and external accounting have adapter
 interfaces with clearly labelled mocks that are refused in production. The full
 list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
@@ -214,7 +219,7 @@ pnpm test:api             # API unit tests (incl. decision-engine security tests
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
 pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1 slice, security & lifecycle, restructuring, facilities, floating rates
+pnpm test:lending:int     # Phase 1 slice, security, restructuring, facilities, floating rates, groups
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```
@@ -262,9 +267,11 @@ environment layout and the backup caveat).
   additive and was rehearsed against the production schema with no drift — but
   there is no staging environment, so take a database snapshot before
   deploying it.
-* The rate-reset migration (`20261017_lending_rate_resets`) is additive — one
-  new table — but has not been run against a production-shaped database; its
-  invariants run in CI through `scripts/lending-test-db.mjs`.
+* The rate-reset (`20261017_lending_rate_resets`) and group-liability
+  (`20261017_lending_group_liability`) migrations are additive — new tables,
+  and columns that are all nullable or defaulted — but have not been run
+  against a production-shaped database; their invariants run in CI through
+  `scripts/lending-test-db.mjs`.
 * The facilities migration (`20261017_lending_facilities_phase2`) has **not**
   been rehearsed against a production-shaped database. Its invariants
   (constraints, triggers, row-level security) run in CI through

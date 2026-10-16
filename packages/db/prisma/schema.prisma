@@ -1383,6 +1383,8 @@ model RateObservation {
 
 // ── Borrower groups (Phase 2 behaviour; structure in place) ─────────────────
 
+/// A solidarity group: borrowers who meet together and, under GROUP_JOINT
+/// products, are each liable for the whole of the group's loan.
 model BorrowerGroup {
   id        String            @id @default(uuid())
   tenantId  String
@@ -1390,11 +1392,21 @@ model BorrowerGroup {
   branchId  String?
   code      String
   name      String
+  /// FORMING, ACTIVE, DORMANT, DISBANDED
+  status    String            @default("FORMING")
+  /// The date the group was formed, which member tenure is measured from.
+  formedOn  DateTime?         @db.Date
+  /// Optimistic concurrency token; membership changes bump it.
+  version   Int               @default(0)
+  createdBy String?
   createdAt DateTime          @default(now())
+  updatedAt DateTime?         @updatedAt
   members   GroupMembership[]
+  loans     LoanGroupMember[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, id])
+  @@index([tenantId, status])
 }
 
 model GroupMembership {
@@ -1404,11 +1416,72 @@ model GroupMembership {
   group      BorrowerGroup @relation(fields: [tenantId, groupId], references: [tenantId, id], onDelete: Cascade)
   borrowerId String
   borrower   Borrower      @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// LEADER, MEMBER
   role       String        @default("MEMBER")
+  /// Business date the member joined; tenure is measured from it.
+  joinedOn   DateTime?     @db.Date
   joinedAt   DateTime      @default(now())
+  /// Business date the member left, if they have.
+  leftOn     DateTime?     @db.Date
   leftAt     DateTime?
+  exitReason String?
+  /// What the member settled on leaving while a loan was outstanding.
+  exitSettlement Decimal?  @db.Decimal(24, 4)
 
   @@unique([groupId, borrowerId])
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId])
+}
+
+/// A member bound to a specific group loan, with the share they agreed to
+/// carry and what they can actually be pursued for.
+///
+/// Under GROUP_JOINT `liableFor` is the whole principal, not the share: that
+/// difference is the entire legal point of a solidarity group, so it is
+/// stored rather than recomputed from a flag at read time. Append-only — the
+/// binding is part of the contract.
+model LoanGroupMember {
+  id            String        @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  groupId       String
+  group         BorrowerGroup @relation(fields: [tenantId, groupId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId    String
+  /// LEADER, MEMBER
+  role          String        @default("MEMBER")
+  /// GROUP_JOINT, GROUP_INDIVIDUAL
+  liability     String
+  /// The member's agreed portion of the principal.
+  shareAmount   Decimal       @db.Decimal(24, 4)
+  /// That portion as a decimal fraction.
+  shareFraction Decimal       @db.Decimal(18, 10)
+  /// What this member can be pursued for at booking.
+  liableFor     Decimal       @db.Decimal(24, 4)
+  createdAt     DateTime      @default(now())
+
+  @@unique([loanAccountId, borrowerId])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, borrowerId])
+}
+
+/// Who actually paid, within a repayment on a group loan.
+///
+/// The loan is settled by the group as a whole, so this never changes what
+/// the loan owes; it records the internal position the group meeting and the
+/// field officer work from. Append-only.
+model GroupContribution {
+  id               String   @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  financialEventId String
+  borrowerId       String
+  amount           Decimal  @db.Decimal(24, 4)
+  createdAt        DateTime @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, financialEventId])
 }
 
 // ── Origination ────────────────────────────────────────────────────────────
@@ -1421,8 +1494,11 @@ model Application {
   branchId         String
   portfolioId      String?
   legalEntityId    String?
+  /// For a group loan this is the group's leader, who signs for it.
   borrowerId       String
   borrower         Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// Set when the product carries group liability; null for individual loans.
+  groupId          String?
   productId        String
   /// Pinned when the application is created; terms are checked against it.
   productVersionId String

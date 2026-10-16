@@ -12,3 +12,4 @@ export * from './affordability.js';
 export * from './restructure.js';
 export * from './facility.js';
 export * from './floating.js';
+export * from './group.js';

@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 38 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 22
+✅ Fully implemented: 39 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 21
 
 ## Capabilities
 
@@ -59,7 +59,7 @@ A product version can be activated only when every capability it requires is **F
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
 | `liability.individual` | ✅ Fully implemented | 1 | Individual liability | Tests: `apps/api/test/lending/*.int-spec.ts` |
-| `liability.group_joint` | ⛔ Not implemented | 2 | Group / joint liability |  |
+| `liability.group_joint` | ✅ Fully implemented | 2 | Solidarity groups: formation, membership tenure and leadership, share allocation, joint liability for the whole balance, per-member contributions and governed member exit | Tests: `packages/shared/test/group.test.ts, apps/api/test/lending/groups.int-spec.ts` |
 
 ### Disbursement
 
@@ -183,7 +183,7 @@ A product version can be activated only when every capability it requires is **F
 | Education | Vocational training loan (`VOCATIONAL_TRAINING`) |  | ✅ |  |
 | Education | Income-contingent education loan (`INCOME_CONTINGENT_EDUCATION`) |  | ⛔ | `education.income_contingent` (not implemented) |
 | Microfinance | Individual microenterprise loan (`MICRO_INDIVIDUAL`) | Yes | ✅ |  |
-| Microfinance | Group lending (`MICRO_GROUP`) |  | ⛔ | `liability.group_joint` (not implemented) |
+| Microfinance | Group lending (`MICRO_GROUP`) |  | ✅ |  |
 | Microfinance | Livelihood loan (`MICRO_LIVELIHOOD`) |  | ✅ |  |
 | Microfinance | Seasonal microloan (`MICRO_SEASONAL`) |  | ✅ |  |
 | SME / commercial | SME business term loan (`SME_TERM`) | Yes | ✅ |  |
