@@ -1,117 +1,256 @@
-# Magic Money (Cambodia-first MVP)
+# Magic Money — multi-tenant lending platform
 
-Magic Money is a multi-tenant, Khmer/English micro-lending operations platform designed from scratch for digital lenders. It allows you to:
-- Manage borrowers.
-- Issue loans (Flat & Reducing Balance methods supported).
-- Generate deterministic repayment schedules.
-- Log prepayments correctly allocating to interest then principal.
-- Track Portfolio at Risk (PAR) in the Dashboard.
-- Export Loan Books and Repayment ledgers as CSV.
-- Track user actions via a comprehensive Audit Log.
+Magic Money is a multi-tenant, Khmer/English lending operations platform for
+Cambodian lenders (MFIs, digital lenders and banks). One deployment serves many
+lending organisations (tenants), each isolated from the others at the
+application, query and database level.
 
-## Tech Stack
-- **Monorepo**: pnpm + Turborepo
-- **Frontend** (`apps/web`): Next.js (App Router), Tailwind CSS, next-intl for i18n
-- **Backend** (`apps/api`): NestJS, JWT Auth
-- **Database** (`packages/db`): PostgreSQL via Prisma
-- **Shared Utils** (`packages/shared`): TS types and shared loan formula calculators
+The repository contains two lending stacks that run side by side:
+
+| | What it is | Where |
+|---|---|---|
+| **Core app** | The original Magic Money micro-lending operations app: borrowers, flat / reducing-balance loans, repayments, collections, reports, KYC, borrower portal, billing. | `apps/api/src/{borrowers,loans,repayments,…}`, legacy web pages |
+| **Configurable lending platform** | A product-configurable lending engine for consumer, microfinance, SME, mortgage and agricultural lending, with maker-checker product governance, RBAC + ABAC + feature flags, immutable double-entry accounting, and loan restructuring / hardship management. | `packages/shared/src/lending`, `apps/api/src/lending`, `apps/web/src/app/[locale]/(app)/lending` |
+
+They share tenants, users, branches, borrowers, authentication and the chart of
+accounts. They do not share loan records: loans created in one stack are
+serviced in that stack.
 
 ---
 
-## Local Development
+## Tech stack
+
+* **Monorepo**: pnpm 9 workspaces + Turborepo
+* **API** (`apps/api`): NestJS 11, Prisma 5, PostgreSQL, JWT (HttpOnly cookies) with optional TOTP MFA and Google sign-in
+* **Web** (`apps/web`): Next.js 16 (App Router), React 19, Tailwind CSS 4, next-intl (English / Khmer)
+* **Database** (`packages/db`): PostgreSQL via Prisma; tenant isolation enforced by a Prisma middleware, composite tenant foreign keys and row-level security on lending tables
+* **Shared** (`packages/shared`): currency rules, legacy loan formulas, provisioning, scorecard, EIR — and the **lending engine** (decimal arithmetic, no floating point for money)
+
+---
+
+## Core app features
+
+* **Organisations & users** — self-serve signup with plan payment by KHQR (confirmed by the platform operator), subscription plan tiers with quotas, users with roles, branch scoping, TOTP MFA, Google sign-in, password reset, audit log.
+* **Borrowers** — profiles with encrypted-at-rest PII (blind-indexed national ID and phone), manual KYC / AML status, KYC document review.
+* **Loan products & loans** — flat and reducing-balance products with credit-rating pricing policies, NBC interest-rate cap (18%), approval with maker-checker, disbursement with origination fees, write-off, restructuring, collateral, guarantors, interactions, documents (S3).
+* **Repayments** — idempotent posting, reversals, penalties (daily cron), payoff quotes, KHQR static payment QR per tenant / branch.
+* **Agreements** — key facts statement with EIR / total cost of credit and e-signature (hash-anchored).
+* **Risk & credit** — internal scorecard, Credit Bureau Cambodia (CBC) checks (sandbox when not configured).
+* **Finance** — dual currency (USD / KHR) with FX rates, general ledger with trial balance, NBC loan-loss provisioning runs, KPIs, portfolio-at-risk dashboard and reports, CSV / Excel exports.
+* **Collections** — overdue queue and promise-to-pay tracking.
+* **Borrower portal** — phone + OTP sign-in, loan view, e-KYC uploads, agreement signing.
+* **Telegram bot** — per-tenant bot for borrower notifications and reminders.
+
+---
+
+## Configurable lending platform
+
+Built as a modular monolith inside the same API. Detailed design in
+[`docs/lending/`](docs/lending):
+[architecture](docs/lending/ARCHITECTURE.md) ·
+[access control](docs/lending/ACCESS_CONTROL.md) ·
+[restructuring](docs/lending/RESTRUCTURING.md) ·
+[capability matrix](docs/lending/CAPABILITY_MATRIX.md) ·
+[operations & demo](docs/lending/OPERATIONS.md) ·
+[reference cases](docs/lending/REFERENCE_CASES.md).
+
+### Product catalogue
+
+* **10 loan families, 55 product templates** — personal / consumer, property,
+  vehicle / assets, education, microfinance, SME / commercial, agriculture,
+  corporate / project, trade / receivables, institutional / public — plus Murabaha
+  and Ijarah as separate structures.
+* Secured / unsecured, fixed / floating rate, green purpose, digital channel and
+  recourse type are separate attributes.
+* Templates that need a capability the engine does not yet have (credit cards,
+  BNPL, factoring, forfaiting, revolving facilities, construction drawdowns,
+  group lending, syndicated / project finance, income-contingent, Islamic
+  structures, …) are seeded **unavailable**: a product cannot be activated while
+  any required capability is missing. See the
+  [capability matrix](docs/lending/CAPABILITY_MATRIX.md) (generated from code).
+
+### Products, versions and agreements
+
+* Products are configured through a validated, strict schema (identity and
+  eligibility, pricing, fees and taxes, penalties, repayment, prepayment and
+  settlement, allocation order, security and LTV, documents and conditions,
+  delinquency buckets and collection stages, restructuring rules, accounting
+  mapping, integrations). Configuration selects engine behaviour; it can never
+  contain code.
+* Lifecycle `Draft → Submitted → Approved → Active → Retired` with maker-checker;
+  approved versions are immutable (also enforced by a database trigger) and
+  changes create a new version, reviewed through a configuration diff.
+* Every booked loan keeps an immutable agreement snapshot of the product version
+  and negotiated terms; product edits never change existing agreements.
+  Amendments (prepayment recasts, restructures) are new agreement versions.
+
+### Calculation engine (`packages/shared/src/lending`)
+
+Equal instalments (annuity, including zero rate), equal principal, flat interest,
+interest-only with bullet, balloon, seasonal / explicitly dated schedules,
+principal and interest grace with capitalization, irregular first periods with
+actual-interval interest, weekly / fortnightly / monthly / quarterly / custom
+frequencies, holiday calendars with business-day adjustment, nominal vs
+effective rate conventions, ACT/365F · ACT/360 · ACT/ACT ISDA · 30/360 ISDA ·
+30E/360 day counts (others rejected), daily accrual, upfront fees (deducted /
+financed / separately collected) with tax, effective annual rate (XIRR),
+prepayment with recast or shortened tenor, configurable payment allocation,
+currency-specific minor units and rounding with final-instalment residuals.
+Floating-rate pricing is **simulation only** in this phase. Every calculation
+records its inputs, product and engine versions, rate sources, rounding rule and
+an operator-readable explanation.
+
+### Lending operations
+
+Application and documents → assessment (KYC, eligibility, debt-service ratio,
+collateral LTV with haircuts and valuation age, guarantors) → recommendation →
+approval within authority (configurable multi-level approvals) → booking →
+conditions precedent → disbursement (prepare / approve / execute) → daily
+accrual and capitalization → repayment and partial prepayment → penalties,
+delinquency buckets and collection stages → early settlement with cash rounding
+→ reversal → write-off (propose / approve) → closure.
+
+Every money movement is an immutable financial event with balanced double-entry
+postings in the same transaction, idempotency keys, per-loan locking and
+optimistic concurrency, reversal entries instead of deletes, business-date
+controls, and sub-ledger ↔ general-ledger reconciliation.
+
+### Restructuring and hardship
+
+Customer self-service requests (borrower portal), staff requests on a documented
+customer request, collections and credit-review cases, and system referrals →
+evidence and affordability assessment (individual, household, business DSCR and
+seasonal templates, configurable buffers and thresholds; insufficient capacity
+routes to specialist review) → side-effect-free option simulation and
+comparison (term extension, payment deferral, interest-only, rate reduction,
+seasonal alignment, due-date change, balloon, arrears rescheduling, permitted
+capitalization, waivers, separately controlled principal forgiveness; term
+solved from a sustainable payment capacity, never negative amortization) →
+proposal → approval with concession authority (separate from) customer
+acceptance → execution with balance revalidation → monitoring and probation.
+Original agreements, schedules and arrears history are preserved, and
+delinquency is not reset by a restructure. See
+[RESTRUCTURING.md](docs/lending/RESTRUCTURING.md).
+
+### Access control
+
+Action-based RBAC with 14 seeded roles (platform administrators get no tenant
+data or approval rights), ABAC on trusted server-side attributes (branch /
+portfolio / legal-entity scope, maker-checker, approval authority by currency
+with approved-FX conversion, MFA, workflow state, constrained tenant policies),
+feature flags with deterministic precedence and emergency-off (availability only
+— a flag never grants access), delegations with expiry, tenant-bound service
+accounts, a capabilities endpoint for the UI, and a side-effect-free policy
+simulator answering *"can this user do this to this loan, and why?"*. See
+[ACCESS_CONTROL.md](docs/lending/ACCESS_CONTROL.md).
+
+### Administration screens
+
+Under **Lending** in the web app: product catalogue and capability matrix,
+product configuration wizard, pricing and repayment simulator, version diff and
+approvals, workflow builder, roles and permissions, ABAC policy editor, feature
+flags, access-policy simulator, applications, loan accounts, servicing and
+collections, accounting reconciliation, audit explorer, and restructuring cases.
+The borrower portal adds restructure requests and proposal acceptance.
+
+### What is not implemented yet
+
+Contractual floating-rate resets, revolving facilities / overdrafts / staged
+drawdowns, group liability, borrowing bases, connected-party exposure, and the
+specialised modules (cards, BNPL, trade, factoring, income-contingent,
+syndicated, project finance, Islamic) are Phase 2 / Phase 3. Payment rails,
+external KYC, credit bureau, notifications and external accounting have adapter
+interfaces with clearly labelled mocks that are refused in production. The full
+list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
+
+---
+
+## Local development
 
 ### Prerequisites
-- Node.js 20+
-- pnpm (`npm install -g pnpm`)
-- PostgreSQL database (local or via cloud provider)
 
-### Setup Steps
-1. Install dependencies:
-   ```bash
-   pnpm install
-   ```
+* Node.js 20+ (22 recommended) and pnpm 9 (`npm install -g pnpm@9`)
+* PostgreSQL 14+
 
-2. Setup `.env`:
-   ```bash
-   cp .env.example .env
-   # Fill all required variables before running the API
-   ```
-   Minimum required variables:
-   - `DATABASE_URL`
-   - `JWT_ACCESS_SECRET` (>= 32 chars)
-   - `JWT_REFRESH_SECRET` (>= 32 chars)
-   - `JWT_REFRESH_TOKEN_PEPPER` (>= 16 chars)
-   - `CORS_ORIGINS`
-   - `REDIS_URL` (required in production)
-   - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` (required in production)
-   - `BOOTSTRAP_SUPERADMIN_EMAIL`, `BOOTSTRAP_SUPERADMIN_PASSWORD`
-   - `NEXT_PUBLIC_CLARITY_PROJECT_ID` (web behavioral analytics, optional)
+### Setup
 
-3. Setup Database (Schema & Seed):
-   ```bash
-   pnpm db:migrate:deploy
-   pnpm db:seed
-   ```
-   In `development`, seed also creates sample borrower/loan data.
-   In `staging/production`, seed only bootstraps platform superadmin safely.
+```bash
+pnpm install
+cp .env.example .env
+# Fill at least: DATABASE_URL, JWT_ACCESS_SECRET (≥32 chars), JWT_REFRESH_SECRET (≥32),
+# JWT_REFRESH_TOKEN_PEPPER (≥16), CORS_ORIGINS. Production also needs REDIS_URL and the AWS_* S3 settings.
 
-4. Start Dev Environments (Next.js & NestJS concurrent):
-   ```bash
-   pnpm dev
-   ```
-   - **API Server** will be at: `http://localhost:3001`
-   - **Web Server** will be at: `http://localhost:3000`
+pnpm --filter @microloan/db build       # prisma generate
+pnpm --filter @microloan/shared build
+pnpm db:migrate:deploy
+pnpm db:seed                            # dev: sample data; staging/production: platform superadmin only
+pnpm dev                                # API http://localhost:3001  ·  web http://localhost:3000
+```
 
-### Microsoft Clarity (Web Analytics)
-- Set `NEXT_PUBLIC_CLARITY_PROJECT_ID` in the web environment.
-- Clarity is initialized client-side and tracks journey events (login, registration, loan workflow, KYC, repayments) plus scoped tags.
-- Sensitive fields (credentials, PII, financial inputs) are explicitly masked in UI forms.
-- Identification uses internal user subject IDs only (no raw emails or password/token values).
+The API synchronises the lending catalogue (families, templates, permissions,
+feature flags) on boot. For a ready-made lending demo organisation with a user
+per role and five active products:
 
----
+```bash
+pnpm demo:lending
+```
 
-## Deployment (Railway.com)
+Walkthrough and credentials: [OPERATIONS.md](docs/lending/OPERATIONS.md#demo-data).
 
-Both Next.js web app and NestJS API can be deployed seamlessly to [Railway](https://railway.app), sharing the same repository but running as distinct services.
+### Tests and checks
 
-### Steps to Deploy
-1. **Create a Railway Project**: Add a **PostgreSQL Database**.
-2. **Add API Service**:
-   - Create a new service from your GitHub repo.
-   - Set **Root Directory** to `apps/api`.
-   - Setup Environment Variables:
-     - `DATABASE_URL` = (From the Postgres service)
-     - `JWT_ACCESS_SECRET` = (Your secure random string)
-     - `JWT_REFRESH_SECRET` = (Your secure random string)
-     - `JWT_REFRESH_TOKEN_PEPPER` = (Strong random pepper)
-     - `CORS_ORIGINS` = `https://<YOUR-WEB-DOMAIN>.up.railway.app`
-     - `REDIS_URL` = (Managed Redis connection string)
-     - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`
-     - `NODE_ENV` = `production`
-   - **Migrations**: Run `npx prisma migrate deploy` as a separate release/one-off step. Do not couple migrations to app container startup. Do not run `prisma db push` in production.
+```bash
+pnpm test                 # lint + typecheck + prisma validate (turbo)
+pnpm test:engine          # lending engine: decimal reference cases, restructuring, configuration
+pnpm test:api             # API unit tests (incl. decision-engine security tests)
 
-3. **Add Web Service**:
-   - Create a second service from the same GitHub repo.
-   - Set **Root Directory** to `apps/web`.
-   - Setup Environment Variables:
-     - `NEXT_PUBLIC_API_URL` = `https://<YOUR-API-DOMAIN>.up.railway.app/v1`
-     - `NEXT_PUBLIC_CLARITY_PROJECT_ID` = `<YOUR_CLARITY_PROJECT_ID>`
-     - `NODE_ENV` = `production`
+# Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
+export LENDING_TEST_DATABASE_URL=<postgres connection string>
+pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
+pnpm test:lending:int     # Phase 1 vertical slice, security & lifecycle, restructuring
 
----
+pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
+```
 
-## Built with ❤️
-Designed for lending operations robustness, minimal technical debt edge cases, and high portability.
-
-## Security & Production Readiness Checks
-
-Run before any production rollout:
+Security and production-readiness checks (also run in CI):
 
 ```bash
 pnpm run security:scan-hardcodes
 pnpm run security:scan-timebombs
 pnpm run security:scan-memory-stores
 pnpm run security:prod-config-check
-pnpm --filter api typecheck
-pnpm --filter web typecheck
 ```
+
+---
+
+## Repository layout
+
+```
+apps/
+  api/                 NestJS API (core modules + src/lending)
+    test/lending/      lending integration suites (real HTTP API + PostgreSQL)
+  web/                 Next.js web app (staff app, lending admin, borrower portal)
+packages/
+  db/                  Prisma schema, migrations, seed, lending demo seed
+  shared/              shared domain logic and the lending engine (+ engine tests)
+docs/lending/          lending platform documentation
+scripts/               security scans, production config check, lending test-DB and capability-matrix tools
+```
+
+---
+
+## Deployment
+
+Production runs on Railway (API and web as separate services from this
+repository; see [DEPLOYMENT.md](DEPLOYMENT.md) for the runbook, current
+environment layout and the backup caveat).
+
+* **API** — root `apps/api`; `start:prod` runs `prisma migrate deploy`, then the
+  seed, then the server; health check `GET /v1/health`.
+* **Web** — root `apps/web`; set `NEXT_PUBLIC_API_URL` / `API_URL` to the API's `/v1` URL.
+* Required API variables: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
+  `JWT_REFRESH_TOKEN_PEPPER`, `CORS_ORIGINS`, `REDIS_URL`, `AWS_*`, `NODE_ENV=production`;
+  recommended `FIELD_ENCRYPTION_KEY`; optional lending variables are listed in `.env.example`.
+* The lending migration (`20261016_lending_platform_phase1`) is additive and was
+  rehearsed against the production schema with no drift — but there is no
+  staging environment, so take a database snapshot before deploying it.

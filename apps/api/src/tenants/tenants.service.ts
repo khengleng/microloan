@@ -321,6 +321,11 @@ export class TenantsService {
         // NUCLEAR CLEANUP: Bottom-Up ordered deletion to avoid all Foreign Key constraints 
         // This is necessary because some DB providers have lag in Cascade propagation
         await this.prisma.$transaction(async (tx) => {
+            // 0. Lending financial and audit rows are immutable at the database
+            // level; an erasure purge is the one sanctioned exception and must
+            // declare itself for this transaction only.
+            await tx.$executeRawUnsafe("SET LOCAL lending.purge = 'on'");
+
             // 1. Logs & Social Interactions
             await tx.auditLog.deleteMany({ where: { tenantId: id } });
             await tx.loanInteraction.deleteMany({ where: { loan: { tenantId: id } } });

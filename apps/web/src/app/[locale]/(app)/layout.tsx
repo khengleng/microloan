@@ -7,7 +7,8 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield, QrCode,
-    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge, Layers
+    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge, Layers,
+    LibraryBig, Boxes, Calculator, Workflow, ClipboardList, Wallet, Siren, LifeBuoy, BookOpenCheck, ScrollText, KeyRound
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
@@ -132,6 +133,20 @@ function AppShell({ children }: { children: React.ReactNode }) {
                                     {navItem('/fx', t('fxRates'), Coins)}
                                 </>
                             )}
+
+                            {/* Configurable lending platform — visible to all tenant users; the API enforces permissions. */}
+                            {navSection('Lending Platform')}
+                            {navItem('/lending/catalogue', 'Catalogue', LibraryBig)}
+                            {navItem('/lending/products', 'Products', Boxes)}
+                            {navItem('/lending/simulator', 'Simulator', Calculator)}
+                            {navItem('/lending/workflows', 'Workflows', Workflow)}
+                            {navItem('/lending/applications', 'Applications', ClipboardList)}
+                            {navItem('/lending/loans', 'Loan accounts', Wallet)}
+                            {navItem('/lending/collections', 'Collections', Siren)}
+                            {navItem('/lending/restructures', 'Restructures', LifeBuoy)}
+                            {navItem('/lending/accounting', 'Reconciliation', BookOpenCheck)}
+                            {navItem('/lending/audit', 'Audit explorer', ScrollText)}
+                            {navItem('/lending/access', 'Access & policy', KeyRound)}
 
                             {isAdmin && (
                                 <>

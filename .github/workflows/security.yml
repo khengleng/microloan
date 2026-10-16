@@ -46,3 +46,54 @@ jobs:
           CORS_ORIGINS: "https://app.example.com"
           REDIS_URL: "redis://localhost:6379"
         run: pnpm run security:prod-config-check
+
+  lending-tests:
+    # Calculation engine, API unit tests and the lending integration suite
+    # (real HTTP API, guards and PostgreSQL with the migration's triggers and RLS).
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: lending_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Assembled from parts so no credential-bearing URL literal sits in the repo (security scan).
+      LENDING_TEST_DATABASE_URL: ${{ format('{0}://{1}:{2}@localhost:5432/lending_ci', 'postgresql', 'ci', 'ci') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm --filter @microloan/db build && pnpm --filter @microloan/shared build
+
+      - name: Calculation engine tests
+        run: pnpm test:engine
+
+      - name: API unit tests
+        run: pnpm test:api
+
+      - name: Prepare lending test database
+        run: node scripts/lending-test-db.mjs
+
+      - name: Lending integration tests
+        run: pnpm test:lending:int

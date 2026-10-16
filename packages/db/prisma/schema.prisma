@@ -8,50 +8,71 @@ datasource db {
 }
 
 model Tenant {
-  id                       String    @id @default(uuid())
-  name                     String
-  telegramBotToken         String?   @unique // Per-tenant bot token
-  plan                     String    @default("FREE") // Basic subscription visibility
+  id                            String    @id @default(uuid())
+  name                          String
+  telegramBotToken              String?   @unique // Per-tenant bot token
+  plan                          String    @default("FREE") // Basic subscription visibility
   // ACTIVE, SUSPENDED, PENDING_PAYMENT.
   // PENDING_PAYMENT is the self-serve signup gate: the organization exists but
   // no one can authenticate into it until a SUPERADMIN confirms the plan
   // payment. JwtStrategy rejects any non-ACTIVE tenant, so the gate is the
   // same one that enforces suspension.
-  status                   String    @default("ACTIVE")
-  stripeCustomerId         String?
-  stripeSubscriptionId     String?
+  status                        String    @default("ACTIVE")
+  stripeCustomerId              String?
+  stripeSubscriptionId          String?
   // Fix 5: configurable late penalty in $USD per overdue installment per day
-  penaltyRatePerDay        Decimal   @default(10.00) @db.Decimal(8, 2)
+  penaltyRatePerDay             Decimal   @default(10.00) @db.Decimal(8, 2)
   // Feature #1: dual-currency — the tenant's reporting/base currency.
-  baseCurrency             Currency  @default(USD)
+  baseCurrency                  Currency  @default(USD)
   // Feature #1: per-tenant interest ceiling (%). Never exceeds NBC cap of 18%.
-  maxAnnualInterestRatePct Decimal   @default(18.00) @db.Decimal(5, 2)
+  maxAnnualInterestRatePct      Decimal   @default(18.00) @db.Decimal(5, 2)
   // Feature #3: require a completed CBC credit check before a loan can be approved.
-  requireCreditCheckForApproval Boolean @default(true)
+  requireCreditCheckForApproval Boolean   @default(true)
   // Days a completed credit check stays valid for approval purposes.
-  creditCheckValidityDays       Int     @default(90)
+  creditCheckValidityDays       Int       @default(90)
   // Fix 9: GDPR soft-delete — set when erasure is requested, hard-delete job runs after 30 days
-  deletedAt                DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  deletedAt                     DateTime?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
-  users          User[]
-  branches       Branch[]
-  borrowers      Borrower[]
-  loans          Loan[]
-  repayments     Repayment[]
-  auditLogs      AuditLog[]
-  documents      Document[]
-  loanProducts   LoanProduct[]
-  exchangeRates  ExchangeRate[]
-  ledgerAccounts LedgerAccount[]
-  journalEntries JournalEntry[]
-  provisionRuns  ProvisionRun[]
-  creditChecks   CreditCheck[]
-  promisesToPay  PromiseToPay[]
+  users              User[]
+  branches           Branch[]
+  borrowers          Borrower[]
+  loans              Loan[]
+  repayments         Repayment[]
+  auditLogs          AuditLog[]
+  documents          Document[]
+  loanProducts       LoanProduct[]
+  exchangeRates      ExchangeRate[]
+  ledgerAccounts     LedgerAccount[]
+  journalEntries     JournalEntry[]
+  provisionRuns      ProvisionRun[]
+  creditChecks       CreditCheck[]
+  promisesToPay      PromiseToPay[]
   paymentInstruments PaymentInstrument[]
-  loanAgreements LoanAgreement[]
-  planPayments   PlanPayment[]
+  loanAgreements     LoanAgreement[]
+  planPayments       PlanPayment[]
+
+  /// Bumped on any change to roles, assignments, delegations, authorities,
+  /// policies or flags, so cached authorization decisions are invalidated.
+  authzVersion Int @default(0)
+
+  legalEntities     LegalEntity[]
+  portfolios        Portfolio[]
+  businessDate      TenantBusinessDate?
+  holidayCalendars  HolidayCalendar[]
+  accessRoles       AccessRole[]
+  accessPolicies    AccessPolicy[]
+  flagRules         FlagRule[]
+  serviceAccounts   ServiceAccount[]
+  workflowVersions  WorkflowVersion[]
+  lendingProducts   LendingProduct[]
+  borrowerGroups    BorrowerGroup[]
+  applications      Application[]
+  approvalTasks     ApprovalTask[]
+  facilities        Facility[]
+  lendingAgreements LendingAgreement[]
+  restructureCases  RestructureCase[]
 }
 
 /// Plan payment for a self-serve workspace signup.
@@ -192,9 +213,9 @@ model Branch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     User[]
-  borrowers Borrower[]
-  loans     Loan[]
+  users              User[]
+  borrowers          Borrower[]
+  loans              Loan[]
   paymentInstruments PaymentInstrument[]
 
   @@unique([tenantId, name])
@@ -224,11 +245,13 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  auditLogs     AuditLog[]
-  refreshTokens RefreshToken[]
+  auditLogs           AuditLog[]
+  refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
-  identities    FederatedIdentity[]
+  identities          FederatedIdentity[]
+  roleAssignments     RoleAssignment[]
 
+  @@unique([tenantId, id])
   @@index([tenantId])
   @@index([branchId])
   @@index([email])
@@ -239,9 +262,9 @@ model User {
 /// change, and so unlinking is a delete rather than a nullable-column dance.
 /// Has no tenantId of its own — it is scoped through its owning user.
 model FederatedIdentity {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Provider key, e.g. "GOOGLE".
   provider          String
   /// The provider's stable subject id ("sub"), NOT the email — emails change
@@ -250,8 +273,8 @@ model FederatedIdentity {
   /// Email as asserted by the provider at link time, for display and audit.
   email             String
   lastLoginAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -286,43 +309,47 @@ model RefreshToken {
 }
 
 model Borrower {
-  id             String   @id @default(uuid())
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId       String?
-  branch         Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  firstName      String
-  lastName       String
-  phone          String?
-  email          String?
-  address        String?
+  id                  String    @id @default(uuid())
+  tenantId            String
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId            String?
+  branch              Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  firstName           String
+  lastName            String
+  phone               String?
+  email               String?
+  address             String?
   // Encrypted at rest; exact-match/uniqueness via the deterministic *Hash columns.
-  idNumber       String?
-  idNumberHash   String?
-  phoneHash      String?
-  telegramChatId String?
+  idNumber            String?
+  idNumberHash        String?
+  phoneHash           String?
+  telegramChatId      String?
   // P0 #4: basic KYC capture + manual KYC/AML status (no external screening).
-  dateOfBirth        DateTime?
-  idType             String? // e.g., NATIONAL_ID, PASSPORT, FAMILY_BOOK
-  occupation         String?
+  dateOfBirth         DateTime?
+  idType              String? // e.g., NATIONAL_ID, PASSPORT, FAMILY_BOOK
+  occupation          String?
   // Risk Batch #7: affordability / debt-service-ratio inputs
-  monthlyIncome      Decimal?  @db.Decimal(12, 2)
-  monthlyExpenses    Decimal?  @db.Decimal(12, 2)
-  kycStatus          KycStatus @default(PENDING)
-  kycVerifiedAt      DateTime?
+  monthlyIncome       Decimal?  @db.Decimal(12, 2)
+  monthlyExpenses     Decimal?  @db.Decimal(12, 2)
+  kycStatus           KycStatus @default(PENDING)
+  kycVerifiedAt       DateTime?
   kycVerifiedByUserId String?
-  amlStatus          AmlStatus @default(NOT_SCREENED)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  amlStatus           AmlStatus @default(NOT_SCREENED)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  loans        Loan[]
-  creditChecks CreditCheck[]
-  kycDocuments KycDocument[]
-  otps         BorrowerOtp[]
+  loans            Loan[]
+  creditChecks     CreditCheck[]
+  kycDocuments     KycDocument[]
+  otps             BorrowerOtp[]
+  applications     Application[]
+  collateralAssets CollateralAsset[]
+  groupMemberships GroupMembership[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
   @@unique([tenantId, idNumberHash])
+  @@unique([tenantId, id])
   @@index([tenantId, branchId])
   @@index([phoneHash])
 }
@@ -583,27 +610,27 @@ model RepaymentSchedule {
 }
 
 model Repayment {
-  id            String   @id @default(uuid())
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  loanId        String
-  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  amount        Decimal  @db.Decimal(10, 2)
-  currency      Currency @default(USD)
-  principalPaid Decimal  @default(0) @db.Decimal(10, 2)
-  interestPaid  Decimal  @default(0) @db.Decimal(10, 2)
-  penaltyPaid   Decimal  @default(0) @db.Decimal(10, 2)
-  date          DateTime @default(now())
+  id               String    @id @default(uuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  loanId           String
+  loan             Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount           Decimal   @db.Decimal(10, 2)
+  currency         Currency  @default(USD)
+  principalPaid    Decimal   @default(0) @db.Decimal(10, 2)
+  interestPaid     Decimal   @default(0) @db.Decimal(10, 2)
+  penaltyPaid      Decimal   @default(0) @db.Decimal(10, 2)
+  date             DateTime  @default(now())
   // P0 #2: client-supplied dedupe key — a retried/double-submitted repayment with
   // the same key returns the original instead of posting twice. NULLs are allowed
   // and treated as distinct by Postgres, so keyless posts are unaffected.
-  idempotencyKey String?
+  idempotencyKey   String?
   // P1 #13: reversal audit trail (a reversed repayment is excluded from balances).
-  reversedAt        DateTime?
-  reversedByUserId  String?
-  reversalReason    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  reversedAt       DateTime?
+  reversedByUserId String?
+  reversalReason   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([tenantId, idempotencyKey])
 }
@@ -683,9 +710,11 @@ model LedgerAccount {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  lines JournalLine[]
+  lines        JournalLine[]
+  lendingLines LendingJournalLine[]
 
   @@unique([tenantId, code])
+  @@unique([tenantId, id])
   @@index([tenantId])
 }
 
@@ -873,4 +902,1228 @@ model PromiseToPay {
 
   @@index([tenantId, loanId])
   @@index([tenantId, status, promisedDate])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Configurable lending platform (Phase 1)
+//
+// Conventions:
+//  • Money is Decimal(24,4) with an explicit ISO currency code (text). The
+//    engine enforces each currency's minor units; the column is wide enough
+//    for 0–4 decimal currencies.
+//  • Rates are decimal fractions in Decimal(18,10) (0.12 = 12%).
+//  • Business dates are @db.Date. Instants are timestamptz.
+//  • Children reference parents by (tenantId, id), so the database itself
+//    rejects a cross-tenant reference — not only the application.
+//  • Financial and audit rows are immutable (triggers in the migration);
+//    corrections are reversal events.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Platform catalogue (no tenant) ─────────────────────────────────────────
+
+/// A business classification of loans. Platform catalogue.
+model LoanFamily {
+  code        String @id
+  name        String
+  description String
+  sortOrder   Int    @default(0)
+
+  templates ProductTemplate[]
+}
+
+/// Reusable starting configuration for a product. Platform catalogue.
+model ProductTemplate {
+  code              String     @id
+  familyCode        String
+  family            LoanFamily @relation(fields: [familyCode], references: [code])
+  name              String
+  description       String
+  defaultConfig     Json
+  /// Capabilities the product type needs beyond those its configuration implies.
+  extraCapabilities String[]
+  phase1Slice       Boolean    @default(false)
+  updatedAt         DateTime   @updatedAt
+}
+
+/// Action-based permission, e.g. "credit_decision.approve". Platform catalogue.
+model AccessPermission {
+  code            String  @id
+  description     String
+  category        String
+  /// Moves money or changes a financial record.
+  financial       Boolean @default(false)
+  /// May be held by a platform administrator. Tenant-data actions never are.
+  platformAllowed Boolean @default(false)
+
+  roles RolePermission[]
+}
+
+/// Feature flag definition. Platform catalogue.
+model FeatureFlag {
+  key            String  @id
+  description    String
+  category       String
+  /// Sensitive flags gate mutations; a missing or invalid rule fails closed.
+  sensitive      Boolean @default(false)
+  defaultEnabled Boolean @default(false)
+
+  platformRules PlatformFlagRule[]
+  tenantRules   FlagRule[]
+}
+
+/// Platform-level flag rule (including emergency-off). Platform catalogue:
+/// readable by tenants for evaluation, writable only by the platform.
+model PlatformFlagRule {
+  id            String      @id @default(uuid())
+  flagKey       String
+  flag          FeatureFlag @relation(fields: [flagKey], references: [key])
+  enabled       Boolean
+  /// Emergency-off: overrides every tenant and narrower rule.
+  emergency     Boolean     @default(false)
+  effectiveFrom DateTime    @default(now())
+  effectiveTo   DateTime?
+  /// PENDING_APPROVAL, ACTIVE, REJECTED, SUPERSEDED
+  status        String      @default("PENDING_APPROVAL")
+  reason        String
+  makerId       String
+  checkerId     String?
+  decidedAt     DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([flagKey, status])
+}
+
+// ── Organisation structure ─────────────────────────────────────────────────
+
+model LegalEntity {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  country   String   @default("KH")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// A loan officer's book of loans. Role assignments can be scoped to portfolios.
+model Portfolio {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  branchId  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// The tenant's current business date. Postings carry it; backdating is limited by product configuration.
+model TenantBusinessDate {
+  tenantId     String   @id
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  businessDate DateTime @db.Date
+  updatedBy    String?
+  updatedAt    DateTime @updatedAt
+}
+
+model HolidayCalendar {
+  id          String    @id @default(uuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String
+  name        String
+  /// ISO days of week that are not business days (6 = Saturday, 7 = Sunday).
+  weekendDays Int[]
+  createdAt   DateTime  @default(now())
+  holidays    Holiday[]
+
+  @@unique([tenantId, code])
+}
+
+model Holiday {
+  id         String          @id @default(uuid())
+  calendarId String
+  calendar   HolidayCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  date       DateTime        @db.Date
+  name       String
+
+  @@unique([calendarId, date])
+}
+
+// ── Access control ─────────────────────────────────────────────────────────
+
+model AccessRole {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String
+  name        String
+  description String   @default("")
+  /// Seeded from the platform role definitions; permissions are maintained by release.
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+  authorities ApprovalAuthority[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+model RolePermission {
+  roleId         String
+  role           AccessRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionCode String
+  permission     AccessPermission @relation(fields: [permissionCode], references: [code])
+
+  @@id([roleId, permissionCode])
+}
+
+/// A user's role, scoped to branches / portfolios / legal entities, with validity dates.
+/// Sensitive roles require a second administrator to approve (status PENDING → ACTIVE).
+model RoleAssignment {
+  id             String     @id @default(uuid())
+  tenantId       String
+  userId         String
+  user           User       @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  roleId         String
+  role           AccessRole @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+  allBranches    Boolean    @default(false)
+  branchIds      String[]
+  portfolioIds   String[]
+  legalEntityIds String[]
+  validFrom      DateTime   @default(now())
+  validTo        DateTime?
+  /// PENDING, ACTIVE, REJECTED, REVOKED
+  status         String     @default("PENDING")
+  requestedBy    String
+  approvedBy     String?
+  revokedBy      String?
+  revokedAt      DateTime?
+  reason         String     @default("")
+  createdAt      DateTime   @default(now())
+
+  @@index([tenantId, userId, status])
+}
+
+/// Temporary delegation of specific permissions (and optionally authority) between users.
+model Delegation {
+  id          String    @id @default(uuid())
+  tenantId    String
+  fromUserId  String
+  toUserId    String
+  permissions String[]
+  maxAmount   Decimal?  @db.Decimal(24, 4)
+  currency    String?
+  validFrom   DateTime
+  validTo     DateTime
+  /// PENDING, ACTIVE, REJECTED, REVOKED
+  status      String    @default("PENDING")
+  reason      String
+  createdBy   String
+  approvedBy  String?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, toUserId, status])
+}
+
+/// Maximum amount a role or user may approve for a permission, per currency.
+model ApprovalAuthority {
+  id          String      @id @default(uuid())
+  tenantId    String
+  roleId      String?
+  role        AccessRole? @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+  userId      String?
+  permission  String
+  currency    String
+  maxAmount   Decimal     @db.Decimal(24, 4)
+  familyCode  String?
+  validFrom   DateTime    @default(now())
+  validTo     DateTime?
+  /// PENDING, ACTIVE, REJECTED, REVOKED
+  status      String      @default("PENDING")
+  requestedBy String
+  approvedBy  String?
+  createdAt   DateTime    @default(now())
+
+  @@index([tenantId, permission, status])
+}
+
+model AccessPolicy {
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String
+  name        String
+  description String          @default("")
+  createdAt   DateTime        @default(now())
+  versions    PolicyVersion[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// Versioned ABAC rules in the constrained policy schema. Maker-checker governed.
+model PolicyVersion {
+  id              String       @id @default(uuid())
+  tenantId        String
+  policyId        String
+  policy          AccessPolicy @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  rules           Json
+  /// DRAFT, SUBMITTED, ACTIVE, REJECTED, RETIRED
+  status          String       @default("DRAFT")
+  makerId         String
+  checkerId       String?
+  submittedAt     DateTime?
+  decidedAt       DateTime?
+  rejectionReason String?
+  createdAt       DateTime     @default(now())
+
+  @@unique([policyId, version])
+  @@index([tenantId, status])
+}
+
+/// Tenant-scoped flag rule. Becomes ACTIVE only through FlagChangeApproval.
+model FlagRule {
+  id            String      @id @default(uuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flagKey       String
+  flag          FeatureFlag @relation(fields: [flagKey], references: [key])
+  /// TENANT, PRODUCT, BRANCH, CHANNEL, SEGMENT, COHORT
+  scopeType     String
+  scopeValue    String?
+  enabled       Boolean
+  /// Tenant emergency-off: cannot be overridden by narrower tenant rules.
+  emergency     Boolean     @default(false)
+  priority      Int         @default(100)
+  effectiveFrom DateTime    @default(now())
+  effectiveTo   DateTime?
+  /// PENDING_APPROVAL, ACTIVE, REJECTED, SUPERSEDED
+  status        String      @default("PENDING_APPROVAL")
+  createdAt     DateTime    @default(now())
+
+  approvals FlagChangeApproval[]
+
+  @@index([tenantId, flagKey, status])
+}
+
+model FlagChangeApproval {
+  id        String    @id @default(uuid())
+  tenantId  String
+  ruleId    String
+  rule      FlagRule  @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  /// ACTIVATE or DEACTIVATE
+  action    String
+  reason    String
+  makerId   String
+  checkerId String?
+  /// PENDING, APPROVED, REJECTED
+  status    String    @default("PENDING")
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, status])
+}
+
+/// Stable, explicit pilot cohort membership. Never random per request.
+model CohortMembership {
+  id          String   @id @default(uuid())
+  tenantId    String
+  cohortCode  String
+  /// BRANCH, USER, BORROWER
+  subjectType String
+  subjectId   String
+  addedBy     String
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, cohortCode, subjectType, subjectId])
+}
+
+/// Integration principal with narrow scopes and a tenant binding.
+model ServiceAccount {
+  id         String    @id @default(uuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  keyPrefix  String    @unique
+  keyHash    String
+  scopes     String[]
+  /// ACTIVE, DISABLED
+  status     String    @default("ACTIVE")
+  expiresAt  DateTime
+  createdBy  String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+// ── Products ───────────────────────────────────────────────────────────────
+
+model WorkflowVersion {
+  id         String    @id @default(uuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code       String
+  version    Int
+  name       String
+  definition Json
+  /// DRAFT, SUBMITTED, ACTIVE, REJECTED, RETIRED
+  status     String    @default("DRAFT")
+  makerId    String
+  checkerId  String?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([tenantId, code, version])
+}
+
+model LendingProduct {
+  id           String           @id @default(uuid())
+  tenantId     String
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code         String
+  familyCode   String
+  templateCode String
+  name         String
+  createdBy    String
+  createdAt    DateTime         @default(now())
+  versions     ProductVersion[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// Approved versions are immutable (enforced by trigger); edits create a new version.
+model ProductVersion {
+  id                   String         @id @default(uuid())
+  tenantId             String
+  productId            String
+  product              LendingProduct @relation(fields: [tenantId, productId], references: [tenantId, id], onDelete: Cascade)
+  version              Int
+  /// DRAFT, SUBMITTED, APPROVED, ACTIVE, RETIRED, REJECTED
+  status               String         @default("DRAFT")
+  config               Json
+  configHash           String
+  requiredCapabilities String[]
+  engineVersion        String
+  effectiveFrom        DateTime?      @db.Date
+  effectiveTo          DateTime?      @db.Date
+  changeSummary        String         @default("")
+  makerId              String
+  submittedAt          DateTime?
+  checkerId            String?
+  approvedAt           DateTime?
+  activatedBy          String?
+  activatedAt          DateTime?
+  retiredAt            DateTime?
+  rejectionReason      String?
+  createdAt            DateTime       @default(now())
+
+  pricing   PricingConfiguration?
+  repayment RepaymentConfiguration?
+
+  @@unique([productId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+model PricingConfiguration {
+  id                String         @id @default(uuid())
+  tenantId          String
+  productVersionId  String
+  productVersion    ProductVersion @relation(fields: [tenantId, productVersionId], references: [tenantId, id], onDelete: Cascade)
+  rateType          String
+  interestMethod    String
+  rateConvention    String
+  accrualBasis      String
+  dayCount          String
+  defaultAnnualRate Decimal?       @db.Decimal(18, 10)
+  payload           Json
+
+  @@unique([tenantId, productVersionId])
+}
+
+model RepaymentConfiguration {
+  id               String         @id @default(uuid())
+  tenantId         String
+  productVersionId String
+  productVersion   ProductVersion @relation(fields: [tenantId, productVersionId], references: [tenantId, id], onDelete: Cascade)
+  method           String
+  frequency        String?
+  payload          Json
+
+  @@unique([tenantId, productVersionId])
+}
+
+/// Benchmark rate history for floating pricing (auditable resets).
+model RateObservation {
+  id              String   @id @default(uuid())
+  tenantId        String
+  benchmarkCode   String
+  observationDate DateTime @db.Date
+  rate            Decimal  @db.Decimal(18, 10)
+  source          String
+  recordedBy      String
+  createdAt       DateTime @default(now())
+
+  @@unique([tenantId, benchmarkCode, observationDate])
+}
+
+// ── Borrower groups (Phase 2 behaviour; structure in place) ─────────────────
+
+model BorrowerGroup {
+  id        String            @id @default(uuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId  String?
+  code      String
+  name      String
+  createdAt DateTime          @default(now())
+  members   GroupMembership[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+model GroupMembership {
+  id         String        @id @default(uuid())
+  tenantId   String
+  groupId    String
+  group      BorrowerGroup @relation(fields: [tenantId, groupId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId String
+  borrower   Borrower      @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  role       String        @default("MEMBER")
+  joinedAt   DateTime      @default(now())
+  leftAt     DateTime?
+
+  @@unique([groupId, borrowerId])
+}
+
+// ── Origination ────────────────────────────────────────────────────────────
+
+model Application {
+  id               String    @id @default(uuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference        String
+  branchId         String
+  portfolioId      String?
+  legalEntityId    String?
+  borrowerId       String
+  borrower         Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  productId        String
+  /// Pinned when the application is created; terms are checked against it.
+  productVersionId String
+  channel          String
+  segmentCode      String?
+  /// DRAFT, SUBMITTED, RECOMMENDED, APPROVED, REJECTED, WITHDRAWN, BOOKED
+  status           String    @default("DRAFT")
+  currency         String
+  requestedAmount  Decimal   @db.Decimal(24, 4)
+  terms            Json
+  purpose          String    @default("")
+  createdBy        String
+  submittedAt      DateTime?
+  decidedAt        DateTime?
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  documents  ApplicationDocument[]
+  decisions  CreditDecision[]
+  conditions ConditionPrecedent[]
+  guarantees Guarantee[]
+  pledges    CollateralPledge[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, branchId])
+}
+
+model ApplicationDocument {
+  id              String      @id @default(uuid())
+  tenantId        String
+  applicationId   String
+  application     Application @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  code            String
+  fileName        String
+  mimeType        String
+  sizeBytes       Int
+  sha256          String
+  storageProvider String
+  storageKey      String
+  uploadedBy      String
+  createdAt       DateTime    @default(now())
+
+  @@index([tenantId, applicationId])
+}
+
+/// Immutable credit decision history.
+model CreditDecision {
+  id             String      @id @default(uuid())
+  tenantId       String
+  applicationId  String
+  application    Application @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  /// RECOMMEND, APPROVE, REJECT
+  type           String
+  decidedBy      String
+  amount         Decimal     @db.Decimal(24, 4)
+  currency       String
+  terms          Json
+  rationale      String
+  assessment     Json
+  policyDecision Json
+  createdAt      DateTime    @default(now())
+
+  @@index([tenantId, applicationId])
+}
+
+/// A pending maker-checker step for any subject (application, disbursement, write-off, product version…).
+model ApprovalTask {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subjectType        String
+  subjectId          String
+  action             String
+  requiredPermission String
+  amount             Decimal?  @db.Decimal(24, 4)
+  currency           String?
+  payload            Json      @default("{}")
+  /// PENDING, APPROVED, REJECTED, CANCELLED, EXECUTED
+  status             String    @default("PENDING")
+  makerId            String
+  decidedBy          String?
+  decidedAt          DateTime?
+  comment            String?
+  createdAt          DateTime  @default(now())
+
+  @@index([tenantId, status, subjectType])
+  @@index([tenantId, subjectType, subjectId])
+}
+
+model ConditionPrecedent {
+  id            String      @id @default(uuid())
+  tenantId      String
+  applicationId String
+  application   Application @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  code          String
+  label         String
+  /// OUTSTANDING, SATISFIED, WAIVED
+  status        String      @default("OUTSTANDING")
+  evidence      String?
+  resolvedBy    String?
+  resolvedAt    DateTime?
+
+  @@unique([applicationId, code])
+}
+
+model CollateralAsset {
+  id          String             @id @default(uuid())
+  tenantId    String
+  borrowerId  String
+  borrower    Borrower           @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  type        String
+  description String
+  currency    String
+  createdBy   String
+  createdAt   DateTime           @default(now())
+  valuations  Valuation[]
+  pledges     CollateralPledge[]
+
+  @@unique([tenantId, id])
+}
+
+model Valuation {
+  id            String          @id @default(uuid())
+  tenantId      String
+  collateralId  String
+  collateral    CollateralAsset @relation(fields: [tenantId, collateralId], references: [tenantId, id], onDelete: Cascade)
+  valuationDate DateTime        @db.Date
+  marketValue   Decimal         @db.Decimal(24, 4)
+  valuer        String
+  method        String
+  recordedBy    String
+  createdAt     DateTime        @default(now())
+
+  @@index([tenantId, collateralId])
+}
+
+model CollateralPledge {
+  id            String          @id @default(uuid())
+  tenantId      String
+  collateralId  String
+  collateral    CollateralAsset @relation(fields: [tenantId, collateralId], references: [tenantId, id], onDelete: Cascade)
+  applicationId String
+  application   Application     @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  /// ACTIVE, RELEASED
+  status        String          @default("ACTIVE")
+  createdAt     DateTime        @default(now())
+
+  @@unique([collateralId, applicationId])
+}
+
+model Guarantee {
+  id                  String      @id @default(uuid())
+  tenantId            String
+  applicationId       String
+  application         Application @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  guarantorName       String
+  guarantorBorrowerId String?
+  /// PERSONAL, CORPORATE
+  type                String
+  amount              Decimal     @db.Decimal(24, 4)
+  currency            String
+  createdBy           String
+  createdAt           DateTime    @default(now())
+
+  @@index([tenantId, applicationId])
+}
+
+// ── Facilities (Phase 2 behaviour; structure in place) ──────────────────────
+
+model Facility {
+  id               String     @id @default(uuid())
+  tenantId         String
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  borrowerId       String
+  productVersionId String
+  currency         String
+  limitAmount      Decimal    @db.Decimal(24, 4)
+  maturityDate     DateTime   @db.Date
+  status           String     @default("PENDING")
+  createdAt        DateTime   @default(now())
+  drawdowns        Drawdown[]
+
+  @@unique([tenantId, id])
+}
+
+model Drawdown {
+  id         String   @id @default(uuid())
+  tenantId   String
+  facilityId String
+  facility   Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(24, 4)
+  valueDate  DateTime @db.Date
+  status     String   @default("REQUESTED")
+  createdAt  DateTime @default(now())
+}
+
+// ── Agreements and accounts ────────────────────────────────────────────────
+
+/// The booked contract (spec "LoanAgreement"; that name is taken by the
+/// existing key-facts signature record). Terms live in AgreementVersion.
+model LendingAgreement {
+  id               String             @id @default(uuid())
+  tenantId         String
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference        String
+  applicationId    String             @unique
+  borrowerId       String
+  productId        String
+  productVersionId String
+  currency         String
+  currentVersion   Int                @default(1)
+  createdBy        String
+  createdAt        DateTime           @default(now())
+  versions         AgreementVersion[]
+  account          LoanAccount?
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+}
+
+/// Immutable snapshot of product configuration + negotiated terms + engine input.
+model AgreementVersion {
+  id            String           @id @default(uuid())
+  tenantId      String
+  agreementId   String
+  agreement     LendingAgreement @relation(fields: [tenantId, agreementId], references: [tenantId, id], onDelete: Cascade)
+  version       Int
+  /// BOOKING, PREPAYMENT_RECAST, PREPAYMENT_SHORTEN
+  reason        String
+  productConfig Json
+  configHash    String
+  terms         Json
+  scheduleInput Json
+  calculation   Json
+  engineVersion String
+  effectiveDate DateTime         @db.Date
+  createdBy     String
+  createdAt     DateTime         @default(now())
+
+  @@unique([agreementId, version])
+}
+
+model LoanAccount {
+  id                     String           @id @default(uuid())
+  tenantId               String
+  reference              String
+  agreementId            String           @unique
+  agreement              LendingAgreement @relation(fields: [tenantId, agreementId], references: [tenantId, id], onDelete: Cascade)
+  applicationId          String
+  borrowerId             String
+  branchId               String
+  portfolioId            String?
+  legalEntityId          String?
+  productId              String
+  productVersionId       String
+  familyCode             String
+  currency               String
+  /// BOOKED, ACTIVE, CLOSED, WRITTEN_OFF
+  status                 String           @default("BOOKED")
+  bookedPrincipal        Decimal          @db.Decimal(24, 4)
+  principalOutstanding   Decimal          @default(0) @db.Decimal(24, 4)
+  interestReceivable     Decimal          @default(0) @db.Decimal(24, 4)
+  feesReceivable         Decimal          @default(0) @db.Decimal(24, 4)
+  penaltyReceivable      Decimal          @default(0) @db.Decimal(24, 4)
+  instalmentAmount       Decimal?         @db.Decimal(24, 4)
+  daysPastDue            Int              @default(0)
+  delinquencyBucket      String           @default("CURRENT")
+  collectionStage        String?
+  disbursementDate       DateTime?        @db.Date
+  maturityDate           DateTime?        @db.Date
+  lastAccrualDate        DateTime?        @db.Date
+  closedAt               DateTime?
+  writtenOffAt           DateTime?
+  /// Restructuring: the loan stays flagged; executing a restructure does not reset delinquency.
+  isRestructured         Boolean          @default(false)
+  restructureCount       Int              @default(0)
+  lastRestructuredAt     DateTime?
+  /// Bucket held during probation so a restructure alone never reclassifies the loan as performing.
+  delinquencyFloorBucket String?
+  delinquencyFloorDpd    Int?
+  probationRemaining     Int              @default(0)
+  /// Optimistic concurrency token; every financial mutation bumps it.
+  version                Int              @default(0)
+  createdBy              String
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  instalments      ScheduleInstalment[]
+  events           FinancialEvent[]
+  restructureCases RestructureCase[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@unique([tenantId, agreementId])
+  @@index([tenantId, status])
+  @@index([tenantId, branchId])
+}
+
+model ScheduleInstalment {
+  id                     String      @id @default(uuid())
+  tenantId               String
+  loanAccountId          String
+  loanAccount            LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  agreementVersion       Int
+  number                 Int
+  periodStart            DateTime    @db.Date
+  periodEnd              DateTime    @db.Date
+  dueDate                DateTime    @db.Date
+  openingPrincipal       Decimal     @db.Decimal(24, 4)
+  principalDue           Decimal     @db.Decimal(24, 4)
+  interestDue            Decimal     @db.Decimal(24, 4)
+  capitalizedInterest    Decimal     @default(0) @db.Decimal(24, 4)
+  feeDue                 Decimal     @default(0) @db.Decimal(24, 4)
+  taxDue                 Decimal     @default(0) @db.Decimal(24, 4)
+  penaltyDue             Decimal     @default(0) @db.Decimal(24, 4)
+  principalPaid          Decimal     @default(0) @db.Decimal(24, 4)
+  interestPaid           Decimal     @default(0) @db.Decimal(24, 4)
+  feePaid                Decimal     @default(0) @db.Decimal(24, 4)
+  taxPaid                Decimal     @default(0) @db.Decimal(24, 4)
+  penaltyPaid            Decimal     @default(0) @db.Decimal(24, 4)
+  /// Pre-existing arrears carried into this line by a restructure: repaid as INTEREST, never accrued again.
+  deferredInterestDue    Decimal     @default(0) @db.Decimal(24, 4)
+  /// Interest earned on this line up to the restructure that closed it (status RESTRUCTURED).
+  accruedAtClose         Decimal?    @db.Decimal(24, 4)
+  annualRate             Decimal     @db.Decimal(18, 10)
+  projected              Boolean     @default(false)
+  /// DUE, PAID, SUPERSEDED
+  status                 String      @default("DUE")
+  penaltyAssessedThrough DateTime?   @db.Date
+  createdAt              DateTime    @default(now())
+
+  @@index([tenantId, loanAccountId, status])
+}
+
+model AccrualEvent {
+  id               String   @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  financialEventId String   @unique
+  /// Accrued up to (not including) this date.
+  accrualDate      DateTime @db.Date
+  amount           Decimal  @db.Decimal(24, 4)
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, loanAccountId, accrualDate])
+}
+
+/// Immutable financial event. Corrections are REVERSAL events, never edits.
+model FinancialEvent {
+  id                String      @id @default(uuid())
+  tenantId          String
+  loanAccountId     String
+  loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// DISBURSEMENT, REPAYMENT, ACCRUAL, PENALTY, SETTLEMENT, WRITE_OFF, REVERSAL
+  type              String
+  /// POSTED, REVERSED
+  status            String      @default("POSTED")
+  businessDate      DateTime    @db.Date
+  valueDate         DateTime    @db.Date
+  amount            Decimal     @db.Decimal(24, 4)
+  currency          String
+  components        Json
+  idempotencyKey    String
+  requestHash       String
+  reversalOfId      String?     @unique
+  productVersionId  String
+  agreementVersion  Int
+  engineVersion     String
+  actorId           String
+  actorType         String
+  externalReference String?
+  narrative         String      @default("")
+  createdAt         DateTime    @default(now())
+
+  allocations PaymentAllocation[]
+  journal     LendingJournalEntry?
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId, createdAt])
+}
+
+model PaymentAllocation {
+  id               String         @id @default(uuid())
+  tenantId         String
+  financialEventId String
+  event            FinancialEvent @relation(fields: [tenantId, financialEventId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId    String
+  instalmentNumber Int
+  /// PENALTY, FEE, TAX, INTEREST, PRINCIPAL
+  component        String
+  amount           Decimal        @db.Decimal(24, 4)
+
+  @@index([tenantId, financialEventId])
+}
+
+model LendingJournalEntry {
+  id               String               @id @default(uuid())
+  tenantId         String
+  financialEventId String               @unique
+  event            FinancialEvent       @relation(fields: [tenantId, financialEventId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId    String
+  entryDate        DateTime             @db.Date
+  currency         String
+  description      String
+  createdAt        DateTime             @default(now())
+  lines            LendingJournalLine[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, financialEventId])
+  @@index([tenantId, entryDate])
+}
+
+model LendingJournalLine {
+  id            String              @id @default(uuid())
+  tenantId      String
+  entryId       String
+  entry         LendingJournalEntry @relation(fields: [tenantId, entryId], references: [tenantId, id], onDelete: Cascade)
+  accountId     String
+  account       LedgerAccount       @relation(fields: [tenantId, accountId], references: [tenantId, id])
+  accountCode   String
+  loanAccountId String
+  debit         Decimal             @default(0) @db.Decimal(24, 4)
+  credit        Decimal             @default(0) @db.Decimal(24, 4)
+
+  @@index([tenantId, accountCode])
+  @@index([tenantId, loanAccountId])
+}
+
+// ── Restructuring and hardship ─────────────────────────────────────────────
+
+/// Tenant affordability policy (buffers, DSCR, evidence rules). Versioned, maker-checker.
+model AffordabilityPolicy {
+  id        String    @id @default(uuid())
+  tenantId  String
+  version   Int
+  settings  Json
+  /// SUBMITTED, ACTIVE, REJECTED, RETIRED
+  status    String    @default("SUBMITTED")
+  makerId   String
+  checkerId String?
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, version])
+}
+
+/// A restructuring / hardship review of one loan. A customer request opens a
+/// review; it never changes terms by itself.
+model RestructureCase {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  tenant               Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference            String
+  loanAccountId        String
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId           String
+  branchId             String
+  portfolioId          String?
+  /// CUSTOMER_REQUEST, STAFF_ON_CUSTOMER_REQUEST, COLLECTIONS, CREDIT_REVIEW, SYSTEM_REFERRAL
+  trigger              String
+  initiatorType        String
+  initiatorId          String
+  channel              String
+  /// ILLNESS, JOB_LOSS, INCOME_REDUCTION, BUSINESS_DOWNTURN, DELAYED_HARVEST, DISASTER, OTHER
+  hardshipCategory     String
+  /// TEMPORARY or PERSISTENT
+  difficultyType       String
+  customerStatement    String      @default("")
+  requestedRelief      Json
+  consentRecorded      Boolean     @default(false)
+  consentReference     String?
+  expectedRecoveryDate DateTime?   @db.Date
+  previousRestructures Int         @default(0)
+  /// REQUESTED, MORE_INFO_REQUIRED, AFFORDABILITY_ASSESSED, SPECIALIST_REVIEW, OPTIONS_PROPOSED,
+  /// APPROVED, CUSTOMER_ACCEPTED, CONDITIONS_SATISFIED, MONITORING, COMPLETED,
+  /// REJECTED, WITHDRAWN, EXPIRED, REVERSED
+  status               String      @default("REQUESTED")
+  specialistReview     Boolean     @default(false)
+  outcomeNote          String?
+  version              Int         @default(0)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  evidence    RestructureEvidence[]
+  assessments AffordabilityAssessment[]
+  proposals   RestructureProposal[]
+  conditions  RestructureCondition[]
+  reviewTasks RestructureReviewTask[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+model RestructureEvidence {
+  id          String          @id @default(uuid())
+  tenantId    String
+  caseId      String
+  case        RestructureCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Cascade)
+  /// INCOME, EXPENSES, DEBTS, BUSINESS_CASHFLOW, HARVEST_FORECAST, MEDICAL, EMPLOYMENT, OTHER
+  type        String
+  description String
+  /// SELF_DECLARED, PARTIALLY_VERIFIED, VERIFIED
+  quality     String
+  documentRef String?
+  providedBy  String
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  createdAt   DateTime        @default(now())
+
+  @@index([tenantId, caseId])
+}
+
+/// Immutable affordability assessment with evidence quality and assumptions.
+model AffordabilityAssessment {
+  id               String          @id @default(uuid())
+  tenantId         String
+  caseId           String
+  case             RestructureCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Cascade)
+  /// INDIVIDUAL, HOUSEHOLD, BUSINESS, SEASONAL
+  template         String
+  inputs           Json
+  result           Json
+  policySettings   Json
+  policyVersion    String
+  evidenceQuality  String
+  assumptions      String
+  verificationDate DateTime        @db.Date
+  assessorId       String
+  comments         String          @default("")
+  sustainable      Boolean
+  createdAt        DateTime        @default(now())
+
+  @@index([tenantId, caseId])
+}
+
+/// A versioned proposal. Any change after approval or acceptance is a new version.
+model RestructureProposal {
+  id                String          @id @default(uuid())
+  tenantId          String
+  caseId            String
+  case              RestructureCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Cascade)
+  version           Int
+  /// PROPOSED, APPROVED, REJECTED, ACCEPTED, EXECUTED, SUPERSEDED, EXPIRED
+  status            String          @default("PROPOSED")
+  effectiveDate     DateTime        @db.Date
+  options           Json
+  /// Immutable balance snapshot the proposal was calculated on.
+  snapshot          Json
+  calculation       Json
+  comparison        Json
+  concessions       Json
+  policyExceptions  Json
+  requiredFlags     String[]
+  approvalsRequired Int             @default(1)
+  proposalHash      String
+  assessmentId      String?
+  proposedBy        String
+  expiresAt         DateTime
+  createdAt         DateTime        @default(now())
+
+  approvals   RestructureApproval[]
+  acceptances RestructureAcceptance[]
+
+  @@unique([caseId, version])
+  @@unique([tenantId, id])
+}
+
+/// Credit/risk approval — recorded separately from customer acceptance.
+model RestructureApproval {
+  id         String              @id @default(uuid())
+  tenantId   String
+  proposalId String
+  proposal   RestructureProposal @relation(fields: [tenantId, proposalId], references: [tenantId, id], onDelete: Cascade)
+  approverId String
+  /// APPROVE or REJECT
+  decision   String
+  comment    String
+  policy     Json
+  createdAt  DateTime            @default(now())
+
+  @@index([tenantId, proposalId])
+}
+
+/// Customer acceptance of one exact proposal version (bound by its hash).
+model RestructureAcceptance {
+  id             String              @id @default(uuid())
+  tenantId       String
+  proposalId     String
+  proposal       RestructureProposal @relation(fields: [tenantId, proposalId], references: [tenantId, id], onDelete: Cascade)
+  /// CUSTOMER (self-service) or STAFF_ON_BEHALF (witnessed)
+  acceptedByType String
+  acceptedById   String
+  /// PORTAL_CONFIRMATION, SIGNED_FORM, WITNESSED_VERBAL
+  method         String
+  evidence       String
+  proposalHash   String
+  createdAt      DateTime            @default(now())
+
+  @@index([tenantId, proposalId])
+}
+
+model RestructureCondition {
+  id         String          @id @default(uuid())
+  tenantId   String
+  caseId     String
+  case       RestructureCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Cascade)
+  code       String
+  label      String
+  mandatory  Boolean         @default(true)
+  /// OUTSTANDING, SATISFIED, WAIVED
+  status     String          @default("OUTSTANDING")
+  evidence   String?
+  resolvedBy String?
+  resolvedAt DateTime?
+
+  @@unique([caseId, code])
+}
+
+/// Monitoring and follow-up. A task asks for review; it never grants concessions.
+model RestructureReviewTask {
+  id        String          @id @default(uuid())
+  tenantId  String
+  caseId    String
+  case      RestructureCase @relation(fields: [tenantId, caseId], references: [tenantId, id], onDelete: Cascade)
+  /// MISSED_REVISED_PAYMENT, RELIEF_EXPIRY, PROBATION_REVIEW, BALLOON_MATURITY, AFFORDABILITY_REFRESH, REPEAT_REQUEST
+  type      String
+  dueDate   DateTime        @db.Date
+  /// OPEN, CLOSED
+  status    String          @default("OPEN")
+  detail    Json
+  dedupeKey String
+  closedBy  String?
+  closedAt  DateTime?
+  createdAt DateTime        @default(now())
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, status, dueDate])
+}
+
+/// The executed amendment: links the case, proposal, agreement versions and accounting event.
+model LoanAmendment {
+  id                   String   @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  caseId               String
+  proposalId           String   @unique
+  fromAgreementVersion Int
+  toAgreementVersion   Int
+  effectiveDate        DateTime @db.Date
+  beforeSnapshot       Json
+  afterSnapshot        Json
+  financialEventId     String
+  executedBy           String
+  /// EXECUTED, REVERSED
+  status               String   @default("EXECUTED")
+  reversalEventId      String?
+  createdAt            DateTime @default(now())
+
+  @@index([tenantId, loanAccountId])
+}
+
+/// Transactional outbox: written with the business change, delivered by a worker.
+model OutboxMessage {
+  id          String    @id @default(uuid())
+  tenantId    String
+  topic       String
+  payload     Json
+  /// PENDING, SENT, FAILED
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  availableAt DateTime  @default(now())
+  sentAt      DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, availableAt])
+}
+
+/// Immutable lending audit trail, including authorization decisions.
+model AuditEvent {
+  id             String    @id @default(uuid())
+  tenantId       String?
+  actorId        String
+  actorType      String
+  action         String
+  resourceType   String
+  resourceId     String
+  /// ALLOW, DENY, SUCCESS, FAILURE
+  outcome        String
+  decision       Json?
+  details        Json?
+  configVersions Json?
+  businessDate   DateTime? @db.Date
+  eventTime      DateTime  @default(now())
+
+  @@index([tenantId, eventTime])
+  @@index([tenantId, resourceType, resourceId])
 }

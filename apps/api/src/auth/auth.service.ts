@@ -727,7 +727,7 @@ export class AuthService {
       result: 'SUCCESS',
     });
 
-    return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null);
+    return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null, undefined, 'mfa');
   }
 
   async generateMfaSecret(userId: string) {
@@ -827,6 +827,7 @@ export class AuthService {
       branchId?: string | null;
       jti?: string;
       typ?: string;
+      amr?: string;
     };
 
     let payload: RefreshPayload;
@@ -939,6 +940,8 @@ export class AuthService {
         tokenRecord.user.tenantId,
         tokenRecord.user.branchId || null,
         tx,
+        // Authentication strength carries over a refresh; it is never upgraded by one.
+        payload.amr === 'mfa' ? 'mfa' : 'pwd',
       );
     });
   }
@@ -975,6 +978,9 @@ export class AuthService {
     tenantId: string | null,
     branchId: string | null = null,
     tx?: Prisma.TransactionClient,
+    // Authentication method reference: "mfa" only after a verified TOTP
+    // challenge. Lending approvals require it (environment.assurance).
+    amr: 'pwd' | 'mfa' = 'pwd',
   ) {
     const db = tx ?? this.prisma;
     const tenant = tenantId
@@ -989,6 +995,7 @@ export class AuthService {
       branchId,
       tenantName,
       permissions: Array.from(permissionsForRole(role)),
+      amr,
     };
 
     const refreshTokenId = randomUUID();

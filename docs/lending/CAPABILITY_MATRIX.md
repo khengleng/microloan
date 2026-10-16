@@ -1,0 +1,214 @@
+# Lending capability matrix
+
+_Generated from `packages/shared/src/lending/capabilities.ts` and the product catalogue (engine 1.0.0). Do not edit by hand — run `node scripts/lending-capability-matrix.mjs`._
+
+A product version can be activated only when every capability it requires is **Fully implemented**.
+
+✅ Fully implemented: 34 · 🧪 Simulation only: 1 · 🔌 Requires integration: 5 · ⛔ Not implemented: 25
+
+## Capabilities
+
+### Schedule
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `schedule.equal_instalment` | ✅ Fully implemented | 1 | Equal instalments (annuity), fixed periodic rate, zero-rate case | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.equal_principal` | ✅ Fully implemented | 1 | Equal principal with interest on the opening balance | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.flat_rate` | ✅ Fully implemented | 1 | Flat interest: P × r × years spread over level instalments | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.interest_only_bullet` | ✅ Fully implemented | 1 | Interest-only with bullet principal | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.balloon` | ✅ Fully implemented | 1 | Level instalments leaving a balloon residual | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.explicit_dated` | ✅ Fully implemented | 1 | Seasonal / explicitly dated principal with actual-interval interest | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.irregular_first_period` | ✅ Fully implemented | 1 | Irregular first period with DAILY accrual (periodic formulas refused) | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.grace_principal` | ✅ Fully implemented | 1 | Principal grace (interest-only instalments) | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.grace_interest_capitalized` | ✅ Fully implemented | 1 | Interest grace with capitalization | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.business_day_adjustment` | ✅ Fully implemented | 1 | Holiday calendars; FOLLOWING / MODIFIED_FOLLOWING / PRECEDING | Tests: `packages/shared/test/*.test.ts` |
+| `schedule.custom_day_frequency` | ✅ Fully implemented | 1 | Custom day/week/month frequency (day-based requires DAILY accrual) | Tests: `packages/shared/test/*.test.ts` |
+
+### Pricing
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `pricing.fixed_rate` | ✅ Fully implemented | 1 | Fixed nominal or effective annual rate; ACT/365F, ACT/360, ACT/ACT ISDA, 30/360 ISDA, 30E/360 | Tests: `packages/shared/test/*.test.ts` |
+| `pricing.floating_rate` | 🧪 Simulation only | 2 | Floating rate: benchmark + margin with floor/cap, projected schedule | Tests: `packages/shared/test/*.test.ts`<br>Contractual rate resets on booked loans arrive in Phase 2; floating products cannot be activated. |
+| `pricing.upfront_fees` | ✅ Fully implemented | 1 | Upfront fees: deducted, financed or separately collected, with tax | Tests: `packages/shared/test/*.test.ts` |
+| `pricing.late_penalty` | ✅ Fully implemented | 1 | Late penalties: flat per overdue instalment or penalty rate on overdue amounts | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `pricing.effective_rate_disclosure` | ✅ Fully implemented | 1 | Effective annual rate (XIRR) including fees | Tests: `packages/shared/test/*.test.ts` |
+
+### Origination
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `origination.individual` | ✅ Fully implemented | 1 | Individual borrower applications, documents, conditions precedent | Tests: `apps/api/test/lending/*.int-spec.ts` |
+
+### Credit
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `credit.decision` | ✅ Fully implemented | 1 | Recommendation, approval and rejection history with approval authority | Tests: `apps/api/test/lending/*.int-spec.ts` |
+
+### Security
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `collateral.ltv` | ✅ Fully implemented | 1 | Collateral pledges, valuations, haircuts and LTV threshold at approval | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `guarantee.basic` | ✅ Fully implemented | 1 | Personal / corporate guarantee capture and minimum-count requirement | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `collateral.borrowing_base` | ⛔ Not implemented | 2 | Borrowing-base eligibility and advance rates |  |
+
+### Liability
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `liability.individual` | ✅ Fully implemented | 1 | Individual liability | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `liability.group_joint` | ⛔ Not implemented | 2 | Group / joint liability |  |
+
+### Disbursement
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `disbursement.manual` | ✅ Fully implemented | 1 | Single disbursement recorded by operations with external reference (maker-checker) | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `disbursement.payment_rail` | 🔌 Requires integration | 2 | Automated payout through a payment provider | Only a mock adapter exists; it is blocked in production. |
+
+### Servicing
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `servicing.repayment` | ✅ Fully implemented | 1 | Repayment posting with configurable allocation order and idempotency | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.repayment_reversal` | ✅ Fully implemented | 1 | Repayment reversal by contra entry (latest-first) | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.accrual` | ✅ Fully implemented | 1 | Daily interest accrual reconciled to scheduled interest | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.partial_prepayment` | ✅ Fully implemented | 1 | Partial prepayment with recast or shortened tenor (reducing-balance loans) | Tests: `packages/shared/test/*.test.ts` |
+| `servicing.early_settlement` | ✅ Fully implemented | 1 | Settlement quote and payoff with optional fee and cash rounding | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.delinquency` | ✅ Fully implemented | 1 | Days past due, delinquency buckets and collections stage assignment | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.write_off` | ✅ Fully implemented | 1 | Write-off proposal and approval (maker-checker) | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.closure` | ✅ Fully implemented | 1 | Automatic closure on full repayment or settlement | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.recovery_after_write_off` | ⛔ Not implemented | 2 | Post-write-off recoveries |  |
+
+### Restructuring
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `servicing.restructure` | ✅ Fully implemented | 1 | Hardship cases: affordability, options, maker-checker approval, customer acceptance, amendment execution and monitoring | Tests: `packages/shared/test/restructure.test.ts, apps/api/test/lending/restructure.int-spec.ts` |
+| `restructure.affordability` | ✅ Fully implemented | 1 | Individual, household, business (DSCR) and seasonal affordability templates | Tests: `packages/shared/test/restructure.test.ts` |
+| `restructure.customer_self_service` | ✅ Fully implemented | 1 | Customers request restructuring and accept their own proposals in the borrower portal | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.refinance` | ⛔ Not implemented | 2 | Refinancing into a new loan linked to the original agreement |  |
+| `servicing.negotiated_settlement` | ⛔ Not implemented | 2 | Negotiated (discounted) settlement workflow linked to the original agreement |  |
+| `servicing.payment_holiday` | ⛔ Not implemented | 2 | Stand-alone payment holiday programme (relief is available inside a restructure as a payment deferral) |  |
+
+### Facility
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `facility.revolving` | ⛔ Not implemented | 2 | Revolving facilities with limits and drawdowns |  |
+| `facility.overdraft` | ⛔ Not implemented | 2 | Overdraft |  |
+| `facility.staged_drawdown` | ⛔ Not implemented | 2 | Staged construction drawdowns |  |
+
+### Limits
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `limits.connected_exposure` | ⛔ Not implemented | 2 | Group and connected-party exposure checks |  |
+
+### Accounting
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `accounting.double_entry` | ✅ Fully implemented | 1 | Immutable financial events with balanced double-entry postings and reversals | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `accounting.reconciliation` | ✅ Fully implemented | 1 | Sub-ledger to general-ledger reconciliation | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `accounting.external_export` | 🔌 Requires integration | 2 | Export to an external accounting system | Outbox messages are recorded; no external adapter ships. |
+
+### Integration
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `integration.kyc` | 🔌 Requires integration | 2 | External identity / KYC verification | Manual KYC status only. |
+| `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | The existing CBC provider is used when configured; products requiring a bureau cannot activate without it. |
+| `integration.notifications` | 🔌 Requires integration | 2 | Borrower notifications (SMS / Telegram) |  |
+
+### Specialized
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `card.revolving_credit` | ⛔ Not implemented | 3 | Credit cards: statements, minimum payment, grace on purchases |  |
+| `bnpl.merchant_settlement` | ⛔ Not implemented | 3 | BNPL: merchant settlement and purchase-linked plans |  |
+| `trade.documentary` | ⛔ Not implemented | 3 | Import / export finance against trade documents |  |
+| `trade.invoice_finance` | ⛔ Not implemented | 3 | Invoice-backed lending with an invoice register |  |
+| `trade.factoring` | ⛔ Not implemented | 3 | Factoring with debtor collections and recourse |  |
+| `trade.supply_chain` | ⛔ Not implemented | 3 | Supply-chain (reverse factoring) programmes |  |
+| `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
+| `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
+| `syndication.participations` | ⛔ Not implemented | 3 | Syndicated loans: agency, participations, pro-rata sharing |  |
+| `project_finance.waterfall` | ⛔ Not implemented | 3 | Project finance: cash waterfall, DSCR covenants, sculpted repayment |  |
+| `covenants.monitoring` | ⛔ Not implemented | 3 | Financial covenant monitoring |  |
+| `institutional.counterparty_limits` | ⛔ Not implemented | 3 | Interbank / sovereign / municipal counterparty limits and conventions |  |
+
+### Islamic
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `islamic.murabaha` | ⛔ Not implemented | 3 | Murabaha: asset purchase and resale at disclosed profit |  |
+| `islamic.ijarah` | ⛔ Not implemented | 3 | Ijarah: lease with rentals and asset ownership |  |
+
+### Access
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `access.emergency_break_glass` | ⛔ Not implemented | 2 | Emergency (break-glass) access |  |
+
+## Product templates
+
+| Family | Template | Phase 1 slice | Available | Missing capabilities |
+|---|---|---|---|---|
+| Personal / consumer | Personal instalment loan (`PERSONAL_INSTALMENT`) | Yes | ✅ |  |
+| Personal / consumer | Salary loan (`SALARY_LOAN`) |  | ✅ |  |
+| Personal / consumer | Salary advance (`SALARY_ADVANCE`) |  | ✅ |  |
+| Personal / consumer | Emergency loan (`EMERGENCY_LOAN`) |  | ✅ |  |
+| Personal / consumer | Debt consolidation (`DEBT_CONSOLIDATION`) |  | ✅ |  |
+| Personal / consumer | Credit card (`CREDIT_CARD`) |  | ⛔ | `card.revolving_credit` (not implemented), `facility.revolving` (not implemented) |
+| Personal / consumer | Buy now, pay later (`BNPL`) |  | ⛔ | `bnpl.merchant_settlement` (not implemented) |
+| Personal / consumer | Murabaha financing (`MURABAHA`) |  | ⛔ | `islamic.murabaha` (not implemented) |
+| Property | Home mortgage (`HOME_MORTGAGE`) | Yes | ✅ |  |
+| Property | Construction loan (`CONSTRUCTION`) |  | ⛔ | `facility.staged_drawdown` (not implemented) |
+| Property | Renovation loan (`RENOVATION`) |  | ✅ |  |
+| Property | Home equity term loan (`HOME_EQUITY_TERM`) |  | ✅ |  |
+| Property | Home equity line (`HOME_EQUITY_LINE`) |  | ⛔ | `facility.revolving` (not implemented) |
+| Property | Investment property loan (`INVESTMENT_PROPERTY`) |  | ✅ |  |
+| Property | Bridge loan (`BRIDGE_LOAN`) |  | ✅ |  |
+| Vehicle / assets | Car loan (`CAR_LOAN`) |  | ✅ |  |
+| Vehicle / assets | Motorcycle loan (`MOTORCYCLE_LOAN`) |  | ✅ |  |
+| Vehicle / assets | Commercial vehicle loan (`COMMERCIAL_VEHICLE`) |  | ✅ |  |
+| Vehicle / assets | Machinery / equipment loan (`EQUIPMENT_LOAN`) |  | ✅ |  |
+| Vehicle / assets | Balloon vehicle loan (`BALLOON_VEHICLE`) |  | ✅ |  |
+| Vehicle / assets | Ijarah financing (`IJARAH`) |  | ⛔ | `islamic.ijarah` (not implemented) |
+| Education | Student loan (`STUDENT_LOAN`) |  | ✅ |  |
+| Education | Tuition loan (`TUITION_LOAN`) |  | ✅ |  |
+| Education | Vocational training loan (`VOCATIONAL_TRAINING`) |  | ✅ |  |
+| Education | Income-contingent education loan (`INCOME_CONTINGENT_EDUCATION`) |  | ⛔ | `education.income_contingent` (not implemented) |
+| Microfinance | Individual microenterprise loan (`MICRO_INDIVIDUAL`) | Yes | ✅ |  |
+| Microfinance | Group lending (`MICRO_GROUP`) |  | ⛔ | `liability.group_joint` (not implemented) |
+| Microfinance | Livelihood loan (`MICRO_LIVELIHOOD`) |  | ✅ |  |
+| Microfinance | Seasonal microloan (`MICRO_SEASONAL`) |  | ✅ |  |
+| SME / commercial | SME business term loan (`SME_TERM`) | Yes | ✅ |  |
+| SME / commercial | Working capital loan (`WORKING_CAPITAL`) |  | ✅ |  |
+| SME / commercial | Overdraft (`OVERDRAFT`) |  | ⛔ | `facility.overdraft` (not implemented) |
+| SME / commercial | Revolving credit facility (`REVOLVING_CREDIT`) |  | ⛔ | `facility.revolving` (not implemented) |
+| SME / commercial | Inventory-backed loan (`INVENTORY_BACKED`) |  | ⛔ | `collateral.borrowing_base` (not implemented) |
+| SME / commercial | Commercial property loan (`COMMERCIAL_PROPERTY`) |  | ✅ |  |
+| Agriculture | Seasonal crop loan (`AGRI_CROP_SEASONAL`) | Yes | ✅ |  |
+| Agriculture | Livestock loan (`AGRI_LIVESTOCK`) |  | ✅ |  |
+| Agriculture | Fisheries loan (`AGRI_FISHERIES`) |  | ✅ |  |
+| Agriculture | Farm equipment loan (`AGRI_FARM_EQUIPMENT`) |  | ✅ |  |
+| Agriculture | Plantation development loan (`AGRI_PLANTATION`) |  | ✅ |  |
+| Corporate / project | Corporate term loan (`CORPORATE_TERM`) |  | ✅ |  |
+| Corporate / project | Syndicated loan (`SYNDICATED`) |  | ⛔ | `syndication.participations` (not implemented) |
+| Corporate / project | Project finance (`PROJECT_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
+| Corporate / project | Infrastructure finance (`INFRASTRUCTURE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
+| Corporate / project | Acquisition finance (`ACQUISITION_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented) |
+| Trade / receivables | Import loan (`IMPORT_LOAN`) |  | ⛔ | `trade.documentary` (not implemented) |
+| Trade / receivables | Export working capital (`EXPORT_WORKING_CAPITAL`) |  | ⛔ | `trade.documentary` (not implemented) |
+| Trade / receivables | Invoice-backed loan (`INVOICE_BACKED`) |  | ⛔ | `collateral.borrowing_base` (not implemented), `trade.invoice_finance` (not implemented) |
+| Trade / receivables | Factoring (`FACTORING`) |  | ⛔ | `trade.factoring` (not implemented) |
+| Trade / receivables | Supply-chain finance (`SUPPLY_CHAIN_FINANCE`) |  | ⛔ | `trade.supply_chain` (not implemented) |
+| Trade / receivables | Forfaiting (`FORFAITING`) |  | ⛔ | `trade.forfaiting` (not implemented) |
+| Institutional / public | Interbank loan (`INTERBANK`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
+| Institutional / public | Municipal loan (`MUNICIPAL`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
+| Institutional / public | Sovereign loan (`SOVEREIGN`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
+| Institutional / public | Development / concessional loan (`DEVELOPMENT_CONCESSIONAL`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |

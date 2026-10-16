@@ -18,7 +18,13 @@
         "security:scan-timebombs": "node ./scripts/security-scan.mjs timebombs",
         "security:scan-memory-stores": "node ./scripts/security-scan.mjs memory",
         "security:prod-config-check": "node ./scripts/prod-config-check.mjs",
-        "security:ci": "pnpm run security:scan-hardcodes && pnpm run security:scan-timebombs && pnpm run security:scan-memory-stores && pnpm run security:prod-config-check"
+        "security:ci": "pnpm run security:scan-hardcodes && pnpm run security:scan-timebombs && pnpm run security:scan-memory-stores && pnpm run security:prod-config-check",
+        "test:engine": "pnpm --filter @microloan/shared test",
+        "test:api": "pnpm --filter api test",
+        "test:lending:int": "pnpm --filter api test:lending:int",
+        "demo:lending": "pnpm --filter @microloan/db demo:lending",
+        "docs:capabilities": "pnpm --filter @microloan/shared build && node scripts/lending-capability-matrix.mjs",
+        "test:lending:db": "node scripts/lending-test-db.mjs"
     },
     "devDependencies": {
         "prettier": "^3.2.5",

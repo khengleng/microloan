@@ -1,0 +1,30 @@
+const GREEN = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+const BLUE = 'bg-[#F0F5FF] text-[#4B45C6] border-[#C9D7FF]';
+const AMBER = 'bg-amber-50 text-amber-800 border-amber-200';
+const RED = 'bg-red-50 text-red-700 border-red-200';
+const GREY = 'bg-slate-100 text-slate-600 border-slate-200';
+
+const MAP: Record<string, string> = {
+    // lifecycle / generic
+    ACTIVE: GREEN, APPROVED: GREEN, IMPLEMENTED: GREEN, PAID: GREEN, POSTED: GREEN, COMPLETED: GREEN, SATISFIED: GREEN,
+    ALLOW: GREEN, SUCCESS: GREEN, EXECUTED: GREEN, ACCEPTED: GREEN, CUSTOMER_ACCEPTED: GREEN, CONDITIONS_SATISFIED: GREEN,
+    DISBURSED: GREEN, BOOKED: GREEN, CLOSED: GREY, SETTLED: GREEN, YES: GREEN, ENABLED: GREEN, VERIFIED: GREEN,
+    BALANCED: GREEN, UNBALANCED: RED, WAIVED: GREY, PERSONAL: GREY, CORPORATE: GREY,
+    DRAFT: GREY, RETIRED: GREY, SUPERSEDED: GREY, WITHDRAWN: GREY, EXPIRED: GREY, REVOKED: GREY, DISABLED: GREY,
+    NOT_IMPLEMENTED: GREY, CANCELLED: GREY, INACTIVE: GREY, SELF_DECLARED: GREY,
+    SUBMITTED: BLUE, PENDING: AMBER, PENDING_APPROVAL: AMBER, IN_REVIEW: BLUE, UNDER_REVIEW: BLUE, RECOMMENDED: BLUE,
+    REQUESTED: BLUE, OPTIONS_PROPOSED: BLUE, PROPOSED: BLUE, AFFORDABILITY_ASSESSED: BLUE, MONITORING: BLUE, OPEN: BLUE,
+    SIMULATION_ONLY: BLUE, DUE: BLUE, PENDING_DISBURSEMENT: AMBER, APPROVED_PENDING: AMBER, PARTIALLY_VERIFIED: AMBER,
+    REQUIRES_INTEGRATION: AMBER, MORE_INFO_REQUIRED: AMBER, SPECIALIST_REVIEW: AMBER, RESTRUCTURED: AMBER, OVERDUE: AMBER,
+    DELINQUENT: RED, REJECTED: RED, DENY: RED, FAILURE: RED, FAILED: RED, REVERSED: RED, WRITTEN_OFF: RED, NO: RED, DEFAULTED: RED,
+};
+
+export function StatusBadge({ status, className = '' }: { status: string | null | undefined; className?: string }) {
+    if (!status) return <span className="text-[#AAB7C4]">—</span>;
+    const cls = MAP[status] ?? GREY;
+    return (
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide whitespace-nowrap ${cls} ${className}`}>
+            {status.replace(/_/g, ' ')}
+        </span>
+    );
+}

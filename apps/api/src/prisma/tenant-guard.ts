@@ -42,6 +42,62 @@ const DIRECT_TENANT_MODELS = new Set([
   'LoanAgreement',
   'PromiseToPay',
   'PlanPayment',
+  // Lending platform
+  'LegalEntity',
+  'Portfolio',
+  'TenantBusinessDate',
+  'HolidayCalendar',
+  'AccessRole',
+  'RoleAssignment',
+  'Delegation',
+  'ApprovalAuthority',
+  'AccessPolicy',
+  'PolicyVersion',
+  'FlagRule',
+  'FlagChangeApproval',
+  'CohortMembership',
+  'ServiceAccount',
+  'WorkflowVersion',
+  'LendingProduct',
+  'ProductVersion',
+  'PricingConfiguration',
+  'RepaymentConfiguration',
+  'RateObservation',
+  'BorrowerGroup',
+  'GroupMembership',
+  'Application',
+  'ApplicationDocument',
+  'CreditDecision',
+  'ApprovalTask',
+  'ConditionPrecedent',
+  'CollateralAsset',
+  'Valuation',
+  'CollateralPledge',
+  'Guarantee',
+  'Facility',
+  'Drawdown',
+  'LendingAgreement',
+  'AgreementVersion',
+  'LoanAccount',
+  'ScheduleInstalment',
+  'AccrualEvent',
+  'FinancialEvent',
+  'PaymentAllocation',
+  'LendingJournalEntry',
+  'LendingJournalLine',
+  'OutboxMessage',
+  // tenantId is null for platform-level events, which tenant principals never see.
+  'AuditEvent',
+  'AffordabilityPolicy',
+  'RestructureCase',
+  'RestructureEvidence',
+  'AffordabilityAssessment',
+  'RestructureProposal',
+  'RestructureApproval',
+  'RestructureAcceptance',
+  'RestructureCondition',
+  'RestructureReviewTask',
+  'LoanAmendment',
 ]);
 
 /**
@@ -78,6 +134,8 @@ const RELATION_SCOPED_MODELS: Record<string, RelationScope> = {
     fk: 'runId',
     parentDelegate: 'provisionRun',
   },
+  RolePermission: { relation: 'role', fk: 'roleId', parentDelegate: 'accessRole' },
+  Holiday: { relation: 'calendar', fk: 'calendarId', parentDelegate: 'holidayCalendar' },
 };
 
 /** The tenant row itself is scoped by primary key, not by a `tenantId` column. */
@@ -105,7 +163,15 @@ const PLATFORM_ONLY_MODELS = new Set(['PlatformPaymentQr']);
  * because then a tenant principal could write it. So it is its own category —
  * the read is open, the write is not.
  */
-const PLATFORM_CATALOGUE_MODELS = new Set(['PlanTier']);
+const PLATFORM_CATALOGUE_MODELS = new Set([
+  'PlanTier',
+  // Lending platform catalogue: read by every tenant, written only by the platform (or the boot-time sync).
+  'LoanFamily',
+  'ProductTemplate',
+  'AccessPermission',
+  'FeatureFlag',
+  'PlatformFlagRule',
+]);
 
 const READ_ACTIONS = new Set([
   'findFirst',
@@ -147,6 +213,11 @@ function delegateFor(
   delegateName: string,
 ): OwnershipDelegate {
   return (prisma as unknown as Record<string, OwnershipDelegate>)[delegateName];
+}
+
+/** Exposed for the coverage test: is this model classified by the guard at all? */
+export function isClassifiedModel(model: string): boolean {
+  return isGuarded(model) || PLATFORM_CATALOGUE_MODELS.has(model);
 }
 
 function isGuarded(model: string): boolean {

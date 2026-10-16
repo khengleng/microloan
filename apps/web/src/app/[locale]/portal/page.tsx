@@ -8,6 +8,7 @@ import {
     ShieldQuestion, Upload, Wallet, CalendarClock,
 } from 'lucide-react';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
+import { PaymentReliefSection } from '@/components/lending/portal/PaymentReliefSection';
 
 type Me = { firstName: string; lastName: string; organization: string | null; kycStatus: string };
 type Loan = {
@@ -146,6 +147,8 @@ export default function BorrowerPortalPage() {
                         </div>
                     ))}
                 </section>
+
+                <PaymentReliefSection />
 
                 {/* Payment QR */}
                 {qr?.qrRendered && (

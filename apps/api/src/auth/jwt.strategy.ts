@@ -17,6 +17,8 @@ export type JwtPayload = {
   tenantPlan?: string;     // Added for quota checking
   isPlatform?: boolean;
   permissions?: Permission[];
+  /** Authentication method: "mfa" after a verified TOTP challenge, otherwise "pwd". */
+  amr?: 'pwd' | 'mfa';
 };
 
 @Injectable()
@@ -120,6 +122,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenantPlan: tenant?.plan || null,
       isPlatform,
       permissions: Array.from(permissionsForRole(user.role)),
+      amr: payload.amr === 'mfa' ? 'mfa' : 'pwd',
     };
   }
 }

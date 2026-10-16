@@ -41,6 +41,8 @@ import { BorrowerPortalModule } from './borrower-portal/borrower-portal.module';
 import { AgreementsModule } from './agreements/agreements.module';
 import { RiskModule } from './risk/risk.module';
 import { KpiModule } from './kpi/kpi.module';
+import { LendingModule } from './lending/lending.module';
+import { LendingActionGuard } from './lending/policy/lending-action.guard';
 import { loadRuntimeConfig } from './config/runtime-config';
 
 @Module({
@@ -100,6 +102,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
     RiskModule,
     KpiModule,
     BorrowerPortalModule,
+    LendingModule,
   ],
   controllers: [AppController],
   providers: [
@@ -121,6 +124,9 @@ import { loadRuntimeConfig } from './config/runtime-config';
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: TenantScopeGuard },
     { provide: APP_GUARD, useClass: BranchScopeGuard },
+    // Lending routes: coarse permission check (and service-account authentication)
+    // before the handler; services make the full resource-level decision.
+    { provide: APP_GUARD, useClass: LendingActionGuard },
   ],
 })
 export class AppModule implements NestModule {
