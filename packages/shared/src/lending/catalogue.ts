@@ -212,6 +212,7 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   // payment, so it carries no commitment fee and does not term out.
   template('CREDIT_CARD', 'PERSONAL', 'Credit card', 'Revolving card credit.', {
     pricing: { accrualBasis: 'DAILY' },
+    limits: { minAmount: '100', maxAmount: '20000', minInstalments: 1, maxInstalments: 12 },
     facility: { type: 'REVOLVING', availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
   }, ['card.revolving_credit']),
   template('BNPL', 'PERSONAL', 'Buy now, pay later', 'Purchase-linked short instalment plans.', { identity: { channels: ['API'] } }, ['bnpl.merchant_settlement']),
@@ -235,10 +236,10 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
       writeOffMinDpd: 360,
     },
   }, [], true),
-  template('CONSTRUCTION', 'PROPERTY', 'Construction loan', 'Staged drawdowns against build milestones.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), ...STAGED(24, [{ code: 'FOUNDATION', label: 'Foundation complete', shareOfLimit: '0.3', availableAfterMonths: 0 }, { code: 'STRUCTURE', label: 'Structure complete', shareOfLimit: '0.4', availableAfterMonths: 6, conditions: ['SURVEYOR_REPORT'] }, { code: 'COMPLETION', label: 'Practical completion', shareOfLimit: '0.3', availableAfterMonths: 12, conditions: ['SURVEYOR_REPORT', 'OCCUPANCY_CERTIFICATE'] }]) }),
+  template('CONSTRUCTION', 'PROPERTY', 'Construction loan', 'Staged drawdowns against build milestones.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), limits: { minAmount: '10000', maxAmount: '500000', minInstalments: 60, maxInstalments: 300 }, eligibility: { maxAgeAtMaturityYears: 75, maxDebtServiceRatio: '0.45' }, ...STAGED(24, [{ code: 'FOUNDATION', label: 'Foundation complete', shareOfLimit: '0.3', availableAfterMonths: 0 }, { code: 'STRUCTURE', label: 'Structure complete', shareOfLimit: '0.4', availableAfterMonths: 6, conditions: ['SURVEYOR_REPORT'] }, { code: 'COMPLETION', label: 'Practical completion', shareOfLimit: '0.3', availableAfterMonths: 12, conditions: ['SURVEYOR_REPORT', 'OCCUPANCY_CERTIFICATE'] }]) }),
   template('RENOVATION', 'PROPERTY', 'Renovation loan', 'Home improvement term loan.', { ...SECURED('0.8', ['RESIDENTIAL_PROPERTY']), limits: { maxAmount: '50000', maxInstalments: 84 } }),
   template('HOME_EQUITY_TERM', 'PROPERTY', 'Home equity term loan', 'Term loan secured on home equity.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), limits: { maxAmount: '150000', maxInstalments: 180 } }),
-  template('HOME_EQUITY_LINE', 'PROPERTY', 'Home equity line', 'Revolving line secured on home equity.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), ...REVOLVING(120) }),
+  template('HOME_EQUITY_LINE', 'PROPERTY', 'Home equity line', 'Revolving line secured on home equity.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), limits: { minAmount: '5000', maxAmount: '150000', minInstalments: 12, maxInstalments: 180 }, eligibility: { maxAgeAtMaturityYears: 75 }, ...REVOLVING(120) }),
   template('INVESTMENT_PROPERTY', 'PROPERTY', 'Investment property loan', 'Buy-to-let mortgage.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY', 'COMMERCIAL_PROPERTY']), limits: { minAmount: '10000', maxAmount: '500000', maxInstalments: 300 } }),
   template('BRIDGE_LOAN', 'PROPERTY', 'Bridge loan', 'Short interest-only loan repaid from a property sale.', { ...SECURED('0.7', ['RESIDENTIAL_PROPERTY']), repayment: { method: 'INTEREST_ONLY' }, limits: { minInstalments: 1, maxInstalments: 24, maxAmount: '300000' } }),
   // Vehicle / assets
@@ -304,8 +305,8 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     },
   }, [], true),
   template('WORKING_CAPITAL', 'SME_COMMERCIAL', 'Working capital loan', 'Short-term working capital, bullet or instalment.', { ...BUSINESS, repayment: { method: 'INTEREST_ONLY' }, limits: { minInstalments: 1, maxInstalments: 12 } }),
-  template('OVERDRAFT', 'SME_COMMERCIAL', 'Overdraft', 'Business overdraft facility.', { ...BUSINESS, ...OVERDRAFT_FACILITY }),
-  template('REVOLVING_CREDIT', 'SME_COMMERCIAL', 'Revolving credit facility', 'Revolving business credit line.', { ...BUSINESS, ...REVOLVING(36) }),
+  template('OVERDRAFT', 'SME_COMMERCIAL', 'Overdraft', 'Business overdraft facility.', { ...BUSINESS, limits: { minAmount: '1000', maxAmount: '100000', minInstalments: 1, maxInstalments: 12 }, ...OVERDRAFT_FACILITY }),
+  template('REVOLVING_CREDIT', 'SME_COMMERCIAL', 'Revolving credit facility', 'Revolving business credit line.', { ...BUSINESS, limits: { minAmount: '5000', maxAmount: '250000', minInstalments: 6, maxInstalments: 60 }, ...REVOLVING(36) }),
   template('INVENTORY_BACKED', 'SME_COMMERCIAL', 'Inventory-backed loan', 'Borrowing base against inventory.', { ...BUSINESS, ...SECURED('0.6', ['INVENTORY']) }, ['collateral.borrowing_base']),
   template('COMMERCIAL_PROPERTY', 'SME_COMMERCIAL', 'Commercial property loan', 'Term loan secured on commercial real estate.', { ...BUSINESS, ...SECURED('0.7', ['COMMERCIAL_PROPERTY']), limits: { minAmount: '20000', maxAmount: '2000000', maxInstalments: 180 } }),
   // Agriculture

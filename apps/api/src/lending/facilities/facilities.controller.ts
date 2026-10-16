@@ -62,6 +62,13 @@ const limitDecision = z
   .object({ outcome: z.enum(['APPROVE', 'REJECT']) })
   .strict();
 const statementRequest = z.object({ periodEnd: date }).strict();
+const repayment = z
+  .object({
+    amount: money,
+    valueDate: date.optional(),
+    externalReference: z.string().max(120).optional(),
+  })
+  .strict();
 const statusChange = z
   .object({
     action: z.enum(['SUSPEND', 'REINSTATE', 'EXPIRE']),
@@ -190,6 +197,17 @@ export class LendingFacilitiesController {
     @Headers('idempotency-key') key: string,
   ) {
     return this.svc.generateStatement(actor(req), id, b, key);
+  }
+
+  @LendingAction('loan.repayment.post')
+  @Post(':id/repayments')
+  repay(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(repayment)) b: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.svc.postRepayment(actor(req), id, b, key);
   }
 
   @LendingAction('facility.limit.request')

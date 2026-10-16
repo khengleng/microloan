@@ -358,6 +358,8 @@ export class LendingOperationsService {
    * balance fields (principal, accrued interest, fees, penalties) must equal
    * the net of the journal lines posted to the mapped GL accounts for that
    * loan; the schedule's unpaid principal must equal the principal balance.
+   * A facility has no schedule, so its principal is reconciled against its
+   * posted drawdowns and repayments instead.
    * Any difference is reported as a break — nothing is auto-corrected.
    */
   async reconciliation(actor: LendingActor) {
@@ -380,6 +382,15 @@ export class LendingOperationsService {
         `${l.loanAccountId}:${l.accountCode}`,
         D(l._sum.debit ?? '0').minus(D(l._sum.credit ?? '0')),
       ]),
+    );
+    // A facility has no schedule: its principal is governed by drawdowns and
+    // repayments, so it is reconciled against those instead.
+    const facilities = await this.prisma.facility.findMany({
+      where: { tenantId },
+      select: { agreementId: true, reference: true, totalDrawn: true },
+    });
+    const facilityByAgreement = new Map(
+      facilities.map((x) => [x.agreementId, x]),
     );
     const breaks: Record<string, unknown>[] = [];
     for (const a of accounts) {
@@ -416,7 +427,38 @@ export class LendingOperationsService {
             difference: sub.minus(ledger).toString(),
           });
       }
-      if (a.status === 'ACTIVE') {
+      const facility = facilityByAgreement.get(a.agreementId);
+      if (facility) {
+        // Drawn − repaid must be the principal balance. Capitalized charges
+        // raise principal too, so they count as advances here.
+        const movements = await this.prisma.financialEvent.groupBy({
+          by: ['type'],
+          where: {
+            tenantId,
+            loanAccountId: a.id,
+            status: 'POSTED',
+            type: {
+              in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
+            },
+          },
+          _sum: { amount: true },
+        });
+        const movedBy = (t: string) =>
+          D(movements.find((m) => m.type === t)?._sum.amount ?? '0');
+        const expected = movedBy('DISBURSEMENT')
+          .plus(movedBy('CAPITALIZATION'))
+          .minus(movedBy('REPAYMENT'))
+          .minus(movedBy('SETTLEMENT'));
+        if (!expected.eq(D(a.principalOutstanding)))
+          breaks.push({
+            loanAccountId: a.id,
+            reference: a.reference,
+            check: 'facilityDrawn',
+            facility: facility.reference,
+            subledger: D(a.principalOutstanding).toString(),
+            movements: expected.toString(),
+          });
+      } else if (a.status === 'ACTIVE') {
         const sched = await this.prisma.scheduleInstalment.findMany({
           where: { tenantId, loanAccountId: a.id, status: 'DUE' },
           select: {

@@ -19,6 +19,7 @@ import {
   grant,
 } from './harness';
 import { activeProduct, docs, standardRoles } from './setup';
+import { lending } from '@microloan/shared';
 
 const d = TEST_DB ? describe : describe.skip;
 
@@ -55,6 +56,32 @@ d('Lending facilities (integration)', () => {
   }, 60_000);
   afterAll(async () => f?.app.close());
 
+  /**
+   * Move the tenant business date to `target`.
+   *
+   * Products allow no backdating (`maxBackdateDays: 0`), so every value date
+   * is the business date, and the suites below share one forward-only
+   * timeline. The date advances at most 31 days per step, so a longer jump is
+   * walked; a target already reached is a no-op, which keeps the suites
+   * independent of each other's ordering.
+   */
+  async function setBusinessDate(target: string) {
+    let current = expectOk(
+      await f.as('finance').get('/lending/ops/business-date'),
+    ).businessDate as string;
+    while (lending.compareDates(current, target) < 0) {
+      const step = lending.addDays(current, 31);
+      const next = lending.compareDates(step, target) > 0 ? target : step;
+      expectOk(
+        await f
+          .as('finance')
+          .post('/lending/ops/business-date', { businessDate: next }),
+      );
+      current = next;
+    }
+    return current;
+  }
+
   /** Two-administrator flag change, as the access model requires. */
   async function enableFlag(flagKey: string) {
     const r = expectOk(
@@ -78,9 +105,17 @@ d('Lending facilities (integration)', () => {
   async function bookFacility(
     productId: string,
     terms: Record<string, unknown>,
-    opts: { collateral?: Record<string, unknown> } = {},
+    opts: {
+      collateral?: Record<string, unknown>;
+      borrowerOver?: Record<string, unknown>;
+    } = {},
   ) {
-    const b = await borrower(f, f.t1, f.b1);
+    // Business cash flow for the DSR check: these are commercial and property
+    // facilities, assessed on the limit amortized over its term-out tenor.
+    const b = await borrower(f, f.t1, f.b1, {
+      monthlyIncome: '40000',
+      ...opts.borrowerOver,
+    });
     const app = expectOk(
       await f
         .as('ro')
@@ -154,10 +189,11 @@ d('Lending facilities (integration)', () => {
     let loanId: string;
 
     beforeAll(async () => {
+      await setBusinessDate('2026-01-05');
       ({ productId } = await activeProduct(f, 'REVOLVING_CREDIT', 'RC-STD'));
       ({ facilityId, loanId } = await bookFacility(productId, {
         principal: '100000',
-        numberOfInstalments: 12,
+        numberOfInstalments: 60,
         disbursementDate: '2026-01-05',
         annualRate: '0.12',
       }));
@@ -179,11 +215,7 @@ d('Lending facilities (integration)', () => {
     });
 
     it('releases a drawdown as a disbursement with a balanced journal', async () => {
-      await drawdown(
-        facilityId,
-        { amount: '40000', valueDate: '2026-01-05' },
-        'rc1',
-      );
+      await drawdown(facilityId, { amount: '40000' }, 'rc1');
       const v = expectOk(await facility(facilityId));
       expect(v.position.outstanding).toBe('40000');
       expect(v.position.available).toBe('60000');
@@ -208,7 +240,6 @@ d('Lending facilities (integration)', () => {
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '70000',
-          valueDate: '2026-01-05',
         });
       expect(r.status).toBe(400);
       expect(r.body.code).toBe('DRAWDOWN_REFUSED');
@@ -221,14 +252,12 @@ d('Lending facilities (integration)', () => {
           .as('opsMaker')
           .post(`/lending/facilities/${facilityId}/drawdowns`, {
             amount: '1000',
-            valueDate: '2026-01-05',
           }),
       );
       const second = await f
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '1000',
-          valueDate: '2026-01-05',
         });
       expect(second.status).toBe(409);
       expectOk(
@@ -246,7 +275,6 @@ d('Lending facilities (integration)', () => {
           .as('opsMaker')
           .post(`/lending/facilities/${facilityId}/drawdowns`, {
             amount: '5000',
-            valueDate: '2026-01-05',
           }),
       );
       // The maker cannot approve their own request.
@@ -273,12 +301,13 @@ d('Lending facilities (integration)', () => {
     });
 
     it('reinstates the limit when the borrower repays', async () => {
+      await setBusinessDate('2026-02-01');
       expectOk(
         await f
           .as('opsMaker')
           .post(
-            `/lending/loans/${loanId}/repayments`,
-            { amount: '15000', valueDate: '2026-02-01', method: 'CASH' },
+            `/lending/facilities/${facilityId}/repayments`,
+            { amount: '15000' },
             'fac-rc-repay',
           ),
       );
@@ -330,7 +359,6 @@ d('Lending facilities (integration)', () => {
           .as('opsMaker')
           .post(`/lending/facilities/${facilityId}/drawdowns`, {
             amount: '2000',
-            valueDate: '2026-02-01',
           }),
       );
       expectOk(
@@ -409,7 +437,6 @@ d('Lending facilities (integration)', () => {
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '1000',
-          valueDate: '2026-02-01',
         });
       expect(blocked.status).toBe(403);
       expectOk(
@@ -440,34 +467,32 @@ d('Lending facilities (integration)', () => {
     let loanId: string;
 
     beforeAll(async () => {
+      await setBusinessDate('2026-02-01');
       const { productId } = await activeProduct(f, 'OVERDRAFT', 'OD-STD');
       ({ facilityId, loanId } = await bookFacility(productId, {
         principal: '20000',
         numberOfInstalments: 12,
-        disbursementDate: '2026-01-05',
+        disbursementDate: '2026-02-01',
         annualRate: '0.18',
       }));
     }, 60_000);
 
     it('carries a minimum payment on its statement', async () => {
-      await drawdown(
-        facilityId,
-        { amount: '8000', valueDate: '2026-01-05' },
-        'od1',
-      );
+      await drawdown(facilityId, { amount: '8000' }, 'od1');
+      await setBusinessDate('2026-03-01');
       const r = expectOk(
         await f
           .as('opsMaker')
           .post(
             `/lending/facilities/${facilityId}/statements`,
-            { periodEnd: '2026-02-01' },
+            { periodEnd: '2026-03-01' },
             'fac-od-stmt',
           ),
       );
       // 8,000 × 5% = 400, plus the period's charges.
       expect(Number(r.statement.minimumPayment)).toBeGreaterThan(400);
       expect(r.detail.minimumPayment.basis).toBe('RATE');
-      expect(r.statement.minimumPaymentDue).toBe('2026-02-22');
+      expect(r.statement.minimumPaymentDue).toBe('2026-03-22');
     });
 
     it('does not term out: an overdraft is repayable on demand', async () => {
@@ -493,21 +518,24 @@ d('Lending facilities (integration)', () => {
     let facilityId: string;
 
     beforeAll(async () => {
+      await setBusinessDate('2026-03-01');
       const { productId } = await activeProduct(f, 'CONSTRUCTION', 'CON-STD');
       ({ facilityId } = await bookFacility(
         productId,
         {
           principal: '100000',
           numberOfInstalments: 240,
-          disbursementDate: '2026-01-05',
+          disbursementDate: '2026-03-01',
           annualRate: '0.09',
         },
         {
           collateral: {
-            assetType: 'RESIDENTIAL_PROPERTY',
-            description: 'Plot 42',
-            value: '250000',
-            valuationDate: '2026-01-02',
+            type: 'RESIDENTIAL_PROPERTY',
+            description: 'Building plot 42',
+            marketValue: '250000',
+            valuationDate: '2026-02-01',
+            valuer: 'Valuer Co',
+            method: 'MARKET',
           },
         },
       ));
@@ -531,7 +559,7 @@ d('Lending facilities (integration)', () => {
     it('releases the unconditional first tranche in full', async () => {
       await drawdown(
         facilityId,
-        { amount: '30000', valueDate: '2026-01-05', trancheCode: 'FOUNDATION' },
+        { amount: '30000', trancheCode: 'FOUNDATION' },
         'con1',
       );
       const v = expectOk(await facility(facilityId));
@@ -540,11 +568,11 @@ d('Lending facilities (integration)', () => {
     });
 
     it('refuses a partial tranche release', async () => {
+      await setBusinessDate('2026-09-01');
       const r = await f
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '20000',
-          valueDate: '2026-07-05',
           trancheCode: 'STRUCTURE',
         });
       expect(r.status).toBe(400);
@@ -556,7 +584,6 @@ d('Lending facilities (integration)', () => {
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '40000',
-          valueDate: '2026-07-05',
           trancheCode: 'STRUCTURE',
         });
       expect(r.status).toBe(400);
@@ -581,7 +608,7 @@ d('Lending facilities (integration)', () => {
       );
       await drawdown(
         facilityId,
-        { amount: '40000', valueDate: '2026-07-05', trancheCode: 'STRUCTURE' },
+        { amount: '40000', trancheCode: 'STRUCTURE' },
         'con2',
       );
       const after = expectOk(await facility(facilityId));
@@ -589,14 +616,12 @@ d('Lending facilities (integration)', () => {
     });
 
     it('does not reinstate the limit when the borrower repays', async () => {
-      const v0 = expectOk(await facility(facilityId));
-      const loanId = v0.loanAccountId;
       expectOk(
         await f
           .as('opsMaker')
           .post(
-            `/lending/loans/${loanId}/repayments`,
-            { amount: '10000', valueDate: '2026-08-01', method: 'CASH' },
+            `/lending/facilities/${facilityId}/repayments`,
+            { amount: '10000' },
             'fac-con-repay',
           ),
       );
@@ -612,7 +637,6 @@ d('Lending facilities (integration)', () => {
         .as('opsMaker')
         .post(`/lending/facilities/${facilityId}/drawdowns`, {
           amount: '30000',
-          valueDate: '2026-08-05',
           trancheCode: 'FOUNDATION',
         });
       expect(r.status).toBe(400);
@@ -667,7 +691,7 @@ d('Lending facilities (integration)', () => {
       );
       ({ facilityId } = await bookFacility(productId, {
         principal: '50000',
-        numberOfInstalments: 12,
+        numberOfInstalments: 60,
         disbursementDate: '2026-01-05',
         annualRate: '0.12',
       }));
@@ -698,7 +722,6 @@ d('Lending facilities (integration)', () => {
             .as('nobody')
             .post(`/lending/facilities/${facilityId}/drawdowns`, {
               amount: '1000',
-              valueDate: '2026-01-05',
             })
         ).status,
       ).toBe(403);
@@ -710,7 +733,6 @@ d('Lending facilities (integration)', () => {
           .as('opsMaker')
           .post(`/lending/facilities/${facilityId}/drawdowns`, {
             amount: '1000',
-            valueDate: '2026-01-05',
           }),
       );
       expectOk(

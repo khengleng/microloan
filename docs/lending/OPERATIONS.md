@@ -148,6 +148,16 @@ Day-to-day operation:
 Nothing is reversed by editing: a released drawdown is immutable at the
 database level, and a correction is a reversal of its disbursement.
 
+Not yet covered for facilities:
+
+* **Delinquency is not computed.** Days past due and collections stages are
+  derived from schedule instalments, which a facility has none of, so a
+  facility whose minimum payment is unpaid still reports as current. Arrears
+  must be worked from the statement until this is added.
+* **Statements are raised on demand**, not by the end-of-day batch.
+* **Interest is not capitalized** into the drawn balance; it stays as interest
+  receivable until paid.
+
 ## Known limitations
 
 * Floating-rate products are **simulation only** (projected schedules from the

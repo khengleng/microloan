@@ -23,10 +23,14 @@ import {
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { ServicingService } from '../servicing/servicing.service';
-import { loadLoanState } from '../servicing/loan-state';
+import {
+  loadLoanState,
+  resourceOf as loanResourceOf,
+} from '../servicing/loan-state';
 import { FacilityState, loadFacilityState, resourceOf } from './facility-state';
 
 type Json = Prisma.InputJsonValue;
+type Dec = InstanceType<typeof lending.D>;
 
 /**
  * Facilities: revolving lines, overdrafts and staged drawdowns.
@@ -341,7 +345,10 @@ export class FacilitiesService {
       await this.policy.enforce(
         actor,
         'facility.drawdown.release',
-        resourceOf(state, [drawdown.approvedBy ?? ''], {
+        // The maker-checker boundary is request vs approve, as it is for a
+        // loan disbursement: the requester may not release their own payout,
+        // the approver may.
+        resourceOf(state, [drawdown.requestedBy], {
           workflowState: drawdown.status,
           amount: decStr(drawdown.amount),
         }),
@@ -644,6 +651,136 @@ export class FacilitiesService {
         charges: charges.toString(),
       });
       return { statement: row, detail: statement };
+    });
+  }
+
+  /**
+   * Post a repayment against a facility.
+   *
+   * A facility has no instalments, so there is nothing to allocate a payment
+   * to line by line: it has *balances*. The payment clears penalties, fees,
+   * interest and then principal, in the product's configured component order,
+   * straight off the account's receivables. Paying more than is owed is
+   * refused, as everywhere else on the platform — there is no suspense
+   * account.
+   */
+  async postRepayment(
+    actor: LendingActor,
+    id: string,
+    body: { amount: string; valueDate?: string; externalReference?: string },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    const hash = requestHash({ op: 'facility.repay', id, body });
+    return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
+      const state = await loadFacilityState(tx, tenantId, id);
+      const amount = lending.parseMoney(
+        String(body.amount ?? ''),
+        state.facility.currency,
+        'amount',
+      );
+      if (amount.lte(0))
+        throw new BadRequestException('Amount must be positive.');
+
+      const loanState = await loadLoanState(tx, tenantId, state.account.id, {
+        lock: false,
+      });
+      await this.policy.enforce(
+        actor,
+        'loan.repayment.post',
+        loanResourceOf(loanState, [], amount.toString()),
+        tx,
+      );
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const valueDate = body.valueDate ?? businessDate;
+      BusinessDateService.checkValueDate(
+        valueDate,
+        businessDate,
+        state.config.repayment.maxBackdateDays,
+      );
+
+      const a = loanState.account;
+      const balances: Record<string, Dec> = {
+        PENALTY: D(a.penaltyReceivable),
+        FEE: D(a.feesReceivable),
+        TAX: new lending.D(0),
+        INTEREST: D(a.interestReceivable),
+        PRINCIPAL: D(a.principalOutstanding),
+      };
+      const owed = Object.values(balances).reduce(
+        (t, v) => t.plus(v),
+        new lending.D(0),
+      );
+      if (amount.gt(owed)) {
+        throw new BadRequestException(
+          `The payment exceeds the ${owed.toString()} ${state.facility.currency} owed on this facility.`,
+        );
+      }
+
+      let left = amount;
+      const applied: Record<string, Dec> = {};
+      for (const component of state.config.repayment.allocation.order) {
+        if (left.lte(0)) break;
+        const available = balances[component] ?? new lending.D(0);
+        const take = available.lt(left) ? available : left;
+        if (take.gt(0)) {
+          applied[component] = take;
+          left = left.minus(take);
+        }
+      }
+      const took = (c: string) => applied[c] ?? new lending.D(0);
+      const acct = state.config.accounting;
+      const credits: { accountCode: string; credit: string }[] = [];
+      const add = (accountCode: string, v: Dec) => {
+        if (v.gt(0)) credits.push({ accountCode, credit: v.toString() });
+      };
+      add(acct.penaltyReceivable, took('PENALTY'));
+      add(acct.feesReceivable, took('FEE'));
+      add(acct.taxPayable, took('TAX'));
+      add(acct.interestReceivable, took('INTEREST'));
+      add(acct.loansReceivable, took('PRINCIPAL'));
+
+      const event = await this.servicing.recordEvent(tx, loanState, {
+        type: 'REPAYMENT',
+        amount,
+        businessDate,
+        valueDate,
+        components: Object.fromEntries(
+          Object.entries(applied).map(([k, v]) => [k, v.toString()]),
+        ),
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Facility repayment on ${state.facility.reference}`,
+        externalReference: body.externalReference?.slice(0, 120) ?? null,
+        lines: [
+          { accountCode: acct.cash, debit: amount.toString() },
+          ...credits,
+        ],
+      });
+      await this.servicing.casAccount(tx, loanState, a.status, {
+        principalOutstanding: D(a.principalOutstanding)
+          .minus(took('PRINCIPAL'))
+          .toString(),
+        interestReceivable: D(a.interestReceivable)
+          .minus(took('INTEREST'))
+          .toString(),
+        feesReceivable: D(a.feesReceivable).minus(took('FEE')).toString(),
+        penaltyReceivable: D(a.penaltyReceivable)
+          .minus(took('PENALTY'))
+          .toString(),
+      });
+      await this.writeAudit(actor, tx, state, 'loan.repayment.post', {
+        event: event.id,
+        amount: amount.toString(),
+        valueDate,
+      });
+      return {
+        eventId: event.id,
+        applied: Object.fromEntries(
+          Object.entries(applied).map(([k, v]) => [k, v.toString()]),
+        ),
+      };
     });
   }
 
