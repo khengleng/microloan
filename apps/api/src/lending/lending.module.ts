@@ -17,6 +17,13 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
+import { PaymentChannelsService } from './payments/payment-channels.service';
+import { ChannelFilesService } from './payments/channel-files.service';
+import {
+  ChannelIntegrationsController,
+  LoanPaymentChannelsController,
+  PaymentChannelsController,
+} from './payments/payment-channels.controller';
 import { ImpairmentService } from './accounting/impairment.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -59,6 +66,9 @@ import {
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
+    PaymentChannelsController,
+    LoanPaymentChannelsController,
+    ChannelIntegrationsController,
   ],
   providers: [
     LendingPrisma,
@@ -77,6 +87,8 @@ import {
     ServicingService,
     SuspenseService,
     CollateralService,
+    PaymentChannelsService,
+    ChannelFilesService,
     ImpairmentService,
     FacilitiesService,
     RateResetService,

@@ -67,6 +67,12 @@ const DIRECT_TENANT_MODELS = new Set([
   'UnidentifiedPaymentMatch',
   'ImpairmentPolicy',
   'MarginCall',
+  // Payment channels (UC-16, UC-18, UC-19, UC-21)
+  'PaymentChannelSettings',
+  'DirectDebitMandate',
+  'AutoDebitAttempt',
+  'ChannelFile',
+  'ChannelFileLine',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

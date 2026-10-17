@@ -30,6 +30,9 @@ export const ACCOUNT_CODES = {
   // Restructuring concessions
   PRINCIPAL_FORGIVEN: '5110',
   RESTRUCTURE_CONCESSIONS: '5200',
+  // Payment channels: money received in a currency other than the loan's (UC-21)
+  FX_POSITION: '1050',
+  FX_GAIN_LOSS: '4400',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -129,5 +132,17 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     code: ACCOUNT_CODES.RESTRUCTURE_CONCESSIONS,
     name: 'Restructure Concessions (Waivers)',
     type: LedgerAccountType.EXPENSE,
+  },
+  // Each currency's leg of a cross-currency payment passes through here, so
+  // every journal balances in its own currency.
+  {
+    code: ACCOUNT_CODES.FX_POSITION,
+    name: 'Foreign Currency Position',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.FX_GAIN_LOSS,
+    name: 'Foreign Exchange Gain / Loss',
+    type: LedgerAccountType.INCOME,
   },
 ];

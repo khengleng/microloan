@@ -68,6 +68,40 @@ export interface DocumentStorageAdapter extends Adapter {
   get(key: string): Promise<Buffer>;
 }
 
+/** Collects an amount from a borrower's bank account under a direct-debit mandate (UC-16). */
+export interface BankDebitAdapter extends Adapter {
+  debit(input: {
+    tenantId: string;
+    mandateReference: string;
+    bankCode: string;
+    accountNumber: string;
+    amount: string;
+    currency: string;
+    /** Unique per attempt; the bank uses it to refuse a repeat. */
+    reference: string;
+  }): Promise<
+    | { status: 'SUCCEEDED'; bankReference: string }
+    | { status: 'FAILED'; failureCode: string; bankReference: string | null }
+  >;
+}
+
+/** The bank's published exchange rate for a pair on a date (UC-21). */
+export interface FxRateAdapter extends Adapter {
+  rate(input: {
+    tenantId: string;
+    from: string;
+    to: string;
+    /** Latest rate published on or before this date. */
+    onOrBefore: string;
+  }): Promise<{
+    base: string;
+    quote: string;
+    rate: string;
+    rateDate: string;
+    source: string;
+  } | null>;
+}
+
 const logger = new Logger('LendingAdapters');
 
 class MockPayments implements PaymentAdapter {
@@ -110,6 +144,59 @@ class MockAccountingExport implements ExternalAccountingAdapter {
   readonly isMock = true;
   async export() {
     logger.log('MOCK external accounting export');
+  }
+}
+
+/**
+ * Deterministic bank for development and tests — no money moves. The outcome
+ * depends only on the account number: ending in 000 → INSUFFICIENT_FUNDS,
+ * ending in 999 → ACCOUNT_CLOSED, anything else succeeds.
+ */
+class MockBankDebit implements BankDebitAdapter {
+  readonly name = 'MOCK_BANK_DEBIT';
+  readonly isMock = true;
+  async debit(input: { accountNumber: string; reference: string }) {
+    logger.warn(`MOCK auto-debit ${input.reference} — no money moved`);
+    const ref = `MOCK-DD-${input.reference}`.slice(0, 120);
+    if (input.accountNumber.endsWith('000'))
+      return {
+        status: 'FAILED' as const,
+        failureCode: 'INSUFFICIENT_FUNDS',
+        bankReference: ref,
+      };
+    if (input.accountNumber.endsWith('999'))
+      return {
+        status: 'FAILED' as const,
+        failureCode: 'ACCOUNT_CLOSED',
+        bankReference: ref,
+      };
+    return { status: 'SUCCEEDED' as const, bankReference: ref };
+  }
+}
+
+/**
+ * Fixed rates for development only (1 USD = 4100 KHR, 36 THB, 0.92 EUR),
+ * "published" every day. Selected with LENDING_FX_SOURCE=MOCK.
+ */
+class MockFxFeed implements FxRateAdapter {
+  readonly name = 'MOCK_FX_FEED';
+  readonly isMock = true;
+  private readonly usd: Record<string, string> = {
+    KHR: '4100',
+    THB: '36',
+    EUR: '0.92',
+  };
+  async rate(input: { from: string; to: string; onOrBefore: string }) {
+    const pair = input.from === 'USD' ? input.to : input.from;
+    const other = input.from === 'USD' ? input.from : input.to;
+    if (other !== 'USD' || !this.usd[pair]) return null;
+    return {
+      base: 'USD',
+      quote: pair,
+      rate: this.usd[pair],
+      rateDate: input.onOrBefore,
+      source: this.name,
+    };
   }
 }
 
@@ -202,6 +289,20 @@ export class AdapterRegistry {
   documents(): DocumentStorageAdapter {
     return this.guard(this.s3 ? new S3Documents() : new MockDocuments());
   }
+  /** Auto-debit collection. Only the mock exists so far, so production refuses it. */
+  bankDebit(): BankDebitAdapter {
+    return this.guard(new MockBankDebit());
+  }
+  /**
+   * The rate source for cross-currency payments: the tenant's own published
+   * rate table (passed in by the caller, which holds the transaction), or the
+   * mock feed when LENDING_FX_SOURCE=MOCK.
+   */
+  fxRates(rateTable: FxRateAdapter): FxRateAdapter {
+    return this.guard(
+      process.env.LENDING_FX_SOURCE === 'MOCK' ? new MockFxFeed() : rateTable,
+    );
+  }
 
   /** For the capability screen: which adapters are real here. */
   status() {
@@ -217,6 +318,11 @@ export class AdapterRegistry {
       notifications: entry('MOCK_NOTIFICATIONS', false),
       externalAccounting: entry('MOCK_EXTERNAL_ACCOUNTING', false),
       documents: entry(this.s3 ? 'S3' : 'MOCK_LOCAL_DISK', this.s3),
+      bankDebit: entry('MOCK_BANK_DEBIT', false),
+      fxRates:
+        process.env.LENDING_FX_SOURCE === 'MOCK'
+          ? entry('MOCK_FX_FEED', false)
+          : entry('TENANT_RATE_TABLE', true),
     };
   }
 }

@@ -969,7 +969,13 @@ export class ServicingService {
     },
     idempotencyKey: string,
     hash: string,
-    opts: { fundingAccount?: string } = {},
+    opts: {
+      fundingAccount?: string;
+      /** Recorded on the event, e.g. the FX conversion of a cross-currency payment (UC-21). */
+      components?: Record<string, unknown>;
+      /** Balanced lines of their own added to the journal, e.g. FX gain or loss (UC-21). */
+      extraLines?: PostingLine[];
+    } = {},
   ) {
     const tenantId = requireTenant(actor);
     let state = await loadLoanState(tx, tenantId, id);
@@ -1249,6 +1255,7 @@ export class ServicingService {
           payer: body.payer ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
+          ...opts.components,
         },
         idempotencyKey,
         requestHash: hash,
@@ -1279,6 +1286,7 @@ export class ServicingService {
           { accountCode: acc.feeIncome, credit: prepaymentFee.toString() },
           { accountCode: acc.customerAdvances, credit: advanced.toString() },
           ...released.lines,
+          ...(opts.extraLines ?? []),
         ],
       },
       allocations,
@@ -3054,6 +3062,30 @@ export class ServicingService {
     this.batchHooks.push(hook);
   }
 
+  private tenantBatchHooks: ((
+    tenantId: string,
+    businessDate: string,
+    actor: LendingActor,
+    scope: Prisma.LoanAccountWhereInput,
+  ) => Promise<void>)[] = [];
+  /**
+   * Work that runs once per tenant at the start of the end-of-day batch,
+   * before any loan is processed, in its own transactions — for steps that
+   * call outside systems or post money themselves (auto-debit collection,
+   * UC-16), so the per-loan accrual, penalties and delinquency that follow
+   * already see the result. `scope` is the batch runner's loan scope.
+   */
+  registerTenantBatchHook(
+    hook: (
+      tenantId: string,
+      businessDate: string,
+      actor: LendingActor,
+      scope: Prisma.LoanAccountWhereInput,
+    ) => Promise<void>,
+  ) {
+    this.tenantBatchHooks.push(hook);
+  }
+
   // ── End-of-day batch: accrual, penalties, delinquency ─────────────────────
 
   /**
@@ -3075,6 +3107,13 @@ export class ServicingService {
     const businessDate = await this.businessDate.get(tenantId);
     // The tenant's impairment policy in force, if any (OPS-5, D-010).
     const impairment = await this.impairment.active(tenantId);
+    for (const hook of this.tenantBatchHooks)
+      await hook(
+        tenantId,
+        businessDate,
+        actor,
+        scope as Prisma.LoanAccountWhereInput,
+      );
     const accounts = await this.prisma.loanAccount.findMany({
       where: {
         tenantId,
