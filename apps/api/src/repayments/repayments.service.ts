@@ -6,6 +6,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PostRepaymentDto } from './dto/post-repayment.dto';
+import { SettleLoanDto } from './dto/settle-loan.dto';
+import { computePayoff } from '../loans/payoff';
 import { LoanStatus, JournalSource } from '@microloan/db';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
@@ -24,6 +26,100 @@ export class RepaymentsService {
     private ledger: LedgerService,
     private notifications: NotificationsService,
   ) { }
+
+  /**
+   * UC-31: early settlement at the payoff quote. Every unpaid instalment is
+   * paid in full except interest not yet due, which is waived, and the loan
+   * closes. An ordinary repayment of the same amount would not close it: the
+   * allocation pays instalments' interest first, future ones included.
+   */
+  async settleLoan(actor: JwtPayload, dto: SettleLoanDto) {
+    this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id: dto.loanId }),
+      include: { schedules: { orderBy: { installmentNumber: 'asc' } } },
+    });
+    if (!loan) throw new NotFoundException('Loan not found');
+    this.authz.assertBranchAccess(actor, loan.branchId);
+    // A retried request returns the original settlement, even though the
+    // loan it closed is no longer open.
+    if (dto.idempotencyKey) {
+      const existing = await this.prisma.repayment.findFirst({
+        where: { tenantId: loan.tenantId, idempotencyKey: dto.idempotencyKey },
+      });
+      if (existing) return existing;
+    }
+    if (loan.status !== LoanStatus.DISBURSED && loan.status !== LoanStatus.DEFAULTED) {
+      throw new BadRequestException('Only a disbursed or defaulted loan can be settled.');
+    }
+    const asOf = dto.date ? new Date(dto.date) : new Date();
+    const q = computePayoff(loan.schedules, asOf);
+    if (Math.round(dto.amount * 100) !== Math.round(q.payoffAmount * 100)) {
+      throw new BadRequestException(
+        `The settlement amount today is ${q.payoffAmount.toFixed(2)} (principal ${q.outstandingPrincipal.toFixed(2)} + interest due ${q.accruedInterestDue.toFixed(2)} + penalties ${q.outstandingPenalty.toFixed(2)}).`,
+      );
+    }
+    const repayment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.repayment.create({
+        data: {
+          tenantId: loan.tenantId,
+          loanId: loan.id,
+          amount: q.payoffAmount,
+          currency: loan.currency,
+          interestPaid: q.accruedInterestDue,
+          principalPaid: q.outstandingPrincipal,
+          penaltyPaid: q.outstandingPenalty,
+          date: asOf,
+          idempotencyKey: dto.idempotencyKey,
+        },
+      });
+      for (const l of q.lines) {
+        const s = loan.schedules.find((x) => x.id === l.id)!;
+        await tx.repaymentSchedule.update({
+          where: { id: l.id },
+          data: {
+            paidPrincipal: Number(s.paidPrincipal) + l.principal,
+            paidInterest: Number(s.paidInterest) + l.interest,
+            paidPenalty: Number(s.paidPenalty) + l.penalty,
+            // Interest not yet due is waived: it leaves the instalment.
+            interestAmount: Number(s.interestAmount) - l.waivedInterest,
+            totalAmount: Number(s.totalAmount) - l.waivedInterest,
+            isPaid: true,
+          },
+        });
+      }
+      const lines: { accountCode: string; debit?: number; credit?: number }[] = [
+        { accountCode: ACCOUNT_CODES.CASH, debit: q.payoffAmount },
+      ];
+      if (q.outstandingPrincipal > 0) lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: q.outstandingPrincipal });
+      if (q.accruedInterestDue > 0) lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, credit: q.accruedInterestDue });
+      if (q.outstandingPenalty > 0) lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, credit: q.outstandingPenalty });
+      if (q.payoffAmount > 0) {
+        await this.ledger.postEntry(
+          {
+            tenantId: loan.tenantId,
+            source: JournalSource.REPAYMENT,
+            description: `Early settlement of loan ${loan.id}`,
+            currency: loan.currency,
+            loanId: loan.id,
+            referenceId: created.id,
+            createdByUserId: this.authz.actorId(actor),
+            lines: lines as never,
+          },
+          tx,
+        );
+      }
+      await tx.loan.update({ where: { id: loan.id }, data: { status: LoanStatus.CLOSED } });
+      return created;
+    });
+    await this.audit.logAction(loan.tenantId, this.authz.actorId(actor), 'UPDATE', 'Loan', loan.id, {
+      action: 'Early settlement',
+      payoff: q.payoffAmount,
+      futureInterestWaived: q.futureInterestWaived,
+      repaymentId: repayment.id,
+    });
+    return { repayment, ...q, status: LoanStatus.CLOSED };
+  }
 
   async postRepayment(actor: JwtPayload, dto: PostRepaymentDto) {
     this.authz.assertPermission(actor, Permission.LOAN_REPAYMENT_POST);

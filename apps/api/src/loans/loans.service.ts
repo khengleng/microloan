@@ -1,3 +1,4 @@
+import { computePayoff } from './payoff';
 import {
   Injectable,
   NotFoundException,
@@ -405,30 +406,19 @@ export class LoansService {
     this.authz.assertBranchAccess(actor, loan.branchId);
 
     const now = new Date();
-    let outstandingPrincipal = 0;
-    let accruedInterestDue = 0;
-    let futureInterestWaived = 0;
-    let outstandingPenalty = 0;
-    for (const s of loan.schedules) {
-      if (s.isPaid) continue;
-      outstandingPrincipal += Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal));
-      outstandingPenalty += Math.max(0, Number(s.penaltyAmount) - Number(s.paidPenalty));
-      const dueInterest = Math.max(0, Number(s.interestAmount) - Number(s.paidInterest));
-      if (new Date(s.dueDate) <= now) accruedInterestDue += dueInterest;
-      else futureInterestWaived += dueInterest;
-    }
-    const round = (x: number) => Math.round(x * 100) / 100;
-    const payoffAmount = round(outstandingPrincipal + accruedInterestDue + outstandingPenalty);
-
+    const q = computePayoff(loan.schedules, now);
     return {
       loanId: loan.id,
       currency: loan.currency,
       asOf: now,
-      outstandingPrincipal: round(outstandingPrincipal),
-      accruedInterestDue: round(accruedInterestDue),
-      outstandingPenalty: round(outstandingPenalty),
-      futureInterestWaived: round(futureInterestWaived),
-      payoffAmount,
+      outstandingPrincipal: q.outstandingPrincipal,
+      accruedInterestDue: q.accruedInterestDue,
+      outstandingPenalty: q.outstandingPenalty,
+      futureInterestWaived: q.futureInterestWaived,
+      payoffAmount: q.payoffAmount,
+      // Pay this amount with POST /repayments/settlements to close the loan; an
+      // ordinary repayment would allocate part of it to future interest.
+      settleWith: 'POST /repayments/settlements',
     };
   }
 

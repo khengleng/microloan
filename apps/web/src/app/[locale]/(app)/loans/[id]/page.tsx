@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { LoanPaymentQr } from '@/components/LoanPaymentQr';
+import { EarlySettlementPanel } from '@/components/EarlySettlementPanel';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { RiskDecisionPanel } from '@/components/RiskDecisionPanel';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
@@ -327,6 +328,11 @@ export default function LoanDetailsPage() {
 
                     {/* Risk scorecard, recommended pricing & restructuring */}
                     <RiskDecisionPanel loanId={loan.id} loanStatus={loan.status} onRestructured={fetchLoan} />
+
+                    {/* Early settlement at the payoff quote (UC-31) */}
+                    {(loan.status === 'DISBURSED' || loan.status === 'DEFAULTED') && (
+                        <EarlySettlementPanel loanId={loan.id} onSettled={fetchLoan} />
+                    )}
 
                     {/* Static-QR collection panel (display-only) */}
                     <LoanPaymentQr loanId={loan.id} />
