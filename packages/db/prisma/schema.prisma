@@ -1747,6 +1747,7 @@ model Facility {
   limitEvents FacilityLimitChange[]
   tradeInvoices TradeInvoice[]
   card        CardAccount?
+  borrowingBaseCertificates BorrowingBaseCertificate[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -1977,6 +1978,7 @@ model LoanAccount {
   recoveryRefunds        RecoveryRefund[]
   directDebitMandates    DirectDebitMandate[]
   covenants              LoanCovenant[]
+  projectFinance         ProjectFinance?
   bnplPlan               BnplPlan?
   leaseAsset             LeaseAsset?
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
@@ -3973,4 +3975,111 @@ model WebhookDelivery {
   @@unique([endpointId, outboxMessageId])
   @@index([status, nextAttemptAt])
   @@index([tenantId, endpointId, createdAt])
+}
+
+/// Project finance (LT-17): the project behind a project or infrastructure
+/// loan — its reserve, lock-up and the sculpted profile it termed out on.
+/// One per loan, created at booking.
+model ProjectFinance {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  facilityId     String?
+  /// CONSTRUCTION, OPERATIONS, CLOSED
+  status         String      @default("CONSTRUCTION")
+  targetDscr     Decimal     @db.Decimal(12, 6)
+  lockUpDscr     Decimal?    @db.Decimal(12, 6)
+  dsraMonths     Int
+  cashSweepRate  Decimal?    @db.Decimal(12, 6)
+  /// Debt service reserve held (ledger: projectFinance.accounts.dsra).
+  dsraBalance    Decimal     @default(0) @db.Decimal(24, 4)
+  /// Cash held back from distribution (ledger: projectFinance.accounts.lockUp).
+  lockUpBalance  Decimal     @default(0) @db.Decimal(24, 4)
+  lockedUp       Boolean     @default(false)
+  /// The CFADS projection and sculpted profile the loan termed out on.
+  sculpting      Json?
+  termedOutOn    DateTime?   @db.Date
+  version        Int         @default(0)
+  createdBy      String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  runs           ProjectWaterfallRun[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+}
+
+/// One application of project receipts through the cash waterfall. Append-only.
+model ProjectWaterfallRun {
+  id                 String         @id @default(uuid())
+  tenantId           String
+  projectId          String
+  project            ProjectFinance @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId      String
+  sequence           Int
+  receivedOn         DateTime       @db.Date
+  revenue            Decimal        @db.Decimal(24, 4)
+  operatingCosts     Decimal        @db.Decimal(24, 4)
+  taxes              Decimal        @db.Decimal(24, 4)
+  /// Revenue − operating costs − taxes; negative when the project needed support.
+  cfads              Decimal        @db.Decimal(24, 4)
+  periodDebtService  Decimal        @db.Decimal(24, 4)
+  dscr               Decimal?       @db.Decimal(14, 6)
+  lockedUp           Boolean
+  seniorDebtService  Decimal        @db.Decimal(24, 4)
+  dsraDraw           Decimal        @db.Decimal(24, 4)
+  dsraTopUp          Decimal        @db.Decimal(24, 4)
+  cashSweep          Decimal        @db.Decimal(24, 4)
+  lockUpRetained     Decimal        @db.Decimal(24, 4)
+  lockUpReleased     Decimal        @db.Decimal(24, 4)
+  distribution       Decimal        @db.Decimal(24, 4)
+  dsraTarget         Decimal        @db.Decimal(24, 4)
+  dsraBalanceAfter   Decimal        @db.Decimal(24, 4)
+  lockUpBalanceAfter Decimal        @db.Decimal(24, 4)
+  steps              Json
+  /// The PROJECT_WATERFALL financial event carrying the reserve, lock-up and distribution postings.
+  eventId            String
+  externalReference  String?
+  idempotencyKey     String
+  createdBy          String
+  createdAt          DateTime       @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, projectId, sequence])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A borrowing-base certificate (LT-14): the borrower's inventory and
+/// receivables by class at a date, and the base they support. Submitted by
+/// one person, accepted or rejected by another; the accepted certificate
+/// governs drawdowns until it goes stale or is superseded.
+model BorrowingBaseCertificate {
+  id              String    @id @default(uuid())
+  tenantId        String
+  facilityId      String
+  facility        Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  sequence        Int
+  asOfDate        DateTime  @db.Date
+  /// SUBMITTED, ACCEPTED, REJECTED, SUPERSEDED
+  status          String    @default("SUBMITTED")
+  currency        String
+  grossValue      Decimal   @db.Decimal(24, 4)
+  ineligibleValue Decimal   @db.Decimal(24, 4)
+  eligibleValue   Decimal   @db.Decimal(24, 4)
+  borrowingBase   Decimal   @db.Decimal(24, 4)
+  lines           Json
+  calculation     Json
+  notes           String    @default("")
+  engineVersion   String
+  submittedBy     String
+  submittedAt     DateTime  @default(now())
+  decidedBy       String?
+  decidedAt       DateTime?
+  decisionReason  String?
+  version         Int       @default(0)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, facilityId, sequence])
+  @@index([tenantId, facilityId, status])
 }

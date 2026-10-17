@@ -170,6 +170,8 @@ async function main() {
     'lending.trade.invoice_finance',
     'lending.trade.letters_of_credit',
     'lending.syndication',
+    'lending.project_finance',
+    'lending.collateral.borrowing_base',
     'lending.group.joint_liability',
     'lending.pricing.floating_rate',
   ]) {

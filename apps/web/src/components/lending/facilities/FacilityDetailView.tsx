@@ -16,6 +16,8 @@ import { ConditionsCard } from './ConditionsCard';
 import { LimitChangePanel, LimitChangesCard } from './LimitChangesCard';
 import { StatementsCard } from './StatementsCard';
 import { FacilityRepaymentPanel, StatementPanel, StatusPanel, TermOutPanel, availableStatusMoves } from './FacilityPanels';
+import { SculptingPanel } from './SculptingPanel';
+import { BorrowingBaseCard } from './BorrowingBaseCard';
 import type { FacilityDetail } from './types';
 
 type Panel = 'drawdown' | 'repay' | 'statement' | 'limit' | 'status' | 'termout';
@@ -106,7 +108,11 @@ export function FacilityDetailView({ id }: { id: string }) {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <Kpi label="Limit"><Money value={t.limitAmount} currency={cur} /></Kpi>
                 <Kpi label="Drawn balance" hint={`Total ever drawn ${cur} ${p.totalDrawn}`}><Money value={p.outstanding} currency={cur} /></Kpi>
-                <Kpi label="Available" hint={staged ? 'Staged: repayments do not reinstate' : 'Reinstates on repayment'}><Money value={p.available} currency={cur} /></Kpi>
+                {d.borrowingBase ? (
+                    <Kpi label="Available" hint={d.borrowingBase.stale ? 'Certificate out of date — nothing can be drawn' : `Lower of limit and borrowing base ${cur} ${d.borrowingBase.borrowingBase ?? '—'}`}><Money value={d.borrowingBase.available} currency={cur} /></Kpi>
+                ) : (
+                    <Kpi label="Available" hint={staged ? 'Staged: repayments do not reinstate' : 'Reinstates on repayment'}><Money value={p.available} currency={cur} /></Kpi>
+                )}
                 <Kpi label="Utilization" hint={<UtilizationBar value={p.utilization} />}>{fmtRate(p.utilization, 2)}</Kpi>
                 <Kpi label="Status"><StatusBadge status={status} /></Kpi>
                 <Kpi label="Availability ends" hint={`Maturity ${t.maturityDate}`}>{t.availabilityEnd}</Kpi>
@@ -124,6 +130,13 @@ export function FacilityDetailView({ id }: { id: string }) {
                     <Link href={href(`/lending/cards/${d.card.id}`)} className="font-semibold text-[#635BFF] hover:underline">Open the card →</Link>
                 </Notice>
             )}
+            {d.project && (
+                <Notice title={`Project finance — ${d.project.status.toLowerCase()}`}>
+                    {d.project.capitalizeConstructionInterest ? 'Construction interest is added to principal when each statement is raised. ' : ''}
+                    When availability ends the drawn balance terms out on a repayment profile sculpted to the projected cash flow at a {d.project.targetDscr}× cover ratio; receipts are then applied through the cash waterfall on the{' '}
+                    <Link href={href(`/lending/loans/${d.loanAccountId}`)} className="font-semibold text-[#635BFF] hover:underline">loan account →</Link>
+                </Notice>
+            )}
             {status === 'SUSPENDED' && <Notice tone="warn" title="Suspended">No drawdowns can be requested, approved or released while the facility is suspended.</Notice>}
 
             <Card title="Facility actions" subtitle="The server re-checks every action against policy, limits and maker-checker; refusals show the reason.">
@@ -134,7 +147,7 @@ export function FacilityDetailView({ id }: { id: string }) {
                         {canStatement && <Btn onClick={() => toggle('statement')}>Generate statement</Btn>}
                         {canLimit && <Btn onClick={() => toggle('limit')}>Request limit change</Btn>}
                         {statusMoves.length > 0 && <Btn variant="danger" onClick={() => toggle('status')}>Change status</Btn>}
-                        {canTermOut && <Btn variant="danger" onClick={() => toggle('termout')}>Term out</Btn>}
+                        {(canTermOut || (d.project && status !== 'TERMED_OUT')) && <Btn variant="danger" onClick={() => toggle('termout')}>{d.project ? 'Sculpted term-out' : 'Term out'}</Btn>}
                     </div>
                     {!canDraw && !canRepay && !canStatement && !canLimit && statusMoves.length === 0 && (
                         <p className="text-[12px] text-[#697386]">This facility is {status.replace(/_/g, ' ').toLowerCase()}; no actions are available.</p>
@@ -148,7 +161,8 @@ export function FacilityDetailView({ id }: { id: string }) {
                     {panel === 'statement' && <StatementPanel facilityId={id} currency={cur} periodStart={nextPeriodStart} onDone={done} onClose={close} />}
                     {panel === 'limit' && <LimitChangePanel facilityId={id} currency={cur} currentLimit={t.limitAmount} onDone={done} onClose={close} />}
                     {panel === 'status' && <StatusPanel facilityId={id} status={status} onDone={done} onClose={close} />}
-                    {panel === 'termout' && <TermOutPanel facilityId={id} currency={cur} availabilityEnd={t.availabilityEnd} maturityDate={t.maturityDate} onDone={done} onClose={close} />}
+                    {panel === 'termout' && !d.project && <TermOutPanel facilityId={id} currency={cur} availabilityEnd={t.availabilityEnd} maturityDate={t.maturityDate} onDone={done} onClose={close} />}
+                    {panel === 'termout' && d.project && <SculptingPanel facilityId={id} currency={cur} availabilityEnd={t.availabilityEnd} maturityDate={t.maturityDate} canTermOut={canTermOut} onDone={done} onClose={close} />}
                 </div>
             </Card>
 
@@ -208,6 +222,8 @@ export function FacilityDetailView({ id }: { id: string }) {
                     </Table>
                 </Card>
             )}
+
+            {d.borrowingBase && <BorrowingBaseCard facilityId={id} onDone={done} />}
 
             <DrawdownsCard
                 facilityId={id}

@@ -341,7 +341,22 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('WORKING_CAPITAL', 'SME_COMMERCIAL', 'Working capital loan', 'Short-term working capital, bullet or instalment.', { ...BUSINESS, repayment: { method: 'INTEREST_ONLY' }, limits: { minInstalments: 1, maxInstalments: 12 } }),
   template('OVERDRAFT', 'SME_COMMERCIAL', 'Overdraft', 'Business overdraft facility.', { ...BUSINESS, limits: { minAmount: '1000', maxAmount: '100000', minInstalments: 1, maxInstalments: 12 }, ...OVERDRAFT_FACILITY }),
   template('REVOLVING_CREDIT', 'SME_COMMERCIAL', 'Revolving credit facility', 'Revolving business credit line.', { ...BUSINESS, limits: { minAmount: '5000', maxAmount: '250000', minInstalments: 6, maxInstalments: 60 }, ...REVOLVING(36) }),
-  template('INVENTORY_BACKED', 'SME_COMMERCIAL', 'Inventory-backed loan', 'Borrowing base against inventory.', { ...BUSINESS, ...SECURED('0.6', ['INVENTORY']) }, ['collateral.borrowing_base']),
+  // A revolving line drawn up to the lower of its limit and the borrowing base
+  // certified by the borrower (LT-14, DECISIONS D-062).
+  template('INVENTORY_BACKED', 'SME_COMMERCIAL', 'Inventory-backed loan', 'Revolving line drawn against a certified borrowing base of inventory and receivables.', {
+    ...BUSINESS,
+    ...SECURED('0.6', ['INVENTORY']),
+    ...REVOLVING(12),
+    limits: { minAmount: '5000', maxAmount: '1000000', minInstalments: 6, maxInstalments: 36 },
+    borrowingBase: {
+      certificateMaxAgeDays: 31,
+      classes: [
+        { code: 'RAW_MATERIALS', label: 'Raw materials', kind: 'INVENTORY', advanceRate: '0.5', maxAgeDays: 180, concentrationLimit: null },
+        { code: 'FINISHED_GOODS', label: 'Finished goods', kind: 'INVENTORY', advanceRate: '0.6', maxAgeDays: 365, concentrationLimit: null },
+        { code: 'RECEIVABLES', label: 'Trade receivables', kind: 'RECEIVABLES', advanceRate: '0.8', maxAgeDays: 90, concentrationLimit: '0.25' },
+      ],
+    },
+  }),
   template('COMMERCIAL_PROPERTY', 'SME_COMMERCIAL', 'Commercial property loan', 'Term loan secured on commercial real estate.', { ...BUSINESS, ...SECURED('0.7', ['COMMERCIAL_PROPERTY']), limits: { minAmount: '20000', maxAmount: '2000000', maxInstalments: 180 } }),
   // Agriculture
   template('AGRI_CROP_SEASONAL', 'AGRICULTURE', 'Seasonal crop loan', 'Interest accrues daily; principal is repaid on harvest dates.', {
@@ -380,9 +395,52 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     limits: { minAmount: '1000000', maxAmount: '500000000', minInstalments: 4, maxInstalments: 40 },
     syndication: { minParticipants: 2, maxParticipants: 20 },
   }, ['syndication.participations']),
-  template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', { ...CORPORATE, attributes: { recourse: 'NON_RECOURSE' } }, ['project_finance.waterfall', 'covenants.monitoring']),
-  template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', CORPORATE, ['project_finance.waterfall', 'covenants.monitoring']),
-  template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', CORPORATE, ['covenants.monitoring']),
+  // Project and infrastructure finance (LT-17, DECISIONS D-061): drawn in
+  // construction tranches with interest capitalized, termed out on a profile
+  // sculpted to the projected CFADS, serviced through a cash waterfall.
+  template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', {
+    ...CORPORATE,
+    attributes: { recourse: 'NON_RECOURSE' },
+    limits: { minAmount: '1000000', maxAmount: '100000000', minInstalments: 12, maxInstalments: 240 },
+    ...STAGED(24, [
+      { code: 'FINANCIAL_CLOSE', label: 'Financial close', shareOfLimit: '0.3', availableAfterMonths: 0, conditions: ['EQUITY_CONTRIBUTED'] },
+      { code: 'CONSTRUCTION', label: 'Construction milestone', shareOfLimit: '0.4', availableAfterMonths: 6, conditions: ['ENGINEER_CERTIFICATE'] },
+      { code: 'COMPLETION', label: 'Mechanical completion', shareOfLimit: '0.3', availableAfterMonths: 12, conditions: ['ENGINEER_CERTIFICATE'] },
+    ]),
+    projectFinance: { targetDscr: '1.30', lockUpDscr: '1.10', dsraMonths: 6, cashSweepRate: '0.25', capitalizeConstructionInterest: true },
+    covenants: [
+      { type: 'MIN_DSCR', threshold: '1.20', frequencyMonths: 6, description: 'Historic DSCR at least 1.20x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 6, description: 'Semi-annual project accounts and operating report' },
+    ],
+  }),
+  template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', {
+    ...CORPORATE,
+    attributes: { recourse: 'LIMITED' },
+    limits: { minAmount: '5000000', maxAmount: '500000000', minInstalments: 24, maxInstalments: 360 },
+    ...STAGED(36, [
+      { code: 'FINANCIAL_CLOSE', label: 'Financial close', shareOfLimit: '0.25', availableAfterMonths: 0, conditions: ['EQUITY_CONTRIBUTED'] },
+      { code: 'CIVIL_WORKS', label: 'Civil works milestone', shareOfLimit: '0.45', availableAfterMonths: 12, conditions: ['ENGINEER_CERTIFICATE'] },
+      { code: 'COMMISSIONING', label: 'Commissioning', shareOfLimit: '0.3', availableAfterMonths: 24, conditions: ['ENGINEER_CERTIFICATE'] },
+    ]),
+    projectFinance: { targetDscr: '1.25', lockUpDscr: '1.05', dsraMonths: 6, cashSweepRate: null, capitalizeConstructionInterest: true },
+    covenants: [
+      { type: 'MIN_DSCR', threshold: '1.15', frequencyMonths: 6, description: 'Historic DSCR at least 1.15x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 12, description: 'Audited annual accounts of the concession company' },
+    ],
+  }),
+  // Leveraged acquisition term loan with maintenance covenants set up at
+  // booking (LT-16, DECISIONS D-060).
+  template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', {
+    ...CORPORATE,
+    repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' },
+    limits: { minAmount: '500000', maxAmount: '50000000', minInstalments: 4, maxInstalments: 28 },
+    covenants: [
+      { type: 'MAX_LEVERAGE', threshold: '3.50', frequencyMonths: 3, description: 'Net debt / EBITDA at most 3.50x' },
+      { type: 'MIN_INTEREST_COVER', threshold: '3.00', frequencyMonths: 3, description: 'EBITDA / interest at least 3.00x' },
+      { type: 'MIN_DSCR', threshold: '1.20', frequencyMonths: 3, description: 'DSCR at least 1.20x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 3, description: 'Quarterly management accounts and compliance certificate' },
+    ],
+  }),
   // Trade / receivables
   template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents.', BUSINESS, ['trade.documentary']),
   template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance.', BUSINESS, ['trade.documentary']),

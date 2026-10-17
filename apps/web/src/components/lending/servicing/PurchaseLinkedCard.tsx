@@ -47,6 +47,7 @@ export function PurchaseLinkedCard({ loanId, detail, onDone }: Props) {
             </Notice>
         );
     if (s.kind === 'BNPL') return <BnplCard loanId={loanId} detail={detail} onDone={onDone} />;
+    if (s.kind === 'PROJECT_FINANCE') return null;
     return <LeaseCard loanId={loanId} detail={detail} onDone={onDone} />;
 }
 

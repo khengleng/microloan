@@ -64,6 +64,10 @@ export const ACCOUNT_CODES = {
   RETURNED_LEASE_ASSETS: '1260',
   IJARAH_RENTAL_INCOME: '4510',
   LATE_PAYMENT_CHARITY_PAYABLE: '2800',
+  // Project finance (LT-17): reserve, lock-up and receipts in the waterfall
+  PROJECT_DSRA_HELD: '2410',
+  PROJECT_LOCK_UP_HELD: '2420',
+  PROJECT_PROCEEDS_CLEARING: '2430',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -297,6 +301,21 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.LATE_PAYMENT_CHARITY_PAYABLE,
     name: 'Late Payment Charges Payable to Charity',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PROJECT_DSRA_HELD,
+    name: 'Project Debt Service Reserve Held',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PROJECT_LOCK_UP_HELD,
+    name: 'Project Distributions Held in Lock-up',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PROJECT_PROCEEDS_CLEARING,
+    name: 'Project Receipts Clearing (waterfall)',
     type: LedgerAccountType.LIABILITY,
   },
 ];

@@ -286,7 +286,9 @@ export function facilityPosition(terms: FacilityTerms, movements: FacilityMoveme
 
   const consumed = limitReinstates(terms.type) ? outstanding : totalDrawn;
   const available = limit.minus(consumed);
-  const overlimit = outstanding.minus(limit);
+  // A staged limit caps what is advanced; capitalized interest on top of it
+  // (a project's construction interest) is not an over-limit drawing.
+  const overlimit = consumed.minus(limit);
 
   return {
     outstanding: outstanding.toString(),
@@ -492,7 +494,9 @@ export function accrueFacilityInterest(terms: FacilityTerms, movements: Facility
   for (const seg of timeline) {
     const balance = dec(seg.balance, 'balance');
     const charged = balance.lt(0) ? ZERO : balance;
-    const overlimit = charged.gt(limit) ? charged.minus(limit) : ZERO;
+    // On a staged limit only advances count against it; a balance above it
+    // is capitalized interest and is priced as ordinary interest.
+    const overlimit = terms.type !== 'STAGED_DRAWDOWN' && charged.gt(limit) ? charged.minus(limit) : ZERO;
     const base = charged.minus(overlimit);
     within.push({ from: seg.from, to: seg.to, principal: base.toString(), annualRate: terms.annualRate });
     if (overlimit.gt(0)) {

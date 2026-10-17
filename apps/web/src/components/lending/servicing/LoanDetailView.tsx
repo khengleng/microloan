@@ -33,6 +33,7 @@ import { FeeWaiverPanel } from './FeeWaiverPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
 import { LoanDocumentsCard } from './LoanDocumentsCard';
 import { CovenantsCard } from './CovenantsCard';
+import { ProjectFinanceCard } from '../projects/ProjectFinanceCard';
 import { LoanRecoveryCard } from '../recovery/LoanRecoveryCard';
 import { LoanMandatesCard } from '../channels/LoanMandatesCard';
 import { PurchaseLinkedCard } from './PurchaseLinkedCard';
@@ -200,6 +201,7 @@ export function LoanDetailView({ id }: { id: string }) {
             <PurchaseLinkedCard loanId={id} detail={d} onDone={done} />
 
             {acc.status !== 'BOOKED' && <LoanDocumentsCard loanId={id} closed={acc.status === 'CLOSED'} />}
+            {d.specialised?.kind === 'PROJECT_FINANCE' && <ProjectFinanceCard loanId={id} can={c} onDone={done} />}
             {['BOOKED', 'ACTIVE'].includes(acc.status) && <CovenantsCard loanId={id} can={c} />}
 
             {isActive && (

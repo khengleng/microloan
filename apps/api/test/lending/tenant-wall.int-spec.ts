@@ -63,6 +63,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'members/:borrowerId': 'borrower',
       'facilities/:id': 'facility',
       'drawdowns/:drawdownId': 'drawdown',
+      'certificates/:certificateId': 'borrowingBaseCertificate',
       'conditions/:conditionId': 'facilityCondition',
       'limit-changes/:changeId': 'facilityLimitChange',
       'events/:eventId': 'financialEvent',

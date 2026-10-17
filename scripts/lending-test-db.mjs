@@ -66,6 +66,7 @@ const INVARIANT_SECTIONS = [
   ['20261019001300_lending_loan_migration', '-- Database-level invariants for loan-book migration.'],
   ['20261019001500_lending_regulatory_returns', '-- Database-level invariants for regulatory returns.'],
   ['20261019001700_tenant_webhooks', '-- Database-level invariants for tenant webhooks.'],
+  ['20261019002000_lending_project_finance_borrowing_base', '-- Database-level invariants for project finance and borrowing bases.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
