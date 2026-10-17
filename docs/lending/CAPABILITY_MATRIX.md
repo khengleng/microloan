@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 50 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 12
+✅ Fully implemented: 53 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 9
 
 ## Capabilities
 
@@ -135,18 +135,18 @@ A product version can be activated only when every capability it requires is **F
 | `trade.factoring` | ⛔ Not implemented | 3 | Factoring with debtor collections and recourse |  |
 | `trade.supply_chain` | ⛔ Not implemented | 3 | Supply-chain (reverse factoring) programmes |  |
 | `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
-| `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
+| `education.income_contingent` | ✅ Fully implemented | 3 | Income-contingent repayment: the instalment is a share of declared income above a threshold, reassessed annually or on a change of circumstances under maker-checker with evidence; nothing is due below the threshold, uncovered interest is capitalised (to a cap) or subsidised, and the balance left at the end of the term is forgiven | Tests: `packages/shared/test/income-contingent.test.ts, apps/api/test/lending/income-contingent.int-spec.ts`<br>Monthly payments on the contract grid; voluntary extra payments are held as an advance, not prepaid. Instalments already in arrears are not forgiven at term end (DECISIONS D-066). |
 | `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-015). |
 | `project_finance.waterfall` | ⛔ Not implemented | 3 | Project finance: cash waterfall, DSCR covenants, sculpted repayment |  |
 | `covenants.monitoring` | ⛔ Not implemented | 3 | Financial covenant monitoring |  |
-| `institutional.counterparty_limits` | ⛔ Not implemented | 3 | Interbank / sovereign / municipal counterparty limits and conventions |  |
+| `institutional.counterparty_limits` | ✅ Fully implemented | 3 | Institutional lending (interbank, municipal, sovereign, development): registered counterparties with ratings, counterparty and country exposure limits approved under maker-checker within approval authority, utilisation checked at submission, approval and disbursement, money-market (ACT/360 bullet) and concessional (grace, grant element) conventions, and an exposure view | Tests: `packages/shared/test/institutional.test.ts, apps/api/test/lending/institutional.int-spec.ts`<br>Limits are per currency (no FX conversion of exposures); connected-group limits are not modelled (limits.connected_exposure) (DECISIONS D-065, D-068). |
 | `lease.true_lease` | ✅ Fully implemented | 3 | True lease: the lender buys and owns the asset (paid to the supplier), rentals to a residual purchase-option price, and at the end title transfer on purchase or return of the asset | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts` |
 
 ### Islamic
 
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
-| `islamic.murabaha` | ⛔ Not implemented | 3 | Murabaha: asset purchase and resale at disclosed profit |  |
+| `islamic.murabaha` | ✅ Fully implemented | 3 | Murabaha: the financier buys the asset (paid to its supplier) and sells it at cost plus a disclosed, fixed profit; the profit is deferred and recognised over the term on its own accounts, late charges go to charity, and unearned profit is rebated (ibra’) on early settlement per product | Tests: `packages/shared/test/murabaha.test.ts, apps/api/test/lending/murabaha.int-spec.ts`<br>Profit is recognised as the contract schedule accrues it (no separate Sharia profit-recognition method); the deferred-profit memo is trued up at end of day and on closure (DECISIONS D-067). |
 | `islamic.ijarah` | ✅ Fully implemented | 3 | Ijarah: lease with rentals and asset ownership, rental income and late charges to charity on their own accounts | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts`<br>Lessor accounting is the net-investment (finance-lease) method; an operating Ijarah with depreciation is not modelled (DECISIONS D-032). |
 
 ### Access
@@ -166,7 +166,7 @@ A product version can be activated only when every capability it requires is **F
 | Personal / consumer | Debt consolidation (`DEBT_CONSOLIDATION`) |  | ✅ |  |
 | Personal / consumer | Credit card (`CREDIT_CARD`) |  | ✅ |  |
 | Personal / consumer | Buy now, pay later (`BNPL`) |  | ✅ |  |
-| Personal / consumer | Murabaha financing (`MURABAHA`) |  | ⛔ | `islamic.murabaha` (not implemented) |
+| Personal / consumer | Murabaha financing (`MURABAHA`) |  | ✅ |  |
 | Property | Home mortgage (`HOME_MORTGAGE`) | Yes | ✅ |  |
 | Property | Construction loan (`CONSTRUCTION`) |  | ✅ |  |
 | Property | Renovation loan (`RENOVATION`) |  | ✅ |  |
@@ -183,7 +183,7 @@ A product version can be activated only when every capability it requires is **F
 | Education | Student loan (`STUDENT_LOAN`) |  | ✅ |  |
 | Education | Tuition loan (`TUITION_LOAN`) |  | ✅ |  |
 | Education | Vocational training loan (`VOCATIONAL_TRAINING`) |  | ✅ |  |
-| Education | Income-contingent education loan (`INCOME_CONTINGENT_EDUCATION`) |  | ⛔ | `education.income_contingent` (not implemented) |
+| Education | Income-contingent education loan (`INCOME_CONTINGENT_EDUCATION`) |  | ✅ |  |
 | Microfinance | Individual microenterprise loan (`MICRO_INDIVIDUAL`) | Yes | ✅ |  |
 | Microfinance | Group lending (`MICRO_GROUP`) |  | ✅ |  |
 | Microfinance | Livelihood loan (`MICRO_LIVELIHOOD`) |  | ✅ |  |
@@ -211,7 +211,7 @@ A product version can be activated only when every capability it requires is **F
 | Trade / receivables | Factoring (`FACTORING`) |  | ⛔ | `trade.factoring` (not implemented) |
 | Trade / receivables | Supply-chain finance (`SUPPLY_CHAIN_FINANCE`) |  | ⛔ | `trade.supply_chain` (not implemented) |
 | Trade / receivables | Forfaiting (`FORFAITING`) |  | ⛔ | `trade.forfaiting` (not implemented) |
-| Institutional / public | Interbank loan (`INTERBANK`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
-| Institutional / public | Municipal loan (`MUNICIPAL`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
-| Institutional / public | Sovereign loan (`SOVEREIGN`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
-| Institutional / public | Development / concessional loan (`DEVELOPMENT_CONCESSIONAL`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
+| Institutional / public | Interbank loan (`INTERBANK`) |  | ✅ |  |
+| Institutional / public | Municipal loan (`MUNICIPAL`) |  | ✅ |  |
+| Institutional / public | Sovereign loan (`SOVEREIGN`) |  | ✅ |  |
+| Institutional / public | Development / concessional loan (`DEVELOPMENT_CONCESSIONAL`) |  | ✅ |  |

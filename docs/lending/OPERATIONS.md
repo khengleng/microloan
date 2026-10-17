@@ -28,6 +28,10 @@ password `Demo#Lending2026` or `$DEMO_PASSWORD`), branch-scoped relationship
 officers, approval authorities, the `KH` holiday calendar, the five Phase 1
 products already approved by a different checker and active, and verified
 borrowers. It refuses to run in production unless `DEMO_SEED_ALLOW=true`.
+It also registers five institutional counterparties (two banks, a
+municipality, a sovereign and a development bank, all in `KH`) with approved
+counterparty limits and a `KH` country limit, so the interbank, municipal,
+sovereign and development products can be originated straight away.
 
 Approvals, executions and reversals require multi-factor sign-in: enrol TOTP on
 the Settings page (`/en/settings`, MFA setup — open the URL directly; the
@@ -535,12 +539,112 @@ without S3; a temporary directory is used in development).
 * Older KYC images, legacy loan documents and application uploads appear in
   the library when it is opened; "Link older documents" does every customer.
 
+## Institutional lending (interbank, municipal, sovereign, development)
+
+Lending › Counterparties & limits; decisions D-065 and D-068 in
+[docs/servicing/DECISIONS.md](../servicing/DECISIONS.md). Off by default:
+switch on `lending.institutional` (two administrators) before originating.
+
+* **Counterparty.** An institution borrows through an ordinary borrower
+  record. A credit analyst (`credit_decision.recommend`) registers it as a
+  counterparty — `POST /lending/counterparties` with its type (`BANK`,
+  `MUNICIPALITY`, `SOVEREIGN`, `DEVELOPMENT_INSTITUTION`), risk country, LEI
+  or SWIFT, and long-term rating (S&P/Fitch scale; enter a Moody's rating at
+  its equivalent). `POST …/:counterpartyId/rating` records a new rating;
+  `…/status` suspends or reinstates (a suspended counterparty gets no
+  approvals and no payouts).
+* **Limits (maker-checker).** The analyst proposes a counterparty limit
+  (`POST …/:counterpartyId/limits`) or a country limit
+  (`POST /lending/exposure-limits/country`) with a currency and a review
+  date; a **different** credit approver approves it
+  (`POST /lending/exposure-limits/:limitId/decision`) within their approval
+  authority for `credit_decision.approve` and with MFA. An approved limit
+  replaces the one in force. After its review date a limit no longer counts:
+  renew it before then.
+* **Utilisation** is principal outstanding on active loans + loans booked but
+  not paid out + approvals not yet booked, in the limit's currency. It is
+  checked at **submission**, **approval** and **disbursement** (prepare and
+  execute): an application or payout that would breach the counterparty or
+  the country limit is refused with the figures (`COUNTERPARTY_LIMIT_EXCEEDED`,
+  `COUNTRY_LIMIT_EXCEEDED`, `…_NO_LIMIT`, `…_LIMIT_REVIEW_PASSED`,
+  `…_LIMIT_CURRENCY`), as is a counterparty below the product's minimum
+  rating or of a type the product does not lend to.
+* **Exposure view** (`GET /lending/counterparties/exposure`): each
+  counterparty and country against its limit — used, headroom, utilisation
+  and `WITHIN_LIMIT` / `NEAR_LIMIT` (90%+) / `BREACHED` / `LAPSED` — totals by
+  counterparty type, and the limits awaiting approval.
+* **Conventions.** `INTERBANK` is a money-market placement: one bullet of
+  principal and interest on the agreed maturity (`firstDueDate`, up to 366
+  days), interest ACT/360, no prepayment. `MUNICIPAL` is semi-annual level
+  instalments; `SOVEREIGN` semi-annual equal principal after up to 6 grace
+  instalments. `DEVELOPMENT_CONCESSIONAL` takes rates of 0–3% and up to 10
+  years' principal grace, and is approved only when the **grant element**
+  (debt service discounted at 5%) is at least 35% — the figure is on the
+  credit decision's assessment.
+
+## Income-contingent education loans
+
+Lending › Income assessments; decision D-066. Switch on
+`lending.education.income_contingent`.
+
+* The instalment is `repaymentRate × (income − incomeThreshold) ÷ 12`.
+  The application records the income declared at origination
+  (`terms.declaredAnnualIncome`, blank = nil while studying); below the
+  threshold nothing is due and nothing falls into arrears.
+* Interest accrues at the contract rate. What the instalment does not cover
+  is **capitalised** (on its own schedule line, up to
+  `capitalisationCap` × the amount financed) or, with
+  `unpaidInterest: SUBSIDISE`, not charged.
+* **Reassessment** — every `reassessmentMonths` (12) or on a change of
+  circumstances: `ops.maker` records the declared income with evidence
+  (`POST /lending/loans/:id/income-assessments`; preview first with
+  `GET …/income-contingent/preview?income=`); a **different** `ops.checker`
+  approves (`POST …/income-assessments/:assessmentId/decision`). Approval
+  rebuilds the schedule with the engine from the start of the next period
+  that has not begun; instalments already due, and any arrears on them, stay.
+  Without a reassessment the last instalment continues; overdue reviews are
+  listed at `GET /lending/income-contingent/reviews`.
+* **End of term.** At the start of end of day on the contract's last due
+  date, the balance carried on the final line is forgiven
+  (`ICL_FORGIVENESS`: Dr 5700 education loans forgiven, Cr loans receivable)
+  and the loan closes if nothing else is owed. Instalments in arrears are not
+  forgiven.
+* Extra payments are held as an advance (no partial prepayment); early
+  settlement repays everything; restructuring does not apply.
+
+## Murabaha
+
+Decision D-067 (flagged for Sharia board and finance sign-off). Switch on
+`lending.islamic.murabaha`.
+
+* After booking, `ops.maker` registers the asset being sold
+  (`POST /lending/loans/:id/murabaha`: type, description, supplier, cost).
+  The cost must equal what is financed plus any down payment. The payout
+  must go to its supplier, dealer or seller — never the customer — and is
+  refused until the asset is registered.
+* The contract (`GET /lending/loans/:id/murabaha`, and on the loan screen)
+  shows **cost, profit and sale price** — the profit is fixed when the
+  contract is booked — the instalments, the ibra' promised on early
+  settlement, and how the profit is recognised.
+* Accounting: cost receivable `1350`, profit receivable as earned `1355`,
+  profit income `4700` (never interest income); the unearned profit is
+  carried as a memo pair (Dr `1360` / Cr `2510` deferred profit) from the
+  sale and released as profit is earned — trued up at end of day and when
+  the contract ends. Late charges (a flat amount per late instalment) go to
+  the charity payable `2800`.
+* **Early settlement**: the quote charges profit earned to date plus the
+  unearned profit less the product's `murabaha.ibraShare` (default all of
+  it); a product without ibra' collects the remaining sale price in full.
+  No partial prepayment, restructuring or refinancing.
+
 ## Known limitations
 
-* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
-  factoring, forfaiting, supply-chain finance, income-contingent education,
-  syndication, project finance, institutional lending, Murabaha, Ijarah,
+* Not implemented (templates seeded unavailable): see the generated
+  [capability matrix](CAPABILITY_MATRIX.md) — e.g. borrowing bases,
+  connected-party (group) exposure, project finance and some trade products,
   emergency (break-glass) access.
+* Institutional limits are per currency (no FX conversion of exposures) and
+  per counterparty and country only; connected groups are not aggregated.
 * Reversal is latest-first and not available for repayments that triggered a
   prepayment reschedule; amendment reversal only before later activity.
 * Money with no loan goes to the unidentified-payments suspense account
@@ -565,6 +669,9 @@ without S3; a temporary directory is used in development).
 | Customer portal | `POST portal/loans/:loanId/restructure-requests`, `GET portal/restructures`, `GET portal/restructures/:id`, `POST portal/restructures/:id/proposals/:pid/accept` |
 | Payment channels | `GET/PUT payment-channels/settings`, `POST payment-channels/{settlement-files,payroll-files}`, `GET payment-channels/files`, `GET payment-channels/files/:fileId`, `GET payment-channels/reconciliation?date=&channel=`, `GET payment-channels/payroll-summary`, `GET payment-channels/auto-debit/attempts`; loans: `GET/POST :id/mandates`, `POST :id/mandates/:mandateId/revoke`, `GET :id/fx-quote`, `POST :id/fx-repayments`; service key: `POST integrations/{settlement-files,payroll-files}` |
 | Access | `GET access`, `POST access/{roles,assignments,delegations,authorities,policies,cohorts,simulate,service-accounts}`, decisions and revocations, `GET access/flags`, `POST access/flags/rules`, `GET access/capabilities/:type/:id` |
+| Institutional | `GET/POST counterparties`, `GET counterparties/exposure`, `GET counterparties/:counterpartyId`, `POST counterparties/:counterpartyId/{rating,status,limits}`, `GET exposure-limits`, `POST exposure-limits/country`, `POST exposure-limits/:limitId/decision` |
+| Income-contingent | `GET income-contingent/reviews`, `GET loans/:loanId/income-contingent`, `GET loans/:loanId/income-contingent/preview?income=`, `POST loans/:loanId/income-assessments`, `POST loans/:loanId/income-assessments/:assessmentId/decision` |
+| Murabaha | `GET/POST loans/:loanId/murabaha` (asset registration before payout; contract disclosure) |
 | Integrations | `POST integrations/loans/:id/repayments` (service-account key) |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
