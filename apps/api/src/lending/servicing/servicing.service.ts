@@ -954,6 +954,7 @@ export class ServicingService {
     let prepaid = ZERO();
     let prepaymentFee = ZERO();
     let prepaymentCharge: lending.EarlyRepaymentCharge | null = null;
+    let prepaymentWaiver: { id: string } | null = null;
     let reschedule: lending.RescheduleResult | null = null;
     if (excess.gt(0) && handling === 'ADVANCE') {
       // UC-27: held for the borrower and applied as instalments fall due. It
@@ -998,17 +999,25 @@ export class ServicingService {
           message: fixedPart.explanation,
           code: 'PREPAYMENT_LOCKED_IN',
         });
+      // An approved waiver (maker-checker) removes the charge (UC-32).
+      prepaymentWaiver = await this.approvedWaiver(
+        tx,
+        state,
+        'PARTIAL_PREPAYMENT',
+        valueDate,
+      );
       const PROBE = new lending.D(1_000_000);
-      const rate = D(chargeFor(PROBE).charge)
-        .minus(fixedPart.charge)
-        .div(PROBE);
+      const rate = prepaymentWaiver
+        ? ZERO()
+        : D(chargeFor(PROBE).charge).minus(fixedPart.charge).div(PROBE);
+      const fixedCharge = prepaymentWaiver ? ZERO() : D(fixedPart.charge);
       prepaid = lending.roundMoney(
-        excess.minus(fixedPart.charge).div(new lending.D(1).plus(rate)),
+        excess.minus(fixedCharge).div(new lending.D(1).plus(rate)),
         state.config.pricing.rounding,
       );
       if (prepaid.lte(0))
         throw new BadRequestException(
-          `The amount beyond what is due does not cover the ${fixedPart.charge} ${state.account.currency} early repayment charge.`,
+          `The amount beyond what is due does not cover the ${fixedCharge.toString()} ${state.account.currency} early repayment charge.`,
         );
       prepaymentFee = excess.minus(prepaid);
       prepaymentCharge = chargeFor(prepaid);
@@ -1144,7 +1153,10 @@ export class ServicingService {
             ? {
                 source: prepaymentCharge.source,
                 monthsElapsed: prepaymentCharge.monthsElapsed,
-                explanation: prepaymentCharge.explanation,
+                explanation: prepaymentWaiver
+                  ? `Waived (approved waiver ${prepaymentWaiver.id.slice(0, 8)}).`
+                  : prepaymentCharge.explanation,
+                waiverTaskId: prepaymentWaiver?.id,
               }
             : undefined,
           advance: advanced.toString(),
@@ -1185,6 +1197,8 @@ export class ServicingService {
       },
       allocations,
     );
+    if (prepaymentWaiver)
+      await this.consumeWaiver(tx, tenantId, prepaymentWaiver.id, event.id);
     if (body.contributions?.length)
       await this.groups.recordContributions(
         tx,
@@ -1315,7 +1329,14 @@ export class ServicingService {
         message: charge.explanation,
         code: 'SETTLEMENT_LOCKED_IN',
       });
-    const fee = D(charge.charge);
+    // An approved fee waiver (maker-checker) sets the fee to zero (UC-32).
+    const waiver = await this.approvedWaiver(
+      tx,
+      state,
+      'EARLY_SETTLEMENT',
+      asOf,
+    );
+    const fee = waiver ? ZERO() : D(charge.charge);
     // Money already held on advance goes towards the payoff (UC-27).
     const advance = D(state.account.advanceBalance);
     const total = principal
@@ -1334,7 +1355,10 @@ export class ServicingService {
       fees: D(state.account.feesReceivable).toString(),
       penalties: D(state.account.penaltyReceivable).toString(),
       settlementFee: fee.toString(),
-      settlementFeeExplanation: charge.explanation,
+      settlementFeeExplanation: waiver
+        ? `Waived (approved waiver ${waiver.id.slice(0, 8)}); would have been: ${charge.explanation}`
+        : charge.explanation,
+      feeWaiverTaskId: waiver?.id ?? null,
       interestRebate: rebate
         ? {
             method: rebate.method,
@@ -1527,6 +1551,8 @@ export class ServicingService {
         collectionStage: null,
         lastAccrualDate: state.account.lastAccrualDate,
       });
+      if (q.feeWaiverTaskId)
+        await this.consumeWaiver(tx, tenantId, q.feeWaiverTaskId, event.id);
       await this.outbox(tx, tenantId, 'lending.settled', {
         loanAccountId: id,
         eventId: event.id,
@@ -2358,6 +2384,167 @@ export class ServicingService {
       },
       tx,
     );
+  }
+
+  // ── Fee waivers (UC-32) ───────────────────────────────────────────────────
+
+  /** Propose waiving the early settlement or prepayment fee; a checker approves. */
+  async proposeFeeWaiver(
+    actor: LendingActor,
+    id: string,
+    body: {
+      kind: 'EARLY_SETTLEMENT' | 'PARTIAL_PREPAYMENT';
+      reason: string;
+      validUntil?: string;
+    },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      await this.policy.enforce(
+        actor,
+        'loan.fee_waiver.propose',
+        resourceOf(state),
+        tx,
+      );
+      if (state.account.status !== 'ACTIVE')
+        throw new ConflictException(`Loan is ${state.account.status}.`);
+      if (!body.reason?.trim())
+        throw new BadRequestException('A waiver needs a reason.');
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      if (
+        body.validUntil &&
+        lending.compareDates(body.validUntil, businessDate) < 0
+      )
+        throw new BadRequestException('A waiver cannot expire before today.');
+      const open = await tx.approvalTask.findMany({
+        where: {
+          tenantId,
+          subjectId: id,
+          action: 'FEE_WAIVER',
+          status: { in: ['PENDING', 'APPROVED'] },
+        },
+      });
+      if (open.some((t) => (t.payload as { kind?: string }).kind === body.kind))
+        throw new ConflictException(
+          'A waiver of this fee is already pending or approved for this loan.',
+        );
+      const task = await tx.approvalTask.create({
+        data: {
+          tenantId,
+          subjectType: 'LOAN_ACCOUNT',
+          subjectId: id,
+          action: 'FEE_WAIVER',
+          requiredPermission: 'loan.repayment.reverse',
+          currency: state.account.currency,
+          payload: {
+            kind: body.kind,
+            reason: body.reason.slice(0, 500),
+            validUntil: body.validUntil ?? null,
+          },
+          makerId: actor.id,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.fee_waiver.propose',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: { task: task.id, kind: body.kind },
+        },
+        tx,
+      );
+      return task;
+    });
+  }
+
+  /** Approve or reject a waiver; an approved one waits for the payment that uses it. */
+  async decideFeeWaiver(
+    actor: LendingActor,
+    id: string,
+    taskId: string,
+    body: { approve: boolean; comment?: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const task = await tx.approvalTask.findFirst({
+        where: { id: taskId, tenantId, subjectId: id, action: 'FEE_WAIVER' },
+      });
+      if (!task) throw new NotFoundException('Waiver proposal not found');
+      const decision = await this.policy.enforce(
+        actor,
+        'loan.fee_waiver.approve',
+        resourceOf(state, [task.makerId]),
+        tx,
+      );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'PENDING' },
+        data: {
+          status: body.approve ? 'APPROVED' : 'REJECTED',
+          decidedBy: actor.id,
+          decidedAt: new Date(),
+          comment: body.comment?.slice(0, 500),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This waiver proposal');
+      await this.audit.write(
+        {
+          actor,
+          action: body.approve
+            ? 'loan.fee_waiver.approve'
+            : 'loan.fee_waiver.reject',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          decision,
+          details: { task: taskId },
+        },
+        tx,
+      );
+      return tx.approvalTask.findFirst({ where: { id: taskId, tenantId } });
+    });
+  }
+
+  private async approvedWaiver(
+    tx: Tx,
+    state: LoanState,
+    kind: 'EARLY_SETTLEMENT' | 'PARTIAL_PREPAYMENT',
+    asOf: string,
+  ) {
+    const tasks = await tx.approvalTask.findMany({
+      where: {
+        tenantId: state.account.tenantId,
+        subjectId: state.account.id,
+        action: 'FEE_WAIVER',
+        status: 'APPROVED',
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return (
+      tasks.find((t) => {
+        const p = t.payload as { kind?: string; validUntil?: string | null };
+        return (
+          p.kind === kind &&
+          (!p.validUntil || lending.compareDates(asOf, p.validUntil) <= 0)
+        );
+      }) ?? null
+    );
+  }
+
+  private async consumeWaiver(
+    tx: Tx,
+    tenantId: string,
+    taskId: string,
+    eventId: string,
+  ) {
+    const res = await tx.approvalTask.updateMany({
+      where: { id: taskId, tenantId, status: 'APPROVED' },
+      data: { status: 'EXECUTED', comment: `Used by event ${eventId}` },
+    });
+    if (res.count !== 1) throw concurrentModification('This fee waiver');
   }
 
   // ── Refund of money held for the borrower (UC-74) ─────────────────────────

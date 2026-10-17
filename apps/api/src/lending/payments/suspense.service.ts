@@ -71,6 +71,16 @@ export class SuspenseService {
         orderBy: { valueDate: 'asc' },
       });
       const open = rows.filter((r) => r.status === 'OPEN');
+      // Refund proposals waiting for a checker, so any session can decide them.
+      const pending = await tx.approvalTask.findMany({
+        where: {
+          tenantId,
+          subjectType: 'UNIDENTIFIED_PAYMENT',
+          action: 'SUSPENSE_REFUND',
+          status: 'PENDING',
+        },
+      });
+      const pendingFor = new Map(pending.map((t) => [t.subjectId, t]));
       return {
         businessDate: today,
         totals: {
@@ -89,6 +99,18 @@ export class SuspenseService {
             ...m,
             amount: m.amount.toString(),
           })),
+          pendingRefund: (() => {
+            const t = pendingFor.get(r.id);
+            return t
+              ? {
+                  taskId: t.id,
+                  amount: t.amount?.toString() ?? '0',
+                  currency: t.currency ?? r.currency,
+                  reason: (t.payload as { reason?: string }).reason ?? '',
+                  makerId: t.makerId,
+                }
+              : null;
+          })(),
         })),
       };
     });

@@ -666,6 +666,27 @@ export class LendingLoansController {
     return this.servicing.proposeWriteOff(actor(req), id, body);
   }
 
+  @LendingAction('loan.fee_waiver.propose')
+  @Post(':id/fee-waivers')
+  proposeFeeWaiver(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.feeWaiver)) body: never,
+  ) {
+    return this.servicing.proposeFeeWaiver(actor(req), id, body);
+  }
+
+  @LendingAction('loan.fee_waiver.approve')
+  @Post(':id/fee-waivers/:taskId/decision')
+  decideFeeWaiver(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+  ) {
+    return this.servicing.decideFeeWaiver(actor(req), id, taskId, body);
+  }
+
   @LendingAction('loan.advance_refund.propose')
   @Post(':id/advance-refunds')
   proposeAdvanceRefund(

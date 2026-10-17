@@ -106,6 +106,13 @@ export const S = {
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
     })
     .strict(),
+  feeWaiver: z
+    .object({
+      kind: z.enum(['EARLY_SETTLEMENT', 'PARTIAL_PREPAYMENT']),
+      reason: z.string().min(3).max(500),
+      validUntil: date.optional(),
+    })
+    .strict(),
   refundProposal: z
     .object({ amount: money, reason: z.string().min(3).max(500) })
     .strict(),

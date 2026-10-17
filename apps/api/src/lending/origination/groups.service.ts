@@ -718,6 +718,7 @@ function membershipView(m: MembershipRow) {
 }
 
 function bindingView(b: {
+  loanAccountId: string;
   borrowerId: string;
   role: string;
   liability: string;
@@ -726,6 +727,7 @@ function bindingView(b: {
   liableFor: unknown;
 }) {
   return {
+    loanAccountId: b.loanAccountId,
     borrowerId: b.borrowerId,
     role: b.role,
     liability: b.liability,

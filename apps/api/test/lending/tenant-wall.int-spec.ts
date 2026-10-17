@@ -87,6 +87,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'suspense/:id': 'unidentifiedPayment',
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
+      'fee-waivers/:taskId': 'approvalTask',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

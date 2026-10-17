@@ -151,6 +151,12 @@ d('Unidentified payments and refunds (integration)', () => {
         reason: 'Payer had no loan with us',
       }),
     );
+    // Any session sees the proposal waiting on the receipt.
+    const waiting = expectOk(await f.as('opsChecker').get('/lending/suspense'));
+    expect(
+      waiting.payments.find((x: any) => x.id === paymentId).pendingRefund
+        .taskId,
+    ).toBe(task.id);
     // The proposer cannot approve their own refund.
     const own = await f
       .as('opsMaker')
