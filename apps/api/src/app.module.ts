@@ -12,6 +12,7 @@ import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { MetricsModule } from './observability/metrics/metrics.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -70,6 +71,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
       },
     }),
     PrismaModule,
+    MetricsModule,
     // Global, like PrismaModule: QuotaGuard is applied across feature modules
     // and resolves plan ceilings from it. Listed early so it is available to
     // everything that follows.

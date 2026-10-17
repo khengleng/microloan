@@ -1,0 +1,151 @@
+# Prometheus alerting rules for the microloan API.
+# Metrics are documented in docs/lending/OPERATIONS.md (Monitoring); the
+# scrape job is expected to be named "microloan-api" (see DEPLOYMENT.md).
+# Load with: rule_files: [ops/monitoring/prometheus-alerts.yml]
+groups:
+  - name: microloan-api-availability
+    rules:
+      - alert: ApiDown
+        expr: up{job="microloan-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: An API instance is not answering scrapes
+          description: Prometheus cannot scrape {{ $labels.instance }}. Check /v1/health/live and the instance logs.
+
+      - alert: ApiHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="microloan-api",status="5xx"}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="microloan-api"}[5m])), 1e-9) > 0.02
+          and sum(rate(http_requests_total{job="microloan-api"}[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 2% of API requests fail with a 5xx
+          description: Look at Sentry for the failing routes; http_requests_total by route shows which ones.
+
+      - alert: ApiSlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="microloan-api",route!="unmatched"}[10m]))) > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: API p95 latency above 2 seconds
+          description: The 95th percentile request takes more than 2s. Check database pool saturation (prisma_pool_connections_busy) and slow routes.
+
+      - alert: DatabasePoolSaturated
+        expr: |
+          max by (instance) (prisma_pool_connections_busy{job="microloan-api"})
+            / max by (instance) (lending_db_pool_size{job="microloan-api"}) >= 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Database connection pool nearly exhausted on {{ $labels.instance }}
+          description: Busy connections are at 90% or more of connection_limit. Requests queue for a connection; end of day may be running with too high a LENDING_EOD_CONCURRENCY for the pool.
+
+      - alert: DatabaseConnectionsNearServerLimit
+        expr: sum(max by (state) (lending_db_connections{job="microloan-api"})) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: The application holds more than 80 database connections
+          description: Across all instances. PostgreSQL's max_connections is commonly 100; lower connection_limit per instance or add a pooler.
+
+  - name: microloan-lending-end-of-day
+    rules:
+      - alert: LendingEndOfDayBehind
+        expr: max(lending_eod_tenants_behind) > 0
+        for: 2h
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} tenant(s) have not completed end of day for yesterday"
+          description: Accrual, penalties and delinquency are stale. Check the API logs for "End-of-day run failed" and the lending-end-of-day job; run it from Lending › Operations once the cause is fixed.
+
+      - alert: LendingEndOfDayFailures
+        expr: max(lending_eod_tenants_with_failures) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: The last end of day left failed loans for {{ $value }} tenant(s)
+          description: Failed loans were skipped and will be retried by the next run. Month-end close is blocked until a clean run. The failures are in the API logs ("EOD ... failed").
+
+      - alert: LendingEndOfDayLoansFailing
+        expr: increase(lending_eod_loans_failed_total[1h]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} loan(s) failed in end of day in the last hour"
+          description: See the API logs for the per-loan errors.
+
+      - alert: LendingEndOfDaySlow
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(lending_eod_run_duration_seconds_bucket[1d]))) > 3600
+        labels:
+          severity: warning
+        annotations:
+          summary: End-of-day runs take more than an hour
+          description: Raise LENDING_EOD_CONCURRENCY (within the pool size) or check per-loan time (lending_eod_loan_duration_seconds). See docs/lending/PERFORMANCE.md.
+
+  - name: microloan-lending-books
+    rules:
+      - alert: LendingReconciliationBreaks
+        expr: max(lending_reconciliation_breaks) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} sub-ledger to ledger break(s)"
+          description: The latest reconciliation found loan balances that differ from the journal. Open Accounting › Reconciliation for the affected tenants; nothing is corrected automatically.
+
+      - alert: LendingReconciliationStale
+        expr: |
+          max(lending_tenants_with_active_loans) > 0
+          and (time() - min(lending_reconciliation_oldest_run_timestamp_seconds)) > 2 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: A tenant has not been reconciled for two days
+          description: The reconciliation monitor (LENDING_RECONCILIATION_CRON) has not run or keeps failing (lending_metrics_collector_errors_total{job="reconciliation"}).
+
+      - alert: LendingMonthEndCloseWaiting
+        expr: sum(max by (status) (lending_month_end_closes_pending)) > 0
+        for: 3d
+        labels:
+          severity: warning
+        annotations:
+          summary: A month-end close has waited three days for approval
+          description: A prepared close (or a reopen request) needs a second person in Lending › Period close.
+
+      - alert: LendingMonthEndNotPrepared
+        expr: max(lending_month_end_closes_not_prepared) > 0
+        for: 5d
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} tenant(s) have not prepared last month's close"
+          description: End of day prepares the close automatically when its checks pass; a failing check (reconciliation, failed loans, previous month open) keeps it open. See the period's checks in Lending › Period close.
+
+      - alert: LendingOutboxBacklog
+        expr: max(lending_outbox_backlog{status="PENDING"}) > 1000 or max(lending_outbox_oldest_pending_age_seconds) > 900
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Lending outbox is not draining
+          description: Notifications and integrations are delayed. Check the outbox worker (LENDING_OUTBOX_DISABLED) and lending_outbox_backlog{status="FAILED"}.
+
+      - alert: LendingMetricsCollectorFailing
+        expr: increase(lending_metrics_collector_errors_total{job="refresh"}[15m]) >= 3
+        labels:
+          severity: warning
+        annotations:
+          summary: The lending metrics refresh keeps failing
+          description: Gauges for end of day, month end, reconciliation and the outbox are stale. See the API logs ("Metrics refresh failed").

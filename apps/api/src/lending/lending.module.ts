@@ -35,6 +35,7 @@ import { ImpairmentService } from './accounting/impairment.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
+import { LendingMetricsCollector } from './monitoring/lending-metrics.collector';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { InvoiceFinanceService } from './trade/invoice-finance.service';
 import { LettersOfCreditService } from './trade/letters-of-credit.service';
@@ -162,6 +163,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     BnplLeaseService,
     RateResetService,
     EodSchedulerService,
+    LendingMetricsCollector,
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,
