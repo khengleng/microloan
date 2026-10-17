@@ -36,5 +36,13 @@ Last reviewed 17 Oct 2026.
 | RLS policies allow every row when `app.tenant_id` is unset, and it is only set inside lending tenant transactions. Reads outside a transaction rely on walls 1–4. | Medium | Set the tenant on every request-scoped connection (Prisma client extension), then make the policies deny when unset, with an explicit bypass for system jobs. |
 | Legacy core-app tables have no RLS (listed in the test). | Medium | Add policies once the tenant is set per request (previous item). |
 | Lending references without a database foreign key (e.g. `LoanAccount.borrowerId`) are protected by the guard and the services, not by the database. | Low | Add composite `(tenantId, id)` foreign keys, `NOT VALID` first, then validate after checking production data. |
-| Google sign-in links an existing password account by email automatically, including administrators, and ignores the lockout. | Low–medium (account takeover inside a tenant if an email is compromised) | Link only from a signed-in session; never auto-link administrators. |
-| The same Telegram bot token can be saved by two organisations. | Low (requires the other's secret token) | Store a hash of the token with a unique constraint. |
+
+## Fixed in this review
+
+- A document could be pointed at another tenant's stored file and downloaded or deleted (document content doubled as the storage key).
+- A phone number shared by two organisations signed the borrower in to whichever organisation touched it last.
+- Borrower one-time codes could be re-requested to reset the attempt limit, and attempts were not counted atomically.
+- Group, flag-rule and cohort requests accepted another tenant's branch, product, user or borrower id (stored as a dangling reference).
+- The Prisma guard did not check foreign keys, nested writes or a change of `tenantId` on update.
+- The same Telegram bot token could be saved by two organisations; Google sign-in auto-linked the platform operator and ignored the lockout.
+- Inside a tenant: a tenant admin could take over a fellow admin; Excel exports, agreement key facts and the KPI overview ignored branch scope.
