@@ -110,14 +110,29 @@ async function main() {
   }
 
   // Products: drafted by the product maker, approved and activated by the product checker.
-  for (const p of PRODUCTS) {
+  // The five Phase 1 products first, then one product for every other loan type
+  // whose capabilities are implemented, so every loan type can be tried.
+  const all = [
+    ...PRODUCTS,
+    ...lending.PRODUCT_TEMPLATES.filter(
+      (tpl) => !PRODUCTS.some((p) => p.template === tpl.code) && lending.templateAvailability(tpl).available,
+    ).map((tpl) => ({ template: tpl.code, code: tpl.code.replace(/_/g, '-').slice(0, 30), name: tpl.name })),
+  ];
+  const skipped: string[] = [];
+  for (const p of all) {
     if (await prisma.lendingProduct.findFirst({ where: { tenantId: t, code: p.code } })) continue;
     const template = lending.TEMPLATE_BY_CODE[p.template];
     const config = { ...template.defaultConfig, identity: { ...template.defaultConfig.identity, name: p.name } };
     const valid = lending.validateProductConfig(config);
-    if (!valid.ok) throw new Error(`${p.code}: ${JSON.stringify(valid.issues)}`);
+    if (!valid.ok) {
+      skipped.push(`${p.code} (invalid default configuration)`);
+      continue;
+    }
     const required = [...new Set([...lending.requiredCapabilitiesFor(valid.config), ...template.extraCapabilities])].sort();
-    if (lending.missingCapabilities(required).length) throw new Error(`${p.code} needs unimplemented capabilities`);
+    if (lending.missingCapabilities(required).length) {
+      skipped.push(`${p.code} (needs ${lending.missingCapabilities(required).join(', ')})`);
+      continue;
+    }
     const product = await prisma.lendingProduct.create({ data: { tenantId: t, code: p.code, familyCode: template.familyCode, templateCode: template.code, name: p.name, createdBy: users['product.maker'] } });
     const now = new Date();
     const v = await prisma.productVersion.create({
@@ -134,12 +149,33 @@ async function main() {
         changeSummary: 'Demo product from template',
       },
     });
-    await prisma.pricingConfiguration.create({ data: { tenantId: t, productVersionId: v.id, rateType: 'FIXED', interestMethod: valid.config.pricing.interestMethod, rateConvention: valid.config.pricing.rateConvention, accrualBasis: valid.config.pricing.accrualBasis, dayCount: valid.config.pricing.dayCount, defaultAnnualRate: valid.config.pricing.fixed?.defaultAnnualRate ?? null, payload: valid.config.pricing as never } });
+    await prisma.pricingConfiguration.create({ data: { tenantId: t, productVersionId: v.id, rateType: valid.config.attributes.rateType === 'FLOATING' ? 'FLOATING' : 'FIXED', interestMethod: valid.config.pricing.interestMethod, rateConvention: valid.config.pricing.rateConvention, accrualBasis: valid.config.pricing.accrualBasis, dayCount: valid.config.pricing.dayCount, defaultAnnualRate: valid.config.pricing.fixed?.defaultAnnualRate ?? null, payload: valid.config.pricing as never } });
     await prisma.repaymentConfiguration.create({ data: { tenantId: t, productVersionId: v.id, method: valid.config.repayment.method, frequency: valid.config.repayment.frequency, payload: valid.config.repayment as never } });
     await prisma.productVersion.update({
       where: { id: v.id },
       data: { status: 'ACTIVE', submittedAt: now, checkerId: users['product.checker'], approvedAt: now, activatedBy: users['product.checker'], activatedAt: now, effectiveFrom: new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`) },
     });
+  }
+
+  if (skipped.length) console.log(`Loan types not offered yet: ${skipped.join('; ')}`);
+
+  // Demo only: switch on the loan types that ship off by default (credit
+  // lines, overdrafts, staged drawdowns, invoice finance, letters of credit,
+  // syndication, group lending, floating rates). In a real organisation each
+  // is a two-administrator change under Access & policy.
+  for (const flagKey of [
+    'lending.revolving.drawdown',
+    'lending.facility.overdraft',
+    'lending.facility.staged_drawdown',
+    'lending.trade.invoice_finance',
+    'lending.trade.letters_of_credit',
+    'lending.syndication',
+    'lending.group.joint_liability',
+    'lending.pricing.floating_rate',
+  ]) {
+    if (!(await prisma.featureFlag.findUnique({ where: { key: flagKey } }))) continue;
+    if (await prisma.flagRule.findFirst({ where: { tenantId: t, flagKey, scopeType: 'TENANT', status: 'ACTIVE' } })) continue;
+    await prisma.flagRule.create({ data: { tenantId: t, flagKey, scopeType: 'TENANT', enabled: true, status: 'ACTIVE' } });
   }
 
   // Borrowers (KYC verified, with affordability inputs).
