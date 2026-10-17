@@ -26,6 +26,7 @@ import { PolicyService } from '../policy/policy.service';
 import type { Resource } from '../policy/decision';
 import { PostingLine } from '../accounting/posting.service';
 import { ServicingService } from '../servicing/servicing.service';
+import { oncePerRun } from '../servicing/batch-scope';
 import {
   LoanState,
   contractualAccrual,
@@ -1720,7 +1721,15 @@ export class RestructuringService implements OnModuleInit {
     actor: LendingActor,
   ): Promise<void> {
     const tenantId = state.account.tenantId;
-    const { settings } = await this.policySettings(tenantId, tx);
+    // Within an end-of-day run the tenant's policy is read once, outside any
+    // one loan's transaction (so a loan that fails cannot fail the read for
+    // the others); otherwise in this transaction as before.
+    const { settings } = await oncePerRun(
+      tenantId,
+      'restructure-policy',
+      () => this.policySettings(tenantId),
+      () => this.policySettings(tenantId, tx),
+    );
     // System referral on approved monitoring rules: opens a review, never changes terms.
     if (state.account.daysPastDue >= settings.referralDpd) {
       const open = await tx.restructureCase.findFirst({

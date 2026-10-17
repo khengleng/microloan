@@ -2291,6 +2291,8 @@ model LendingJournalLine {
 
   @@index([tenantId, accountCode])
   @@index([tenantId, loanAccountId])
+  /// The balanced-journal constraint trigger sums an entry's lines by entryId at commit.
+  @@index([entryId])
 }
 
 // ── Restructuring and hardship ─────────────────────────────────────────────

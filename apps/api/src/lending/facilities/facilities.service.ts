@@ -68,6 +68,13 @@ export class FacilitiesService {
     this.servicing.registerBatchHook(async (tx, state, businessDate) => {
       // A card ages its own minimum payments (CardsService); leave it alone.
       if (state.config.card) return;
+      // A term loan has no facility: only a non-TERM facility config is ever
+      // booked as one (ApplicationsService.bookFacility), and later agreement
+      // versions carry the config over, so there is nothing to look up.
+      if (state.config.facility?.type === 'TERM') {
+        state.externalDpd = 0;
+        return;
+      }
       state.externalDpd = await this.minimumPaymentArrears(
         tx,
         state.account.tenantId,
