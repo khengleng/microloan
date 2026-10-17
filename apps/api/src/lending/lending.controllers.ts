@@ -720,6 +720,32 @@ export class LendingLoansController {
     return this.collateral.decideRelease(actor(req), id, taskId, body);
   }
 
+  @LendingAction('loan.payoff_quote.issue')
+  @Post(':id/payoff-quotes')
+  issuePayoffQuote(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.payoffQuote)) body: never,
+  ) {
+    return this.servicing.issuePayoffQuote(actor(req), id, body);
+  }
+
+  @LendingAction('loan.read')
+  @Get(':id/payoff-quotes')
+  payoffQuotes(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.servicing.listPayoffQuotes(actor(req), id);
+  }
+
+  @LendingAction('loan.read')
+  @Get(':id/payoff-quotes/:quoteId/letter')
+  payoffLetter(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('quoteId', ID) quoteId: string,
+  ) {
+    return this.servicing.payoffLetter(actor(req), id, quoteId);
+  }
+
   @LendingAction('loan.down_payment.record')
   @Post(':id/down-payments')
   recordDownPayment(

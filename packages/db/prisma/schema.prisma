@@ -1956,6 +1956,7 @@ model LoanAccount {
   downPaymentReceived    Decimal          @default(0) @db.Decimal(24, 4)
   downPaymentHeld        Decimal          @default(0) @db.Decimal(24, 4)
   marginCalls            MarginCall[]
+  payoffQuotes           PayoffQuote[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2676,4 +2677,33 @@ model MarginCall {
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
+}
+
+/// A payoff quote issued as a letter, valid to a date (UC-31), for the
+/// borrower or for a lender taking the loan over (UC-34).
+model PayoffQuote {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  loanAccountId      String
+  loanAccount        LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  reference          String
+  /// BORROWER or TAKEOVER
+  purpose            String
+  recipientName      String      @default("")
+  recipientReference String      @default("")
+  issuedOn           DateTime    @db.Date
+  expiresOn          DateTime    @db.Date
+  currency           String
+  /// [{ date, payable }] for each day the quote is good through.
+  goodThrough        Json
+  perDiem            Decimal     @db.Decimal(24, 4)
+  /// ISSUED, USED, CANCELLED
+  status             String      @default("ISSUED")
+  settlementEventId  String?
+  createdBy          String
+  createdAt          DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, loanAccountId])
 }

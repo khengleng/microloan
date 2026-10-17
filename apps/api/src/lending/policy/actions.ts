@@ -154,6 +154,9 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.down_payment.record', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  A('loan.payoff_quote.issue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
   A('loan.fee_waiver.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),

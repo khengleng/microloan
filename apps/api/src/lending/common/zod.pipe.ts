@@ -427,8 +427,25 @@ export const S = {
       amount: money,
       valueDate: date.optional(),
       externalReference: z.string().max(120).optional(),
+      /** Settle against an issued payoff letter (UC-31, UC-34). */
+      payoffQuoteId: z.string().uuid().optional(),
     })
     .strict(),
+  payoffQuote: z
+    .object({
+      purpose: z.enum(['BORROWER', 'TAKEOVER']),
+      validDays: z.number().int().min(1).max(30).default(10),
+      recipientName: z.string().trim().max(200).optional(),
+      recipientReference: z.string().trim().max(120).optional(),
+    })
+    .strict()
+    .refine(
+      (b) => b.purpose !== 'TAKEOVER' || (b.recipientName ?? '').length >= 2,
+      {
+        message: 'A takeover quote names the acquiring lender.',
+        path: ['recipientName'],
+      },
+    ),
   reversal: z
     .object({
       reason: z.string().min(3).max(500),

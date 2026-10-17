@@ -1640,10 +1640,192 @@ export class ServicingService {
     };
   }
 
+  // ── Payoff letters (UC-31, UC-34) ─────────────────────────────────────────
+
+  /**
+   * Issue a payoff quote valid for `validDays`: the amount to settle on each
+   * day it is good through, with the daily interest in between. A TAKEOVER
+   * quote is addressed to the lender buying the loan out.
+   */
+  async issuePayoffQuote(
+    actor: LendingActor,
+    id: string,
+    body: {
+      purpose: 'BORROWER' | 'TAKEOVER';
+      validDays: number;
+      recipientName?: string;
+      recipientReference?: string;
+    },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      await this.policy.enforce(
+        actor,
+        'loan.payoff_quote.issue',
+        resourceOf(state),
+        tx,
+      );
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const goodThrough: { date: string; payable: string }[] = [];
+      for (let k = 0; k <= body.validDays; k++) {
+        const date = lending.addDays(businessDate, k);
+        goodThrough.push({
+          date,
+          payable: (await this.quote(tx, state, date)).payable,
+        });
+      }
+      const perDiem =
+        goodThrough.length > 1
+          ? D(goodThrough[1].payable).minus(D(goodThrough[0].payable))
+          : ZERO();
+      const count = await tx.payoffQuote.count({
+        where: { tenantId, loanAccountId: id },
+      });
+      const row = await tx.payoffQuote.create({
+        data: {
+          tenantId,
+          loanAccountId: id,
+          reference: `PQ-${state.account.reference}-${count + 1}`,
+          purpose: body.purpose,
+          recipientName: body.recipientName ?? '',
+          recipientReference: body.recipientReference ?? '',
+          issuedOn: fromLocalDate(businessDate),
+          expiresOn: fromLocalDate(goodThrough[goodThrough.length - 1].date),
+          currency: state.account.currency,
+          goodThrough,
+          perDiem: lending.D.max(0, perDiem).toString(),
+          createdBy: actor.id,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.payoff_quote.issue',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            quote: row.reference,
+            purpose: body.purpose,
+            expiresOn: goodThrough[goodThrough.length - 1].date,
+          },
+        },
+        tx,
+      );
+      return this.payoffView(row);
+    });
+  }
+
+  async listPayoffQuotes(actor: LendingActor, id: string) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id, { lock: false });
+      await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
+      const rows = await tx.payoffQuote.findMany({
+        where: { tenantId, loanAccountId: id },
+        orderBy: { createdAt: 'desc' },
+      });
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      return rows.map((r) => this.payoffView(r, businessDate));
+    });
+  }
+
+  /** The payoff letter as text, ready to print or send. */
+  async payoffLetter(actor: LendingActor, id: string, quoteId: string) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id, { lock: false });
+      await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
+      const q = await tx.payoffQuote.findFirst({
+        where: { id: quoteId, tenantId, loanAccountId: id },
+      });
+      if (!q) throw new NotFoundException('Payoff quote not found');
+      const [tenant, borrower] = await Promise.all([
+        tx.tenant.findFirst({
+          where: { id: tenantId },
+          select: { name: true },
+        }),
+        tx.borrower.findFirst({
+          where: { id: state.account.borrowerId, tenantId },
+          select: { firstName: true, lastName: true },
+        }),
+      ]);
+      const v = this.payoffView(q);
+      const who =
+        `${borrower?.firstName ?? ''} ${borrower?.lastName ?? ''}`.trim();
+      const to = q.purpose === 'TAKEOVER' ? q.recipientName : who;
+      const lines = [
+        `${tenant?.name ?? ''}`,
+        `Payoff letter ${q.reference} — issued ${v.issuedOn}`,
+        '',
+        `To: ${to}${q.recipientReference ? ` (ref. ${q.recipientReference})` : ''}`,
+        `Re: loan ${state.account.reference} of ${who}`,
+        '',
+        q.purpose === 'TAKEOVER'
+          ? `At the borrower's request, this states the amount that will repay loan ${state.account.reference} in full if received from ${q.recipientName} on the dates below.`
+          : `The amount that will repay loan ${state.account.reference} in full if received on the dates below:`,
+        '',
+        ...v.goodThrough.map((g) => `  ${g.date}   ${q.currency} ${g.payable}`),
+        '',
+        `Interest accrues at about ${q.currency} ${v.perDiem} a day. This letter is valid until ${v.expiresOn}; after that, ask for a new one.`,
+        `Quote reference ${q.reference} and loan ${state.account.reference} with the payment. Late charges or payments posted after issue change the amount; any difference is returned or requested.`,
+        q.purpose === 'TAKEOVER'
+          ? 'On receipt of the full amount the loan is closed and any security over it is released to the borrower or as instructed in writing.'
+          : 'On receipt of the full amount the loan is closed and a closure letter is issued.',
+      ];
+      return { ...v, letter: lines.join('\n') };
+    });
+  }
+
+  private payoffView(
+    r: {
+      id: string;
+      reference: string;
+      purpose: string;
+      recipientName: string;
+      recipientReference: string;
+      issuedOn: Date;
+      expiresOn: Date;
+      currency: string;
+      goodThrough: unknown;
+      perDiem: unknown;
+      status: string;
+      settlementEventId: string | null;
+    },
+    businessDate?: string,
+  ) {
+    const expiresOn = toLocalDate(r.expiresOn)!;
+    return {
+      id: r.id,
+      reference: r.reference,
+      purpose: r.purpose,
+      recipientName: r.recipientName,
+      recipientReference: r.recipientReference,
+      issuedOn: toLocalDate(r.issuedOn)!,
+      expiresOn,
+      currency: r.currency,
+      goodThrough: r.goodThrough as { date: string; payable: string }[],
+      perDiem: String(r.perDiem),
+      status:
+        r.status === 'ISSUED' &&
+        businessDate &&
+        lending.compareDates(businessDate, expiresOn) > 0
+          ? 'EXPIRED'
+          : r.status,
+      settlementEventId: r.settlementEventId,
+    };
+  }
+
   async settle(
     actor: LendingActor,
     id: string,
-    body: { amount: string; valueDate?: string; externalReference?: string },
+    body: {
+      amount: string;
+      valueDate?: string;
+      externalReference?: string;
+      payoffQuoteId?: string;
+    },
     idempotencyKey: string,
   ) {
     const tenantId = requireTenant(actor);
@@ -1662,7 +1844,12 @@ export class ServicingService {
     tx: Tx,
     actor: LendingActor,
     id: string,
-    body: { amount: string; valueDate?: string; externalReference?: string },
+    body: {
+      amount: string;
+      valueDate?: string;
+      externalReference?: string;
+      payoffQuoteId?: string;
+    },
     idempotencyKey: string,
     hash: string,
     opts: { fundingAccount?: string; authorizedByDisbursement?: boolean } = {},
@@ -1690,6 +1877,32 @@ export class ServicingService {
       state.config.repayment.maxBackdateDays,
     );
     const q = await this.quote(tx, state, valueDate);
+    // UC-31: a payoff letter must be in date, unused, and still state the amount owed.
+    const letter = body.payoffQuoteId
+      ? await tx.payoffQuote.findFirst({
+          where: { id: body.payoffQuoteId, tenantId, loanAccountId: id },
+        })
+      : null;
+    if (body.payoffQuoteId) {
+      if (!letter || letter.status !== 'ISSUED')
+        throw new BadRequestException({
+          message: 'This payoff letter cannot be used.',
+          code: 'PAYOFF_QUOTE_INVALID',
+        });
+      const line = (
+        letter.goodThrough as { date: string; payable: string }[]
+      ).find((g) => g.date === valueDate);
+      if (!line)
+        throw new BadRequestException({
+          message: `Payoff letter ${letter.reference} is not good on ${valueDate}; it runs to ${toLocalDate(letter.expiresOn)}.`,
+          code: 'PAYOFF_QUOTE_EXPIRED',
+        });
+      if (!D(line.payable).eq(q.payable))
+        throw new BadRequestException({
+          message: `The balance has changed since letter ${letter.reference} was issued: ${q.payable} ${state.account.currency} is now owed on ${valueDate}, not ${line.payable}.`,
+          code: 'PAYOFF_QUOTE_STALE',
+        });
+    }
     if (!amount.eq(q.payable))
       throw new BadRequestException(
         `The settlement amount on ${valueDate} is ${q.payable} ${state.account.currency}.`,
@@ -1846,6 +2059,13 @@ export class ServicingService {
     });
     if (q.feeWaiverTaskId)
       await this.consumeWaiver(tx, tenantId, q.feeWaiverTaskId, event.id);
+    if (letter) {
+      const used = await tx.payoffQuote.updateMany({
+        where: { id: letter.id, tenantId, status: 'ISSUED' },
+        data: { status: 'USED', settlementEventId: event.id },
+      });
+      if (used.count !== 1) throw concurrentModification('This payoff letter');
+    }
     await this.outbox(tx, tenantId, 'lending.settled', {
       loanAccountId: id,
       eventId: event.id,

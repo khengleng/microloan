@@ -18,6 +18,7 @@ import { RestructuredBadge } from './LoansList';
 import { DisbursementPanel } from './DisbursementPanel';
 import { RepaymentForm } from './RepaymentForm';
 import { SettlementPanel } from './SettlementPanel';
+import { PayoffLettersPanel } from './PayoffLettersPanel';
 import { ReverseEventForm } from './ReverseEvent';
 import { WriteOffPanel } from './WriteOffPanel';
 import { EventsTable } from './EventsTable';
@@ -45,7 +46,7 @@ const ACTIONS = [
     { code: 'loan.advance_refund.approve', label: 'Approve advance refund' },
 ];
 
-type Panel = 'disburse' | 'repay' | 'settle' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
+type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
 
 export function LoanDetailView({ id }: { id: string }) {
     const href = useLendingHref();
@@ -148,6 +149,7 @@ export function LoanDetailView({ id }: { id: string }) {
                         {isActive && actionBtn('Post repayment', 'repay', ['loan.repayment.post'], 'primary')}
                         {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}
                         {isActive && actionBtn('Early settlement', 'settle', ['loan.repayment.post'])}
+                        {isActive && actionBtn('Payoff letters', 'payoff', ['loan.repayment.post'])}
                         {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? 'Write-off decision' : 'Propose write-off', 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
                         {isActive && actionBtn('Request restructure', 'restructure', ['restructure.request'])}
                         {isActive && actionBtn('Negotiated settlement', 'negotiated', ['loan.settlement.negotiate'])}
@@ -163,6 +165,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {panel === 'disburse' && <DisbursementPanel loanId={id} currency={cur} account={acc} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'settle' && <SettlementPanel loanId={id} can={c} onDone={done} onClose={close} />}
+                    {panel === 'payoff' && <PayoffLettersPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'writeoff' && <WriteOffPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'group-repay' && (
                         <div className="space-y-2">

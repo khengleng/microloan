@@ -91,6 +91,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'impairment-policy/:id': 'impairmentPolicy',
       'collateral/:collateralId': 'collateralAsset',
       'collateral-releases/:taskId': 'approvalTask',
+      'payoff-quotes/:quoteId': 'payoffQuote',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
