@@ -29,6 +29,7 @@ d('Relief and refinancing (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'approver2', 'RESTRUCTURE_COMMITTEE');
+    await grant(f, f.t1, 'approver', 'RESTRUCTURE_COMMITTEE');
     await grant(f, f.t1, 'opsMaker', 'COLLECTIONS_OFFICER');
     await setBusinessDate('2026-01-05');
   }, 60_000);
