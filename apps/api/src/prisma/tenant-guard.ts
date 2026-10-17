@@ -73,6 +73,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'LoanCovenant',
   'AccountingPeriod',
   'MigrationBatch',
+  'WebhookEndpoint',
+  'WebhookDelivery',
   'MigrationRow',
   'PeriodCloseLog',
   'RegulatoryReturn',

@@ -247,6 +247,13 @@ export const S = {
       comment: z.string().max(500).optional(),
     })
     .strict(),
+  webhookCreate: z
+    .object({
+      url: z.string().trim().min(8).max(500),
+      description: z.string().max(200).optional(),
+      topics: z.array(z.string().max(80)).min(1).max(30),
+    })
+    .strict(),
   migrationUpload: z
     .object({
       fileName: z.string().trim().min(1).max(200),

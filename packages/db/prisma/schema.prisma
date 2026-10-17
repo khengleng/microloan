@@ -2539,8 +2539,11 @@ model OutboxMessage {
   sentAt      DateTime?
   lastError   String?
   createdAt   DateTime  @default(now())
+  /// When the message was fanned out to the tenant's webhook endpoints.
+  webhooksQueuedAt DateTime?
 
   @@index([status, availableAt])
+  @@index([webhooksQueuedAt, createdAt])
 }
 
 /// Immutable lending audit trail, including authorization decisions.
@@ -3912,4 +3915,58 @@ model RegulatoryReturn {
   @@unique([tenantId, id])
   @@unique([tenantId, year, month, version])
   @@index([tenantId, year, month])
+}
+
+/// An HTTPS endpoint of the tenant's own systems that receives its lending
+/// events, signed with a secret only the tenant holds. Activated by a second
+/// administrator.
+model WebhookEndpoint {
+  id                  String            @id @default(uuid())
+  tenantId            String
+  url                 String
+  description         String            @default("")
+  /// Event topics delivered; ["*"] for all.
+  topics              String[]
+  /// The signing secret, encrypted at rest.
+  secret              String
+  secretPrefix        String
+  /// PENDING_APPROVAL, ACTIVE, DISABLED
+  status              String            @default("PENDING_APPROVAL")
+  createdBy           String
+  approvedBy          String?
+  consecutiveFailures Int               @default(0)
+  lastDeliveryAt      DateTime?
+  lastSuccessAt       DateTime?
+  disabledReason      String            @default("")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deliveries          WebhookDelivery[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// One event sent (or to be sent) to one endpoint, with its attempts.
+model WebhookDelivery {
+  id              String          @id @default(uuid())
+  tenantId        String
+  endpointId      String
+  endpoint        WebhookEndpoint @relation(fields: [tenantId, endpointId], references: [tenantId, id], onDelete: Cascade)
+  outboxMessageId String?
+  topic           String
+  payload         Json
+  /// PENDING, SENT, FAILED
+  status          String          @default("PENDING")
+  attempts        Int             @default(0)
+  nextAttemptAt   DateTime        @default(now())
+  responseStatus  Int?
+  lastError       String          @default("")
+  durationMs      Int?
+  deliveredAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([endpointId, outboxMessageId])
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, endpointId, createdAt])
 }

@@ -657,6 +657,7 @@
       "regulatoryReturns": "Regulatory returns",
       "combinedLedger": "Combined ledger",
       "migration": "Loan-book migration",
+      "webhooks": "Webhooks",
       "operations": "End of day & operations",
       "legacyAccounting": "Accounting (original)",
       "provisioning": "Provisioning",

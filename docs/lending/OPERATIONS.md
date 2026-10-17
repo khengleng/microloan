@@ -203,6 +203,25 @@ Out of scope for files: facilities, cards, group loans, floating-rate,
 balloon and explicitly dated schedules (book them in the platform or migrate
 them as instalment loans).
 
+## Webhooks
+
+Lending › Webhooks (administrators: `access_policy.manage` registers,
+`access_policy.approve` — a different person — activates). An endpoint is an
+HTTPS URL on the public internet (private, loopback and link-local addresses
+are refused when registered and again before every delivery;
+`WEBHOOK_ALLOW_PRIVATE_NETWORKS=true` relaxes this outside production for
+local testing). Its signing secret is shown once and stored encrypted.
+
+Every lending event already passes through the transactional outbox; a job
+(every 15 s, `LENDING_WEBHOOKS_DISABLED=true` to stop it) fans each message out
+once to the matching active endpoints and POSTs `{ id, type, createdAt, data }`
+with `X-Webhook-Id`, `X-Webhook-Timestamp` and `X-Webhook-Signature`
+(`v1=` HMAC-SHA256 of `timestamp.body`). Non-2xx answers are retried with
+backoff up to 15 times; an endpoint failing 50 times in a row is switched off
+and needs a second administrator to turn back on. The console shows each
+endpoint's deliveries, lets a failed one be retried, sends a test event and
+rotates the secret.
+
 ## Migrations and deployment
 
 * `packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql`

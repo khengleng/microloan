@@ -19,6 +19,7 @@ import { ReportingService } from './reporting/reporting.service';
 import { PeriodCloseService } from './accounting/period-close.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
+import { WebhooksService } from './integrations/webhooks.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { SuspenseService } from './payments/suspense.service';
@@ -75,6 +76,7 @@ import {
   LendingSuspenseController,
   LendingCollectionsController,
   LendingMigrationController,
+  LendingWebhooksController,
   LendingLoansController,
   LendingOperationsController,
   LendingProductsController,
@@ -107,6 +109,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     LendingSuspenseController,
     LendingCollectionsController,
     LendingMigrationController,
+    LendingWebhooksController,
     LendingAccessController,
     LendingOperationsController,
     LendingRegulatoryController,
@@ -132,6 +135,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     PeriodCloseService,
     RegulatoryReturnService,
     LoanMigrationService,
+    WebhooksService,
     CollectionsService,
     CovenantsService,
     LendingPrisma,

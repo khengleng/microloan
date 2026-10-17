@@ -216,6 +216,18 @@ export const ACTIONS: ActionDefinition[] = [
   // Loan-book migration: one person loads and checks the file,
   // another approves posting it.
   A('loan.migration.manage', 'TENANT', 'CONFIG'),
+  // Webhooks send the organisation's events to its own systems: one
+  // administrator registers an endpoint, another activates it.
+  A('integration.webhook.read', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.read',
+  }),
+  A('integration.webhook.manage', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.manage',
+  }),
+  A('integration.webhook.approve', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.approve',
+    makerChecker: true,
+  }),
   A('loan.migration.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('accounting.period.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Regulatory returns (OPS-7): read with accounting; submission is maker-checker.

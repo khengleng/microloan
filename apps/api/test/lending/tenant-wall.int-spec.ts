@@ -96,6 +96,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'guarantor-demands/:demandId': 'guarantorDemand',
       'covenants/:covenantId': 'loanCovenant',
       'migrations/:batchId': 'migrationBatch',
+      'webhooks/:endpointId': 'webhookEndpoint',
+      'deliveries/:deliveryId': 'webhookDelivery',
       'set-offs/:taskId': 'approvalTask',
       'repossessions/:repossessionId': 'repossession',
       'pawn-items/:itemId': 'pawnItem',

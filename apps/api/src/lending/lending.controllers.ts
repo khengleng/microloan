@@ -29,6 +29,7 @@ import { SuspenseService } from './payments/suspense.service';
 import { ReportingService } from './reporting/reporting.service';
 import { PeriodCloseService } from './accounting/period-close.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
+import { WebhooksService } from './integrations/webhooks.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
@@ -969,6 +970,78 @@ export class LendingLoansController {
 }
 
 /** Unidentified payments: held in suspense, matched to loans or refunded (UC-28, UC-74). */
+/** Webhooks: the organisation's events delivered to its own systems. */
+@Controller('lending/webhooks')
+export class LendingWebhooksController {
+  constructor(private readonly webhooks: WebhooksService) {}
+
+  @LendingAction('integration.webhook.read')
+  @Get()
+  list(@Req() req: Req_) {
+    return this.webhooks.list(actor(req));
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post()
+  create(@Req() req: Req_, @Body(new ZodPipe(S.webhookCreate)) body: never) {
+    return this.webhooks.create(actor(req), body);
+  }
+
+  @LendingAction('integration.webhook.approve')
+  @Post(':endpointId/decision')
+  decide(
+    @Req() req: Req_,
+    @Param('endpointId', ID) id: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean },
+  ) {
+    return this.webhooks.decide(actor(req), id, body);
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post(':endpointId/disable')
+  disable(@Req() req: Req_, @Param('endpointId', ID) id: string) {
+    return this.webhooks.disable(actor(req), id);
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post(':endpointId/enable')
+  enable(@Req() req: Req_, @Param('endpointId', ID) id: string) {
+    return this.webhooks.reenable(actor(req), id);
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post(':endpointId/rotate-secret')
+  rotate(@Req() req: Req_, @Param('endpointId', ID) id: string) {
+    return this.webhooks.rotateSecret(actor(req), id);
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post(':endpointId/ping')
+  ping(@Req() req: Req_, @Param('endpointId', ID) id: string) {
+    return this.webhooks.ping(actor(req), id);
+  }
+
+  @LendingAction('integration.webhook.read')
+  @Get(':endpointId/deliveries')
+  deliveries(
+    @Req() req: Req_,
+    @Param('endpointId', ID) id: string,
+    @Query('status') status?: string,
+  ) {
+    return this.webhooks.deliveries(actor(req), id, { status });
+  }
+
+  @LendingAction('integration.webhook.manage')
+  @Post(':endpointId/deliveries/:deliveryId/retry')
+  retry(
+    @Req() req: Req_,
+    @Param('endpointId', ID) id: string,
+    @Param('deliveryId', ID) deliveryId: string,
+  ) {
+    return this.webhooks.retry(actor(req), id, deliveryId);
+  }
+}
+
 /** Taking over a loan book from another system. */
 @Controller('lending/migrations')
 export class LendingMigrationController {

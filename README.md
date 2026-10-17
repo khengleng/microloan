@@ -273,6 +273,10 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Collections** — an escalation ladder per product (SMS, call, visit,
   notice, legal review) feeding collector work queues; guarantor demands and
   payments; set-off of the borrower's deposit under maker-checker.
+* **Webhooks** — the organisation's lending events (disbursed, repaid,
+  closed, arrears notices, covenant breaches, month-end ready…) delivered to
+  its own systems, signed and retried, activated by a second administrator;
+  Lending › Webhooks.
 * **Loan-book migration** — take over running loans from another system:
   a CSV checked row by row (products, branches, customers, schedules) and
   against control totals, approved by a second person, posted with opening
