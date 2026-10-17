@@ -27,7 +27,7 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 
 ## Closed in this build-out
 
-Every item of the original risk ranking except the document store:
+Every item of the original risk ranking, including the customer document library (DOC-1..10):
 early payments held as advances (UC-26/27), non-accrual (UC-62),
 impairment for lending loans (OPS-5), facility term-out and arrears
 (UC-43/38), suspense and refunds (UC-28/74), the legacy payoff that could
@@ -42,12 +42,11 @@ follow-up (UC-59), and every golden test vector.
 
 | # | Gap | Items | Why it matters |
 |---|---|---|---|
-| 1 | Customer documents live in three unrelated stores, two of them as base64 in the database | DOC-1..10 | No single record of what a customer gave the bank; no retention or expiry |
-| 2 | No collection escalation engine or collector work queues in the lending stack; guarantor demand and set-off missing | UC-58, UC-60, UC-61 | Arrears follow-up relies on people remembering |
-| 3 | Payment channels beyond manual and service-account posting | UC-16, UC-18, UC-19, UC-21 | Auto-debit, wallet settlement files, payroll files and cross-currency payments must be keyed by hand |
-| 4 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
-| 5 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
-| 6 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
+| 1 | No collection escalation engine or collector work queues in the lending stack; guarantor demand and set-off missing | UC-58, UC-60, UC-61 | Arrears follow-up relies on people remembering |
+| 2 | Payment channels beyond manual and service-account posting | UC-16, UC-18, UC-19, UC-21 | Auto-debit, wallet settlement files, payroll files and cross-currency payments must be keyed by hand |
+| 3 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
+| 4 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
+| 5 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
 | 7 | Closure letter and credit bureau update; promotional rates; payoff letter | UC-75, UC-46, UC-34 | Customer and bureau communication off-system |
 
 ## Loan types
@@ -213,16 +212,16 @@ follow-up (UC-59), and every golden test vector.
 
 | ID | Status | Evidence | Gap |
 |---|---|---|---|
-| DOC-1 | ⛔ | Three separate stores: `KycDocument` (per borrower), `Document` (per legacy loan), `ApplicationDocument` (per lending application) | No single customer library |
-| DOC-2 | 🟡 | `ApplicationDocument` has file name, size, SHA-256, storage key (S3 or local); legacy vault uploads to S3 | KYC and loan documents are base64 in the database; S3 keys use the raw file name |
-| DOC-3 | 🟡 | Product config "documents and conditions"; application stage checks (int/phase1-slice.int-spec.ts) | Lending applications only |
-| DOC-4 | 🟡 | KYC review accept/reject (apps/api/src/borrower-portal/kyc-review.service.ts) | No review for other documents |
-| DOC-5 | ⛔ | — | No versions; replacing loses history |
-| DOC-6 | ⛔ | — | No expiry dates or reminders |
-| DOC-7 | ⛔ | Deleting a loan document removes the row and leaves the S3 object | No retention or legal hold |
-| DOC-8 | 🟡 | Vault serves pre-signed S3 links; role checks | KYC content rendered as a raw URL; no audit of views or downloads; no branch scope |
-| DOC-9 | 🟡 | Key facts statement versions stored (agreements) | Statements, notices and letters not filed |
-| DOC-10 | 🟡 | Portal e-KYC upload, statement and key facts download | No "documents requested from you" list |
+| DOC-1 | ✅ | One library per borrower: `CustomerDocument` + `CustomerDocumentVersion` (api/lending/documents/customer-documents.service.ts). Application uploads and portal e-KYC write through; older `KycDocument`, legacy `Document` and `ApplicationDocument` rows are linked in when a library is opened (or all at once), never moved or deleted (int/documents.int-spec.ts "DOC-1") | Collateral documents are filed against the customer with an optional `collateralId`; there is no collateral screen for them yet |
+| DOC-2 | ✅ | Object storage only (S3, or a local-disk store for development / a mounted volume); key `tenants/<tenant>/customers/<borrower>/documents/<doc>/v<n>-<uuid>`; SHA-256, size, MIME allowlist checked against the bytes (api/lending/documents/document-storage.ts; storage CHECK in migration 20261019000400; "DOC-1/DOC-2") | Older KYC images stay base64 in `KycDocument` until replaced (linked, not migrated) |
+| DOC-3 | ✅ | Required documents from the product configuration per application and stage, read from the library: missing, rejected or expired mandatory items block submission and approval (`GET /lending/applications/:id/document-checklist`, `GET /lending/customers/:id/document-checklist`; "DOC-3") | DISBURSEMENT-stage items are shown but not yet enforced at disbursement |
+| DOC-4 | ✅ | Every document version is reviewed: accept, or reject with a reason; the uploader can never review (maker-checker, `document.review`); review queue (`GET /lending/document-review-queue`; "DOC-4") | — |
+| DOC-5 | ✅ | Replacing creates version n+1; earlier versions stay downloadable; stored versions are immutable and documents are never hard-deleted (database triggers; "DOC-5") | — |
+| DOC-6 | ✅ | Issue/expiry dates; nightly job (`DOCUMENT_EXPIRY_CRON`) and on demand (`POST /lending/document-expiries/run`) flag expired documents and raise one `document.expiry_reminder` outbox notice before expiry; expiry list (`GET /lending/document-expiries`; "DOC-6") | The outbox notices are not yet delivered by SMS/Telegram (notification adapter is a mock) |
+| DOC-7 | ✅ | Retention per category or type (defaults D-011, tenant rules via `PUT /lending/document-retention`), counted from the end of the relationship; legal hold; deletion is a soft delete plus removal of the stored files, refused early or under hold, audited ("DOC-7") | Content of linked older records is kept in its old store on deletion |
+| DOC-8 | ✅ | `document.*` permissions, branch-scoped on the customer's branch; every library view, document view, link and download audited; links expire in 30 s–15 min (S3 pre-signed or HMAC-signed API link); tenant wall maps every new route ("DOC-8" ×2, int/tenant-wall.int-spec.ts) | — |
+| DOC-9 | ✅ | `fileGenerated()` for any module; key facts statement filed at booking, settlement quote letter (`POST /lending/loans/:id/settlement-quote-letter`), closure letter on settlement ("DOC-9") | Periodic statements and arrears notices are not generated yet, so not filed |
+| DOC-10 | ✅ | Portal "documents requested from you" (`GET /borrower/document-requests`), upload against a request with re-upload after rejection, own documents with download (`/borrower/my-documents`); staff raise requests from the library ("DOC-10") | — |
 
 ## Test vectors
 

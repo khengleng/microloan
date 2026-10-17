@@ -152,7 +152,16 @@ export class CustomerDocumentsService {
       select: { id: true, tenantId: true, branchId: true },
     });
     if (!b) throw new NotFoundException('Customer not found');
-    return b;
+    if (b.branchId) return b;
+    // A customer recorded without a branch is scoped by the branch of their
+    // latest application (D-014); with none, only the decision engine's
+    // "no branch scope" denial applies.
+    const app = await tx.application.findFirst({
+      where: { tenantId, borrowerId },
+      orderBy: { createdAt: 'desc' },
+      select: { branchId: true },
+    });
+    return { ...b, branchId: app?.branchId ?? null };
   }
 
   /** The customer as the decision engine sees it: tenant, branch and owner. */
