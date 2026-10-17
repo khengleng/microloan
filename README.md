@@ -62,13 +62,13 @@ Built as a modular monolith inside the same API. Detailed design in
   and Ijarah as separate structures.
 * Secured / unsecured, fixed / floating rate, green purpose, digital channel and
   recourse type are separate attributes.
-* **35 of the 55 templates are available** today. A template that needs a
+* **38 of the 56 templates are available** today. A template that needs a
   capability the engine does not have is seeded **unavailable**, and a product
   cannot be activated while any required capability is missing — the guard is
   enforced at activation, not documented and hoped for.
 * Currently unavailable: credit cards, BNPL, income-contingent education,
-  inventory-backed lending, syndicated / project / infrastructure / acquisition
-  finance, import and export finance, invoice finance, factoring, supply-chain
+  inventory-backed lending, project / infrastructure / acquisition
+  finance, import and export finance, factoring, supply-chain
   finance, forfaiting, interbank / municipal / sovereign / concessional
   lending, Murabaha and Ijarah. See the
   [capability matrix](docs/lending/CAPABILITY_MATRIX.md) (generated from code).
@@ -305,9 +305,9 @@ implemented, so the matrix is enforced, not aspirational. As it stands:
 
 | | Count |
 |---|---|
-| ✅ Fully implemented | 43 |
+| ✅ Fully implemented | 46 |
 | 🔌 Requires integration (adapter ships, no real provider) | 5 |
-| ⛔ Not implemented | 17 |
+| ⛔ Not implemented | 15 |
 
 **Needs a third-party provider** — payment rails, external KYC, credit bureau,
 notifications and external accounting have adapter interfaces with clearly
@@ -316,10 +316,12 @@ integration" until a real provider is wired and tested; the matrix will not
 claim otherwise.
 
 **Still to build** — borrowing bases, connected-party exposure, break-glass
-access, and the specialised modules: credit cards, BNPL, trade and invoice
-finance, factoring, forfaiting, supply-chain finance, income-contingent
-education, syndication, project finance, institutional counterparty limits,
-Murabaha and Ijarah.
+access, and the specialised modules: credit cards, BNPL, documentary
+import/export finance, factoring, forfaiting, supply-chain finance,
+income-contingent education, project finance, institutional counterparty
+limits, Murabaha and Ijarah. Invoice financing with recourse, import letters
+of credit (converting to loans when paid) and syndicated loans are
+implemented; see DECISIONS D-011..D-016 for their assumed rules.
 
 Known limitations of what *is* implemented are listed in
 [OPERATIONS.md](docs/lending/OPERATIONS.md) and, item by item, in
@@ -338,11 +340,11 @@ traced to code, tests and a status in
 
 | Group | ✅ Done | 🟡 Partial | ⛔ Missing | Total |
 |---|---|---|---|---|
-| Loan types | 12 | 8 | 4 | 24 |
-| Use cases | 46 | 8 | 21 | 75 |
+| Loan types | 15 | 8 | 1 | 24 |
+| Use cases | 48 | 8 | 19 | 75 |
 | Operations | 3 | 5 | 0 | 8 |
 | Customer documents | 10 | 0 | 0 | 10 |
-| Test vectors | 19 match to the cent | 1 engine only (invoice finance) | 0 | 20 |
+| Test vectors | 20 match to the cent | 0 | 0 | 20 |
 
 **Strong today:** every schedule method and golden test vector, configurable
 allocation with advances, both prepayment options with lock-in charges and
@@ -370,9 +372,7 @@ wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
    sale (UC-65, UC-66, UC-68, UC-71).
 4. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
 
-Not started: credit cards, BNPL merchant settlement, invoice finance, letters
-of credit, syndication, credit bureau reporting,
-promotional rates.
+Not started: credit cards and BNPL merchant settlement.
 
 ---
 

@@ -252,6 +252,7 @@ export class FacilitiesService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      assertNotInvoiceFacility(state, 'drawn');
       await this.policy.enforce(
         actor,
         'facility.drawdown.request',
@@ -768,6 +769,7 @@ export class FacilitiesService {
       );
       if (amount.lte(0))
         throw new BadRequestException('Amount must be positive.');
+      assertNotInvoiceFacility(state, 'repaid');
       if (state.facility.status === 'TERMED_OUT')
         throw new BadRequestException({
           message: `This facility has termed out into an instalment loan; post repayments on loan ${state.account.reference}.`,
@@ -1515,4 +1517,18 @@ function view(f: {
     maturityDate: toLocalDate(f.maturityDate),
     createdAt: f.createdAt,
   };
+}
+
+/**
+ * An invoice-finance facility moves only through its invoices (LT-18): an
+ * advance is drawn against one approved invoice, and money in is applied to
+ * the invoice it pays. A plain drawdown or repayment would leave the invoice
+ * register and the balance telling different stories.
+ */
+function assertNotInvoiceFacility(state: FacilityState, verb: string) {
+  if (state.config.trade?.invoice)
+    throw new BadRequestException({
+      message: `This is an invoice-finance facility; it is ${verb} through its invoices.`,
+      code: 'INVOICE_FACILITY',
+    });
 }

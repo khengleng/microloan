@@ -107,6 +107,13 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'customers/:borrowerId': 'borrower',
       'documents/:documentId': 'customerDocument',
       'document-requests/:requestId': 'documentRequest',
+      // Trade finance and syndication (trade.int-spec, syndication.int-spec create the victims).
+      'invoices/:invoiceId': 'tradeInvoice',
+      'reserve-payouts/:taskId': 'approvalTask',
+      'letters-of-credit/:id': 'letterOfCredit',
+      'drawings/:drawingId': 'lcDrawing',
+      'participants/:participantId': 'syndicateParticipant',
+      'payouts/:taskId': 'approvalTask',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

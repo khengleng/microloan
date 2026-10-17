@@ -183,6 +183,13 @@ export class ApplicationsService {
           'This product has no active version for new business.',
         );
       const config = this.products.validOrThrow(version.config, null);
+      // A letter of credit is issued, not originated as a loan (LT-19).
+      if (config.trade?.letterOfCredit)
+        throw new BadRequestException({
+          message:
+            'This is a letter-of-credit product; request the credit from Trade finance, not as a loan application.',
+          code: 'LETTER_OF_CREDIT_PRODUCT',
+        });
       if (config.identity.eligibleBranchCodes) {
         const branch = await tx.branch.findFirst({
           where: { id: borrower.branchId, tenantId },

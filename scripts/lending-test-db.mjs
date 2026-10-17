@@ -59,6 +59,7 @@ const INVARIANT_SECTIONS = [
   ['20261019000100_lending_recovery', '-- Database-level invariants for recovery workflows.'],
   ['20261019000300_lending_payment_channels', '-- Database-level invariants for payment channels.'],
   ['20261019000400_customer_documents', '-- Database-level invariants for customer documents.'],
+  ['20261019000200_lending_trade_syndication', '-- Database-level invariants for trade finance and syndication.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {

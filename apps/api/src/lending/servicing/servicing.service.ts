@@ -176,6 +176,7 @@ export class ServicingService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadLoanState(tx, tenantId, id);
+      for (const guard of this.disbursementGuards) await guard(tx, state);
       const v1 = await tx.agreementVersion.findFirst({
         where: { tenantId, agreementId: state.account.agreementId, version: 1 },
       });
@@ -396,6 +397,7 @@ export class ServicingService {
     const hash = requestHash({ op: 'disburse', id, body });
     return this.money(tenantId, idempotencyKey, hash, async (tx) => {
       const state = await loadLoanState(tx, tenantId, id);
+      for (const guard of this.disbursementGuards) await guard(tx, state);
       const task = await tx.approvalTask.findFirst({
         where: {
           tenantId,
@@ -3583,6 +3585,20 @@ export class ServicingService {
       );
       return event;
     });
+  }
+
+  private disbursementGuards: ((tx: Tx, state: LoanState) => Promise<void>)[] =
+    [];
+  /**
+   * Lets another module refuse a disbursement it has a stake in (a
+   * syndicated loan before its participants have funded it). Guards run
+   * inside the disbursement transaction, on the locked loan, at prepare and
+   * at execute.
+   */
+  registerDisbursementGuard(
+    guard: (tx: Tx, state: LoanState) => Promise<void>,
+  ) {
+    this.disbursementGuards.push(guard);
   }
 
   private batchHooks: ((

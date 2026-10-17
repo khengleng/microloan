@@ -1740,6 +1740,7 @@ model Facility {
   conditions  FacilityCondition[]
   statements  FacilityStatement[]
   limitEvents FacilityLimitChange[]
+  tradeInvoices TradeInvoice[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -2002,6 +2003,7 @@ model LoanAccount {
   instalments      ScheduleInstalment[]
   events           FinancialEvent[]
   restructureCases RestructureCase[]
+  syndicate        Syndicate?
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -3291,4 +3293,254 @@ model CovenantTest {
 
   @@unique([tenantId, id])
   @@index([tenantId, covenantId])
+}
+
+// ── Trade finance and syndication (LT-18, LT-19, LT-24) ───────────────────
+
+/// An invoice in a borrower's invoice-finance register (LT-18, UC-67).
+///
+/// SUBMITTED → APPROVED → ADVANCE_REQUESTED → ADVANCE_APPROVED → FUNDED →
+/// SETTLED, or RECOURSE (debtor unpaid after due date + grace) → SETTLED;
+/// REJECTED / CANCELLED. The advance posts as a DISBURSEMENT on the
+/// facility's loan account; the terms it was advanced on are frozen here.
+model TradeInvoice {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  facilityId            String
+  facility              Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId         String
+  borrowerId            String
+  branchId              String
+  reference             String
+  debtorName            String
+  /// Upper-cased, whitespace-collapsed debtor name: the duplicate check key.
+  debtorKey             String
+  debtorReference       String?
+  invoiceNumber         String
+  currency              String
+  amount                Decimal   @db.Decimal(24, 4)
+  issueDate             DateTime  @db.Date
+  dueDate               DateTime  @db.Date
+  /// SUBMITTED, APPROVED, REJECTED, ADVANCE_REQUESTED, ADVANCE_APPROVED, FUNDED, RECOURSE, SETTLED, CANCELLED
+  status                String    @default("SUBMITTED")
+  advanceRate           Decimal   @db.Decimal(12, 8)
+  feeRatePerPeriod      Decimal   @db.Decimal(12, 8)
+  feePeriodDays         Int
+  feeBasis              String
+  recourseGraceDays     Int
+  advanceAmount         Decimal   @default(0) @db.Decimal(24, 4)
+  advanceDate           DateTime? @db.Date
+  advanceEventId        String?   @unique
+  /// Advance still owed (by the debtor, or by the borrower under recourse).
+  advanceOutstanding    Decimal   @default(0) @db.Decimal(24, 4)
+  feeRaised             Decimal   @default(0) @db.Decimal(24, 4)
+  feePaid               Decimal   @default(0) @db.Decimal(24, 4)
+  collectedFromDebtor   Decimal   @default(0) @db.Decimal(24, 4)
+  collectedFromBorrower Decimal   @default(0) @db.Decimal(24, 4)
+  /// Owed to the borrower once advance and fee are repaid; paid out under maker-checker.
+  reserveHeld           Decimal   @default(0) @db.Decimal(24, 4)
+  reservePaid           Decimal   @default(0) @db.Decimal(24, 4)
+  /// Due date + grace: the borrower owes the advance from the day after (UC-67).
+  recourseDate          DateTime? @db.Date
+  recourseAt            DateTime?
+  settledAt             DateTime?
+  registeredBy          String
+  approvedBy            String?
+  approvedAt            DateTime?
+  advanceRequestedBy    String?
+  advanceApprovedBy     String?
+  advanceReleasedBy     String?
+  rejectionReason       String?
+  version               Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  collections TradeInvoiceCollection[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  // The same invoice cannot be financed twice for one borrower.
+  @@unique([tenantId, borrowerId, debtorKey, invoiceNumber])
+  @@index([tenantId, facilityId, status])
+  @@index([tenantId, status, dueDate])
+}
+
+/// One payment applied to a financed invoice: by the debtor, or by the
+/// borrower under recourse. Split fee → advance → borrower reserve.
+model TradeInvoiceCollection {
+  id        String       @id @default(uuid())
+  tenantId  String
+  invoiceId String
+  invoice   TradeInvoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
+  eventId   String       @unique
+  /// DEBTOR, BORROWER
+  source    String
+  amount    Decimal      @db.Decimal(24, 4)
+  feeRaised Decimal      @default(0) @db.Decimal(24, 4)
+  toFee     Decimal      @default(0) @db.Decimal(24, 4)
+  toAdvance Decimal      @default(0) @db.Decimal(24, 4)
+  toReserve Decimal      @default(0) @db.Decimal(24, 4)
+  valueDate DateTime     @db.Date
+  createdBy String
+  createdAt DateTime     @default(now())
+
+  @@index([tenantId, invoiceId])
+}
+
+/// An import letter of credit (LT-19): a fee-earning contingent commitment,
+/// recorded off balance sheet. A payment by the bank under it converts into
+/// a term loan for the importer (UC-53).
+model LetterOfCredit {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  reference          String
+  borrowerId         String
+  branchId           String
+  portfolioId        String?
+  legalEntityId      String?
+  productId          String
+  productVersionId   String
+  familyCode         String
+  currency           String
+  amount             Decimal   @db.Decimal(24, 4)
+  beneficiaryName    String
+  beneficiaryBank    String?
+  beneficiaryAccount String?
+  issueDate          DateTime  @db.Date
+  expiryDate         DateTime  @db.Date
+  /// The configuration the credit was issued under (fee terms, conversion product and terms).
+  terms              Json
+  feeAmount          Decimal   @default(0) @db.Decimal(24, 4)
+  feeEventId         String?   @unique
+  memoEventId        String?   @unique
+  /// REQUESTED, ISSUED, PARTIALLY_DRAWN, FULLY_DRAWN, EXPIRED, CANCELLED, REJECTED
+  status             String    @default("REQUESTED")
+  drawnAmount        Decimal   @default(0) @db.Decimal(24, 4)
+  /// Undrawn commitment released from the memo on expiry or cancellation.
+  releasedAmount     Decimal   @default(0) @db.Decimal(24, 4)
+  requestedBy        String
+  issuedBy           String?
+  issuedAt           DateTime?
+  rejectedBy         String?
+  rejectionReason    String?
+  closedBy           String?
+  closedAt           DateTime?
+  closeReason        String?
+  version            Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  drawings LcDrawing[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+  @@index([tenantId, borrowerId])
+  @@index([tenantId, branchId])
+}
+
+/// A presentation paid (or to be paid) under a letter of credit, under
+/// maker-checker. Paying it books the importer's loan (UC-53).
+model LcDrawing {
+  id                  String         @id @default(uuid())
+  tenantId            String
+  letterOfCreditId    String
+  letterOfCredit      LetterOfCredit @relation(fields: [tenantId, letterOfCreditId], references: [tenantId, id], onDelete: Cascade)
+  sequence            Int
+  amount              Decimal        @db.Decimal(24, 4)
+  documentsReference  String
+  numberOfInstalments Int
+  /// REQUESTED, APPROVED, PAID, REJECTED
+  status              String         @default("REQUESTED")
+  loanAccountId       String?        @unique
+  eventId             String?        @unique
+  requestedBy         String
+  approvedBy          String?
+  approvedAt          DateTime?
+  paidBy              String?
+  paidAt              DateTime?
+  rejectedBy          String?
+  rejectionReason     String?
+  version             Int            @default(0)
+  createdAt           DateTime       @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([letterOfCreditId, sequence])
+  @@index([tenantId, letterOfCreditId, status])
+}
+
+/// The lenders sharing a syndicated loan (LT-24), with this tenant as agent.
+/// DRAFT → APPROVED (maker-checker) → FUNDED (participants paid their share).
+model Syndicate {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String      @unique
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  branchId       String
+  currency       String
+  principal      Decimal     @db.Decimal(24, 4)
+  /// DRAFT, APPROVED, FUNDED
+  status         String      @default("DRAFT")
+  makerId        String
+  checkerId      String?
+  approvedAt     DateTime?
+  fundingEventId String?     @unique
+  fundedAt       DateTime?
+  version        Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  participants SyndicateParticipant[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// One lender's participation. The running totals are the participant
+/// sub-ledger's balances; ParticipationEntry holds every movement.
+model SyndicateParticipant {
+  id                String    @id @default(uuid())
+  tenantId          String
+  syndicateId       String
+  syndicate         Syndicate @relation(fields: [tenantId, syndicateId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId     String
+  lenderName        String
+  isAgent           Boolean   @default(false)
+  share             Decimal   @db.Decimal(14, 12)
+  feeShare          Decimal   @db.Decimal(14, 12)
+  commitment        Decimal   @db.Decimal(24, 4)
+  funded            Decimal   @default(0) @db.Decimal(24, 4)
+  principalReturned Decimal   @default(0) @db.Decimal(24, 4)
+  interestEarned    Decimal   @default(0) @db.Decimal(24, 4)
+  penaltyEarned     Decimal   @default(0) @db.Decimal(24, 4)
+  feesEarned        Decimal   @default(0) @db.Decimal(24, 4)
+  paidOut           Decimal   @default(0) @db.Decimal(24, 4)
+  createdAt         DateTime  @default(now())
+
+  entries ParticipationEntry[]
+
+  @@unique([tenantId, id])
+  @@unique([syndicateId, lenderName])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A participant sub-ledger line: funding, a share of a collection, or a payout.
+model ParticipationEntry {
+  id               String               @id @default(uuid())
+  tenantId         String
+  participantId    String
+  participant      SyndicateParticipant @relation(fields: [tenantId, participantId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId    String
+  /// The posting that carries this line.
+  financialEventId String
+  /// The loan event being shared (a repayment, its reversal…); the funding or payout event otherwise.
+  sourceEventId    String
+  /// FUNDING, PRINCIPAL, INTEREST, PENALTY, FEE, PAYOUT
+  kind             String
+  amount           Decimal              @db.Decimal(24, 4)
+  createdAt        DateTime             @default(now())
+
+  @@unique([participantId, sourceEventId, kind])
+  @@index([tenantId, loanAccountId])
 }

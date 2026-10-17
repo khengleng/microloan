@@ -23,7 +23,7 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 | Use cases (UC) | 49 | 8 | 18 | 75 |
 | Operations (OPS) | 3 | 5 | 0 | 8 |
 | Documents (DOC) | 0 | 6 | 4 | 10 |
-| Test vectors (TV) | 19 match | 1 engine only | 0 not reproduced | 20 |
+| Test vectors (TV) | 20 match | 0 engine only | 0 not reproduced | 20 |
 
 ## Closed in this build-out
 
@@ -56,7 +56,7 @@ DECISIONS D-011 to D-016.
 | 3 | Auto-debit has no real bank integration (mandates, collection, retries and reconciliation are built on a mock bank) | UC-16 | Production cannot collect by direct debit until a bank adapter exists |
 | 4 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
 | 5 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
-| 6 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
+| 6 | Specialised products: cards, BNPL | LT-07, LT-11 and their UCs | Not offered (capability-gated). Invoice finance, letters of credit and syndication were added on 17 Oct 2026 (below). |
 | 7 | Closure letter and credit bureau update; promotional rates; payoff letter | UC-75, UC-46, UC-34 | Customer and bureau communication off-system |
 
 ## Loan types
@@ -80,13 +80,13 @@ DECISIONS D-011 to D-016.
 | LT-15 Equipment lease | 🟡 | L | `EQUIPMENT_LOAN` catalogue.ts:249 with balloon; TV-19 passes | True lease (`IJARAH`) blocked |
 | LT-16 Commercial real estate | 🟡 | L | `COMMERCIAL_PROPERTY` catalogue.ts:325; LTV gate | No origination DSCR; covenant monitoring not implemented |
 | LT-17 Construction | ✅ | L | `CONSTRUCTION` staged facility; term-out schedule | — |
-| LT-18 Invoice financing | ⛔ | — | `INVOICE_BACKED` blocked (`trade.invoice_finance`) | No invoice register, advance or debtor settlement |
-| LT-19 Letter of credit | ⛔ | — | none | — |
+| LT-18 Invoice financing | ✅ | L | `INVOICE_BACKED` (revolving, `trade.invoice`); register, maker-checker advance, debtor settlement and borrower payout: api/trade/invoice-finance.service.ts; eng/invoice.ts `allocateInvoiceCollection`; et/trade.test.ts; int/trade.int-spec.ts "LT-18", "TV-20" | No factoring / non-recourse purchase; collections cannot be reversed through the API (D-024) |
+| LT-19 Letter of credit | ✅ | L | `LETTER_OF_CREDIT` (`trade.letterOfCredit`); maker-checker issue with fee and off-balance-sheet memo (9100/9200), expiry/cancel: api/trade/letters-of-credit.service.ts; eng/letter-of-credit.ts; int/trade.int-spec.ts "LT-19" | No SWIFT messaging or document examination; fee collected at issue only (D-026) |
 | LT-20 SME | ✅ | L | `SME_TERM`; int/phase1-slice.int-spec.ts:86 | — |
 | LT-21 Microfinance | ✅ | L | `MICRO_INDIVIDUAL` :266, `MICRO_GROUP` :281; int/groups.int-spec.ts | Member contributions not collectable (UC-22) |
 | LT-22 Agricultural | ✅ | L | `AGRI_CROP_SEASONAL` :327; int/phase1-slice.int-spec.ts:224 | — |
 | LT-23 Bridge | ✅ | L | `BRIDGE_LOAN` :244 (interest-only bullet) | Rolled-up interest untested |
-| LT-24 Syndicated | ⛔ | — | `SYNDICATED` blocked (`syndication.participations`) | No participants or shares |
+| LT-24 Syndicated | ✅ | L | `SYNDICATED` (`syndication`), floating benchmark + margin; participants by share or amount (sum 100%), maker-checker approval, funding before disbursement, every collection and reversal split into the participant sub-ledger, maker-checker payouts: api/syndication/syndication.service.ts; eng/syndication.ts; et/syndication.test.ts; int/syndication.int-spec.ts | Losses on write-off / negotiated settlement not shared automatically; no secondary transfers of participations (D-028) |
 
 ## Use cases
 
@@ -169,7 +169,7 @@ DECISIONS D-011 to D-016.
 | UC-50 | ✅ | L | Refinance top-up eng/refinance.ts:125 | Only via refinance |
 | UC-51 | ✅ | L | Revaluation → margin call with deadline, cure/expiry by end of day; api/collateral/collateral.service.ts; int/collateral.int-spec.ts (TV-18) | — |
 | UC-52 | ⛔ | — | BNPL blocked | — |
-| UC-53 | ⛔ | — | none | — |
+| UC-53 | ✅ | L | Drawing request → approve → pay books the importer's loan under the configured conversion product (schedule, account, DISBURSEMENT to the beneficiary) and releases the memo: `LettersOfCreditService.payDrawing`; int/trade.int-spec.ts "UC-53" | Conversion loans carry no upfront fee (D-027) |
 
 ### H. Late and missed payments
 | ID | Status | Stack | Evidence | Gap |
@@ -191,7 +191,7 @@ DECISIONS D-011 to D-016.
 | UC-64 | ✅ | L | Negotiated settlement `svc`; int/settlement.int-spec.ts:114 | No web screen |
 | UC-65 | ✅ | L | Seize (maker-checker) → value → sell; proceeds waterfall eng/recovery.ts `applyRecoveryProceeds`; surplus to a borrower payable paid out under maker-checker; deficiency stays on the open loan; pledge SOLD: api/recovery/recovery.service.ts; int/recovery.int-spec.ts (surplus, deficiency, write-off then recovery) | Proceeds order and costs are assumptions (DECISIONS D-011, D-012) |
 | UC-66 | ✅ | L | Forfeiture after the deadline (maker-checker), auction through the same waterfall: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | — |
-| UC-67 | ⛔ | — | `trade.factoring` not implemented | — |
+| UC-67 | ✅ | L | End-of-day batch puts an invoice unpaid after due date + grace into RECOURSE: fee frozen at that date, advance + fee owed by the borrower, days past due / bucket / stage from the recourse date; recourse payments capped at what is owed: `InvoiceFinanceService.recourseHook`; int/trade.int-spec.ts "UC-67" | No late penalty on recourse arrears (D-025); factoring (`trade.factoring`) still not offered |
 | UC-68 | ✅ | L | Policy per loan; claim approved by a second user settles the loan against an insurer receivable (1410), excess to the estate; insurer payment clears it: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | D-013 |
 | UC-69 | ✅ | L, G | Write-off propose/approve `svc`; int/settlement.int-spec.ts:275 | Legacy write-off has no maker-checker |
 | UC-70 | ✅ | L | Recovery `svc`; int/settlement.int-spec.ts:296 | No web screen |
@@ -235,7 +235,7 @@ DECISIONS D-011 to D-016.
 
 ## Test vectors
 
-Automated in `packages/shared/test/test-vectors.test.ts` (every vector is a passing test; none remain `todo`). TV-12, TV-17 and TV-18 are also reproduced through the live API (int/rebates, int/collateral).
+Automated in `packages/shared/test/test-vectors.test.ts` (every vector is a passing test; none remain `todo`). TV-12, TV-17, TV-18 and TV-20 are also reproduced through the live API (int/rebates, int/collateral, int/trade).
 
 | ID | Status | Note |
 |---|---|---|
@@ -258,4 +258,4 @@ Automated in `packages/shared/test/test-vectors.test.ts` (every vector is a pass
 | TV-17 | ✅ | Combined LTV at origination |
 | TV-18 | ✅ | Margin call on revaluation |
 | TV-19 | ✅ | — |
-| TV-20 | 🟡 | Engine only (eng/invoice.ts); no invoice-finance product module |
+| TV-20 | ✅ | Engine (et/test-vectors.test.ts, et/trade.test.ts) and live API: advance 8,000.00, fee 400.00 after 60 days, 1,600.00 paid to the borrower (int/trade.int-spec.ts "TV-20") |
