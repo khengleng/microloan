@@ -170,7 +170,13 @@ export const productConfigSchema = z
             capPerInstalment: decimalString.nullable().default(null),
           })
           .strict(),
-        capitalization: z.object({ allowInterestGraceCapitalization: z.boolean() }).strict(),
+        capitalization: z
+          .object({
+            allowInterestGraceCapitalization: z.boolean(),
+            /** SIMPLE: grace interest on the original principal only, never on interest (TV-16). */
+            basis: z.enum(['COMPOUND', 'SIMPLE']).default('COMPOUND'),
+          })
+          .strict(),
       })
       .strict(),
     repayment: z
@@ -195,7 +201,20 @@ export const productConfigSchema = z
             defaultStrategy: z.enum(['RECAST', 'SHORTEN']).default('RECAST'),
           })
           .strict(),
-        earlySettlement: z.object({ allowed: z.boolean(), feeRate: rateFraction.nullable().default(null), feeFixed: decimalString.nullable().default(null) }).strict(),
+        earlySettlement: z
+          .object({
+            allowed: z.boolean(),
+            feeRate: rateFraction.nullable().default(null),
+            feeFixed: decimalString.nullable().default(null),
+            /**
+             * Interest owed on early payoff (UC-33). ACCRUED: interest accrued to
+             * the payoff date by day count. RULE_OF_78 / ACTUARIAL (flat-rate
+             * loans): the precomputed interest less the method's rebate for the
+             * instalments not yet due.
+             */
+            rebateMethod: z.enum(['ACCRUED', 'RULE_OF_78', 'ACTUARIAL']).default('ACCRUED'),
+          })
+          .strict(),
         /**
          * Lock-in tiers for repaying early (DECISIONS D-004). Tiers are checked in
          * order by whole months since disbursement; the first tier whose
@@ -488,6 +507,8 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
     if (fl?.floor && fl.cap && dec(fl.floor).gt(dec(fl.cap))) add('pricing.floating', 'floor exceeds cap');
   }
 
+  if (c.repayment.earlySettlement.rebateMethod !== 'ACCRUED' && c.pricing.interestMethod !== 'FLAT')
+    add('repayment.earlySettlement.rebateMethod', 'a Rule of 78 or actuarial rebate applies to flat-rate (precomputed) interest only');
   if (c.pricing.interestMethod === 'FLAT') {
     if (c.repayment.method !== 'EQUAL_INSTALMENT') add('pricing.interestMethod', 'flat interest supports EQUAL_INSTALMENT only');
     if (c.pricing.accrualBasis !== 'PERIODIC') add('pricing.accrualBasis', 'flat interest requires PERIODIC accrual');
@@ -811,6 +832,7 @@ export function toScheduleInput(
     firstDueDate: t.firstDueDate,
     principalGraceInstalments: t.principalGraceInstalments ?? 0,
     interestGraceInstalments: t.interestGraceInstalments ?? 0,
+    graceCapitalization: c.pricing.capitalization.basis,
     balloonAmount: t.balloonAmount,
     explicitSchedule: t.explicitSchedule,
     businessDayConvention: c.repayment.businessDayConvention,

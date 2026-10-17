@@ -1233,8 +1233,13 @@ export class ServicingService {
       0,
       contractualAccrual(state, asOf).minus(D(posted._sum.amount ?? '0')),
     );
-    const interest = D(state.account.interestReceivable).plus(pendingAccrual);
     const principal = D(state.account.principalOutstanding);
+    // UC-33: precomputed (flat) interest may be rebated by Rule of 78 or the
+    // actuarial method instead of charging what has accrued by day count.
+    const rebate = precomputedRebate(state, asOf);
+    const interest = rebate
+      ? D(rebate.interestOwed)
+      : D(state.account.interestReceivable).plus(pendingAccrual);
     const due = state.lines.filter(
       (l) =>
         l.status === 'DUE' &&
@@ -1280,6 +1285,13 @@ export class ServicingService {
       penalties: D(state.account.penaltyReceivable).toString(),
       settlementFee: fee.toString(),
       settlementFeeExplanation: charge.explanation,
+      interestRebate: rebate
+        ? {
+            method: rebate.method,
+            rebate: rebate.rebate,
+            explanation: rebate.explanation,
+          }
+        : undefined,
       advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),
@@ -1429,6 +1441,12 @@ export class ServicingService {
               credit: D(state.account.penaltyReceivable).toString(),
             },
             { accountCode: acc.feeIncome, credit: q.settlementFee },
+            // Interest owed under the rebate method differs from what accrued
+            // by day count; the difference is income (or gives some back).
+            ...interestAdjustment(
+              acc.interestIncome,
+              D(q.interest).minus(D(state.account.interestReceivable)),
+            ),
             ...released.lines,
             rounding.gte(0)
               ? {
@@ -2968,6 +2986,57 @@ function totalOutstanding(state: LoanState): Dec {
     .plus(D(a.interestReceivable))
     .plus(D(a.feesReceivable))
     .plus(D(a.penaltyReceivable));
+}
+
+/**
+ * Interest owed on early payoff of a flat-rate loan under the product's
+ * rebate method (UC-33), or null when interest is simply what has accrued.
+ */
+function precomputedRebate(state: LoanState, asOf: string) {
+  const method = state.config.repayment.earlySettlement.rebateMethod;
+  if (method === 'ACCRUED' || state.config.pricing.interestMethod !== 'FLAT')
+    return null;
+  const lines = state.lines.filter((l) => l.number > 0);
+  const totalInterest = lines.reduce(
+    (s, l) => s.plus(D(l.interestDue)),
+    ZERO(),
+  );
+  const interestPaid = lines.reduce(
+    (s, l) => s.plus(D(l.interestPaid)),
+    ZERO(),
+  );
+  const remaining = lines.filter(
+    (l) => lending.compareDates(toLocalDate(l.dueDate)!, asOf) > 0,
+  ).length;
+  const r = engineCall(() =>
+    lending.precomputedInterestRebate({
+      method,
+      totalInterest: totalInterest.toString(),
+      principal: lines
+        .reduce((s, l) => s.plus(D(l.principalDue)), ZERO())
+        .toString(),
+      instalments: lines.map((l) =>
+        D(l.principalDue).plus(D(l.interestDue)).toString(),
+      ),
+      numberOfInstalments: lines.length,
+      remainingInstalments: remaining,
+      rounding: state.config.pricing.rounding,
+    }),
+  );
+  const owed = lending.D.max(
+    0,
+    totalInterest.minus(D(r.rebate)).minus(interestPaid),
+  );
+  return { ...r, interestOwed: owed.toString() };
+}
+
+function interestAdjustment(account: string, delta: Dec) {
+  if (delta.isZero()) return [];
+  return [
+    delta.gt(0)
+      ? { accountCode: account, credit: delta.toString() }
+      : { accountCode: account, debit: delta.negated().toString() },
+  ];
 }
 
 /** What is owed on instalments due by `asOf`, in allocation-engine form. */
