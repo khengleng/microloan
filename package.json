@@ -24,7 +24,8 @@
         "test:lending:int": "pnpm --filter api test:lending:int",
         "demo:lending": "pnpm --filter @microloan/db demo:lending",
         "docs:capabilities": "pnpm --filter @microloan/shared build && node scripts/lending-capability-matrix.mjs",
-        "test:lending:db": "node scripts/lending-test-db.mjs"
+        "test:lending:db": "node scripts/lending-test-db.mjs",
+        "db:check-migrations": "node scripts/check-migrations.mjs"
     },
     "devDependencies": {
         "prettier": "^3.2.5",

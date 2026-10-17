@@ -83,8 +83,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Migration files are SQL
+        run: pnpm db:check-migrations
+
       - name: Build shared packages
         run: pnpm --filter @microloan/db build && pnpm --filter @microloan/shared build
+
+      - name: Prisma schema valid
+        env:
+          DATABASE_URL: ${{ env.LENDING_TEST_DATABASE_URL }}
+        run: pnpm --filter @microloan/db prisma:validate
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Calculation engine tests
         run: pnpm test:engine
