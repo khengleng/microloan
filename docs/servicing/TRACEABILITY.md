@@ -20,7 +20,7 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 | Group | ✅ | 🟡 | ⛔ | Total |
 |---|---|---|---|---|
 | Loan types (LT) | 12 | 8 | 4 | 24 |
-| Use cases (UC) | 46 | 8 | 21 | 75 |
+| Use cases (UC) | 49 | 8 | 18 | 75 |
 | Operations (OPS) | 3 | 5 | 0 | 8 |
 | Documents (DOC) | 0 | 6 | 4 | 10 |
 | Test vectors (TV) | 19 match | 1 engine only | 0 not reproduced | 20 |
@@ -36,7 +36,10 @@ not close a loan (UC-31 G), fee waivers (UC-32), group contributions
 policies with lock-in charges, margin calls and collateral release
 (UC-51/73), combined LTV (LT-04), late-fee options and caps (UC-54/55),
 returned-payment fee (UC-23), third-party payer (UC-20), promise-to-pay
-follow-up (UC-59), and every golden test vector.
+follow-up (UC-59), and every golden test vector. Later: payment channels —
+auto-debit mandates and collection (UC-16, mock bank), settlement and payroll
+files with daily reconciliation (UC-18, UC-19), cross-currency payments with
+FX gain/loss (UC-21).
 
 ## Remaining gaps ranked by risk to money owed
 
@@ -44,7 +47,7 @@ follow-up (UC-59), and every golden test vector.
 |---|---|---|---|
 | 1 | Customer documents live in three unrelated stores, two of them as base64 in the database | DOC-1..10 | No single record of what a customer gave the bank; no retention or expiry |
 | 2 | No collection escalation engine or collector work queues in the lending stack; guarantor demand and set-off missing | UC-58, UC-60, UC-61 | Arrears follow-up relies on people remembering |
-| 3 | Payment channels beyond manual and service-account posting | UC-16, UC-18, UC-19, UC-21 | Auto-debit, wallet settlement files, payroll files and cross-currency payments must be keyed by hand |
+| 3 | Auto-debit has no real bank integration (mandates, collection, retries and reconciliation are built on a mock bank) | UC-16 | Production cannot collect by direct debit until a bank adapter exists |
 | 4 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
 | 5 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
 | 6 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
@@ -107,12 +110,12 @@ follow-up (UC-59), and every golden test vector.
 ### C. Payment channels
 | ID | Status | Stack | Evidence | Gap |
 |---|---|---|---|---|
-| UC-16 | ⛔ | — | Payments adapter is mock only | No mandates or auto-debit |
+| UC-16 | 🟡 | L | Direct-debit mandates per loan; end of day collects due instalments through the bank adapter, posts the repayment, retries per policy, queues a failure notice (api/payments/payment-channels.service.ts `collectDue`; eng/channels.ts `nextDebitAttempt`, `amountToCollect`; D-011); int/payment-channels.int-spec.ts | Bank adapter is a mock (refused in production): no real bank integration yet |
 | UC-17 | ✅ | L, G | `svc` repayment with external reference; int/phase1-slice.int-spec.ts:257 | — |
-| UC-18 | 🟡 | L, G | Service-account repayment API (int/security.int-spec.ts:815); KHQR display | No wallet/agent settlement-file import or reconciliation |
-| UC-19 | ⛔ | — | `SALARY_LOAN` eligibility only | No payroll deduction file |
+| UC-18 | ✅ | L, G | Mobile / QR / wallet / agent settlement-file import, idempotent per file hash and channel transaction id; unmatched lines to suspense; daily reconciliation per channel (api/payments/channel-files.service.ts; eng/channels.ts `parseSettlementFile`, `reconcileChannel`; D-012); service accounts may push files; int/payment-channels.int-spec.ts; et/channels.test.ts | — |
+| UC-19 | ✅ | L | Employer remittance import by national id (blind index) or loan reference, employer recorded as payer; per-employer summary (api/payments/channel-files.service.ts; eng/channels.ts `parsePayrollFile`; D-012); int/payment-channels.int-spec.ts | — |
 | UC-20 | ✅ | L | Repayment `payer` (name, relationship, reference); int/late-charges.int-spec.ts | — |
-| UC-21 | ⛔ | — | Repayment must be in the account currency | No conversion or FX gain/loss posting |
+| UC-21 | ✅ | L | Payment in another currency converted at mid less a configurable spread from the tenant rate table, rate stored on the event, FX gain/loss (4400) via FX position (1050), refused without a rate for the value date (api/payments/payment-channels.service.ts `fxRepayment`; eng/channels.ts `convertPayment`; D-013); int/payment-channels.int-spec.ts; et/channels.test.ts | Reversal returns the loan-currency leg only; the foreign cash stays in the FX position |
 | UC-22 | ✅ | L | Repayment `contributions` split by member, recorded with the repayment; reversed ones excluded; int/groups.int-spec.ts | — |
 | UC-23 | 🟡 | L, G | Reversal with `returned` charges `pricing.returnedPaymentFee`; int/late-charges.int-spec.ts | Repayments that triggered a reschedule still cannot be reversed |
 
@@ -203,7 +206,7 @@ follow-up (UC-59), and every golden test vector.
 | OPS-1 | ✅ | L | api/products/products.service.ts (versions, diff, maker-checker, capability gate); et/config.test.ts | — |
 | OPS-2 | 🟡 | L, G | Eligibility, DSR, LTV, guarantors in applications.service.ts:1425+; legacy scorecard + credit bureau | No credit score or origination DSCR in lending; KYC and bureau are mocks |
 | OPS-3 | 🟡 | L | Collateral, haircuts, guarantees in applications.service.ts:525 | No revaluation, release, enforcement or guarantor calls |
-| OPS-4 | 🟡 | L | Automatic end of day: accrual, advances, penalties, DPD, non-accrual, classification and provisioning, facility arrears, margin calls, rate resets (eod-scheduler.service.ts) | No billing notices or statements in the batch |
+| OPS-4 | 🟡 | L | Automatic end of day: auto-debit collection (UC-16), accrual, advances, penalties, DPD, non-accrual, classification and provisioning, facility arrears, margin calls, rate resets (eod-scheduler.service.ts) | No billing notices or statements in the batch |
 | OPS-5 | ✅ | L, G | Lending: tenant impairment policy (REGULATORY or ECL by stage), allowance posted by end of day (api/accounting/impairment.service.ts; int/impairment.int-spec.ts); legacy NBC runs | — |
 | OPS-6 | 🟡 | L, G | Balanced double-entry + reconciliation (api/accounting/operations.service.ts); legacy ledger | External GL export is a mock; two ledgers not consolidated |
 | OPS-7 | 🟡 | L, G | Facility statements; legacy NBC report, receipts, key facts | No term-loan statements or notices; lending missing from regulatory reports |
