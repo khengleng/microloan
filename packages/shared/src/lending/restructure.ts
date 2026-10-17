@@ -53,6 +53,8 @@ export interface RestructureOptions {
   interestOnlyInstalments?: number;
   /** Full payment deferral: nothing is paid in these instalments. */
   paymentDeferralInstalments?: number;
+  /** Simple or compound capitalization of deferred interest when it is capitalized (default COMPOUND). */
+  capitalizationBasis?: 'COMPOUND' | 'SIMPLE';
   /** What happens to interest arising during a full payment deferral. */
   deferredInterestTreatment?: DeferredInterestTreatment;
   /** Capitalize these unpaid amounts into the new principal (only where permitted). */
@@ -255,6 +257,7 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     firstDueDate: options.firstDueDate,
     principalGraceInstalments: deferral + interestOnly,
     interestGraceInstalments: deferral > 0 && treatment === 'CAPITALIZE' ? deferral : 0,
+    graceCapitalization: options.capitalizationBasis,
     balloonAmount: options.balloonAmount,
     explicitSchedule: options.explicitSchedule,
     interestMethod: 'REDUCING_BALANCE',

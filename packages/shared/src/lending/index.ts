@@ -17,3 +17,6 @@ export * from './settlement.js';
 export * from './refinance.js';
 export * from './payment-holiday.js';
 export * from './policies.js';
+export * from './rebate.js';
+export * from './collateral.js';
+export * from './invoice.js';

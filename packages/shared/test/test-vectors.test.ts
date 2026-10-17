@@ -59,7 +59,11 @@ describe('test vectors', () => {
     for (const l of s.lines.slice(0, 11)) assert.equal(m(l.total), '933.33');
     assert.equal(m(s.lines[11].total), '933.37');
   });
-  test.todo('TV-04 flat rate: nominal annual rate 21.46% and effective 23.70% — engine has no nominal APR, and its date-based XIRR gives 23.68% (actual days, not 12 equal periods)');
+  test('TV-04 flat rate: nominal 21.46%, effective 23.70% on 12 equal monthly periods (UC-10)', () => {
+    const r = L.periodicRateFromPayments('10000', [...Array(11).fill('933.33'), '933.37'], 12);
+    assert.equal(new L.D(r.nominalAnnualRate).times(100).toFixed(2), '21.46');
+    assert.equal(new L.D(r.effectiveAnnualRate).times(100).toFixed(2), '23.70');
+  });
 
   test('TV-05 interest-only then bullet (RM-4, UC-11, UC-12)', () => {
     const s = L.generateSchedule(base({ method: 'INTEREST_ONLY' }));
@@ -77,7 +81,10 @@ describe('test vectors', () => {
     assert.equal(accrue('1000', '0.24', '2024-01-01', '2024-01-31'), '19.73');
   });
 
-  test.todo('TV-08 payday APR 391.07% — engine has no nominal APR; effectiveAnnualRate returns the compounded rate (3,723.66%)');
+  test('TV-08 payday APR 391.07%: 75.00 on 500.00 for 14 days (LT-08)', () => {
+    const r = L.periodicRateFromPayments('500', ['575'], new L.D(365).div(14).toString());
+    assert.equal(new L.D(r.nominalAnnualRate).times(100).toFixed(2), '391.07');
+  });
 
   test('TV-09 broken-period interest, 10 days (UC-07)', () => {
     assert.equal(accrue('10000', '0.12', '2024-01-01', '2024-01-11'), '32.88');
@@ -115,8 +122,15 @@ describe('test vectors', () => {
     assert.equal(m(new L.D('8415.14').plus(accrued).plus(penalty).toString()), '8624.94');
   });
 
-  test.todo('TV-12 Rule of 78 rebate 323.08 — flat-rate payoff rebates straight-line by days; no Rule of 78 or actuarial method (UC-33)');
-  test.todo('TV-13 3-month deferral, simple interest capitalized 252.45 — not yet driven through the payment-holiday engine with CAPITALIZE (UC-49)');
+  test('TV-12 Rule of 78 rebate 323.08 (UC-33)', () => {
+    const r = L.precomputedInterestRebate({ method: 'RULE_OF_78', totalInterest: '1200', principal: '10000', instalments: [], numberOfInstalments: 12, remainingInstalments: 6, rounding: { mode: 'HALF_UP', increment: '0.01' } as any });
+    assert.equal(m(r.rebate), '323.08');
+  });
+  test('TV-13 3-month deferral, simple interest capitalized 252.45 → 8,667.59 (UC-49)', () => {
+    const s = L.generateSchedule(base({ principal: '8415.14', numberOfInstalments: 13, principalGraceInstalments: 3, interestGraceInstalments: 3, graceCapitalization: 'SIMPLE' }));
+    assert.equal(m(s.totals.capitalizedInterest), '252.45');
+    assert.equal(m(s.lines[3].openingPrincipal), '8667.59');
+  });
 
   test('TV-14 penalty interest, 10 days at 18% (UC-56)', () => {
     assert.equal(accrue('888.49', '0.18', '2024-01-01', '2024-01-11'), '4.38');
@@ -130,14 +144,34 @@ describe('test vectors', () => {
     assert.equal(m(new L.D('788.49').minus(got('PRINCIPAL')).toString()), '402.87');
   });
 
-  test.todo('TV-16 student loan, simple interest capitalized at repayment start 24,800.00 — engine capitalizes each period (compound: 25,409.81); no simple-capitalization option (LT-06)');
-  test.todo('TV-17 HELOC available limit 40,000.00 — no combined-LTV limit calculation (LT-04)');
-  test.todo('TV-18 gold loan margin call, LTV 87.50%, repay 600.00 — no collateral revaluation or margin call (UC-51)');
+  test('TV-16 student loan, 4 years simple interest capitalized → 24,800.00 at repayment start (LT-06)', () => {
+    const s = L.generateSchedule(base({ principal: '20000', annualRate: '0.06', numberOfInstalments: 168, principalGraceInstalments: 48, interestGraceInstalments: 48, graceCapitalization: 'SIMPLE' }));
+    assert.equal(m(s.totals.capitalizedInterest), '4800.00');
+    assert.equal(m(s.lines[48].openingPrincipal), '24800.00');
+  });
+  test('TV-17 HELOC available limit 40,000.00 (LT-04)', () => {
+    assert.equal(m(L.securedLineLimit('200000', '0.80', ['120000'], { mode: 'HALF_UP', increment: '0.01' } as any).limit), '40000.00');
+  });
+  test('TV-18 gold loan margin call: LTV 87.50%, repay 600.00 (UC-51)', () => {
+    const r = L.marginCall('7000', '8000', '0.80', { mode: 'HALF_UP', increment: '0.01' } as any);
+    assert.equal(new L.D(r.ltv).times(100).toFixed(2), '87.50');
+    assert.equal(r.breached, true);
+    assert.equal(m(r.requiredRepayment), '600.00');
+    assert.equal(m(r.requiredAdditionalCollateral), '750.00');
+  });
 
   test('TV-19 equipment lease with residual (LT-15)', () => {
     const s = L.generateSchedule(base({ principal: '50000', annualRate: '0.10', numberOfInstalments: 36, method: 'BALLOON', balloonAmount: '10000' }));
     assert.equal(m(s.instalmentAmount), '1374.02');
   });
 
-  test.todo('TV-20 invoice financing: advance 8,000.00, fee 400.00, rebate 1,600.00 — invoice finance not implemented (LT-18, UC-67)');
+  test('TV-20 invoice financing: advance 8,000.00, fee 400.00, 1,600.00 to the borrower (LT-18, UC-67)', () => {
+    const terms = { invoiceAmount: '10000', advanceRate: '0.80', feeRatePerPeriod: '0.02', feePeriodDays: 30, feeBasis: 'WHOLE_PERIODS' as const };
+    const r = L.invoiceSettlement(terms, 60, '10000', { mode: 'HALF_UP', increment: '0.01' } as any);
+    assert.equal(m(r.advance), '8000.00');
+    assert.equal(m(r.fee), '400.00');
+    assert.equal(m(r.paidToBorrower), '1600.00');
+    // Recourse: the customer pays 5,000 → the borrower owes the shortfall.
+    assert.equal(m(L.invoiceSettlement(terms, 60, '5000', { mode: 'HALF_UP', increment: '0.01' } as any).recourseOwedByBorrower), '3400.00');
+  });
 });

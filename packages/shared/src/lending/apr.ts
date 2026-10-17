@@ -49,3 +49,44 @@ export function effectiveAnnualRate(flows: CashFlow[]): string {
   }
   throw new EngineError('APR_NO_SOLUTION', 'The effective rate did not converge for these cash flows.');
 }
+
+export interface PeriodicRate {
+  /** Rate per period that discounts the payments to the amount financed. */
+  periodicRate: string;
+  /** Nominal annual rate: periodic rate × periods per year (the disclosed "APR" in many markets). */
+  nominalAnnualRate: string;
+  /** Effective annual rate: (1 + periodic)^(periods per year) − 1. */
+  effectiveAnnualRate: string;
+}
+
+/**
+ * Rate implied by equal-interval payments, the way a disclosure table states
+ * it (TV-04, TV-08): solve the periodic IRR on the payment periods, then
+ * annualise it nominally (× periods per year) and effectively (compounded).
+ *
+ * `amountFinanced` is what the borrower receives net of fees deducted at
+ * the start; `payments` are due one period apart, the first one period after
+ * funding. `periodsPerYear` may be fractional (a 14-day term: 365 / 14).
+ */
+export function periodicRateFromPayments(amountFinanced: string, payments: string[], periodsPerYear: string | number): PeriodicRate {
+  const pv = dec(amountFinanced, 'amountFinanced');
+  const pmts = payments.map((p, i) => dec(p, `payments[${i}]`));
+  const n = dec(periodsPerYear, 'periodsPerYear');
+  if (pv.lte(0) || !pmts.length || n.lte(0)) throw new EngineError('APR_INPUT', 'An amount financed, at least one payment and a positive number of periods per year are needed.');
+  const npv = (r: Dec) => pmts.reduce((acc, p, i) => acc.plus(p.div(ONE.plus(r).pow(i + 1))), ZERO).minus(pv);
+  // NPV falls as r rises; bisection is exact enough and cannot diverge.
+  let lo = new D('-0.99');
+  let hi = new D(1000);
+  if (npv(lo).lt(0) || npv(hi).gt(0)) throw new EngineError('APR_NO_SOLUTION', 'No rate discounts these payments to the amount financed.');
+  for (let i = 0; i < 400 && hi.minus(lo).gt('1e-18'); i++) {
+    const mid = lo.plus(hi).div(2);
+    if (npv(mid).gt(0)) lo = mid;
+    else hi = mid;
+  }
+  const r = lo.plus(hi).div(2);
+  return {
+    periodicRate: r.toDecimalPlaces(12).toString(),
+    nominalAnnualRate: r.times(n).toDecimalPlaces(8).toString(),
+    effectiveAnnualRate: ONE.plus(r).pow(n).minus(1).toDecimalPlaces(8).toString(),
+  };
+}

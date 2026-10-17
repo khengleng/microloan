@@ -71,6 +71,13 @@ export interface ScheduleInput {
   principalGraceInstalments?: number;
   /** Instalments at the start in which nothing is paid and interest is capitalized. */
   interestGraceInstalments?: number;
+  /**
+   * How interest is capitalized during that grace: COMPOUND (default) charges
+   * each period on the balance including interest already capitalized;
+   * SIMPLE charges every grace period on the principal at the start, so no
+   * interest is charged on interest (TV-13, TV-16).
+   */
+  graceCapitalization?: 'COMPOUND' | 'SIMPLE';
   balloonAmount?: string;
   explicitSchedule?: ExplicitInstalment[];
   businessDayConvention?: BusinessDayConvention;
@@ -301,6 +308,7 @@ export interface AmortizeRequest {
   opening: Dec;
   principalGrace: number;
   interestGrace: number;
+  graceCapitalization?: 'COMPOUND' | 'SIMPLE';
   balloon: Dec;
   explicitPrincipal?: Dec[];
   /** Keep this level instalment instead of solving for one (prepayment "shorten tenor"). */
@@ -409,7 +417,9 @@ export function amortize(req: AmortizeRequest): { lines: RawLine[]; instalment: 
     }
 
     if (k < req.interestGrace) {
-      // Nothing is paid; the period's interest is added to principal.
+      // Nothing is paid; the period's interest is added to principal. Simple
+      // capitalization charges it on the principal at the start of the grace.
+      if (req.graceCapitalization === 'SIMPLE') interest = round(req.opening.times(factor));
       balance = balance.plus(interest);
       lines.push({ period, opening, principal: ZERO, interest: ZERO, capitalized: interest, annualRate: rate, factor, kind: 'CAPITALIZATION', projected: !!point.projected });
       continue;
@@ -581,6 +591,7 @@ export function generateSchedule(input: ScheduleInput): ScheduleResult {
     opening: principal,
     principalGrace: input.principalGraceInstalments ?? 0,
     interestGrace: input.interestGraceInstalments ?? 0,
+    graceCapitalization: input.graceCapitalization,
     balloon,
     explicitPrincipal,
   });
