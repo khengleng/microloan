@@ -27,6 +27,7 @@ export type ActionKind =
 export type ResourceType =
   | 'RESTRUCTURE_CASE'
   | 'FACILITY'
+  | 'LETTER_OF_CREDIT'
   | 'BORROWER_GROUP'
   | 'APPLICATION'
   | 'LOAN_ACCOUNT'
@@ -73,6 +74,7 @@ const A = (
       resourceType === 'LOAN_ACCOUNT' ||
       resourceType === 'RESTRUCTURE_CASE' ||
       resourceType === 'FACILITY' ||
+      resourceType === 'LETTER_OF_CREDIT' ||
       resourceType === 'BORROWER_GROUP'),
   ...opts,
 });
@@ -445,6 +447,127 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('facility.statement.generate', 'FACILITY', 'SERVICING_MONEY', {
     workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  // Invoice financing (LT-18, UC-67). The resource is the facility; its
+  // state is the invoice's own status for the invoice steps. Advancing is new
+  // money out, so it is gated like a disbursement (origination, family and
+  // product flags, posting) and carries the drawdown authorities.
+  A('trade.invoice.register', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.manage',
+    workflowStates: ['ACTIVE', 'PENDING'],
+  }),
+  A('trade.invoice.approve', 'FACILITY', 'ORIGINATION', {
+    workflowStates: ['SUBMITTED'],
+    makerChecker: true,
+  }),
+  A('trade.invoice.reject', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.approve',
+    workflowStates: ['SUBMITTED', 'APPROVED', 'ADVANCE_REQUESTED'],
+    makerChecker: true,
+  }),
+  A('trade.invoice.advance.request', 'FACILITY', 'DISBURSEMENT', {
+    permission: 'facility.drawdown.request',
+    workflowStates: ['APPROVED'],
+    requiresActiveProduct: true,
+  }),
+  A('trade.invoice.advance.approve', 'FACILITY', 'DISBURSEMENT', {
+    permission: 'facility.drawdown.approve',
+    workflowStates: ['ADVANCE_REQUESTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+    requiresActiveProduct: true,
+  }),
+  A('trade.invoice.advance.release', 'FACILITY', 'DISBURSEMENT', {
+    permission: 'facility.drawdown.release',
+    workflowStates: ['ADVANCE_APPROVED'],
+    makerChecker: true,
+    requiresActiveProduct: true,
+  }),
+  A('trade.invoice.collect', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+  }),
+  A('trade.invoice.reserve.propose', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+  }),
+  A('trade.invoice.reserve.approve', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+    makerChecker: true,
+  }),
+  // Letters of credit (LT-19, UC-53). Issuing commits the bank, so it is a
+  // credit decision within authority; paying under the credit lends money
+  // to the importer, so it carries the disbursement authorities.
+  A('trade.lc.read', 'LETTER_OF_CREDIT', 'READ'),
+  A('trade.lc.request', 'LETTER_OF_CREDIT', 'ORIGINATION', {
+    requiresActiveProduct: true,
+  }),
+  A('trade.lc.issue', 'LETTER_OF_CREDIT', 'DISBURSEMENT', {
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+    requiresActiveProduct: true,
+  }),
+  A('trade.lc.reject', 'LETTER_OF_CREDIT', 'ORIGINATION', {
+    permission: 'trade.lc.issue',
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+  }),
+  A('trade.lc.drawing.request', 'LETTER_OF_CREDIT', 'SERVICING_MONEY', {
+    permission: 'trade.lc.request',
+    workflowStates: ['ISSUED', 'PARTIALLY_DRAWN'],
+  }),
+  A('trade.lc.drawing.approve', 'LETTER_OF_CREDIT', 'DISBURSEMENT', {
+    permission: 'loan.disbursement.approve',
+    workflowStates: ['REQUESTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('trade.lc.drawing.reject', 'LETTER_OF_CREDIT', 'SERVICING_MONEY', {
+    permission: 'loan.disbursement.approve',
+    workflowStates: ['REQUESTED', 'APPROVED'],
+    makerChecker: true,
+  }),
+  A('trade.lc.drawing.pay', 'LETTER_OF_CREDIT', 'DISBURSEMENT', {
+    permission: 'loan.disbursement.execute',
+    workflowStates: ['APPROVED'],
+    makerChecker: true,
+  }),
+  A('trade.lc.close', 'LETTER_OF_CREDIT', 'SERVICING_MONEY', {
+    permission: 'trade.lc.issue',
+    workflowStates: ['ISSUED', 'PARTIALLY_DRAWN'],
+  }),
+  // Syndicated loans (LT-24). The resource is the loan account.
+  A('syndication.read', 'LOAN_ACCOUNT', 'READ', { permission: 'loan.read' }),
+  A('syndication.manage', 'LOAN_ACCOUNT', 'ORIGINATION', {
+    workflowStates: ['BOOKED'],
+  }),
+  A('syndication.approve', 'LOAN_ACCOUNT', 'ORIGINATION', {
+    workflowStates: ['BOOKED'],
+    makerChecker: true,
+    minAssurance: 'MFA',
+  }),
+  A('syndication.fund', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.disbursement.prepare',
+    workflowStates: ['BOOKED'],
+  }),
+  A('syndication.distribute', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE', 'CLOSED'],
+  }),
+  A('syndication.payout.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE', 'CLOSED'],
+  }),
+  A('syndication.payout.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    workflowStates: ['ACTIVE', 'CLOSED'],
+    makerChecker: true,
+    minAssurance: 'MFA',
   }),
   // Re-pricing moves no money, but it changes a booked contract, so it is
   // gated like servicing rather than like a read.

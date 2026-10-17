@@ -354,7 +354,12 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   // The tenant is agent and lead; participants share funding and every
   // collection by share (LT-24). Pricing is typically benchmark + margin:
   // switch `attributes.rateType` to FLOATING and set `pricing.floating`.
-  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', { ...CORPORATE, syndication: { minParticipants: 2, maxParticipants: 20 } }, ['syndication.participations']),
+  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', {
+    ...CORPORATE,
+    repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' },
+    limits: { minAmount: '1000000', maxAmount: '500000000', minInstalments: 4, maxInstalments: 40 },
+    syndication: { minParticipants: 2, maxParticipants: 20 },
+  }, ['syndication.participations']),
   template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', { ...CORPORATE, attributes: { recourse: 'NON_RECOURSE' } }, ['project_finance.waterfall', 'covenants.monitoring']),
   template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', CORPORATE, ['project_finance.waterfall', 'covenants.monitoring']),
   template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', CORPORATE, ['covenants.monitoring']),

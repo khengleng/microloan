@@ -16,6 +16,10 @@ export function configFlags(config: ProductConfig | null): string[] {
     flags.push('lending.integration.credit_bureau');
   if (config.identity.liability !== 'INDIVIDUAL')
     flags.push('lending.group.joint_liability');
+  if (config.trade?.invoice) flags.push('lending.trade.invoice_finance');
+  if (config.trade?.letterOfCredit)
+    flags.push('lending.trade.letters_of_credit');
+  if (config.syndication) flags.push('lending.syndication');
   return flags;
 }
 

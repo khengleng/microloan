@@ -22,6 +22,14 @@ import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
+import { InvoiceFinanceService } from './trade/invoice-finance.service';
+import { LettersOfCreditService } from './trade/letters-of-credit.service';
+import {
+  InvoiceFinanceController,
+  LettersOfCreditController,
+} from './trade/trade.controller';
+import { SyndicationService } from './syndication/syndication.service';
+import { SyndicationController } from './syndication/syndication.controller';
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
@@ -59,6 +67,9 @@ import {
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
+    InvoiceFinanceController,
+    LettersOfCreditController,
+    SyndicationController,
   ],
   providers: [
     LendingPrisma,
@@ -85,6 +96,9 @@ import {
     CatalogueSyncService,
     RestructuringService,
     PaymentHolidayService,
+    InvoiceFinanceService,
+    LettersOfCreditService,
+    SyndicationService,
   ],
   exports: [
     PolicyService,

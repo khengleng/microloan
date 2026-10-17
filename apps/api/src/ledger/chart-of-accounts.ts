@@ -30,6 +30,13 @@ export const ACCOUNT_CODES = {
   // Restructuring concessions
   PRINCIPAL_FORGIVEN: '5110',
   RESTRUCTURE_CONCESSIONS: '5200',
+  // Trade finance and syndication
+  INVOICE_RESERVES_PAYABLE: '2310',
+  PARTICIPANTS_PAYABLE: '2320',
+  PARTICIPANT_FUNDING: '2330',
+  PARTICIPANT_SHARE_EXPENSE: '5300',
+  LC_CONTINGENT_ASSET: '9100',
+  LC_CONTINGENT_LIABILITY: '9200',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -129,5 +136,36 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     code: ACCOUNT_CODES.RESTRUCTURE_CONCESSIONS,
     name: 'Restructure Concessions (Waivers)',
     type: LedgerAccountType.EXPENSE,
+  },
+  {
+    code: ACCOUNT_CODES.INVOICE_RESERVES_PAYABLE,
+    name: 'Invoice Reserves Payable to Borrowers',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PARTICIPANTS_PAYABLE,
+    name: 'Due to Syndicate Participants',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PARTICIPANT_FUNDING,
+    name: 'Syndicate Participant Funding',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.PARTICIPANT_SHARE_EXPENSE,
+    name: "Participants' Share of Loan Income",
+    type: LedgerAccountType.EXPENSE,
+  },
+  // Off-balance-sheet memo pair: always posted together, so they net to zero.
+  {
+    code: ACCOUNT_CODES.LC_CONTINGENT_ASSET,
+    name: 'Letters of Credit: Customer Liability (memo)',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.LC_CONTINGENT_LIABILITY,
+    name: 'Letters of Credit: Commitments Issued (memo)',
+    type: LedgerAccountType.LIABILITY,
   },
 ];

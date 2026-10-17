@@ -434,6 +434,45 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Raise facility interest, fees and period statements',
     category: 'Facilities',
     financial: true,
+  },  {
+    code: 'trade.invoice.manage',
+    description: 'Register invoices in an invoice-finance register (maker)',
+    category: 'Trade finance',
+  },
+  {
+    code: 'trade.invoice.approve',
+    description: 'Approve or reject invoices as eligible for an advance (checker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'trade.lc.read',
+    description: 'View letters of credit and their drawings',
+    category: 'Trade finance',
+  },
+  {
+    code: 'trade.lc.request',
+    description: 'Request letters of credit and record presentations (maker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'trade.lc.issue',
+    description: 'Issue, reject, expire or cancel letters of credit (checker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'syndication.manage',
+    description: 'Set up the participants of a syndicated loan (maker)',
+    category: 'Syndication',
+    financial: true,
+  },
+  {
+    code: 'syndication.approve',
+    description: 'Approve a syndicate (checker)',
+    category: 'Syndication',
+    financial: true,
   },
 ];
 
@@ -561,6 +600,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.read',
       'facility.limit.approve',
       'facility.condition.waive',
+      'trade.invoice.approve',
+      'trade.lc.read',
+      'trade.lc.issue',
+      'syndication.approve',
     ],
   },
   {
@@ -581,6 +624,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.condition.manage',
       'facility.limit.request',
       'facility.statement.generate',
+      'trade.invoice.manage',
+      'trade.lc.read',
+      'trade.lc.request',
+      'syndication.manage',
     ],
   },
   {
@@ -600,6 +647,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.drawdown.approve',
       'facility.drawdown.release',
       'facility.manage',
+      'trade.lc.read',
     ],
   },
   {
@@ -772,6 +820,27 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   {
     key: 'lending.facility.staged_drawdown',
     description: 'Staged (construction) drawdown facilities',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.invoice_finance',
+    description: 'Invoice financing: registers, advances and debtor collections',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.letters_of_credit',
+    description: 'Letters of credit and their conversion to loans',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.syndication',
+    description: 'Syndicated loans with participants',
     category: 'Capabilities',
     sensitive: true,
     defaultEnabled: false,
