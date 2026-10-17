@@ -46,6 +46,7 @@ const INVARIANT_SECTIONS = [
   ['20261017_lending_rate_resets', '-- Database-level invariants for rate resets.'],
   ['20261017_lending_group_liability', '-- Database-level invariants for group lending.'],
   ['20261017_lending_relief_refinance', '-- Database-level invariants for relief and refinancing.'],
+  ['20261017_lending_policies_advance_nonaccrual', '-- Database-level invariants for loan policies, advances and non-accrual.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {

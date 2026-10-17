@@ -28,13 +28,31 @@ const SUBLEDGER_FIELDS: {
     | 'principalOutstanding'
     | 'interestReceivable'
     | 'feesReceivable'
-    | 'penaltyReceivable';
+    | 'penaltyReceivable'
+    | 'advanceBalance'
+    | 'interestInSuspense';
   mapping: string;
+  /** Credit-balance accounts: the GL balance is credits − debits. */
+  credit?: true;
+  /** Code used when an agreement predates the mapping key. */
+  fallback?: string;
 }[] = [
   { field: 'principalOutstanding', mapping: 'loansReceivable' },
   { field: 'interestReceivable', mapping: 'interestReceivable' },
   { field: 'feesReceivable', mapping: 'feesReceivable' },
   { field: 'penaltyReceivable', mapping: 'penaltyReceivable' },
+  {
+    field: 'advanceBalance',
+    mapping: 'customerAdvances',
+    credit: true,
+    fallback: '2300',
+  },
+  {
+    field: 'interestInSuspense',
+    mapping: 'interestSuspense',
+    credit: true,
+    fallback: '2400',
+  },
 ];
 
 @Injectable()
@@ -415,8 +433,9 @@ export class LendingOperationsService {
       }
       for (const f of SUBLEDGER_FIELDS) {
         const sub = D(a[f.field]);
-        const ledger =
-          gl.get(`${a.id}:${mapping[f.mapping]}`) ?? new lending.D(0);
+        const code = mapping[f.mapping] ?? f.fallback;
+        const net = gl.get(`${a.id}:${code}`) ?? new lending.D(0);
+        const ledger = f.credit ? net.negated() : net;
         if (!sub.eq(ledger))
           breaks.push({
             loanAccountId: a.id,

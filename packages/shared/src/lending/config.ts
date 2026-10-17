@@ -328,9 +328,15 @@ export const productConfigSchema = z
             fromDpd: z.number().int().min(1).max(3650).nullable().default(null),
             /** The loan returns to accrual when days past due falls to this or below. */
             cureAtDpd: z.number().int().min(0).max(3650).default(0),
+            /**
+             * On entry, move interest already recognised but still unpaid out of
+             * income into suspense (DECISIONS D-006). Off keeps it as income and
+             * suspends only what accrues from then on.
+             */
+            reverseAccruedOnEntry: z.boolean().default(true),
           })
           .strict()
-          .default({ enabled: false, fromDpd: null, cureAtDpd: 0 }),
+          .default({ enabled: false, fromDpd: null, cureAtDpd: 0, reverseAccruedOnEntry: true }),
         integrations: z
           .object({
             creditBureau: z.enum(['NONE', 'OPTIONAL', 'REQUIRED']),

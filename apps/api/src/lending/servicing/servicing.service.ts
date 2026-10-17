@@ -552,6 +552,9 @@ export class ServicingService {
     const expected = contractualAccrual(state, asOf);
     const delta = expected.minus(already);
     if (delta.gt(0)) {
+      // UC-62: on non-accrual the interest is still owed, but it is held in
+      // suspense rather than recognised as income (DECISIONS D-002).
+      const suspended = state.account.nonAccrual;
       const event = await this.recordEvent(tx, state, {
         type: 'ACCRUAL',
         amount: delta,
@@ -561,16 +564,34 @@ export class ServicingService {
           interest: delta.toString(),
           contractualToDate: expected.toString(),
           previouslyPosted: already.toString(),
+          suspended,
         },
         idempotencyKey: `sys:accrual:${state.account.id}:${randomUUID()}`,
         requestHash: 'system',
         actor,
-        narrative: `Interest accrued to ${asOf}`,
+        narrative: suspended
+          ? `Interest accrued to ${asOf}, held in suspense (non-accrual)`
+          : `Interest accrued to ${asOf}`,
         lines: [
           { accountCode: acc.interestReceivable, debit: delta.toString() },
-          { accountCode: acc.interestIncome, credit: delta.toString() },
+          {
+            accountCode: suspended ? acc.interestSuspense : acc.interestIncome,
+            credit: delta.toString(),
+          },
         ],
       });
+      if (suspended) {
+        state.account.interestInSuspense = D(state.account.interestInSuspense)
+          .plus(delta)
+          .toString() as never;
+        // Written here, not left to the caller: every money operation catches
+        // up first, and not all of them write the suspense balance back. The
+        // version is untouched so the caller's compare-and-set still holds.
+        await tx.loanAccount.updateMany({
+          where: { id: state.account.id, tenantId: state.account.tenantId },
+          data: { interestInSuspense: { increment: delta.toString() } },
+        });
+      }
       await tx.accrualEvent.create({
         data: {
           tenantId: state.account.tenantId,
@@ -634,6 +655,185 @@ export class ServicingService {
     return state;
   }
 
+  // ── Advances and non-accrual ──────────────────────────────────────────────
+
+  /**
+   * Apply money held on advance to whatever has fallen due by `asOf` (UC-27,
+   * DECISIONS D-001), in the product's allocation order. Runs before
+   * penalties and days past due are assessed, so a borrower who paid early is
+   * never late. Changes `state.account` in memory; the caller writes it.
+   */
+  async applyAdvance(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+    businessDate: string,
+    actor: LendingActor,
+  ): Promise<LoanState> {
+    const held = D(state.account.advanceBalance);
+    if (held.lte(0)) return state;
+    const dues = dueItems(state, asOf);
+    if (!dues.length) return state;
+    const cfg = state.config.repayment.allocation;
+    const { allocations, unallocated } = lending.allocatePayment(
+      held.toString(),
+      dues,
+      cfg.order,
+      cfg.strategy,
+    );
+    const used = held.minus(D(unallocated));
+    if (used.lte(0)) return state;
+    await this.applyAllocations(tx, state, allocations);
+    const sumOf = (c: string) =>
+      allocations
+        .filter((a) => a.component === c)
+        .reduce((s, a) => s.plus(a.amount), ZERO());
+    const comp = {
+      PENALTY: sumOf('PENALTY'),
+      FEE: sumOf('FEE').plus(sumOf('TAX')),
+      INTEREST: sumOf('INTEREST'),
+      PRINCIPAL: sumOf('PRINCIPAL'),
+    };
+    const acc = state.config.accounting;
+    const released = suspenseRelease(state, comp.INTEREST);
+    await this.recordEvent(
+      tx,
+      state,
+      {
+        type: 'ADVANCE_APPLIED',
+        amount: used,
+        businessDate,
+        valueDate: asOf,
+        components: {
+          penalty: comp.PENALTY.toString(),
+          fee: sumOf('FEE').toString(),
+          tax: sumOf('TAX').toString(),
+          interest: comp.INTEREST.toString(),
+          principal: comp.PRINCIPAL.toString(),
+          suspenseReleased: released.amount.toString(),
+          advanceLeft: held.minus(used).toString(),
+        },
+        idempotencyKey: `sys:advance:${state.account.id}:${randomUUID()}`,
+        requestHash: 'system',
+        actor,
+        narrative: `Advance applied to instalments due by ${asOf}`,
+        lines: [
+          { accountCode: acc.customerAdvances, debit: used.toString() },
+          {
+            accountCode: acc.penaltyReceivable,
+            credit: comp.PENALTY.toString(),
+          },
+          { accountCode: acc.feesReceivable, credit: comp.FEE.toString() },
+          {
+            accountCode: acc.interestReceivable,
+            credit: comp.INTEREST.toString(),
+          },
+          {
+            accountCode: acc.loansReceivable,
+            credit: comp.PRINCIPAL.toString(),
+          },
+          ...released.lines,
+        ],
+      },
+      allocations,
+    );
+    const a = state.account;
+    a.advanceBalance = held.minus(used).toString() as never;
+    a.penaltyReceivable = D(a.penaltyReceivable)
+      .minus(comp.PENALTY)
+      .toString() as never;
+    a.feesReceivable = D(a.feesReceivable).minus(comp.FEE).toString() as never;
+    a.interestReceivable = D(a.interestReceivable)
+      .minus(comp.INTEREST)
+      .toString() as never;
+    a.principalOutstanding = D(a.principalOutstanding)
+      .minus(comp.PRINCIPAL)
+      .toString() as never;
+    a.interestInSuspense = D(a.interestInSuspense)
+      .minus(released.amount)
+      .toString() as never;
+    return state;
+  }
+
+  /**
+   * UC-62: move a loan onto non-accrual when it reaches the product's
+   * days-past-due threshold, and back when it cures (DECISIONS D-002, D-006).
+   * Changes `state.account` in memory; the caller writes it.
+   */
+  private async nonAccrualTransition(
+    tx: Tx,
+    state: LoanState,
+    dpd: number,
+    businessDate: string,
+    actor: LendingActor,
+  ) {
+    const na = state.config.operations.nonAccrual;
+    const a = state.account;
+    const acc = state.config.accounting;
+    if (!a.nonAccrual) {
+      if (!na.enabled || na.fromDpd == null || dpd < na.fromDpd) return;
+      // Interest recognised earlier but still unpaid leaves income too.
+      const moved = na.reverseAccruedOnEntry
+        ? lending.D.max(
+            0,
+            D(a.interestReceivable).minus(D(a.interestInSuspense)),
+          )
+        : ZERO();
+      await this.recordEvent(tx, state, {
+        type: 'NON_ACCRUAL',
+        amount: moved,
+        businessDate,
+        valueDate: businessDate,
+        components: {
+          direction: 'ENTER',
+          daysPastDue: dpd,
+          fromDpd: na.fromDpd,
+          reversedIncome: moved.toString(),
+        },
+        idempotencyKey: `sys:non-accrual:${a.id}:${randomUUID()}`,
+        requestHash: 'system',
+        actor,
+        narrative: `Placed on non-accrual at ${dpd} days past due`,
+        lines: [
+          { accountCode: acc.interestIncome, debit: moved.toString() },
+          { accountCode: acc.interestSuspense, credit: moved.toString() },
+        ],
+      });
+      a.nonAccrual = true;
+      a.nonAccrualSince = fromLocalDate(businessDate);
+      a.interestInSuspense = D(a.interestInSuspense)
+        .plus(moved)
+        .toString() as never;
+      return;
+    }
+    if (dpd > na.cureAtDpd) return;
+    const released = D(a.interestInSuspense);
+    await this.recordEvent(tx, state, {
+      type: 'NON_ACCRUAL',
+      amount: released,
+      businessDate,
+      valueDate: businessDate,
+      components: {
+        direction: 'CURE',
+        daysPastDue: dpd,
+        cureAtDpd: na.cureAtDpd,
+        recognisedIncome: released.toString(),
+        since: toLocalDate(a.nonAccrualSince),
+      },
+      idempotencyKey: `sys:non-accrual:${a.id}:${randomUUID()}`,
+      requestHash: 'system',
+      actor,
+      narrative: `Returned to accrual at ${dpd} days past due`,
+      lines: [
+        { accountCode: acc.interestSuspense, debit: released.toString() },
+        { accountCode: acc.interestIncome, credit: released.toString() },
+      ],
+    });
+    a.nonAccrual = false;
+    a.nonAccrualSince = null;
+    a.interestInSuspense = '0' as never;
+  }
+
   // ── Repayment and prepayment ──────────────────────────────────────────────
 
   async postRepayment(
@@ -644,6 +844,8 @@ export class ServicingService {
       valueDate?: string;
       externalReference?: string;
       prepaymentStrategy?: 'RECAST' | 'SHORTEN';
+      /** Customer's choice for money beyond what is due, where the product allows it (UC-26). */
+      applyExcessAs?: 'ADVANCE' | 'PREPAY';
     },
     idempotencyKey: string,
   ) {
@@ -672,26 +874,19 @@ export class ServicingService {
         state.config.repayment.maxBackdateDays,
       );
       state = await this.catchUp(tx, state, valueDate, businessDate, actor);
+      // Money already held as an advance pays what is due before new money does.
+      state = await this.applyAdvance(
+        tx,
+        state,
+        valueDate,
+        businessDate,
+        actor,
+      );
 
       const cfg = state.config.repayment;
-      const due = state.lines.filter(
-        (l) =>
-          l.status === 'DUE' &&
-          lending.compareDates(toLocalDate(l.dueDate)!, valueDate) <= 0,
-      );
-      const dues: lending.DueItem[] = due.flatMap((l) =>
-        Object.entries(outstanding(l))
-          .filter(([, v]) => v.gt(0))
-          .map(([component, v]) => ({
-            instalmentNumber: l.number,
-            dueDate: toLocalDate(l.dueDate)!,
-            component: component as lending.DueComponent,
-            outstanding: v.toString(),
-          })),
-      );
       const { allocations, unallocated } = lending.allocatePayment(
         amount.toString(),
-        dues,
+        dueItems(state, valueDate),
         cfg.allocation.order,
         cfg.allocation.strategy,
       );
@@ -702,14 +897,31 @@ export class ServicingService {
           .reduce((s, a) => s.plus(a.amount), ZERO());
       const duePrincipalPaid = sumOf('PRINCIPAL');
 
+      // UC-26: what happens to money beyond what is due is a product setting;
+      // the customer may ask for the other treatment where the product allows it.
+      const handling =
+        cfg.allocation.excessHandling === 'REJECT'
+          ? 'REJECT'
+          : (body.applyExcessAs ?? cfg.allocation.excessHandling);
+      let advanced = ZERO();
       let prepaid = ZERO();
       let prepaymentFee = ZERO();
       let reschedule: lending.RescheduleResult | null = null;
-      if (excess.gt(0)) {
-        if (
-          cfg.allocation.excessHandling === 'REJECT' ||
-          !cfg.prepayment.allowed
-        ) {
+      if (excess.gt(0) && handling === 'ADVANCE') {
+        // UC-27: held for the borrower and applied as instalments fall due. It
+        // can never exceed what the borrower owes today, so an advance is
+        // always used up by the loan and never strands money on a closed one.
+        const room = totalOutstanding(state)
+          .minus(D(amount).minus(excess))
+          .minus(D(state.account.advanceBalance));
+        if (excess.gt(room))
+          throw new BadRequestException(
+            `This payment would leave ${excess.minus(room)} ${state.account.currency} more on advance than the loan owes. Request a settlement quote and use early settlement to repay in full.`,
+          );
+        advanced = excess;
+        excess = ZERO();
+      } else if (excess.gt(0)) {
+        if (handling === 'REJECT' || !cfg.prepayment.allowed) {
           throw new BadRequestException(
             `The payment exceeds the ${D(amount).minus(excess)} ${state.account.currency} currently due, and this product does not take partial prepayments. Use early settlement to repay in full.`,
           );
@@ -836,6 +1048,7 @@ export class ServicingService {
         PRINCIPAL: duePrincipalPaid,
       };
       const acc = state.config.accounting;
+      const released = suspenseRelease(state, comp.INTEREST);
       const event = await this.recordEvent(
         tx,
         state,
@@ -852,6 +1065,8 @@ export class ServicingService {
             principal: comp.PRINCIPAL.toString(),
             prepaidPrincipal: prepaid.toString(),
             prepaymentFee: prepaymentFee.toString(),
+            advance: advanced.toString(),
+            suspenseReleased: released.amount.toString(),
             rescheduled: !!reschedule,
             reschedule: reschedule?.explanation,
           },
@@ -879,6 +1094,8 @@ export class ServicingService {
               credit: comp.PRINCIPAL.plus(prepaid).toString(),
             },
             { accountCode: acc.feeIncome, credit: prepaymentFee.toString() },
+            { accountCode: acc.customerAdvances, credit: advanced.toString() },
+            ...released.lines,
           ],
         },
         allocations,
@@ -887,6 +1104,12 @@ export class ServicingService {
         .minus(comp.PRINCIPAL)
         .minus(prepaid);
       const data: Prisma.LoanAccountUpdateManyMutationInput = {
+        advanceBalance: D(state.account.advanceBalance)
+          .plus(advanced)
+          .toString(),
+        interestInSuspense: D(state.account.interestInSuspense)
+          .minus(released.amount)
+          .toString(),
         principalOutstanding: principalOutstanding.toString(),
         interestReceivable: D(state.account.interestReceivable)
           .minus(comp.INTEREST)
@@ -926,6 +1149,7 @@ export class ServicingService {
             event: event.id,
             amount: amount.toString(),
             prepaid: prepaid.toString(),
+            advance: advanced.toString(),
           },
           businessDate: fromLocalDate(businessDate),
         },
@@ -986,11 +1210,14 @@ export class ServicingService {
       fee = fee.plus(principal.minus(duePrincipal).times(es.feeRate));
     if (es.feeFixed) fee = fee.plus(es.feeFixed);
     fee = lending.roundMoney(fee, state.config.pricing.rounding);
+    // Money already held on advance goes towards the payoff (UC-27).
+    const advance = D(state.account.advanceBalance);
     const total = principal
       .plus(interest)
       .plus(D(state.account.feesReceivable))
       .plus(D(state.account.penaltyReceivable))
-      .plus(fee);
+      .plus(fee)
+      .minus(advance);
     // Cash is tendered in the currency's settlement increment (100 riel for KHR); the difference goes to the rounding account.
     const payable = lending.roundMoney(total, state.config.pricing.rounding);
     return {
@@ -1001,6 +1228,7 @@ export class ServicingService {
       fees: D(state.account.feesReceivable).toString(),
       penalties: D(state.account.penaltyReceivable).toString(),
       settlementFee: fee.toString(),
+      advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),
       roundingDifference: payable.minus(total).toString(),
@@ -1107,6 +1335,11 @@ export class ServicingService {
 
       const acc = state.config.accounting;
       const rounding = D(q.roundingDifference);
+      // Every penny of interest is collected, so suspended interest is now income.
+      const released = suspenseRelease(
+        state,
+        D(state.account.interestReceivable),
+      );
       const event = await this.recordEvent(
         tx,
         state,
@@ -1124,6 +1357,10 @@ export class ServicingService {
           lines: [
             { accountCode: acc.cash, debit: amount.toString() },
             {
+              accountCode: acc.customerAdvances,
+              debit: D(state.account.advanceBalance).toString(),
+            },
+            {
               accountCode: acc.loansReceivable,
               credit: D(state.account.principalOutstanding).toString(),
             },
@@ -1140,6 +1377,7 @@ export class ServicingService {
               credit: D(state.account.penaltyReceivable).toString(),
             },
             { accountCode: acc.feeIncome, credit: q.settlementFee },
+            ...released.lines,
             rounding.gte(0)
               ? {
                   accountCode: acc.roundingDifferences,
@@ -1160,6 +1398,10 @@ export class ServicingService {
         interestReceivable: '0',
         feesReceivable: '0',
         penaltyReceivable: '0',
+        advanceBalance: '0',
+        interestInSuspense: '0',
+        nonAccrual: false,
+        nonAccrualSince: null,
         daysPastDue: 0,
         delinquencyBucket: 'CURRENT',
         collectionStage: null,
@@ -1211,9 +1453,9 @@ export class ServicingService {
       );
       if (!body.reason?.trim())
         throw new BadRequestException('A reversal reason is required.');
-      if (original.type !== 'REPAYMENT')
+      if (original.type !== 'REPAYMENT' && original.type !== 'ADVANCE_APPLIED')
         throw new ConflictException(
-          'Only repayments can be reversed in Phase 1.',
+          'Only repayments and advance applications can be reversed.',
         );
       if (original.status !== 'POSTED')
         throw new ConflictException('This repayment is already reversed.');
@@ -1223,9 +1465,21 @@ export class ServicingService {
         tax: string;
         interest: string;
         principal: string;
-        prepaidPrincipal: string;
+        prepaidPrincipal?: string;
+        advance?: string;
+        suspenseReleased?: string;
         rescheduled?: boolean;
       };
+      // A repayment's advance goes back out; an advance application puts the
+      // money back on advance (UC-23, UC-27).
+      const advanceChange =
+        original.type === 'ADVANCE_APPLIED'
+          ? D(original.amount)
+          : D(components.advance ?? '0').negated();
+      if (D(state.account.advanceBalance).plus(advanceChange).lt(0))
+        throw new ConflictException(
+          'Part of the advance from this repayment has already been applied to instalments; reverse those advance applications first (latest first).',
+        );
       if (components.rescheduled)
         throw new ConflictException(
           'This repayment rescheduled the loan; reversing a prepayment is not supported in Phase 1.',
@@ -1236,7 +1490,9 @@ export class ServicingService {
           loanAccountId: id,
           createdAt: { gt: original.createdAt },
           status: 'POSTED',
-          type: { in: ['REPAYMENT', 'SETTLEMENT', 'WRITE_OFF'] },
+          type: {
+            in: ['REPAYMENT', 'ADVANCE_APPLIED', 'SETTLEMENT', 'WRITE_OFF'],
+          },
         },
       });
       if (later)
@@ -1276,6 +1532,15 @@ export class ServicingService {
           },
         });
       }
+      // Interest the original released from suspense goes back into suspense,
+      // unless the loan has since cured: then it is earned and stays income.
+      const reSuspended = state.account.nonAccrual
+        ? D(components.suspenseReleased ?? '0')
+        : ZERO();
+      const keptAsIncome = D(components.suspenseReleased ?? '0').minus(
+        reSuspended,
+      );
+      const acc = state.config.accounting;
       const event = await this.recordEvent(tx, state, {
         type: 'REVERSAL',
         amount: D(original.amount),
@@ -1289,9 +1554,23 @@ export class ServicingService {
         idempotencyKey,
         requestHash: hash,
         actor,
-        narrative: `Reversal of repayment ${original.id}`,
+        narrative: `Reversal of ${original.type === 'ADVANCE_APPLIED' ? 'advance application' : 'repayment'} ${original.id}`,
         reversalOfId: original.id,
-        lines: PostingService.reverseLines(original.journal!.lines),
+        lines: [
+          ...PostingService.reverseLines(original.journal!.lines),
+          ...(keptAsIncome.gt(0)
+            ? [
+                {
+                  accountCode: acc.interestSuspense,
+                  debit: keptAsIncome.toString(),
+                },
+                {
+                  accountCode: acc.interestIncome,
+                  credit: keptAsIncome.toString(),
+                },
+              ]
+            : []),
+        ],
       });
       await tx.financialEvent.update({
         where: { id: original.id },
@@ -1302,7 +1581,13 @@ export class ServicingService {
         closedAt: null,
         principalOutstanding: D(state.account.principalOutstanding)
           .plus(components.principal)
-          .plus(components.prepaidPrincipal)
+          .plus(components.prepaidPrincipal ?? '0')
+          .toString(),
+        advanceBalance: D(state.account.advanceBalance)
+          .plus(advanceChange)
+          .toString(),
+        interestInSuspense: D(state.account.interestInSuspense)
+          .plus(reSuspended)
           .toString(),
         interestReceivable: D(state.account.interestReceivable)
           .plus(components.interest)
@@ -1406,6 +1691,7 @@ export class ServicingService {
           'This product does not permit negotiated settlement.',
         );
       }
+      refuseWhileAdvanceHeld(state, 'settle it for less than it owes');
       const businessDate = await this.businessDate.get(tenantId, tx);
       const valueDate = body.valueDate ?? businessDate;
       BusinessDateService.checkValueDate(
@@ -1448,6 +1734,19 @@ export class ServicingService {
         D(
           result.forgiven.find((x) => x.component === component)?.amount ?? '0',
         );
+      const concessionAccount = forgivenOf('PRINCIPAL').gt(0)
+        ? acc.principalForgivenessExpense
+        : acc.concessionsExpense;
+      // Suspended interest that is collected becomes income; what is forgiven
+      // was never income, so it reduces the concession instead of inflating it.
+      const released = suspenseRelease(
+        state,
+        D(
+          result.allocations.find((x) => x.component === 'INTEREST')?.amount ??
+            '0',
+        ),
+        concessionAccount,
+      );
 
       await tx.scheduleInstalment.updateMany({
         where: { tenantId, loanAccountId: id, status: 'DUE' },
@@ -1476,15 +1775,9 @@ export class ServicingService {
           { accountCode: acc.cash, debit: amount.toString() },
           // The shortfall is an expense, not a vanished receivable.
           ...(concession.gt(0)
-            ? [
-                {
-                  accountCode: forgivenOf('PRINCIPAL').gt(0)
-                    ? acc.principalForgivenessExpense
-                    : acc.concessionsExpense,
-                  debit: concession.toString(),
-                },
-              ]
+            ? [{ accountCode: concessionAccount, debit: concession.toString() }]
             : []),
+          ...released.lines,
           {
             accountCode: acc.loansReceivable,
             credit: decStr(a.principalOutstanding),
@@ -1507,6 +1800,9 @@ export class ServicingService {
         interestReceivable: '0',
         feesReceivable: '0',
         penaltyReceivable: '0',
+        interestInSuspense: '0',
+        nonAccrual: false,
+        nonAccrualSince: null,
       });
       await this.audit.write(
         {
@@ -1748,6 +2044,7 @@ export class ServicingService {
         `The loan being refinanced is ${previous.account.status}; only an active loan can be replaced.`,
       );
     }
+    refuseWhileAdvanceHeld(previous, 'refinance it');
     const overdue = previous.lines.filter(
       (l) =>
         l.status === 'DUE' &&
@@ -1842,6 +2139,9 @@ export class ServicingService {
     const acc = previous.config.accounting;
     const a = previous.account;
     const payoff = D(result.payoffAmount);
+    refuseWhileAdvanceHeld(previous, 'refinance it');
+    // The payoff clears all interest, so suspended interest is now income.
+    const released = suspenseRelease(previous, D(a.interestReceivable));
 
     await tx.scheduleInstalment.updateMany({
       where: { tenantId, loanAccountId: a.id, status: 'DUE' },
@@ -1878,6 +2178,7 @@ export class ServicingService {
           accountCode: acc.penaltyReceivable,
           credit: decStr(a.penaltyReceivable),
         },
+        ...released.lines,
       ],
     });
     await this.casAccount(tx, previous, 'ACTIVE', {
@@ -1887,6 +2188,9 @@ export class ServicingService {
       interestReceivable: '0',
       feesReceivable: '0',
       penaltyReceivable: '0',
+      interestInSuspense: '0',
+      nonAccrual: false,
+      nonAccrualSince: null,
       refinancedByLoanId: state.account.id,
     });
     await tx.loanAccount.updateMany({
@@ -1960,6 +2264,7 @@ export class ServicingService {
         );
       if (!body.reason?.trim())
         throw new BadRequestException('A reason is required.');
+      refuseWhileAdvanceHeld(state, 'write it off');
       const open = await tx.approvalTask.findFirst({
         where: {
           tenantId,
@@ -2045,9 +2350,12 @@ export class ServicingService {
         );
         return { rejected: true };
       }
+      refuseWhileAdvanceHeld(state, 'write it off');
       const businessDate = await this.businessDate.get(tenantId, tx);
       const acc = state.config.accounting;
       const a = state.account;
+      // Suspended interest was never income, so writing it off is not a loss.
+      const released = suspenseRelease(state, ZERO(), acc.writeOffExpense);
       const event = await this.recordEvent(tx, state, {
         type: 'WRITE_OFF',
         amount: total,
@@ -2058,6 +2366,7 @@ export class ServicingService {
           interest: a.interestReceivable.toString(),
           fees: a.feesReceivable.toString(),
           penalties: a.penaltyReceivable.toString(),
+          interestInSuspense: released.amount.toString(),
           task: taskId,
         },
         idempotencyKey,
@@ -2082,6 +2391,7 @@ export class ServicingService {
             accountCode: acc.penaltyReceivable,
             credit: a.penaltyReceivable.toString(),
           },
+          ...released.lines,
         ],
       });
       await tx.scheduleInstalment.updateMany({
@@ -2095,6 +2405,7 @@ export class ServicingService {
         interestReceivable: '0',
         feesReceivable: '0',
         penaltyReceivable: '0',
+        interestInSuspense: '0',
       });
       await this.audit.write(
         {
@@ -2177,6 +2488,14 @@ export class ServicingService {
             businessDate,
             actor,
           );
+          // An advance pays today's instalment before it can be late.
+          state = await this.applyAdvance(
+            tx,
+            state,
+            businessDate,
+            businessDate,
+            actor,
+          );
           const penalty = await this.assessPenalties(
             tx,
             state,
@@ -2186,21 +2505,33 @@ export class ServicingService {
           for (const hook of this.batchHooks)
             await hook(tx, state, businessDate, actor);
           const dq = delinquency(state, businessDate);
-          await this.casAccount(tx, state, 'ACTIVE', {
-            interestReceivable: D(state.account.interestReceivable).toString(),
-            principalOutstanding: D(
-              state.account.principalOutstanding,
-            ).toString(),
-            penaltyReceivable: D(state.account.penaltyReceivable)
-              .plus(penalty)
-              .toString(),
-            lastAccrualDate: state.account.lastAccrualDate,
+          await this.nonAccrualTransition(
+            tx,
+            state,
+            dq.dpd,
+            businessDate,
+            actor,
+          );
+          const a = state.account;
+          const data: Prisma.LoanAccountUpdateManyMutationInput = {
+            interestReceivable: D(a.interestReceivable).toString(),
+            principalOutstanding: D(a.principalOutstanding).toString(),
+            feesReceivable: D(a.feesReceivable).toString(),
+            penaltyReceivable: D(a.penaltyReceivable).plus(penalty).toString(),
+            advanceBalance: D(a.advanceBalance).toString(),
+            interestInSuspense: D(a.interestInSuspense).toString(),
+            nonAccrual: a.nonAccrual,
+            nonAccrualSince: a.nonAccrualSince,
+            lastAccrualDate: a.lastAccrualDate,
             daysPastDue: dq.dpd,
             delinquencyBucket: dq.bucket,
             collectionStage: dq.stage,
-            probationRemaining: state.account.probationRemaining,
-            delinquencyFloorBucket: state.account.delinquencyFloorBucket,
-          });
+            probationRemaining: a.probationRemaining,
+            delinquencyFloorBucket: a.delinquencyFloorBucket,
+          };
+          // The last instalment may have been paid from the advance.
+          await this.closeIfRepaid(tx, state, data);
+          await this.casAccount(tx, state, 'ACTIVE', data);
         });
         processed++;
       } catch (e) {
@@ -2531,13 +2862,20 @@ export class ServicingService {
       'feesReceivable',
       'penaltyReceivable',
     ].every((k) => D(data[k as keyof typeof data] as string).isZero());
-    if (open === 0 && zero) {
+    // Money still held for the borrower keeps the account open until refunded.
+    const held = D(
+      (data.advanceBalance as string | undefined) ??
+        state.account.advanceBalance,
+    );
+    if (open === 0 && zero && held.isZero()) {
       Object.assign(data, {
         status: 'CLOSED',
         closedAt: new Date(),
         daysPastDue: 0,
         delinquencyBucket: 'CURRENT',
         collectionStage: null,
+        nonAccrual: false,
+        nonAccrualSince: null,
       });
     }
   }
@@ -2578,6 +2916,68 @@ function totalOutstanding(state: LoanState): Dec {
     .plus(D(a.interestReceivable))
     .plus(D(a.feesReceivable))
     .plus(D(a.penaltyReceivable));
+}
+
+/** What is owed on instalments due by `asOf`, in allocation-engine form. */
+function dueItems(state: LoanState, asOf: string): lending.DueItem[] {
+  return state.lines
+    .filter(
+      (l) =>
+        l.status === 'DUE' &&
+        lending.compareDates(toLocalDate(l.dueDate)!, asOf) <= 0,
+    )
+    .flatMap((l) =>
+      Object.entries(outstanding(l))
+        .filter(([, v]) => v.gt(0))
+        .map(([component, v]) => ({
+          instalmentNumber: l.number,
+          dueDate: toLocalDate(l.dueDate)!,
+          component: component as lending.DueComponent,
+          outstanding: v.toString(),
+        })),
+    );
+}
+
+/**
+ * Journal lines that take interest out of suspense when it stops being owed
+ * (UC-62). Collected interest becomes income, up to what is in suspense; with
+ * `rest` given, the remainder of the suspense balance is cleared to that
+ * account too (a write-off or forgiveness, where it reduces the loss).
+ */
+function suspenseRelease(
+  state: LoanState,
+  interestCollected: Dec,
+  rest?: string,
+): {
+  amount: Dec;
+  lines: { accountCode: string; debit?: string; credit?: string }[];
+} {
+  const held = D(state.account.interestInSuspense);
+  if (held.lte(0)) return { amount: ZERO(), lines: [] };
+  const toIncome = lending.D.min(held, lending.D.max(0, interestCollected));
+  const cleared = rest ? held.minus(toIncome) : ZERO();
+  const amount = toIncome.plus(cleared);
+  if (amount.isZero()) return { amount, lines: [] };
+  const acc = state.config.accounting;
+  return {
+    amount,
+    lines: [
+      { accountCode: acc.interestSuspense, debit: amount.toString() },
+      { accountCode: acc.interestIncome, credit: toIncome.toString() },
+      ...(cleared.gt(0)
+        ? [{ accountCode: rest!, credit: cleared.toString() }]
+        : []),
+    ],
+  };
+}
+
+/** An advance is the borrower's money; it is refunded or used before the loan is closed some other way. */
+function refuseWhileAdvanceHeld(state: LoanState, action: string) {
+  const held = D(state.account.advanceBalance);
+  if (held.gt(0))
+    throw new ConflictException(
+      `This loan holds ${held} ${state.account.currency} paid in advance. Refund the advance before you ${action}.`,
+    );
 }
 
 /**
@@ -2622,7 +3022,12 @@ export function delinquency(
 
 function view<T extends Record<string, unknown>>(a: T) {
   const out: Record<string, unknown> = { ...a };
-  for (const k of ['disbursementDate', 'maturityDate', 'lastAccrualDate'])
+  for (const k of [
+    'disbursementDate',
+    'maturityDate',
+    'lastAccrualDate',
+    'nonAccrualSince',
+  ])
     if (out[k] instanceof Date) out[k] = toLocalDate(out[k]);
   for (const [k, v] of Object.entries(out))
     if (v && typeof v === 'object' && 'toFixed' in v && !(v instanceof Date))

@@ -67,6 +67,7 @@ model Tenant {
   serviceAccounts   ServiceAccount[]
   workflowVersions  WorkflowVersion[]
   lendingProducts   LendingProduct[]
+  lendingPolicies   LendingPolicy[]
   borrowerGroups    BorrowerGroup[]
   applications      Application[]
   approvalTasks     ApprovalTask[]
@@ -1896,6 +1897,8 @@ model AgreementVersion {
   configHash    String
   terms         Json
   scheduleInput Json
+  /// Policies the contract is composed of, resolved at booking: [{kind, code, version, policyVersionId, parameters}]
+  policies      Json?
   calculation   Json
   engineVersion String
   effectiveDate DateTime         @db.Date
@@ -1927,6 +1930,13 @@ model LoanAccount {
   interestReceivable     Decimal          @default(0) @db.Decimal(24, 4)
   feesReceivable         Decimal          @default(0) @db.Decimal(24, 4)
   penaltyReceivable      Decimal          @default(0) @db.Decimal(24, 4)
+  /// Money received ahead of its due date, applied to instalments as they fall due (DECISIONS D-001).
+  advanceBalance         Decimal          @default(0) @db.Decimal(24, 4)
+  /// Interest stops being recognised as income while true (DECISIONS D-002).
+  nonAccrual             Boolean          @default(false)
+  nonAccrualSince        DateTime?        @db.Date
+  /// Interest accrued while on non-accrual, held in suspense until cure.
+  interestInSuspense     Decimal          @default(0) @db.Decimal(24, 4)
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2508,4 +2518,48 @@ model AuditEvent {
 
   @@index([tenantId, eventTime])
   @@index([tenantId, resourceType, resourceId])
+}
+
+/// Reusable loan policy (docs/servicing/POLICY_MODEL.md). A contract is
+/// composed from policy versions chosen from its product's menu.
+model LendingPolicy {
+  id          String                 @id @default(uuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// PREPAYMENT, LATE_CHARGES, ALLOCATION, NON_ACCRUAL
+  kind        String
+  code        String
+  name        String
+  description String                 @default("")
+  createdBy   String
+  createdAt   DateTime               @default(now())
+  versions    LendingPolicyVersion[]
+
+  @@unique([tenantId, kind, code])
+  @@unique([tenantId, id])
+}
+
+model LendingPolicyVersion {
+  id              String        @id @default(uuid())
+  tenantId        String
+  policyId        String
+  policy          LendingPolicy @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// DRAFT, SUBMITTED, APPROVED, REJECTED, RETIRED
+  status          String        @default("DRAFT")
+  parameters      Json          @default("{}")
+  body            Json
+  bodyHash        String
+  changeSummary   String        @default("")
+  makerId         String
+  submittedAt     DateTime?
+  checkerId       String?
+  approvedAt      DateTime?
+  retiredAt       DateTime?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+
+  @@unique([policyId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
 }
