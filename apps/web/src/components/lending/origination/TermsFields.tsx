@@ -14,10 +14,11 @@ export interface TermsDraft {
     downPayment: string;
     promotionCode: string;
     annualNetOperatingIncome: string;
+    declaredAnnualIncome: string;
 }
 
 export function emptyTermsDraft(disbursementDate: string): TermsDraft {
-    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '', promotionCode: '', annualNetOperatingIncome: '' };
+    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '', promotionCode: '', annualNetOperatingIncome: '', declaredAnnualIncome: '' };
 }
 
 export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft {
@@ -30,6 +31,7 @@ export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft
         downPayment: t?.downPayment ?? '',
         promotionCode: t?.promotionCode ?? '',
         annualNetOperatingIncome: t?.financials?.annualNetOperatingIncome ?? '',
+        declaredAnnualIncome: t?.declaredAnnualIncome ?? '',
     };
 }
 
@@ -41,6 +43,7 @@ export function validateTerms(d: TermsDraft): string[] {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.disbursementDate)) errs.push('Disbursement date is required.');
     if (d.annualRatePct && !isDecimalString(d.annualRatePct)) errs.push('Annual rate must be a decimal percent, e.g. 12.5.');
     if (d.downPayment && !/^\d+(\.\d{1,4})?$/.test(d.downPayment.trim())) errs.push('Down payment must be a decimal amount.');
+    if (d.declaredAnnualIncome && !/^\d+(\.\d{1,4})?$/.test(d.declaredAnnualIncome.trim())) errs.push('Declared annual income must be a decimal amount.');
     return errs;
 }
 
@@ -58,6 +61,7 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
         financials: d.annualNetOperatingIncome.trim()
             ? { ...(base?.financials ?? {}), annualNetOperatingIncome: d.annualNetOperatingIncome.trim() }
             : base?.financials,
+        declaredAnnualIncome: d.declaredAnnualIncome.trim() || undefined,
     } as Terms;
 }
 
@@ -88,6 +92,9 @@ export function TermsFields({ value, onChange, currency }: { value: TermsDraft; 
             </Field>
             <Field label="Annual net operating income" hint="Optional — business loans: for debt-service coverage (DSCR)">
                 <TextInput value={value.annualNetOperatingIncome} onChange={set('annualNetOperatingIncome')} inputMode="decimal" />
+            </Field>
+            <Field label="Declared annual income" hint="Income-contingent loans only — sets the first instalment; leave blank (nil) while studying">
+                <TextInput value={value.declaredAnnualIncome} onChange={set('declaredAnnualIncome')} inputMode="decimal" />
             </Field>
         </div>
     );

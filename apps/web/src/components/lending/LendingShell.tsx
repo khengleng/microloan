@@ -18,6 +18,8 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/facilities', label: 'Facilities' },
     { href: '/lending/trade', label: 'Trade finance' },
     { href: '/lending/syndication', label: 'Syndication' },
+    { href: '/lending/counterparties', label: 'Counterparties' },
+    { href: '/lending/income-contingent', label: 'Income assessments' },
     { href: '/lending/cards', label: 'Cards' },
     { href: '/lending/groups', label: 'Groups' },
     { href: '/lending/collections', label: 'Collections' },
