@@ -163,13 +163,23 @@ export const productConfigSchema = z
         fees: z.array(feeSchema).default([]),
         penalty: z
           .object({
-            type: z.enum(['NONE', 'FLAT_PER_INSTALMENT', 'RATE_ON_OVERDUE']),
+            /**
+             * FLAT_PER_INSTALMENT: a fixed late fee once per overdue instalment;
+             * PERCENT_PER_INSTALMENT: a percentage of the overdue amount, once;
+             * RATE_ON_OVERDUE: daily penalty interest on the overdue amount (UC-55, UC-56).
+             */
+            type: z.enum(['NONE', 'FLAT_PER_INSTALMENT', 'PERCENT_PER_INSTALMENT', 'RATE_ON_OVERDUE']),
             flatAmount: decimalString.nullable().default(null),
+            percentOfOverdue: rateFraction.nullable().default(null),
             annualRate: rateFraction.nullable().default(null),
             graceDays: z.number().int().min(0).max(365).default(0),
             capPerInstalment: decimalString.nullable().default(null),
+            /** Most that late charges may ever total on one loan. */
+            capPerLoan: decimalString.nullable().default(null),
           })
           .strict(),
+        /** Charged when a repayment is reversed because it bounced or was returned (UC-23). */
+        returnedPaymentFee: decimalString.nullable().default(null),
         capitalization: z
           .object({
             allowInterestGraceCapitalization: z.boolean(),
@@ -536,6 +546,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
 
   if (c.pricing.penalty.type === 'FLAT_PER_INSTALMENT' && !c.pricing.penalty.flatAmount) add('pricing.penalty.flatAmount', 'required');
   if (c.pricing.penalty.type === 'RATE_ON_OVERDUE' && !c.pricing.penalty.annualRate) add('pricing.penalty.annualRate', 'required');
+  if (c.pricing.penalty.type === 'PERCENT_PER_INSTALMENT' && !c.pricing.penalty.percentOfOverdue) add('pricing.penalty.percentOfOverdue', 'required');
 
   if (c.attributes.secured !== c.security.collateralRequired) add('security.collateralRequired', 'must match attributes.secured');
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');

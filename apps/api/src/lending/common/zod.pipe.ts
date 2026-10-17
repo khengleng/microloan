@@ -345,6 +345,21 @@ export const S = {
       externalReference: z.string().max(120).optional(),
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+      payer: z
+        .object({
+          name: z.string().min(2).max(120),
+          relationship: z.enum([
+            'BORROWER',
+            'GUARANTOR',
+            'FAMILY',
+            'EMPLOYER',
+            'GROUP_MEMBER',
+            'OTHER',
+          ]),
+          reference: z.string().max(120).optional(),
+        })
+        .strict()
+        .optional(),
       contributions: z
         .array(
           z.object({ borrowerId: z.string().uuid(), amount: money }).strict(),
@@ -360,7 +375,12 @@ export const S = {
       externalReference: z.string().max(120).optional(),
     })
     .strict(),
-  reversal: z.object({ reason: z.string().min(3).max(500) }).strict(),
+  reversal: z
+    .object({
+      reason: z.string().min(3).max(500),
+      returned: z.boolean().optional(),
+    })
+    .strict(),
   writeOff: z.object({ reason: z.string().min(3).max(500) }).strict(),
   role: z
     .object({

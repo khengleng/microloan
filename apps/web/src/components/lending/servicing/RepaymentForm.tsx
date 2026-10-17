@@ -15,6 +15,8 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const [externalReference, setExternalReference] = useState('');
     const [strategy, setStrategy] = useState('');
     const [excess, setExcess] = useState('');
+    const [payerName, setPayerName] = useState('');
+    const [payerRelationship, setPayerRelationship] = useState('');
     const [problem, setProblem] = useState('');
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
@@ -23,7 +25,8 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const post = async () => {
         if (!MONEY_RE.test(amount.trim()) || !/[1-9]/.test(amount)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
         setProblem('');
-        const body = clean({ amount: amount.trim(), valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy, applyExcessAs: excess });
+        const payer = payerName.trim() ? { name: payerName.trim(), relationship: payerRelationship || 'OTHER' } : undefined;
+        const body = clean({ amount: amount.trim(), valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy, applyExcessAs: excess, payer });
         const k = key.keyFor(body);
         const res = await run('repay', () => api.post(`/lending/loans/${loanId}/repayments`, body, idem(k)));
         if (res) {
@@ -60,6 +63,19 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
                         onChange={setStrategy}
                         placeholder="Product default"
                         options={[{ value: 'RECAST', label: 'RECAST — lower instalment' }, { value: 'SHORTEN', label: 'SHORTEN — earlier maturity' }]}
+                    />
+                </Field>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <Field label="Paid by (if not the borrower)" hint="Optional — recorded with the payment">
+                    <TextInput value={payerName} onChange={setPayerName} maxLength={120} />
+                </Field>
+                <Field label="Payer's relationship">
+                    <SelectInput
+                        value={payerRelationship}
+                        onChange={setPayerRelationship}
+                        placeholder="—"
+                        options={['GUARANTOR', 'FAMILY', 'EMPLOYER', 'GROUP_MEMBER', 'OTHER']}
                     />
                 </Field>
             </div>

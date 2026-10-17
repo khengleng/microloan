@@ -934,6 +934,8 @@ export class ServicingService {
       applyExcessAs?: 'ADVANCE' | 'PREPAY';
       /** On a group loan: who paid how much of this repayment (UC-22). */
       contributions?: { borrowerId: string; amount: string }[];
+      /** Someone other than the borrower paying (UC-20). */
+      payer?: { name: string; relationship: string; reference?: string };
     },
     idempotencyKey: string,
   ) {
@@ -962,6 +964,8 @@ export class ServicingService {
       applyExcessAs?: 'ADVANCE' | 'PREPAY';
       /** On a group loan: who paid how much of this repayment (UC-22). */
       contributions?: { borrowerId: string; amount: string }[];
+      /** Someone other than the borrower paying (UC-20). */
+      payer?: { name: string; relationship: string; reference?: string };
     },
     idempotencyKey: string,
     hash: string,
@@ -1242,6 +1246,7 @@ export class ServicingService {
             : undefined,
           advance: advanced.toString(),
           suspenseReleased: released.amount.toString(),
+          payer: body.payer ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
         },
@@ -1662,7 +1667,8 @@ export class ServicingService {
     actor: LendingActor,
     id: string,
     eventId: string,
-    body: { reason: string },
+    /** `returned`: the payment bounced or was returned, so the product's returned-payment fee applies (UC-23). */
+    body: { reason: string; returned?: boolean },
     idempotencyKey: string,
   ) {
     const tenantId = requireTenant(actor);
@@ -1805,6 +1811,51 @@ export class ServicingService {
         where: { id: original.id },
         data: { status: 'REVERSED' },
       });
+      // UC-23: a bounced or returned payment carries the product's fee, due
+      // with the earliest open instalment so it is collected like any fee.
+      let returnedFee = ZERO();
+      const feeAmount = state.config.pricing.returnedPaymentFee;
+      if (body.returned && original.type === 'REPAYMENT' && feeAmount) {
+        const target = await tx.scheduleInstalment.findFirst({
+          where: { tenantId, loanAccountId: id, status: 'DUE' },
+          orderBy: { number: 'asc' },
+        });
+        if (target) {
+          returnedFee = D(feeAmount);
+          await tx.scheduleInstalment.update({
+            where: { id: target.id },
+            data: { feeDue: D(target.feeDue).plus(returnedFee).toString() },
+          });
+          await this.recordEvent(tx, state, {
+            type: 'FEE',
+            amount: returnedFee,
+            businessDate,
+            valueDate: businessDate,
+            components: {
+              fee: returnedFee.toString(),
+              code: 'RETURNED_PAYMENT',
+              instalment: target.number,
+              returnedEvent: original.id,
+            },
+            idempotencyKey: `${idempotencyKey}:returned-fee`,
+            requestHash: hash,
+            actor,
+            narrative: `Returned payment fee for ${original.id}`,
+            lines: [
+              {
+                accountCode: acc.feesReceivable,
+                debit: returnedFee.toString(),
+              },
+              { accountCode: acc.feeIncome, credit: returnedFee.toString() },
+            ],
+          });
+          await this.outbox(tx, tenantId, 'lending.payment_returned', {
+            loanAccountId: id,
+            eventId: original.id,
+            fee: returnedFee.toString(),
+          });
+        }
+      }
       await this.casAccount(tx, state, state.account.status, {
         status: 'ACTIVE',
         closedAt: null,
@@ -1824,6 +1875,7 @@ export class ServicingService {
         feesReceivable: D(state.account.feesReceivable)
           .plus(components.fee)
           .plus(components.tax)
+          .plus(returnedFee)
           .toString(),
         penaltyReceivable: D(state.account.penaltyReceivable)
           .plus(components.penalty)
@@ -3127,6 +3179,10 @@ export class ServicingService {
     const p = state.config.pricing.penalty;
     if (p.type === 'NONE') return ZERO();
     let total = ZERO();
+    const chargedOnLoan = state.lines.reduce(
+      (t, l) => t.plus(D(l.penaltyDue)),
+      ZERO(),
+    );
     for (const l of state.lines) {
       if (l.status !== 'DUE' || l.number === 0) continue;
       const o = outstanding(l);
@@ -3142,6 +3198,13 @@ export class ServicingService {
       if (p.type === 'FLAT_PER_INSTALMENT') {
         if (l.penaltyAssessedThrough) continue;
         charge = D(p.flatAmount);
+      } else if (p.type === 'PERCENT_PER_INSTALMENT') {
+        // UC-55: a percentage of what is overdue on the instalment, once.
+        if (l.penaltyAssessedThrough) continue;
+        charge = lending.roundMoney(
+          overdue.times(p.percentOfOverdue!),
+          state.config.pricing.rounding,
+        );
       } else {
         const from = l.penaltyAssessedThrough
           ? toLocalDate(l.penaltyAssessedThrough)!
@@ -3166,6 +3229,11 @@ export class ServicingService {
       }
       if (p.capPerInstalment) {
         const room = D(p.capPerInstalment).minus(D(l.penaltyDue));
+        if (charge.gt(room)) charge = lending.D.max(0, room);
+      }
+      if (p.capPerLoan) {
+        // UC-55: late charges never total more than the cap on this loan.
+        const room = D(p.capPerLoan).minus(chargedOnLoan).minus(total);
         if (charge.gt(room)) charge = lending.D.max(0, room);
       }
       await tx.scheduleInstalment.update({
