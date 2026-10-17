@@ -27,6 +27,7 @@ import { applicationResource, parseConfig } from '../policy/resources';
 import { ProductsService } from '../products/products.service';
 import { WorkflowsService } from '../products/workflows.service';
 import { AdapterRegistry } from '../integrations/adapters';
+import { LendingPoliciesService } from '../products/lending-policies.service';
 import { GroupsService } from './groups.service';
 
 type Json = Prisma.InputJsonValue;
@@ -73,6 +74,7 @@ export class ApplicationsService {
     private readonly workflows: WorkflowsService,
     private readonly adapters: AdapterRegistry,
     private readonly groups: GroupsService,
+    private readonly policies: LendingPoliciesService,
   ) {}
 
   // ── Reads (scope-filtered) ────────────────────────────────────────────────
@@ -223,6 +225,13 @@ export class ApplicationsService {
           code: 'TERMS_OUT_OF_RANGE',
           issues: check.issues,
         });
+      // A policy choice off the product's menu is refused now, not at booking.
+      await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config,
+        terms.policies,
+      );
 
       // Group liability is decided by the product, not the request: a group
       // product must name a group, and an individual product must not.
@@ -378,6 +387,12 @@ export class ApplicationsService {
           code: 'TERMS_OUT_OF_RANGE',
           issues: check.issues,
         });
+      await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config!,
+        terms.policies,
+      );
       const res = await tx.application.updateMany({
         where: { id, tenantId, status: 'DRAFT', version: app.version },
         data: {
@@ -979,13 +994,25 @@ export class ApplicationsService {
         ...(approved!.terms as unknown as lending.NegotiatedTerms),
         disbursementDate: planned,
       };
+      // The contract is composed from the policies chosen in the approved
+      // terms, resolved now and frozen in the agreement (POLICY_MODEL.md).
+      const contract = await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config!,
+        terms.policies,
+      );
+      const contractConfig = contract.config;
+      const contractHash = contract.policies.length
+        ? sha256(lending.canonicalJson(contractConfig))
+        : version!.configHash;
       // A facility books a limit, not a schedule: there is no principal to
       // amortize until it terms out, so the booking calculation (which
       // generates a schedule) does not apply to it.
       if (config!.facility.type !== 'TERM') {
         return this.bookFacility(tx, actor, {
           app,
-          config: config!,
+          config: contractConfig,
           version: version!,
           product: product!,
           terms,
@@ -996,7 +1023,7 @@ export class ApplicationsService {
       const booking = await this.bookingCalculation(
         tx,
         tenantId,
-        config!,
+        contractConfig,
         terms,
         { productVersionId: version!.id, productVersion: version!.version },
       );
@@ -1019,9 +1046,10 @@ export class ApplicationsService {
           agreementId: agreement.id,
           version: 1,
           reason: 'BOOKING',
-          productConfig: config as unknown as Json,
-          configHash: version!.configHash,
+          productConfig: contractConfig as unknown as Json,
+          configHash: contractHash,
           terms: terms as unknown as Json,
+          policies: contract.policies as unknown as Json,
           scheduleInput: booking.input as unknown as Json,
           calculation: {
             schedule: booking.schedule,
@@ -1687,6 +1715,7 @@ export class ApplicationsService {
       balloonAmount: t.balloonAmount,
       explicitSchedule: t.explicitSchedule,
       waivedFeeCodes: t.waivedFeeCodes,
+      policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)
           ? t.riskCategory

@@ -370,6 +370,8 @@ export class PaymentHolidayService {
           version: agreementVersion,
           reason: 'PAYMENT_HOLIDAY',
           productConfig: previous!.productConfig as Json,
+          // The contract's policies carry forward unchanged.
+          policies: (previous!.policies ?? undefined) as Json | undefined,
           configHash: previous!.configHash,
           terms: previous!.terms as Json,
           scheduleInput: previous!.scheduleInput as Json,

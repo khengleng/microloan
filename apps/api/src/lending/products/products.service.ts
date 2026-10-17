@@ -21,6 +21,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { productVersionResource, tenantResource } from '../policy/resources';
 import { DEFAULT_CHART_OF_ACCOUNTS } from '../../ledger/chart-of-accounts';
+import { LendingPoliciesService } from './lending-policies.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -41,6 +42,7 @@ export class ProductsService {
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
+    private readonly policies: LendingPoliciesService,
   ) {}
 
   // ── Catalogue ─────────────────────────────────────────────────────────────
@@ -450,6 +452,8 @@ export class ProductsService {
           });
         }
         await this.assertAccountingCodes(tx, tenantId, config);
+        // A menu naming a policy that cannot be booked would fail every application.
+        await this.policies.assertMenusApproved(tx, tenantId, config);
         data.activatedBy = actor.id;
         data.activatedAt = new Date();
         data.effectiveFrom = fromLocalDate(businessDate);

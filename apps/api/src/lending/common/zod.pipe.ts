@@ -48,10 +48,56 @@ export const termsSchema = z
       .optional(),
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
     riskCategory: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+    policies: z
+      .record(
+        z.enum(['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL']),
+        z
+          .object({
+            code: z.string().max(48).optional(),
+            parameters: z
+              .record(z.string().max(40), z.number().finite())
+              .optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 
+const policyParameter = z
+  .object({
+    type: z.enum(['int', 'decimal']),
+    default: z.number().finite(),
+    min: z.number().finite(),
+    max: z.number().finite(),
+    label: z.string().max(120).optional(),
+  })
+  .strict();
+const policyParameters = z
+  .record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9]{0,39}$/), policyParameter)
+  .refine((r) => Object.keys(r).length <= 10, 'at most 10 parameters');
+/** A policy body is checked by the engine against the product schema. */
+const policyBody = z.record(z.string().max(40), z.unknown());
+
 export const S = {
+  createPolicy: z
+    .object({
+      kind: z.enum(['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL']),
+      code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{1,47}$/),
+      name: z.string().min(2).max(120),
+      description: z.string().max(1000).optional(),
+      parameters: policyParameters.optional(),
+      body: policyBody,
+      changeSummary: z.string().max(500).optional(),
+    })
+    .strict(),
+  policyVersion: z
+    .object({
+      parameters: policyParameters.optional(),
+      body: policyBody,
+      changeSummary: z.string().max(500).optional(),
+    })
+    .strict(),
   createProduct: z
     .object({
       templateCode: z.string().max(48),

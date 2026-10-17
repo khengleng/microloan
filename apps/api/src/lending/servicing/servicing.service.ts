@@ -142,6 +142,7 @@ export class ServicingService {
             createdAt: true,
             createdBy: true,
             terms: true,
+            policies: true,
           },
         }),
       ]);
@@ -368,6 +369,8 @@ export class ServicingService {
             version: agreementVersion,
             reason: 'DISBURSEMENT_DATE',
             productConfig: v1!.productConfig as Json,
+            // The contract's policies carry forward unchanged.
+            policies: (v1!.policies ?? undefined) as Json | undefined,
             configHash: v1!.configHash,
             terms: terms as unknown as Json,
             scheduleInput: booking.input as unknown as Json,
@@ -906,6 +909,7 @@ export class ServicingService {
       let advanced = ZERO();
       let prepaid = ZERO();
       let prepaymentFee = ZERO();
+      let prepaymentCharge: lending.EarlyRepaymentCharge | null = null;
       let reschedule: lending.RescheduleResult | null = null;
       if (excess.gt(0) && handling === 'ADVANCE') {
         // UC-27: held for the borrower and applied as instalments fall due. It
@@ -929,14 +933,41 @@ export class ServicingService {
         const principalLeft = D(state.account.principalOutstanding).minus(
           duePrincipalPaid,
         );
-        const feeRate = cfg.prepayment.feeRate
-          ? D(cfg.prepayment.feeRate)
-          : ZERO();
+        // UC-32: the charge is part of the payment. Lock-in tiers replace the
+        // base fee while they apply (DECISIONS D-004, D-005); the charge is
+        // fixed + rate × basis, so the prepaid principal solves
+        // prepaid + charge(prepaid) = excess.
+        const chargeFor = (repaid: Dec) =>
+          engineCall(() =>
+            lending.earlyRepaymentCharge(
+              state.config,
+              'PARTIAL_PREPAYMENT',
+              toLocalDate(state.account.disbursementDate)!,
+              valueDate,
+              repaid.toString(),
+              principalLeft.toString(),
+            ),
+          );
+        const fixedPart = chargeFor(ZERO());
+        if (fixedPart.refused)
+          throw new BadRequestException({
+            message: fixedPart.explanation,
+            code: 'PREPAYMENT_LOCKED_IN',
+          });
+        const PROBE = new lending.D(1_000_000);
+        const rate = D(chargeFor(PROBE).charge)
+          .minus(fixedPart.charge)
+          .div(PROBE);
         prepaid = lending.roundMoney(
-          excess.div(new lending.D(1).plus(feeRate)),
+          excess.minus(fixedPart.charge).div(new lending.D(1).plus(rate)),
           state.config.pricing.rounding,
         );
+        if (prepaid.lte(0))
+          throw new BadRequestException(
+            `The amount beyond what is due does not cover the ${fixedPart.charge} ${state.account.currency} early repayment charge.`,
+          );
         prepaymentFee = excess.minus(prepaid);
+        prepaymentCharge = chargeFor(prepaid);
         if (prepaid.gte(principalLeft)) {
           throw new BadRequestException(
             `This payment would repay the whole principal. Request a settlement quote and use early settlement instead.`,
@@ -1023,6 +1054,8 @@ export class ServicingService {
                 ? 'PREPAYMENT_RECAST'
                 : 'PREPAYMENT_SHORTEN',
             productConfig: latest!.productConfig as Json,
+            // The contract's policies carry forward unchanged.
+            policies: (latest!.policies ?? undefined) as Json | undefined,
             configHash: latest!.configHash,
             terms: latest!.terms as Json,
             scheduleInput: latest!.scheduleInput as Json,
@@ -1065,6 +1098,13 @@ export class ServicingService {
             principal: comp.PRINCIPAL.toString(),
             prepaidPrincipal: prepaid.toString(),
             prepaymentFee: prepaymentFee.toString(),
+            prepaymentCharge: prepaymentCharge
+              ? {
+                  source: prepaymentCharge.source,
+                  monthsElapsed: prepaymentCharge.monthsElapsed,
+                  explanation: prepaymentCharge.explanation,
+                }
+              : undefined,
             advance: advanced.toString(),
             suspenseReleased: released.amount.toString(),
             rescheduled: !!reschedule,
@@ -1204,12 +1244,23 @@ export class ServicingService {
       (s, l) => s.plus(outstanding(l).PRINCIPAL),
       ZERO(),
     );
-    const es = state.config.repayment.earlySettlement;
-    let fee = ZERO();
-    if (es.feeRate)
-      fee = fee.plus(principal.minus(duePrincipal).times(es.feeRate));
-    if (es.feeFixed) fee = fee.plus(es.feeFixed);
-    fee = lending.roundMoney(fee, state.config.pricing.rounding);
+    // UC-32: lock-in tiers replace the base settlement fee while they apply.
+    const charge = engineCall(() =>
+      lending.earlyRepaymentCharge(
+        state.config,
+        'EARLY_SETTLEMENT',
+        toLocalDate(state.account.disbursementDate)!,
+        asOf,
+        principal.minus(duePrincipal).toString(),
+        principal.toString(),
+      ),
+    );
+    if (charge.refused)
+      throw new BadRequestException({
+        message: charge.explanation,
+        code: 'SETTLEMENT_LOCKED_IN',
+      });
+    const fee = D(charge.charge);
     // Money already held on advance goes towards the payoff (UC-27).
     const advance = D(state.account.advanceBalance);
     const total = principal
@@ -1228,6 +1279,7 @@ export class ServicingService {
       fees: D(state.account.feesReceivable).toString(),
       penalties: D(state.account.penaltyReceivable).toString(),
       settlementFee: fee.toString(),
+      settlementFeeExplanation: charge.explanation,
       advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),

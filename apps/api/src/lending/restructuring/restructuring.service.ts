@@ -1274,6 +1274,8 @@ export class RestructuringService implements OnModuleInit {
         version: newVersion,
         reason: 'RESTRUCTURE',
         productConfig: latest!.productConfig as Json,
+        // The contract's policies carry forward unchanged.
+        policies: (latest!.policies ?? undefined) as Json | undefined,
         configHash: latest!.configHash,
         terms: {
           restructure: options,
@@ -1618,6 +1620,8 @@ export class RestructuringService implements OnModuleInit {
           version: state.agreementVersion + 1,
           reason: 'RESTRUCTURE_REVERSAL',
           productConfig: prior!.productConfig as Json,
+          // The contract's policies carry forward unchanged.
+          policies: (prior!.policies ?? undefined) as Json | undefined,
           configHash: prior!.configHash,
           terms: prior!.terms as Json,
           scheduleInput: prior!.scheduleInput as Json,

@@ -20,6 +20,7 @@ import {
 import { ZodPipe, S } from './common/zod.pipe';
 import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
+import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
@@ -45,7 +46,69 @@ export class LendingProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly workflows: WorkflowsService,
+    private readonly policies: LendingPoliciesService,
   ) {}
+
+  // ── Policy library (POLICY_MODEL.md) ──────────────────────────────────────
+
+  @LendingAction('lending_policy.read')
+  @Get('policies')
+  listPolicies(@Req() req: Req_, @Query('kind') kind?: string) {
+    return this.policies.list(actor(req), kind);
+  }
+
+  @LendingAction('lending_policy.read')
+  @Get('policies/:id')
+  getPolicy(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.policies.get(actor(req), id);
+  }
+
+  @LendingAction('lending_policy.create')
+  @Post('policies')
+  createPolicy(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.createPolicy)) body: never,
+  ) {
+    return this.policies.create(actor(req), body);
+  }
+
+  @LendingAction('lending_policy.create')
+  @Post('policies/:id/versions')
+  addPolicyVersion(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.policyVersion)) body: never,
+  ) {
+    return this.policies.addVersion(actor(req), id, body);
+  }
+
+  @LendingAction('lending_policy.submit')
+  @Post('policy-versions/:id/submit')
+  submitPolicy(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.policies.transition(actor(req), id, 'submit');
+  }
+
+  @LendingAction('lending_policy.approve')
+  @Post('policy-versions/:id/approve')
+  approvePolicy(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.policies.transition(actor(req), id, 'approve');
+  }
+
+  @LendingAction('lending_policy.reject')
+  @Post('policy-versions/:id/reject')
+  rejectPolicy(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.reason)) body: { reason?: string },
+  ) {
+    return this.policies.transition(actor(req), id, 'reject', body.reason);
+  }
+
+  @LendingAction('lending_policy.retire')
+  @Post('policy-versions/:id/retire')
+  retirePolicy(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.policies.transition(actor(req), id, 'retire');
+  }
 
   @LendingAction('loan_product.read')
   @Get('catalogue')

@@ -60,6 +60,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'WorkflowVersion',
   'LendingProduct',
   'ProductVersion',
+  'LendingPolicy',
+  'LendingPolicyVersion',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

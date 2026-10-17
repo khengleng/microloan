@@ -723,6 +723,11 @@ export interface NegotiatedTerms {
   balloonAmount?: string;
   explicitSchedule?: { dueDate: string; principal: string }[];
   waivedFeeCodes?: string[];
+  /**
+   * The contract's choice from the product's policy menus (POLICY_MODEL.md).
+   * A kind left out uses the product's default policy.
+   */
+  policies?: Partial<Record<PolicyKind, { code?: string; parameters?: Record<string, number> }>>;
 }
 
 export interface TermsCheck {

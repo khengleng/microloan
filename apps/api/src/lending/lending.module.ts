@@ -11,6 +11,7 @@ import { LendingOperationsService } from './accounting/operations.service';
 import { AdapterRegistry } from './integrations/adapters';
 import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
+import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
@@ -65,6 +66,7 @@ import {
     AdapterRegistry,
     ProductsService,
     WorkflowsService,
+    LendingPoliciesService,
     ApplicationsService,
     GroupsService,
     ServicingService,

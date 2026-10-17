@@ -89,3 +89,29 @@ months elapsed in the event's explanation.
   application terms, so it is visible at recommendation and approval.
 - Amending a running contract's policy creates a new agreement version and
   requires recorded customer consent and a checker.
+
+## API
+
+| Method | Path | Action |
+|---|---|---|
+| GET | `/v1/lending/policies?kind=` | `lending_policy.read` — the library, with every version |
+| POST | `/v1/lending/policies` | `lending_policy.create` — a new policy and its version 1 (DRAFT) |
+| POST | `/v1/lending/policies/:id/versions` | `lending_policy.create` — next version (DRAFT) |
+| POST | `/v1/lending/policy-versions/:id/submit` · `approve` · `reject` · `retire` | maker-checker lifecycle |
+
+Policy actions reuse the product permissions (`loan_product.*`), so the
+product maker and checker roles govern the library too.
+
+- A policy body is validated on save by resolving it at its defaults and
+  laying it over a known-good configuration.
+- A product version cannot be **activated** while any code on its menus has
+  no APPROVED version (`POLICY_NOT_APPROVED`).
+- An application's `terms.policies` is checked when it is created or edited,
+  and resolved at **booking** against the latest APPROVED version. The
+  agreement version stores the composed configuration and
+  `policies: [{kind, code, version, policyVersionId, parameters}]`.
+  Later amendments carry the policies forward unchanged.
+- Servicing reads only the composed configuration: a partial prepayment or
+  settlement quote inside a lock-in carries the tier's charge
+  (`components.prepaymentCharge`, `settlementFeeExplanation`), and a REFUSE
+  tier answers `PREPAYMENT_LOCKED_IN` / `SETTLEMENT_LOCKED_IN`.

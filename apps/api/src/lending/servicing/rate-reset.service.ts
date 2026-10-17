@@ -337,6 +337,8 @@ export class RateResetService {
         version: agreementVersion,
         reason: 'RATE_RESET',
         productConfig: previousVersion!.productConfig as Json,
+        // The contract's policies carry forward unchanged.
+        policies: (previousVersion!.policies ?? undefined) as Json | undefined,
         configHash: previousVersion!.configHash,
         terms: previousVersion!.terms as Json,
         scheduleInput: contract as unknown as Json,

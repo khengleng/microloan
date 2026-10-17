@@ -103,6 +103,31 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan_product.retire', 'PRODUCT_VERSION', 'CONFIG', {
     workflowStates: ['ACTIVE'],
   }),
+  // Policy library (POLICY_MODEL.md): governed exactly like product versions.
+  A('lending_policy.read', 'PRODUCT', 'READ', {
+    permission: 'loan_product.read',
+  }),
+  A('lending_policy.create', 'PRODUCT', 'CONFIG', {
+    permission: 'loan_product.create',
+  }),
+  A('lending_policy.submit', 'PRODUCT_VERSION', 'CONFIG', {
+    permission: 'loan_product.submit',
+    workflowStates: ['DRAFT'],
+  }),
+  A('lending_policy.approve', 'PRODUCT_VERSION', 'CONFIG', {
+    permission: 'loan_product.approve',
+    workflowStates: ['SUBMITTED'],
+    makerChecker: true,
+  }),
+  A('lending_policy.reject', 'PRODUCT_VERSION', 'CONFIG', {
+    permission: 'loan_product.approve',
+    workflowStates: ['SUBMITTED'],
+    makerChecker: true,
+  }),
+  A('lending_policy.retire', 'PRODUCT_VERSION', 'CONFIG', {
+    permission: 'loan_product.retire',
+    workflowStates: ['APPROVED'],
+  }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {
     workflowStates: ['SUBMITTED'],
