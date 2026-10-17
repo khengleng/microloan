@@ -16,8 +16,23 @@ import { randomUUID } from 'node:crypto';
 
 export const TEST_DB = process.env.LENDING_TEST_DATABASE_URL;
 
+/**
+ * The API under test connects as the unprivileged role created by
+ * scripts/lending-test-db.mjs, so row-level security applies to it exactly
+ * as it would to a correctly configured production role.
+ */
+export function appDatabaseUrl(): string | undefined {
+  if (process.env.LENDING_TEST_APP_DATABASE_URL)
+    return process.env.LENDING_TEST_APP_DATABASE_URL;
+  if (!TEST_DB) return undefined;
+  const u = new URL(TEST_DB);
+  u.username = 'lending_app_test';
+  u.password = 'lending_app_test';
+  return u.toString();
+}
+
 export function configureEnv() {
-  process.env.DATABASE_URL = TEST_DB;
+  process.env.DATABASE_URL = appDatabaseUrl();
   process.env.NODE_ENV = 'test';
   process.env.JWT_ACCESS_SECRET =
     process.env.JWT_ACCESS_SECRET ||
@@ -84,6 +99,10 @@ export async function bootstrap(): Promise<Fixture> {
   );
   app.useBodyParser('json', { limit: '5mb' });
   await app.init();
+  // Bind one port for the whole suite. Left unbound, supertest opens a fresh
+  // ephemeral port per request, and another local process can take it between
+  // requests and answer instead of the app.
+  await app.listen(0, '127.0.0.1');
   const prisma = app.get(PrismaService);
   const system = (fn: () => Promise<any>): Promise<any> =>
     runAsSystem('integration test fixture', fn);

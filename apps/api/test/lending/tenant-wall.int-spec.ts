@@ -920,6 +920,95 @@ d('Tenant wall (integration)', () => {
     }
   });
 
+  it('the database itself hides and refuses other tenants’ rows (row-level security, raw SQL)', async () => {
+    // Raw SQL skips the Prisma guard entirely: this is the second wall alone.
+    const [role]: { rolsuper: boolean; rolbypassrls: boolean }[] =
+      await f.prisma.$queryRawUnsafe(
+        'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
+      );
+    expect(role).toEqual({ rolsuper: false, rolbypassrls: false });
+
+    const victimLoan = await victimId('loanAccount');
+    const victimProduct = await victimId('lendingProduct');
+    const asAttacker = <T>(fn: (tx: any) => Promise<T>) =>
+      f.prisma.$transaction(async (tx: any) => {
+        await tx.$executeRawUnsafe(
+          `SELECT set_config('app.tenant_id', $1, true)`,
+          attacker,
+        );
+        return fn(tx);
+      });
+    const seen = await asAttacker((tx) =>
+      tx.$queryRawUnsafe(
+        'SELECT id FROM "LoanAccount" WHERE id = $1 UNION ALL SELECT id FROM "LendingProduct" WHERE id = $2',
+        victimLoan,
+        victimProduct,
+      ),
+    );
+    expect(seen).toEqual([]);
+    const changed = await asAttacker((tx) =>
+      tx.$executeRawUnsafe(
+        'UPDATE "LendingProduct" SET name = name WHERE id = $1',
+        victimProduct,
+      ),
+    );
+    expect(changed).toBe(0);
+    await expect(
+      asAttacker((tx) =>
+        tx.$executeRawUnsafe(
+          `INSERT INTO "LegalEntity" (id, "tenantId", code, name) VALUES (gen_random_uuid()::text, $1, 'WALL', 'Wall')`,
+          f.t1,
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+
+    // Every tenant-owned lending, access and configuration table is covered.
+    const uncovered: { relname: string }[] = await f.prisma.$queryRawUnsafe(`
+      SELECT c.relname FROM pg_class c
+        JOIN information_schema.columns col
+          ON col.table_name = c.relname AND col.column_name = 'tenantId' AND col.table_schema = 'public'
+       WHERE c.relkind = 'r'
+         AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
+       ORDER BY 1`);
+    const legacy = new Set([
+      // The legacy core app's tables: guarded by the Prisma tenant guard;
+      // row-level security for them is tracked in docs/security/TENANT_ISOLATION.md.
+      'AuditEvent',
+      'AuditLog',
+      'Borrower',
+      'BorrowerOtp',
+      'Branch',
+      'Collateral',
+      'CreditCheck',
+      'CreditScore',
+      'Document',
+      'ExchangeRate',
+      'FederatedIdentity',
+      'Guarantor',
+      'JournalEntry',
+      'JournalLine',
+      'KycDocument',
+      'LedgerAccount',
+      'Loan',
+      'LoanAgreement',
+      'LoanProduct',
+      'LoanProvision',
+      'LoanRestructure',
+      'PasswordResetToken',
+      'PaymentInstrument',
+      'PlanPayment',
+      'PromiseToPay',
+      'ProvisionRun',
+      'RefreshToken',
+      'Repayment',
+      'RepaymentSchedule',
+      'User',
+    ]);
+    expect(
+      uncovered.map((r) => r.relname).filter((t) => !legacy.has(t)),
+    ).toEqual([]);
+  });
+
   it('a staff token whose tenant claim is swapped cannot reach the victim', async () => {
     const victimLoan = await victimId('loanAccount');
     const forged = new JwtService({

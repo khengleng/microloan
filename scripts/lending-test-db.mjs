@@ -47,6 +47,7 @@ const INVARIANT_SECTIONS = [
   ['20261017_lending_group_liability', '-- Database-level invariants for group lending.'],
   ['20261017_lending_relief_refinance', '-- Database-level invariants for relief and refinancing.'],
   ['20261017_lending_policies_advance_nonaccrual', '-- Database-level invariants for loan policies, advances and non-accrual.'],
+  ['20261017_lending_rls_all_tables', '-- Database-level invariants for tenant isolation of the remaining tables.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
@@ -59,4 +60,25 @@ for (const [dir, marker] of INVARIANT_SECTIONS) {
   run(`pnpm --filter @microloan/db exec prisma db execute --file ${file}`);
   fs.unlinkSync(file);
 }
-console.log(`Lending test database "${dbName}" is ready.`);
+/**
+ * The suites connect as a role that row-level security applies to: a
+ * superuser or BYPASSRLS role skips every policy, so testing as the owner
+ * would never exercise the database tenant wall.
+ */
+const appRole = 'lending_app_test';
+const roleSql = `
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${appRole}') THEN
+    CREATE ROLE ${appRole} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '${appRole}';
+  END IF;
+END $$;
+GRANT USAGE ON SCHEMA public TO ${appRole};
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${appRole};
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${appRole};
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO ${appRole};
+`;
+const roleFile = path.join(os.tmpdir(), `lending-app-role-${process.pid}.sql`);
+fs.writeFileSync(roleFile, roleSql);
+run(`pnpm --filter @microloan/db exec prisma db execute --file ${roleFile}`);
+fs.unlinkSync(roleFile);
+console.log(`Lending test database "${dbName}" is ready (app role: ${appRole}).`);
