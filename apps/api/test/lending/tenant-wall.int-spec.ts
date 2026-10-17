@@ -103,6 +103,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'recovery-refunds/:refundId': 'recoveryRefund',
       'mandates/:mandateId': 'directDebitMandate',
       'files/:fileId': 'channelFile',
+      'cards/:cardId': 'cardAccount',
+      'transactions/:transactionId': 'cardTransaction',
+      'refunds/:bnplRefundId': 'bnplRefund',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

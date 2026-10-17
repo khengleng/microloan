@@ -610,13 +610,14 @@ d('Lending security and lifecycle (integration)', () => {
         .post(`/lending/product-versions/${created.version.id}/activate`);
       expect(act.status).toBe(400);
       expect(act.body.code).toBe('MISSING_CAPABILITIES');
-      const card = await f.as('maker').post('/lending/products', {
-        templateCode: 'CREDIT_CARD',
-        code: 'CC-1',
-        name: 'Card',
+      // Cards became available in Phase 3; factoring still is not.
+      const factoring = await f.as('maker').post('/lending/products', {
+        templateCode: 'FACTORING',
+        code: 'FCT-1',
+        name: 'Factoring',
       });
-      expect(card.status).toBe(400);
-      expect(card.body.code).toBe('TEMPLATE_UNAVAILABLE');
+      expect(factoring.status).toBe(400);
+      expect(factoring.body.code).toBe('TEMPLATE_UNAVAILABLE');
     });
 
     it('approved versions are immutable, and product edits do not alter existing agreements', async () => {

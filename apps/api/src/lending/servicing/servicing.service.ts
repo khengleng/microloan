@@ -57,6 +57,34 @@ interface EventInput {
   lines: PostingLine[];
 }
 
+export interface DisbursementPayee {
+  type: string;
+  name: string;
+  reference?: string;
+  account?: string;
+  loanId?: string;
+  amount: string;
+}
+
+export interface DisbursementContext {
+  state: LoanState;
+  payees: DisbursementPayee[];
+  /** What leaves the lender, before any hook adjusts the journal. */
+  payout: Dec;
+  /** The journal about to be posted; a hook may change it but it must balance. */
+  lines: PostingLine[];
+  components: Record<string, unknown>;
+  valueDate: string;
+  businessDate: string;
+  actor: LendingActor;
+  idempotencyKey: string;
+}
+
+export type DisbursementHook = (
+  tx: Tx,
+  ctx: DisbursementContext,
+) => Promise<((eventId: string) => Promise<void>) | void>;
+
 /**
  * Servicing of booked loans: disbursement, accrual, repayment, prepayment,
  * settlement, reversal, penalties, delinquency and write-off.
@@ -162,6 +190,23 @@ export class ServicingService {
         schedule: allLines.map(lineView),
         events,
         tasks,
+        // Specialised product behaviour the UI offers on this loan (LT-07, LT-11, LT-15).
+        specialised: state.config.card
+          ? {
+              kind: 'CARD',
+              cardId:
+                (
+                  await tx.cardAccount.findFirst({
+                    where: { tenantId, loanAccountId: id },
+                    select: { id: true },
+                  })
+                )?.id ?? null,
+            }
+          : state.config.bnpl
+            ? { kind: 'BNPL' }
+            : state.config.lease
+              ? { kind: 'LEASE', structure: state.config.attributes.structure }
+              : null,
       };
     });
   }
@@ -615,20 +660,36 @@ export class ServicingService {
         if (D(f.tax).gt(0))
           lines.push({ accountCode: acc.taxPayable, credit: f.tax });
       }
+      const components: Record<string, unknown> = {
+        bookedPrincipal: fees.bookedPrincipal,
+        netDisbursement: fees.netDisbursement,
+        fees: fees.lines,
+        task: task.id,
+        agreementVersion,
+        downPaymentPaidOut: held.toString(),
+        payees,
+      };
+      const afterHooks: ((eventId: string) => Promise<void>)[] = [];
+      for (const hook of this.disbursementHooks) {
+        const after = await hook(tx, {
+          state,
+          payees,
+          payout,
+          lines,
+          components,
+          valueDate,
+          businessDate,
+          actor,
+          idempotencyKey,
+        });
+        if (after) afterHooks.push(after);
+      }
       const event = await this.recordEvent(tx, state, {
         type: 'DISBURSEMENT',
         amount: D(fees.bookedPrincipal),
         businessDate,
         valueDate,
-        components: {
-          bookedPrincipal: fees.bookedPrincipal,
-          netDisbursement: fees.netDisbursement,
-          fees: fees.lines,
-          task: task.id,
-          agreementVersion,
-          downPaymentPaidOut: held.toString(),
-          payees,
-        },
+        components,
         idempotencyKey,
         requestHash: hash,
         actor,
@@ -636,6 +697,7 @@ export class ServicingService {
         externalReference: body.externalReference.trim(),
         lines,
       });
+      for (const after of afterHooks) await after(event.id);
       const taskRes = await tx.approvalTask.updateMany({
         where: { id: task.id, tenantId, status: 'APPROVED' },
         data: { status: 'EXECUTED' },
@@ -3609,6 +3671,19 @@ export class ServicingService {
     this.batchHooks.push(hook);
   }
 
+  private disbursementHooks: DisbursementHook[] = [];
+  /**
+   * Lets a product module take part in a disbursement without a circular
+   * dependency (BNPL merchant settlement, lease asset purchase). A hook runs
+   * inside the disbursement transaction after the payees and the journal are
+   * built and before anything is posted: it may refuse the payout, rewrite the
+   * journal lines (they must still balance) and add components; the callback
+   * it returns runs once the event exists.
+   */
+  registerDisbursementHook(hook: DisbursementHook) {
+    this.disbursementHooks.push(hook);
+  }
+
   private tenantBatchHooks: ((
     tenantId: string,
     businessDate: string,
@@ -4067,7 +4142,7 @@ export class ServicingService {
     }
   }
 
-  private async closeIfRepaid(
+  async closeIfRepaid(
     tx: Tx,
     state: LoanState,
     data: Prisma.LoanAccountUpdateManyMutationInput,

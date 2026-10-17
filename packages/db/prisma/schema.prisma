@@ -1738,6 +1738,7 @@ model Facility {
   conditions  FacilityCondition[]
   statements  FacilityStatement[]
   limitEvents FacilityLimitChange[]
+  card        CardAccount?
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -1967,6 +1968,8 @@ model LoanAccount {
   debtSales              DebtSale[]
   recoveryRefunds        RecoveryRefund[]
   directDebitMandates    DirectDebitMandate[]
+  bnplPlan               BnplPlan?
+  leaseAsset             LeaseAsset?
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -3102,4 +3105,217 @@ model ChannelFileLine {
   @@unique([tenantId, id])
   @@index([tenantId, fileId])
   @@index([tenantId, channel, valueDate])
+}
+
+// ── Specialised products: cards, BNPL and leases ───────────────────────────
+
+/// A credit card (LT-07): the card-specific side of a REVOLVING facility.
+///
+/// The facility keeps the limit and its governance; the facility's loan
+/// account keeps the receivables the GL reconciles. The card splits the drawn
+/// principal into the balances that price differently — purchases, cash
+/// advances and unbilled instalment-plan principal — and their sum is always
+/// the loan account's principal.
+model CardAccount {
+  id              String    @id @default(uuid())
+  tenantId        String
+  facilityId      String    @unique
+  facility        Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId   String
+  reference       String
+  /// Last four digits only; the card number itself is the processor's.
+  maskedNumber    String
+  /// ACTIVE, BLOCKED, CLOSED
+  status          String    @default("ACTIVE")
+  purchaseBalance Decimal   @default(0) @db.Decimal(24, 4)
+  cashBalance     Decimal   @default(0) @db.Decimal(24, 4)
+  planBalance     Decimal   @default(0) @db.Decimal(24, 4)
+  /// Exclusive end of the last statement period.
+  lastStatementTo DateTime? @db.Date
+  closedAt        DateTime?
+  version         Int       @default(0)
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  transactions CardTransaction[]
+  statements   CardStatement[]
+  plans        CardInstalmentPlan[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, facilityId])
+  @@index([tenantId, status])
+}
+
+/// One movement of a card's balances. Append-only: the deltas are what the
+/// engine prices from, so a card's balances are always the sum of its rows.
+model CardTransaction {
+  id              String      @id @default(uuid())
+  tenantId        String
+  cardId          String
+  card            CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  /// PURCHASE, CASH_ADVANCE, PAYMENT, PLAN_CONVERSION, PLAN_BILLING
+  type            String
+  transactionDate DateTime    @db.Date
+  amount          Decimal     @db.Decimal(24, 4)
+  /// Cash-advance fee charged with this transaction (UC-40).
+  fee             Decimal     @default(0) @db.Decimal(24, 4)
+  purchaseDelta   Decimal     @default(0) @db.Decimal(24, 4)
+  cashDelta       Decimal     @default(0) @db.Decimal(24, 4)
+  planDelta       Decimal     @default(0) @db.Decimal(24, 4)
+  merchantName    String      @default("")
+  description     String      @default("")
+  /// The posted financial event, for money movements.
+  eventId         String?
+  planId          String?
+  createdBy       String
+  createdAt       DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, transactionDate])
+}
+
+/// A card statement (UC-39): the card's view of one facility statement.
+model CardStatement {
+  id                     String      @id @default(uuid())
+  tenantId               String
+  cardId                 String
+  card                   CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  facilityStatementId    String      @unique
+  sequence               Int
+  periodStart            DateTime    @db.Date
+  /// Exclusive; also the statement date.
+  periodEnd              DateTime    @db.Date
+  dueDate                DateTime    @db.Date
+  purchaseBalance        Decimal     @db.Decimal(24, 4)
+  cashBalance            Decimal     @db.Decimal(24, 4)
+  planBalance            Decimal     @db.Decimal(24, 4)
+  /// What paying "in full" means: purchases + cash + charges owed at the statement date.
+  statementBalance       Decimal     @db.Decimal(24, 4)
+  purchaseInterest       Decimal     @db.Decimal(24, 4)
+  purchaseInterestWaived Decimal     @db.Decimal(24, 4)
+  cashInterest           Decimal     @db.Decimal(24, 4)
+  planInterest           Decimal     @db.Decimal(24, 4)
+  planPrincipalBilled    Decimal     @db.Decimal(24, 4)
+  cashAdvanceFees        Decimal     @db.Decimal(24, 4)
+  minimumPayment         Decimal     @db.Decimal(24, 4)
+  graceApplied           Boolean
+  createdBy              String
+  createdAt              DateTime    @default(now())
+
+  @@unique([cardId, sequence])
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, periodEnd])
+}
+
+/// A purchase converted into fixed monthly instalments (UC-44).
+model CardInstalmentPlan {
+  id                  String      @id @default(uuid())
+  tenantId            String
+  cardId              String
+  card                CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  /// A purchase converts at most once.
+  sourceTransactionId String      @unique
+  principal           Decimal     @db.Decimal(24, 4)
+  annualRate          Decimal     @db.Decimal(12, 8)
+  months              Int
+  instalmentAmount    Decimal     @db.Decimal(24, 4)
+  /// The engine's lines: [{ number, principal, interest, total }].
+  lines               Json
+  billedCount         Int         @default(0)
+  principalRemaining  Decimal     @db.Decimal(24, 4)
+  /// ACTIVE, COMPLETED
+  status              String      @default("ACTIVE")
+  version             Int         @default(0)
+  createdBy           String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, status])
+}
+
+/// The merchant side of a BNPL loan (LT-11): who was paid, and net of what.
+model BnplPlan {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String      @unique
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  merchantName         String
+  merchantReference    String      @default("")
+  purchaseAmount       Decimal     @db.Decimal(24, 4)
+  merchantDiscountRate Decimal     @db.Decimal(12, 8)
+  merchantDiscount     Decimal     @db.Decimal(24, 4)
+  merchantNet          Decimal     @db.Decimal(24, 4)
+  refundedAmount       Decimal     @default(0) @db.Decimal(24, 4)
+  discountReversed     Decimal     @default(0) @db.Decimal(24, 4)
+  disbursementEventId  String
+  version              Int         @default(0)
+  createdAt            DateTime    @default(now())
+
+  refunds BnplRefund[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+}
+
+/// A merchant refund or return on a BNPL purchase (UC-52).
+model BnplRefund {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  planId             String
+  plan               BnplPlan  @relation(fields: [tenantId, planId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId      String
+  amount             Decimal   @db.Decimal(24, 4)
+  merchantReference  String    @default("")
+  reason             String    @default("")
+  appliedToPrincipal Decimal   @db.Decimal(24, 4)
+  customerRefund     Decimal   @db.Decimal(24, 4)
+  discountReversed   Decimal   @db.Decimal(24, 4)
+  merchantClawback   Decimal   @db.Decimal(24, 4)
+  /// [{ number, principal }] taken off each instalment, latest first.
+  reductions         Json
+  eventId            String
+  /// CLAWBACK_DUE, COLLECTED
+  status             String    @default("CLAWBACK_DUE")
+  collectedEventId   String?
+  collectedAt        DateTime?
+  version            Int       @default(0)
+  createdBy          String
+  createdAt          DateTime  @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+}
+
+/// The asset under a lease (LT-15, Ijarah): bought by the lender from the
+/// supplier and owned by it until the lessee buys it for the residual.
+model LeaseAsset {
+  id              String      @id @default(uuid())
+  tenantId        String
+  loanAccountId   String      @unique
+  loanAccount     LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  assetType       String
+  description     String
+  serialNumber    String      @default("")
+  supplierName    String
+  cost            Decimal     @db.Decimal(24, 4)
+  /// The purchase-option price at lease end, carried as the final balloon.
+  residualValue   Decimal     @db.Decimal(24, 4)
+  /// LESSOR, TRANSFERRED, RETURNED
+  ownership       String      @default("LESSOR")
+  /// PURCHASE, RETURN — how the lease ended.
+  endOption       String?
+  endDate         DateTime?   @db.Date
+  endEventId      String?
+  returnCondition String      @default("")
+  version         Int         @default(0)
+  registeredBy    String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, ownership])
 }

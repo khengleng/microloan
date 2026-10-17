@@ -21,6 +21,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { AdapterRegistry } from '../integrations/adapters';
+import { principalMoved } from '../facilities/facility-state';
 
 /** Account codes whose GL balance must equal a loan-account balance field. */
 const SUBLEDGER_FIELDS: {
@@ -420,8 +421,24 @@ export class LendingOperationsService {
     // repayments, so it is reconciled against those instead.
     const facilities = await this.prisma.facility.findMany({
       where: { tenantId },
-      select: { agreementId: true, reference: true, totalDrawn: true },
+      select: {
+        id: true,
+        agreementId: true,
+        reference: true,
+        totalDrawn: true,
+      },
     });
+    const cards = await this.prisma.cardAccount.findMany({
+      where: { tenantId },
+      select: {
+        facilityId: true,
+        reference: true,
+        purchaseBalance: true,
+        cashBalance: true,
+        planBalance: true,
+      },
+    });
+    const cardByFacility = new Map(cards.map((c) => [c.facilityId, c]));
     const facilityByAgreement = new Map(
       facilities.map((x) => [x.agreementId, x]),
     );
@@ -464,9 +481,9 @@ export class LendingOperationsService {
       const facility = facilityByAgreement.get(a.agreementId);
       if (facility) {
         // Drawn − repaid must be the principal balance. Capitalized charges
-        // raise principal too, so they count as advances here.
-        const movements = await this.prisma.financialEvent.groupBy({
-          by: ['type'],
+        // raise principal too, so they count as advances here; a repayment
+        // counts only for the principal share it recorded.
+        const movements = await this.prisma.financialEvent.findMany({
           where: {
             tenantId,
             loanAccountId: a.id,
@@ -475,14 +492,31 @@ export class LendingOperationsService {
               in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
             },
           },
-          _sum: { amount: true },
+          select: { type: true, amount: true, components: true },
         });
-        const movedBy = (t: string) =>
-          D(movements.find((m) => m.type === t)?._sum.amount ?? '0');
-        const expected = movedBy('DISBURSEMENT')
-          .plus(movedBy('CAPITALIZATION'))
-          .minus(movedBy('REPAYMENT'))
-          .minus(movedBy('SETTLEMENT'));
+        const expected = movements.reduce(
+          (t, e) =>
+            e.type === 'DISBURSEMENT' || e.type === 'CAPITALIZATION'
+              ? t.plus(D(e.amount))
+              : t.minus(D(principalMoved(e))),
+          new lending.D(0),
+        );
+        // A card's balances (purchases, cash advances, plans) are the principal, split.
+        const card = cardByFacility.get(facility.id);
+        if (card) {
+          const split = D(card.purchaseBalance)
+            .plus(D(card.cashBalance))
+            .plus(D(card.planBalance));
+          if (!split.eq(D(a.principalOutstanding)))
+            breaks.push({
+              loanAccountId: a.id,
+              reference: a.reference,
+              check: 'cardBalances',
+              card: card.reference,
+              subledger: D(a.principalOutstanding).toString(),
+              cardBalances: split.toString(),
+            });
+        }
         if (!expected.eq(D(a.principalOutstanding)))
           breaks.push({
             loanAccountId: a.id,

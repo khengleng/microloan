@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -1319,6 +1320,20 @@ export class ApplicationsService {
     if (conditions.length) {
       await tx.facilityCondition.createMany({ data: conditions });
     }
+    // LT-07: a card product issues the card with the line. Only the last
+    // four digits are held; the number itself belongs to the card processor.
+    const card = config.card
+      ? await tx.cardAccount.create({
+          data: {
+            tenantId,
+            facilityId: facility.id,
+            loanAccountId: account.id,
+            reference: newReference('CARD'),
+            maskedNumber: `•••• ${String(randomInt(0, 10_000)).padStart(4, '0')}`,
+            createdBy: actor.id,
+          },
+        })
+      : null;
     await this.cas(tx, app as never, 'APPROVED', 'BOOKED');
     await this.audit.write(
       {
@@ -1347,6 +1362,7 @@ export class ApplicationsService {
       agreement,
       account,
       facility,
+      card,
       preview: { facilityTerms: engineTerms },
     };
   }
