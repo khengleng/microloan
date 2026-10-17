@@ -26,14 +26,32 @@ describe('product catalogue', () => {
   });
 
   test('specialized products are seeded unavailable until their capabilities exist', () => {
-    for (const code of [
-      'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA',
-      'PROJECT_FINANCE',
-      'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
-    ]) {
+    // Which templates are still blocked changes as capabilities ship; the rule does not.
+    const blocked = L.PRODUCT_TEMPLATES.filter((t) =>
+      [...L.requiredCapabilitiesFor(t.defaultConfig), ...t.extraCapabilities].some((id) => L.CAPABILITY_BY_ID[id]?.status !== 'IMPLEMENTED'),
+    );
+    assert.ok(blocked.length > 0, 'some specialised templates still wait for their capabilities');
+    for (const t of L.PRODUCT_TEMPLATES) {
+      const a = L.templateAvailability(t);
+      assert.equal(a.available, !blocked.includes(t), `${t.code}: ${JSON.stringify(a.missing)}`);
+      if (!a.available) assert.ok(a.missing.length > 0);
+    }
+  });
+
+  test('institutional, income-contingent and Murabaha templates became available with their capabilities', () => {
+    const need: Record<string, string> = {
+      INTERBANK: 'institutional.counterparty_limits',
+      MUNICIPAL: 'institutional.counterparty_limits',
+      SOVEREIGN: 'institutional.counterparty_limits',
+      DEVELOPMENT_CONCESSIONAL: 'institutional.counterparty_limits',
+      INCOME_CONTINGENT_EDUCATION: 'education.income_contingent',
+      MURABAHA: 'islamic.murabaha',
+    };
+    for (const [code, cap] of Object.entries(need)) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
-      assert.equal(a.available, false, `${code} must be unavailable`);
-      assert.ok(a.missing.length > 0);
+      assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
+      assert.ok(a.requiredCapabilities.includes(cap), `${code} requires ${cap}`);
+      assert.equal(L.CAPABILITY_BY_ID[cap].status, 'IMPLEMENTED');
     }
   });
 

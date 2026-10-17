@@ -281,7 +281,19 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   }),
   template('TUITION_LOAN', 'EDUCATION', 'Tuition loan', 'Short tuition instalment plan.', { limits: { maxInstalments: 12, maxAmount: '8000' } }),
   template('VOCATIONAL_TRAINING', 'EDUCATION', 'Vocational training loan', 'Training course finance.', { limits: { maxInstalments: 24, maxAmount: '3000' } }),
-  template('INCOME_CONTINGENT_EDUCATION', 'EDUCATION', 'Income-contingent education loan', 'Repayments scale with future income.', {}, ['education.income_contingent']),
+  // Repayments are a share of income above a threshold, reassessed every
+  // year under maker-checker; nothing is due (and nothing is late) below it.
+  // Uncovered interest is capitalised up to half the amount financed, and
+  // what is left when the term ends is forgiven (DECISIONS D-066).
+  template('INCOME_CONTINGENT_EDUCATION', 'EDUCATION', 'Income-contingent education loan', 'Repayments are a share of income above a threshold, reassessed every year; nothing is due below it, and what is left at the end of the term is forgiven.', {
+    eligibility: { employmentTypes: ['STUDENT'], minAgeYears: 17, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null },
+    pricing: { fixed: { defaultAnnualRate: '0.03', minAnnualRate: '0', maxAnnualRate: '0.06' } },
+    repayment: { prepayment: { allowed: false }, allocation: { excessHandling: 'ADVANCE' } },
+    limits: { minAmount: '500', maxAmount: '30000', minInstalments: 60, maxInstalments: 360 },
+    operations: { restructureAllowed: false },
+    incomeContingent: { repaymentRate: '0.09', incomeThreshold: '3000', reassessmentMonths: 12, unpaidInterest: 'CAPITALISE', capitalisationCap: '0.5', evidenceRequired: true },
+    accounting: { principalForgivenessExpense: '5700' },
+  }, ['education.income_contingent']),
   // Microfinance
   template('MICRO_INDIVIDUAL', 'MICROFINANCE', 'Individual microenterprise loan', 'Weekly or monthly loan to a microenterprise owner.', {
     ...BUSINESS,
@@ -411,12 +423,94 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance.', BUSINESS, ['trade.supply_chain']),
   template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of trade receivables.', { ...BUSINESS, attributes: { recourse: 'NON_RECOURSE' } }, ['trade.forfaiting']),
   // Institutional / public
-  template('INTERBANK', 'INSTITUTIONAL_PUBLIC', 'Interbank loan', 'Short-term interbank placement.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('MUNICIPAL', 'INSTITUTIONAL_PUBLIC', 'Municipal loan', 'Lending to local government.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('SOVEREIGN', 'INSTITUTIONAL_PUBLIC', 'Sovereign loan', 'Lending to a national government.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('DEVELOPMENT_CONCESSIONAL', 'INSTITUTIONAL_PUBLIC', 'Development / concessional loan', 'Concessional development lending.', INSTITUTION, ['institutional.counterparty_limits']),
+  // Every institutional loan is made to a registered counterparty and checked
+  // against its approved counterparty and country limits at approval and at
+  // disbursement (DECISIONS D-065).
+  //
+  // A money-market placement: one bullet of principal and interest on the
+  // agreed maturity (any date up to a year, as an irregular first period),
+  // interest by actual days over 360.
+  template('INTERBANK', 'INSTITUTIONAL_PUBLIC', 'Interbank loan', 'Short-term interbank placement: principal and interest in one bullet at maturity, ACT/360, within approved counterparty and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['INSTITUTION'] },
+    pricing: { dayCount: 'ACT_360', accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0.05', minAnnualRate: '0.005', maxAnnualRate: '0.12' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'INTEREST_ONLY', allowIrregularFirstPeriod: true, maxFirstPeriodDays: 366, prepayment: { allowed: false } },
+    limits: { minAmount: '100000', maxAmount: '50000000', minInstalments: 1, maxInstalments: 12 },
+    operations: {
+      requiredDocuments: [{ code: 'INSTITUTION_LICENCE', label: 'Banking licence or registration of the counterparty', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'MASTER_AGREEMENT', label: 'Master placement agreement in force with the counterparty' }],
+      writeOffMinDpd: 360,
+    },
+    institutional: { counterpartyTypes: ['BANK'], minRating: null, requireCountryLimit: true, maxTenorDays: 366 },
+  }),
+  template('MUNICIPAL', 'INSTITUTIONAL_PUBLIC', 'Municipal loan', 'Lending to local government: semi-annual instalments within approved counterparty and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['PUBLIC_BODY'] },
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.06', minAnnualRate: '0.03', maxAnnualRate: '0.10' }, regulatoryCapAnnualRate: null },
+    repayment: { frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 2 },
+    limits: { minAmount: '50000', maxAmount: '20000000', minInstalments: 2, maxInstalments: 40 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Council resolution authorising the borrowing', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'AGREEMENT_SIGNED', label: 'Loan agreement signed by the authorised officer' }],
+      writeOffMinDpd: 360,
+    },
+    institutional: { counterpartyTypes: ['MUNICIPALITY'], minRating: null, requireCountryLimit: true },
+  }),
+  template('SOVEREIGN', 'INSTITUTIONAL_PUBLIC', 'Sovereign loan', 'Lending to a national government: semi-annual equal principal after an optional grace, within approved sovereign and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['PUBLIC_BODY'] },
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.045', minAnnualRate: '0.02', maxAnnualRate: '0.08' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'EQUAL_PRINCIPAL', frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 6 },
+    limits: { minAmount: '1000000', maxAmount: '500000000', minInstalments: 4, maxInstalments: 40 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Ministry of finance authorisation of the borrowing', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [
+        { code: 'AGREEMENT_SIGNED', label: 'Loan agreement signed by the authorised representative' },
+        { code: 'LEGAL_OPINION', label: 'Legal opinion on the borrower\u2019s capacity and authority' },
+      ],
+      writeOffMinDpd: 720,
+    },
+    institutional: { counterpartyTypes: ['SOVEREIGN'], minRating: null, requireCountryLimit: true },
+  }),
+  // Concessional terms: a low rate and a long grace, accepted only when the
+  // grant element (IMF/World Bank, 5% discount rate) is at least 35%.
+  template('DEVELOPMENT_CONCESSIONAL', 'INSTITUTIONAL_PUBLIC', 'Development / concessional loan', 'Concessional development lending: a low rate and a long principal grace, accepted only at a grant element of 35% or more.', {
+    ...INSTITUTION,
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.0075', minAnnualRate: '0', maxAnnualRate: '0.03' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'EQUAL_PRINCIPAL', frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 20 },
+    limits: { minAmount: '100000', maxAmount: '200000000', minInstalments: 10, maxInstalments: 80 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Authorisation of the borrowing by the competent authority', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'AGREEMENT_SIGNED', label: 'Financing agreement signed' }],
+      writeOffMinDpd: 720,
+    },
+    institutional: { counterpartyTypes: ['SOVEREIGN', 'MUNICIPALITY', 'DEVELOPMENT_INSTITUTION', 'BANK'], minRating: null, requireCountryLimit: true, minGrantElement: '0.35' },
+  }),
   // Islamic structures — separate contract behaviour, not a conventional loan with a relabelled rate.
-  template('MURABAHA', 'PERSONAL', 'Murabaha financing', 'Asset purchase and resale at a disclosed profit.', { attributes: { structure: 'MURABAHA' } }, ['islamic.murabaha']),
+  // The financier buys the asset (paid to its supplier, never the customer)
+  // and sells it at cost plus a fixed profit disclosed in the contract. The
+  // profit is deferred and recognised over the term on its own accounts
+  // (1350/1355/4700, memo 1360/2510); late charges go to charity (2800);
+  // unearned profit is rebated (ibra') on early settlement (DECISIONS D-067).
+  template('MURABAHA', 'PERSONAL', 'Murabaha financing', 'The financier buys the asset and sells it to the customer at cost plus a disclosed, fixed profit, paid in instalments; no interest.', {
+    attributes: { structure: 'MURABAHA' },
+    pricing: {
+      interestMethod: 'FLAT',
+      fixed: { defaultAnnualRate: '0.08', minAnnualRate: '0.04', maxAnnualRate: '0.15' },
+      penalty: { type: 'FLAT_PER_INSTALMENT', flatAmount: '5', annualRate: null, graceDays: 3 },
+    },
+    repayment: { prepayment: { allowed: false }, allocation: { excessHandling: 'ADVANCE' } },
+    limits: { maxAmount: '50000', maxInstalments: 60 },
+    operations: {
+      restructureAllowed: false,
+      disbursementConditions: [
+        { code: 'PROMISE_TO_PURCHASE', label: 'Customer\u2019s promise to purchase (wa\u2019d) signed' },
+        { code: 'AGREEMENT_SIGNED', label: 'Murabaha sale agreement signed after the financier owns the asset' },
+      ],
+    },
+    murabaha: { assetTypes: ['VEHICLE', 'EQUIPMENT', 'CONSUMER_GOODS', 'HOUSEHOLD_GOODS'], ibraShare: '1' },
+    accounting: { loansReceivable: '1350', interestReceivable: '1355', interestIncome: '4700', penaltyIncome: '2800' },
+  }, ['islamic.murabaha']),
   // A true lease: the financier buys and keeps title to the asset; rentals
   // are rental income, not interest, and late charges go to charity. The
   // residual is the purchase-option price, carried as the final balloon.

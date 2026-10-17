@@ -4,6 +4,7 @@ import { SUPPORTED_DAY_COUNTS } from './dates.js';
 import { EngineError, dec } from './decimal.js';
 import { buildPeriods, type ScheduleInput } from './schedule.js';
 import type { FeeDefinition } from './fees.js';
+import { COUNTERPARTY_TYPES, RATING_SCALE } from './institutional.js';
 
 /**
  * Product configuration schema.
@@ -424,6 +425,70 @@ export const productConfigSchema = z
       .strict()
       .nullable()
       .default(null),
+    /**
+     * Institutional lending (interbank, municipal, sovereign, development):
+     * the borrower must be a registered counterparty of an accepted type, and
+     * every origination and disbursement is checked against the
+     * counterparty's and its country's approved exposure limits.
+     */
+    institutional: z
+      .object({
+        counterpartyTypes: z.array(z.enum(COUNTERPARTY_TYPES)).min(1),
+        /** Lowest long-term rating accepted; null: unrated counterparties are accepted. */
+        minRating: z.enum(RATING_SCALE).nullable().default(null),
+        /** Whether the counterparty's country must also have an approved limit. */
+        requireCountryLimit: z.boolean().default(true),
+        /** Longest tenor (disbursement to maturity) accepted, e.g. 366 for money-market placements. */
+        maxTenorDays: z.number().int().min(1).max(36600).nullable().default(null),
+        /** Concessional lending: the lowest grant element accepted (e.g. '0.35'); null: not gated. */
+        minGrantElement: rateFraction.nullable().default(null),
+        /** Discount rate for the grant element (IMF/World Bank convention: 5%). */
+        grantElementDiscountRate: rateFraction.default('0.05'),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Income-contingent repayment (education): the instalment is a share of
+     * the declared income above a threshold, reassessed under maker-checker;
+     * what is left at the end of the term is forgiven.
+     */
+    incomeContingent: z
+      .object({
+        /** Share of annual income above the threshold repaid each year, e.g. '0.09'. */
+        repaymentRate: rateFraction,
+        /** Annual income below which nothing is payable. */
+        incomeThreshold: decimalString,
+        /** Months between reassessments; a change of circumstances may be assessed at any time. */
+        reassessmentMonths: z.number().int().min(1).max(36).default(12),
+        /** Interest the payment does not cover: added to the balance, or not charged (subsidised). */
+        unpaidInterest: z.enum(['CAPITALISE', 'SUBSIDISE']).default('CAPITALISE'),
+        /** Most interest that may ever be capitalised, as a fraction of the amount financed; beyond it, uncovered interest is not charged. */
+        capitalisationCap: rateFraction.nullable().default(null),
+        /** Whether a reassessment must cite documentary evidence (payslip, tax return …). */
+        evidenceRequired: z.boolean().default(true),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Murabaha: the lender buys the asset from its supplier and sells it to
+     * the customer at cost plus a disclosed, fixed profit payable in
+     * instalments. The profit is deferred and recognised over the term.
+     */
+    murabaha: z
+      .object({
+        assetTypes: z.array(code).min(1),
+        /**
+         * Ibra' on early settlement: the share of the profit not yet earned
+         * that is rebated ('1' = all of it). Null: no rebate is promised and
+         * the full sale price is payable.
+         */
+        ibraShare: rateFraction.nullable().default('1'),
+      })
+      .strict()
+      .nullable()
+      .default(null),
     operations: z
       .object({
         workflowCode: code,
@@ -679,6 +744,13 @@ export const productConfigSchema = z
         cardCashAdvanceFeeIncome: code.default('4520'),
         /** Leases (LT-15): assets handed back at lease end, held for sale. */
         returnedLeaseAssets: code.default('1260'),
+        /**
+         * Murabaha: the profit not yet earned, carried as a memo pair — the
+         * unearned part of the sale price receivable against deferred profit —
+         * and released as the profit is recognised.
+         */
+        unearnedProfitReceivable: code.default('1360'),
+        deferredProfit: code.default('2510'),
       })
       .strict(),
   })
@@ -987,6 +1059,54 @@ function validateSpecialisedBlocks(c: ProductConfig, add: (path: string, message
     if (!c.security.collateralRequired) add('security.collateralRequired', 'the leased asset is the security: a lease must be secured');
   }
   if (c.attributes.structure === 'IJARAH' && !c.lease) add('lease', 'an Ijarah product is a lease and needs lease terms');
+
+  // Institutional lending: limits are checked against the counterparty, so a
+  // product in the family must say which counterparties it lends to.
+  if (c.identity.familyCode === 'INSTITUTIONAL_PUBLIC' && !c.institutional) add('institutional', 'an institutional product needs institutional terms (counterparty types and limits)');
+  if (c.institutional) {
+    if (c.facility.type !== 'TERM') add('institutional', 'institutional lending is booked as term loans');
+    if (c.identity.liability !== 'INDIVIDUAL') add('institutional', 'an institutional loan has one counterparty as borrower');
+    if (new Set(c.institutional.counterpartyTypes).size !== c.institutional.counterpartyTypes.length) add('institutional.counterpartyTypes', 'list each type once');
+  }
+
+  // Income-contingent: the schedule is rebuilt from each assessment on the
+  // contract's monthly grid, so anything else that rebuilds it is excluded.
+  if (c.incomeContingent) {
+    const ic = 'incomeContingent';
+    if (c.facility.type !== 'TERM') add(ic, 'an income-contingent loan is a term loan');
+    if (c.attributes.rateType !== 'FIXED') add('attributes.rateType', 'an income-contingent loan carries a fixed (possibly zero or subsidised) rate');
+    if (c.repayment.method !== 'EQUAL_INSTALMENT') add('repayment.method', 'use EQUAL_INSTALMENT: the instalment is set by the income assessment');
+    if (c.repayment.frequency !== 'MONTHLY') add('repayment.frequency', 'income-contingent repayments are monthly');
+    if (c.pricing.accrualBasis !== 'PERIODIC') add('pricing.accrualBasis', 'income-contingent schedules use PERIODIC accrual');
+    if (c.pricing.interestMethod !== 'REDUCING_BALANCE') add('pricing.interestMethod', 'interest accrues on the outstanding balance');
+    if (c.repayment.businessDayConvention !== 'NONE') add('repayment.businessDayConvention', 'payments stay on the contract grid');
+    if (c.repayment.prepayment.allowed) add('repayment.prepayment', 'extra payments are held as an advance or settle the loan; there is no partial prepayment');
+    if (c.repayment.allocation.excessHandling === 'PREPAY') add('repayment.allocation.excessHandling', 'use ADVANCE or REJECT');
+    if (c.repayment.maxPrincipalGraceInstalments > 0 || c.repayment.maxInterestGraceInstalments > 0) add('repayment', 'no grace periods: an income below the threshold already pays nothing');
+    if (c.repayment.instalmentSteps?.length || c.pricing.promotion) add('repayment', 'stepped instalments and promotions do not apply');
+    if (c.operations.restructureAllowed) add('operations.restructureAllowed', 'an income-contingent loan is varied by income reassessment, not restructuring');
+    if (c.restructuring.allowRefinance) add('restructuring.allowRefinance', 'not available on an income-contingent loan');
+  }
+
+  // Murabaha: a sale at a fixed, disclosed price. Nothing may change the
+  // profit after the contract except settlement (with any ibra').
+  if (c.attributes.structure === 'MURABAHA' && !c.murabaha) add('murabaha', 'a Murabaha product needs Murabaha terms (asset types, ibra’)');
+  if (c.murabaha) {
+    if (c.attributes.structure !== 'MURABAHA') add('attributes.structure', 'Murabaha terms need structure MURABAHA');
+    if (c.facility.type !== 'TERM') add('murabaha', 'a Murabaha is a deferred-payment sale, not a facility');
+    if (c.attributes.rateType !== 'FIXED') add('attributes.rateType', 'the Murabaha profit is fixed when the contract is signed');
+    if (c.repayment.prepayment.allowed) add('repayment.prepayment', 'the sale price is fixed: partial prepayment does not change it (settle the whole contract instead)');
+    if (c.repayment.allocation.excessHandling === 'PREPAY') add('repayment.allocation.excessHandling', 'use ADVANCE or REJECT');
+    if (c.repayment.earlySettlement.rebateMethod !== 'ACCRUED') add('repayment.earlySettlement.rebateMethod', 'a Murabaha rebate is the ibra’ share (murabaha.ibraShare)');
+    if (c.repayment.earlySettlement.feeRate || c.repayment.earlySettlement.feeFixed) add('repayment.earlySettlement', 'no settlement fee on a Murabaha');
+    if (c.pricing.fees.some((f) => f.treatment !== 'SEPARATE')) add('pricing.fees', 'the sale price is cost plus profit only: charge any fee separately');
+    if (c.pricing.promotion) add('pricing.promotion', 'not available on a Murabaha');
+    if (c.operations.restructureAllowed) add('operations.restructureAllowed', 'rescheduling a Murabaha may not add profit; restructuring is not available');
+    if (c.restructuring.allowRefinance) add('restructuring.allowRefinance', 'not available on a Murabaha');
+    if (c.pricing.penalty.type !== 'NONE' && [c.accounting.interestIncome, c.accounting.feeIncome].includes(c.accounting.penaltyIncome))
+      add('accounting.penaltyIncome', 'late-payment charges on a Murabaha go to charity, not income');
+    if (c.accounting.interestIncome === '4000') add('accounting.interestIncome', 'Murabaha profit is not interest: map it to its own income account');
+  }
 }
 
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
@@ -1033,6 +1153,9 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.card) req.add('card.revolving_credit');
   if (c.bnpl) req.add('bnpl.merchant_settlement');
   if (c.lease) req.add('lease.true_lease');
+  if (c.institutional) req.add('institutional.counterparty_limits');
+  if (c.incomeContingent) req.add('education.income_contingent');
+  if (c.murabaha) req.add('islamic.murabaha');
   return [...req].sort();
 }
 
@@ -1055,6 +1178,8 @@ export interface NegotiatedTerms {
   promotionCode?: string;
   /** Business financials for debt-service coverage (LT-16), annual amounts. */
   financials?: { annualNetOperatingIncome: string; otherAnnualDebtService?: string };
+  /** Income-contingent loans: the borrower's declared annual income at origination (default 0, e.g. while studying). */
+  declaredAnnualIncome?: string;
   /**
    * The contract's choice from the product's policy menus (POLICY_MODEL.md).
    * A kind left out uses the product's default policy.
@@ -1106,6 +1231,10 @@ export function checkTerms(c: ProductConfig, t: NegotiatedTerms): TermsCheck {
     else if (dec(t.balloonAmount).gt(principal.times(dec(c.repayment.maxBalloonFraction ?? '0')))) add('balloonAmount', `at most ${c.repayment.maxBalloonFraction} of principal`);
   } else if (c.repayment.method === 'BALLOON') add('balloonAmount', 'required for this product');
   if (t.promotionCode && t.promotionCode !== c.pricing.promotion?.code) add('promotionCode', 'no such promotion on this product');
+  if (t.declaredAnnualIncome !== undefined) {
+    if (!c.incomeContingent) add('declaredAnnualIncome', 'only an income-contingent product takes a declared income');
+    else if (!/^\d+(\.\d+)?$/.test(t.declaredAnnualIncome)) add('declaredAnnualIncome', 'must be a non-negative decimal amount');
+  }
   for (const code of t.waivedFeeCodes ?? []) {
     const fee = c.pricing.fees.find((f) => f.code === code);
     if (!fee) add('waivedFeeCodes', `unknown fee ${code}`);
@@ -1159,6 +1288,20 @@ export function toScheduleInput(
     accrualDateBasis: c.repayment.accrualDateBasis,
     instalmentSteps: c.repayment.instalmentSteps ?? undefined,
   };
+  if (c.incomeContingent) {
+    // The instalment follows the declared income; the contract term is the
+    // grid every reassessment keeps to, and its end is when the rest is forgiven.
+    input.incomeContingent = {
+      repaymentRate: c.incomeContingent.repaymentRate,
+      incomeThreshold: c.incomeContingent.incomeThreshold,
+      unpaidInterest: c.incomeContingent.unpaidInterest,
+      capitalisationCap: c.incomeContingent.capitalisationCap,
+      declaredAnnualIncome: t.declaredAnnualIncome ?? '0',
+      gridStart: t.disbursementDate,
+      gridPeriods: t.numberOfInstalments ?? 0,
+      originalPrincipal: bookedPrincipal,
+    };
+  }
   const promo = c.pricing.promotion;
   if (!rates && promo && t.promotionCode === promo.code) {
     // UC-46: the promotional rate from disbursement, the contract rate from the start of the period after the promotion.

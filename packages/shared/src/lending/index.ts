@@ -29,3 +29,6 @@ export * from './scorecard.js';
 export * from './card.js';
 export * from './bnpl.js';
 export * from './migration.js';
+export * from './institutional.js';
+export * from './income-contingent.js';
+export * from './murabaha.js';

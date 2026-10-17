@@ -683,6 +683,39 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan.repayment.post',
     workflowStates: ['CLOSED'],
   }),
+  // Institutional lending: counterparties and their exposure limits. Credit
+  // analysts register counterparties, record ratings and propose limits; a
+  // credit approver — another person, within approval authority for the
+  // limit amount — approves them.
+  A('counterparty.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('counterparty.manage', 'TENANT', 'CONFIG', {
+    permission: 'credit_decision.recommend',
+  }),
+  A('counterparty.limit.approve', 'TENANT', 'CONFIG', {
+    permission: 'credit_decision.approve',
+    workflowStates: ['PENDING'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  // Income-contingent repayment: an assessment re-sets the instalment of a
+  // booked contract, so it is proposed by servicing and approved by a
+  // different checker, like re-pricing and reversals.
+  A('income_contingent.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('loan.income_assessment.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.rate_reset.apply',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.income_assessment.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    workflowStates: ['ACTIVE'],
+    makerChecker: true,
+  }),
+  // Murabaha: the asset is identified before the financier pays for it.
+  A('loan.murabaha.register', 'LOAN_ACCOUNT', 'DISBURSEMENT', {
+    permission: 'loan.disbursement.prepare',
+    workflowStates: ['BOOKED'],
+  }),
   // Re-pricing moves no money, but it changes a booked contract, so it is
   // gated like servicing rather than like a read.
   A('loan.rate_reset.apply', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {

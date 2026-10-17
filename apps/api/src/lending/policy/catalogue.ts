@@ -932,6 +932,30 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     defaultEnabled: false,
   },
   {
+    key: 'lending.institutional',
+    description:
+      'Institutional lending: interbank, municipal, sovereign and development loans against approved counterparty and country limits',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.education.income_contingent',
+    description:
+      'Income-contingent education loans: instalments set by assessed income, forgiveness at the end of the term',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.islamic.murabaha',
+    description:
+      'Murabaha: asset purchase and resale at a disclosed profit, deferred and recognised over the term',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
     key: 'lending.group.joint_liability',
     description: 'Group / joint-liability lending',
     category: 'Capabilities',

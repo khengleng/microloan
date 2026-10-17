@@ -49,6 +49,12 @@ import { LendingCardsController } from './cards/cards.controller';
 import { BnplLeaseService } from './bnpl/bnpl-lease.service';
 import { LendingBnplLeaseController } from './bnpl/bnpl-lease.controller';
 import { AccessAdminService } from './access/access-admin.service';
+import { CounterpartiesService } from './institutional/counterparties.service';
+import { CounterpartiesController } from './institutional/counterparties.controller';
+import { IncomeContingentService } from './income-contingent/income-contingent.service';
+import { IncomeContingentController } from './income-contingent/income-contingent.controller';
+import { MurabahaService } from './murabaha/murabaha.service';
+import { MurabahaController } from './murabaha/murabaha.controller';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
@@ -116,6 +122,9 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     LendingFacilitiesController,
     LendingCardsController,
     LendingBnplLeaseController,
+    CounterpartiesController,
+    IncomeContingentController,
+    MurabahaController,
     RecoveryController,
     RecoveryDeskController,
     PaymentChannelsController,
@@ -160,6 +169,9 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     FacilitiesService,
     CardsService,
     BnplLeaseService,
+    CounterpartiesService,
+    IncomeContingentService,
+    MurabahaService,
     RateResetService,
     EodSchedulerService,
     AccessAdminService,

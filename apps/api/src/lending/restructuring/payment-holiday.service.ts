@@ -262,6 +262,15 @@ export class PaymentHolidayService {
           `The ${programme.code} programme is ${programme.status.toLowerCase()}; it is not accepting enrolments.`,
         );
       }
+      // A holiday is a restructure: a product that excludes restructuring
+      // (a Murabaha's fixed sale price, an income-contingent schedule set by
+      // assessed income) excludes holidays too.
+      if (!state.config.operations.restructureAllowed)
+        throw new BadRequestException({
+          message:
+            'This product does not allow restructuring, so a payment holiday cannot be granted on it.',
+          code: 'HOLIDAY_NOT_AVAILABLE',
+        });
       const businessDate = await this.businessDate.get(tenantId, tx);
       const candidate = await this.candidate(tx, state, programmeId);
       const eligibility = engineCall(() =>

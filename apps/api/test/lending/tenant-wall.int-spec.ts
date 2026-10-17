@@ -120,6 +120,10 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'cards/:cardId': 'cardAccount',
       'transactions/:transactionId': 'cardTransaction',
       'refunds/:bnplRefundId': 'bnplRefund',
+      // Institutional lending and income-contingent loans (institutional.int-spec, income-contingent.int-spec create the victims).
+      'counterparties/:counterpartyId': 'counterparty',
+      'exposure-limits/:limitId': 'exposureLimit',
+      'income-assessments/:assessmentId': 'incomeAssessment',
       'returns/:returnId': 'regulatoryReturn',
       ':resourceType/:id': 'loanAccount',
     };

@@ -1977,6 +1977,8 @@ model LoanAccount {
   covenants              LoanCovenant[]
   bnplPlan               BnplPlan?
   leaseAsset             LeaseAsset?
+  murabahaContract       MurabahaContract?
+  incomeAssessments      IncomeAssessment[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -3969,4 +3971,156 @@ model WebhookDelivery {
   @@unique([endpointId, outboxMessageId])
   @@index([status, nextAttemptAt])
   @@index([tenantId, endpointId, createdAt])
+}
+
+// ── Institutional lending: counterparties and exposure limits ───────────────
+
+/// An institution the tenant lends to — a bank, a municipality, a sovereign
+/// or a development institution — linked to the borrower record that applies
+/// for its loans. Ratings are recorded here; limits are approved separately.
+model Counterparty {
+  id              String          @id @default(uuid())
+  tenantId        String
+  reference       String
+  name            String
+  /// BANK, MUNICIPALITY, SOVEREIGN, DEVELOPMENT_INSTITUTION
+  type            String
+  /// ISO 3166-1 alpha-2 country of the counterparty (its risk country).
+  countryCode     String
+  /// The borrower record its applications are made under (one per counterparty).
+  borrowerId      String?
+  /// LEI, SWIFT/BIC or registration number.
+  legalIdentifier String          @default("")
+  /// Long-term rating on the S&P/Fitch scale; null when unrated.
+  rating          String?
+  ratingAgency    String          @default("")
+  ratedOn         DateTime?       @db.Date
+  /// ACTIVE, SUSPENDED
+  status          String          @default("ACTIVE")
+  version         Int             @default(0)
+  createdBy       String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  limits          ExposureLimit[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, borrowerId])
+  @@index([tenantId, countryCode])
+}
+
+/// An exposure limit on one counterparty or one country, proposed by a maker
+/// and approved by a different checker within their approval authority. A
+/// newly approved limit supersedes the one it replaces.
+model ExposureLimit {
+  id             String        @id @default(uuid())
+  tenantId       String
+  /// COUNTERPARTY, COUNTRY
+  scope          String
+  counterpartyId String?
+  counterparty   Counterparty? @relation(fields: [tenantId, counterpartyId], references: [tenantId, id], onDelete: Cascade)
+  countryCode    String?
+  currency       String
+  amount         Decimal       @db.Decimal(24, 4)
+  /// The limit lapses after this date until it is reviewed and approved again.
+  reviewOn       DateTime      @db.Date
+  /// PENDING, ACTIVE, REJECTED, SUPERSEDED
+  status         String        @default("PENDING")
+  note           String        @default("")
+  proposedBy     String
+  decidedBy      String?
+  decidedAt      DateTime?
+  comment        String        @default("")
+  version        Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, scope, status])
+  @@index([tenantId, counterpartyId])
+  @@index([tenantId, countryCode])
+}
+
+// ── Income-contingent repayment ─────────────────────────────────────────────
+
+/// A declared income and the instalment it sets, proposed with evidence and
+/// approved by a different person; approval rebuilds the rest of the
+/// schedule from the next period. Sequence 0 is the income declared at
+/// origination.
+model IncomeAssessment {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  sequence             Int
+  /// ORIGINATION, ANNUAL, CHANGE_OF_CIRCUMSTANCES
+  reason               String
+  declaredAnnualIncome Decimal     @db.Decimal(24, 4)
+  /// The income year or period the evidence covers, e.g. "2026".
+  incomePeriod         String      @default("")
+  /// PAYSLIP, TAX_RETURN, EMPLOYER_LETTER, BENEFITS_STATEMENT, NO_INCOME_DECLARATION, OTHER
+  evidenceType         String
+  evidenceReference    String
+  /// A document in the customer's library, when the evidence was uploaded.
+  documentId           String?
+  annualRepayment      Decimal     @db.Decimal(24, 4)
+  periodicPayment      Decimal     @db.Decimal(24, 4)
+  /// PENDING, APPROVED, REJECTED, CANCELLED
+  status               String      @default("PENDING")
+  /// First period the instalment applies to (set on approval).
+  effectiveDate        DateTime?   @db.Date
+  /// When the next annual reassessment is due.
+  nextReviewDate       DateTime?   @db.Date
+  agreementVersion     Int?
+  proposedBy           String
+  decidedBy            String?
+  decidedAt            DateTime?
+  comment              String      @default("")
+  version              Int         @default(0)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId, sequence])
+  @@index([tenantId, status])
+}
+
+// ── Murabaha ────────────────────────────────────────────────────────────────
+
+/// The asset the financier buys and resells under a Murabaha, and the sale
+/// it makes: cost, the disclosed profit and the sale price, with the deferred
+/// profit still carried in the ledger memo.
+model MurabahaContract {
+  id                    String      @id @default(uuid())
+  tenantId              String
+  loanAccountId         String      @unique
+  loanAccount           LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  assetType             String
+  description           String
+  serialNumber          String      @default("")
+  supplierName          String
+  /// What the financier pays the supplier: the cost disclosed to the customer.
+  cost                  Decimal     @db.Decimal(24, 4)
+  downPayment           Decimal     @default(0) @db.Decimal(24, 4)
+  /// Fixed at the sale (disbursement) from the contract schedule.
+  profit                Decimal?    @db.Decimal(24, 4)
+  salePrice             Decimal?    @db.Decimal(24, 4)
+  /// Share of unearned profit rebated on early settlement; null: none promised.
+  ibraShare             Decimal?    @db.Decimal(12, 8)
+  /// Deferred profit carried in the ledger memo (unearned profit receivable / deferred profit).
+  deferredProfitBalance Decimal     @default(0) @db.Decimal(24, 4)
+  /// Profit waived on early settlement.
+  ibraGranted           Decimal     @default(0) @db.Decimal(24, 4)
+  /// REGISTERED (asset identified), SOLD (bought and sold to the customer), ENDED
+  status                String      @default("REGISTERED")
+  saleEventId           String?
+  soldOn                DateTime?   @db.Date
+  version               Int         @default(0)
+  registeredBy          String
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, status])
 }

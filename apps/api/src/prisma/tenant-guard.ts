@@ -105,6 +105,11 @@ const DIRECT_TENANT_MODELS = new Set([
   'BnplPlan',
   'BnplRefund',
   'LeaseAsset',
+  // Institutional lending, income-contingent repayment, Murabaha
+  'Counterparty',
+  'ExposureLimit',
+  'IncomeAssessment',
+  'MurabahaContract',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

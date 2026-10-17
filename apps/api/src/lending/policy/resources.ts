@@ -20,6 +20,10 @@ export function configFlags(config: ProductConfig | null): string[] {
   if (config.trade?.letterOfCredit)
     flags.push('lending.trade.letters_of_credit');
   if (config.syndication) flags.push('lending.syndication');
+  if (config.institutional) flags.push('lending.institutional');
+  if (config.incomeContingent)
+    flags.push('lending.education.income_contingent');
+  if (config.murabaha) flags.push('lending.islamic.murabaha');
   return flags;
 }
 

@@ -2,6 +2,7 @@
 /**
  * Mandatory security and lifecycle tests, over the real HTTP API and database.
  */
+import { lending } from '@microloan/shared';
 import {
   Fixture,
   TEST_DB,
@@ -582,11 +583,12 @@ d('Lending security and lifecycle (integration)', () => {
       const tpl = expectOk(
         await f.as('maker').get('/lending/templates/PERSONAL_INSTALMENT'),
       );
-      // Murabaha needs islamic.murabaha, which is not implemented. (This
-      // used to be the floating-rate example; floating ships in Phase 2 and
-      // activates, so it no longer demonstrates a blocked capability.)
+      // Automated payout needs a real payment-rail adapter, which the
+      // platform does not ship (disbursement.payment_rail is
+      // REQUIRES_INTEGRATION). Earlier examples — floating rates, then
+      // Murabaha — shipped and now activate, so they no longer block.
       const cfg = structuredClone(tpl.defaultConfig);
-      cfg.attributes.structure = 'MURABAHA';
+      cfg.operations.integrations.payments = 'ADAPTER';
       const created = expectOk(
         await f.as('maker').post('/lending/products', {
           templateCode: 'PERSONAL_INSTALMENT',
@@ -610,11 +612,16 @@ d('Lending security and lifecycle (integration)', () => {
         .post(`/lending/product-versions/${created.version.id}/activate`);
       expect(act.status).toBe(400);
       expect(act.body.code).toBe('MISSING_CAPABILITIES');
-      // Cards became available in Phase 3; factoring still is not.
+      // A template whose capabilities have not shipped cannot be used. Which
+      // templates those are changes as capabilities ship, so pick one now.
+      const blocked = lending.PRODUCT_TEMPLATES.find(
+        (t) => !lending.templateAvailability(t).available,
+      )!;
+      expect(blocked).toBeDefined();
       const factoring = await f.as('maker').post('/lending/products', {
-        templateCode: 'FACTORING',
-        code: 'FCT-1',
-        name: 'Factoring',
+        templateCode: blocked.code,
+        code: 'BLOCKED-1',
+        name: 'Blocked template',
       });
       expect(factoring.status).toBe(400);
       expect(factoring.body.code).toBe('TEMPLATE_UNAVAILABLE');
