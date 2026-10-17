@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { SystemContext, runAsTenant } from '../prisma/tenant-context';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthzService } from '../authz/authz.service';
 import { AuditService } from '../audit/audit.service';
@@ -92,6 +94,63 @@ export class CollectionsService {
 
         rows.sort((a, b) => b.daysPastDue - a.daysPastDue);
         return { asOf: now, count: rows.length, rows };
+    }
+
+    private readonly logger = new Logger(CollectionsService.name);
+
+    @Cron('30 1 * * *')
+    @SystemContext('cron: reviews promises to pay across tenants')
+    async reviewPromisesDaily() {
+        if (process.env.NODE_ENV === 'test') return;
+        const r = await this.reviewPromises(new Date());
+        this.logger.log(`Promises to pay reviewed: ${r.kept} kept, ${r.broken} broken.`);
+    }
+
+    /**
+     * UC-59: a promise whose date has passed is KEPT when repayments since it
+     * was made (not reversed) reach the promised amount, and BROKEN otherwise
+     * — flagged on the loan's contact history for the collector. Each loan is
+     * decided inside its own tenant's wall.
+     */
+    async reviewPromises(asOf: Date) {
+        const today = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+        const due = await this.prisma.promiseToPay.findMany({
+            where: { status: PtpStatus.PENDING, promisedDate: { lt: today } },
+        });
+        let kept = 0;
+        let broken = 0;
+        for (const p of due) {
+            await runAsTenant(p.tenantId, async () => {
+                const from = new Date(Date.UTC(p.createdAt.getUTCFullYear(), p.createdAt.getUTCMonth(), p.createdAt.getUTCDate()));
+                const to = new Date(p.promisedDate.getTime() + MS_PER_DAY);
+                const paid = await this.prisma.repayment.aggregate({
+                    where: { tenantId: p.tenantId, loanId: p.loanId, reversedAt: null, date: { gte: from, lt: to } },
+                    _sum: { amount: true },
+                });
+                const ok = Math.round(Number(paid._sum.amount ?? 0) * 100) >= Math.round(Number(p.amount) * 100);
+                const res = await this.prisma.promiseToPay.updateMany({
+                    where: { id: p.id, tenantId: p.tenantId, status: PtpStatus.PENDING },
+                    data: { status: ok ? PtpStatus.KEPT : PtpStatus.BROKEN },
+                });
+                if (res.count !== 1) return;
+                if (ok) {
+                    kept++;
+                    return;
+                }
+                broken++;
+                await this.prisma.loanInteraction.create({
+                    data: {
+                        loanId: p.loanId,
+                        userId: 'system',
+                        type: 'SYSTEM',
+                        title: 'Promise to pay broken',
+                        notes: `Promised ${Number(p.amount).toFixed(2)} ${p.currency} by ${p.promisedDate.toISOString().slice(0, 10)}; received ${Number(paid._sum.amount ?? 0).toFixed(2)}.`,
+                    },
+                });
+                await this.audit.logAction(p.tenantId, 'system', 'UPDATE', 'PromiseToPay', p.id, { status: 'BROKEN', automatic: true });
+            });
+        }
+        return { reviewed: due.length, kept, broken };
     }
 
     async createPromise(
