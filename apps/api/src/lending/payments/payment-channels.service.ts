@@ -100,9 +100,17 @@ export class PaymentChannelsService {
   ) {
     // Collect what falls due today before the batch accrues, charges
     // penalties and ages arrears, so a collected instalment is never late.
+    // A collection problem is logged, never allowed to stop the rest of end of day.
     this.servicing.registerTenantBatchHook(
-      (tenantId, businessDate, _a, scope) =>
-        this.collectDue(tenantId, businessDate, scope),
+      async (tenantId, businessDate, _a, scope) => {
+        try {
+          await this.collectDue(tenantId, businessDate, scope);
+        } catch (e) {
+          this.logger.error(
+            `Auto-debit run failed for tenant ${tenantId} on ${businessDate}: ${(e as Error).message}`,
+          );
+        }
+      },
     );
   }
 
