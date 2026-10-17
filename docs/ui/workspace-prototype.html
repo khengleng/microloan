@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Magic Money Workspace Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Noto+Sans+Khmer:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a working design document — narrow reading column for the argument,
+   full-width bands for the live prototype and pattern boards. Product tokens
+   (ink, blue, navy sidebar) are taken from apps/web globals.css so the mockups
+   look like the product they propose to change. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #172b4d;
+  --ink-2: #44546f;
+  --ink-3: #6b778c;
+  --line: #dfe1e6;
+  --blue: #0052cc;
+  --blue-soft: #e6efff;
+  --navy: #1f2f4d;
+  --navy-2: #2c3f63;
+  --navy-ink: #c8d2e6;
+  --navy-hi: #4c9aff;
+  --ok: #006644;   --ok-soft: #e3fcef;
+  --warn: #974f0c; --warn-soft: #fff4e0;
+  --bad: #ae2a19;  --bad-soft: #ffebe6;
+  --info: #0055cc; --info-soft: #e9f2ff;
+  --focus: #4c9aff;
+  --f-body: "Public Sans", "Noto Sans Khmer", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-km: "Noto Sans Khmer", "Khmer OS", "Public Sans", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1420; --surface: #161d2b; --surface-2: #1d2636;
+    --ink: #e4e9f2; --ink-2: #b3bdcf; --ink-3: #8592a8; --line: #2b3548;
+    --blue: #579dff; --blue-soft: #102446;
+    --navy: #0b111c; --navy-2: #1a2336; --navy-ink: #a9b5cc; --navy-hi: #85b8ff;
+    --ok: #4bce97; --ok-soft: #0f2a20; --warn: #f5b85b; --warn-soft: #2e2210;
+    --bad: #ff8f73; --bad-soft: #3a1710; --info: #85b8ff; --info-soft: #11264a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1420; --surface: #161d2b; --surface-2: #1d2636;
+  --ink: #e4e9f2; --ink-2: #b3bdcf; --ink-3: #8592a8; --line: #2b3548;
+  --blue: #579dff; --blue-soft: #102446;
+  --navy: #0b111c; --navy-2: #1a2336; --navy-ink: #a9b5cc; --navy-hi: #85b8ff;
+  --ok: #4bce97; --ok-soft: #0f2a20; --warn: #f5b85b; --warn-soft: #2e2210;
+  --bad: #ff8f73; --bad-soft: #3a1710; --info: #85b8ff; --info-soft: #11264a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; margin: 0; padding-inline: 16px; padding-block: 0 64px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 26px; font-weight: 750; letter-spacing: -0.01em; }
+h3 { font-size: 17px; font-weight: 700; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+.km { font-family: var(--f-km); }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue); }
+.muted { color: var(--ink-3); }
+.wrap { max-width: 1180px; margin-inline: auto; }
+.read { max-width: 68ch; }
+section { padding-block: 56px 0; display: grid; gap: 22px; }
+.lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; }
+
+/* header */
+.masthead { padding-block: 48px 8px; display: grid; gap: 18px; border-bottom: 1px solid var(--line); padding-bottom: 32px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--ink-3); }
+.meta b { color: var(--ink-2); font-weight: 600; }
+
+/* principles */
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.principle { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 8px; align-content: start; }
+.principle .k { font-family: var(--f-mono); font-size: 12px; color: var(--ink-3); }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 700; background: var(--surface-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; }
+
+/* ── Prototype ─────────────────────────────────────────── */
+.proto-controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: end; }
+.ctl { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+select, input[type="text"] { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); min-width: 0; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); font-weight: 500; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--blue); }
+.persona-note { font-size: 14px; color: var(--ink-2); max-width: 80ch; }
+
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); min-height: 620px; box-shadow: 0 1px 2px rgb(9 30 66 / 0.08), 0 8px 28px -12px rgb(9 30 66 / 0.18); }
+.side { background: var(--navy); color: var(--navy-ink); padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; font-size: 13.5px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; border-bottom: 1px solid var(--navy-2); }
+.brand-mark { width: 26px; height: 26px; border-radius: 6px; background: var(--navy-hi); color: var(--navy); display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+.brand b { color: #fff; font-size: 14px; display: block; line-height: 1.2; }
+.brand span { font-size: 12px; color: var(--navy-ink); }
+.nav-sec { display: grid; gap: 2px; }
+.nav-sec h4 { margin: 0 0 4px; padding: 0 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a9bbd; font-weight: 700; }
+.nav-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 5px; color: var(--navy-ink); text-decoration: none; }
+.nav-item:hover { background: var(--navy-2); color: #fff; }
+.nav-item.on { background: var(--navy-2); color: #fff; box-shadow: inset 2px 0 0 var(--navy-hi); }
+.nav-item .cnt { font-size: 11px; font-weight: 700; background: var(--navy-hi); color: var(--navy); border-radius: 10px; padding: 0 7px; font-variant-numeric: tabular-nums; }
+.nav-item .kh { font-family: var(--f-km); font-size: 12.5px; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.search { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; color: var(--ink-3); font-size: 13.5px; background: var(--bg); min-width: 0; }
+.search kbd { margin-left: auto; font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--surface); }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); white-space: nowrap; }
+.chip.blue { background: var(--blue-soft); border-color: transparent; color: var(--blue); }
+.chip.ok { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.chip.warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.chip.bad { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 9px 16px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.banner.info { background: var(--info-soft); color: var(--info); }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
+
+.page { padding: 18px 16px 22px; display: grid; gap: 16px; align-content: start; }
+.page-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px; }
+.page-h h3 { font-size: 21px; }
+.page-h .sub { font-size: 13.5px; color: var(--ink-3); }
+.queues { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 8px; align-content: start; }
+.q-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.q-n { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.q-t { font-weight: 650; font-size: 14px; }
+.q-d { font-size: 12.5px; color: var(--ink-3); }
+.q-foot { display: flex; flex-wrap: wrap; gap: 6px; }
+.q.locked { background: var(--surface-2); }
+.q.locked .q-n { color: var(--ink-3); }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; }
+.tag.maker { background: var(--surface-2); color: var(--ink-2); }
+.tag.checker { background: var(--blue-soft); color: var(--blue); }
+.tag.mfa { background: var(--warn-soft); color: var(--warn); }
+.tag.money { background: var(--ok-soft); color: var(--ok); }
+
+.worklist { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.worklist-h { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); gap: 10px; flex-wrap: wrap; }
+.worklist-h b { font-size: 14px; }
+.row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.row:last-child { border-bottom: 0; }
+.row .ref { font-family: var(--f-mono); font-size: 12px; color: var(--ink-3); }
+.row .amt { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.empty { padding: 26px 16px; text-align: center; color: var(--ink-3); font-size: 14px; }
+
+/* buttons */
+.btn { font: inherit; font-size: 13.5px; font-weight: 600; border-radius: var(--r); padding: 7px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn[aria-disabled="true"] { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); cursor: not-allowed; }
+.why { font-size: 12.5px; color: var(--ink-3); display: flex; gap: 6px; align-items: baseline; }
+.why b { color: var(--ink-2); font-weight: 650; }
+
+/* portal mock */
+.portal-stage { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; padding: 22px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.phone { width: 300px; max-width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 14px; box-shadow: 0 10px 30px -14px rgb(9 30 66 / 0.35); display: grid; gap: 12px; }
+.phone-h { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--ink-3); }
+.due { background: var(--navy); color: #fff; border-radius: 16px; padding: 16px; display: grid; gap: 6px; }
+.due .big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.due .s { font-size: 13px; color: var(--navy-ink); }
+.ptile { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 4px; font-size: 14px; }
+.ptile b { font-size: 14.5px; }
+.portal-notes { flex: 1 1 280px; display: grid; gap: 12px; font-size: 14.5px; min-width: 0; }
+
+/* pattern board */
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.state { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.state .layer { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); }
+
+/* anatomy */
+.anatomy { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.an-h { padding: 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: start; }
+.an-h .t { display: grid; gap: 4px; }
+.an-h .t b { font-size: 19px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0; border-bottom: 1px solid var(--line); }
+.fact { padding: 12px 16px; border-right: 1px solid var(--line); display: grid; gap: 2px; }
+.fact:last-child { border-right: 0; }
+.fact span { font-size: 12px; color: var(--ink-3); }
+.fact b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.an-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.tabs span { padding: 10px 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-3); border-bottom: 2px solid transparent; }
+.tabs span.on { color: var(--blue); border-bottom-color: var(--blue); }
+.rail { border-left: 1px solid var(--line); padding: 14px; display: grid; gap: 14px; align-content: start; }
+.rail h5 { margin: 0; font-size: 11.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
+.intent { display: grid; gap: 6px; }
+.act { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13.5px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r); }
+.act.dis { color: var(--ink-3); background: var(--surface-2); }
+.timeline { padding: 16px; display: grid; gap: 0; }
+.ev { display: grid; grid-template-columns: 92px 14px minmax(0, 1fr); gap: 10px; font-size: 13.5px; }
+.ev .when { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 12.5px; padding-top: 1px; }
+.ev .pin { display: flex; flex-direction: column; align-items: center; }
+.ev .pin i { width: 10px; height: 10px; border-radius: 50%; background: var(--blue); margin-top: 5px; }
+.ev .pin s { flex: 1; width: 2px; background: var(--line); }
+.ev .what { padding-bottom: 14px; }
+
+/* phases */
+.phases { display: grid; gap: 0; border-left: 2px solid var(--line); margin-left: 6px; }
+.phase { position: relative; padding: 0 0 22px 22px; display: grid; gap: 6px; }
+.phase::before { content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--blue); }
+.phase ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; display: grid; gap: 3px; }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side { flex-direction: row; flex-wrap: wrap; overflow-x: auto; }
+  .nav-sec { min-width: 180px; }
+  .an-body { grid-template-columns: 1fr; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); }
+  .row { grid-template-columns: 1fr auto; }
+  .row .mid { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .q, .nav-item { transition: background-color .15s ease; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">Design proposal · Web workspace</div>
+  <h1>One workspace for every role, built from what each person is allowed to do</h1>
+  <p class="lede">Magic Money staff use two apps that grew side by side: the original lending screens and the configurable lending platform. Navigation is decided by four legacy role names, so most people see the wrong things. This proposal puts everyone in one workspace whose menus, home queue and buttons come from the same permission engine the API already enforces.</p>
+  <div class="meta">
+    <span><b>Scope</b> staff web app, borrower portal, platform console</span>
+    <span><b>Basis</b> the codebase at <span class="mono">17d22e2</span> plus open fixes</span>
+    <span><b>Status</b> for review, before any screens are built</span>
+  </div>
+</header>
+
+<section class="read" aria-labelledby="problem">
+  <div class="eyebrow">What is wrong today</div>
+  <h2 id="problem">People see menus for a role model the app no longer uses</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Finding</th><th>Effect on a user</th></tr></thead>
+      <tbody>
+        <tr><td>The sidebar checks only <code>ADMIN</code>, <code>FINANCE</code>, <code>SALES</code>, <code>SUPERADMIN</code></td><td>A <code>TENANT_ADMIN</code>, <code>ACCOUNTANT</code> or <code>LOAN_OFFICER</code> sees only Dashboard, Products and the lending section.</td></tr>
+        <tr><td>The lending section is shown to every tenant user</td><td>An auditor sees "Workflows" and "Access &amp; policy", opens them, and gets an access error.</td></tr>
+        <tr><td>Two of everything: loans, collections, restructuring, write-off, audit, accounting, products</td><td>Staff must know which stack a loan lives in before they can find it.</td></tr>
+        <tr><td>No "what can I do" endpoint; the capability check fails open in the browser</td><td>Buttons look available, then the API refuses with a message about layers and permissions.</td></tr>
+        <tr><td>Approvals, maker-checker and MFA exist only as API errors</td><td>A checker cannot see what is waiting for them. A maker cannot see why "Approve" is greyed out.</td></tr>
+        <tr><td>Lending screens are English only</td><td>Khmer-speaking branch staff use the most complex screens in their second language.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="principles">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Principles</div>
+    <h2 id="principles">Six rules the whole design follows</h2>
+  </div>
+  <div class="principles">
+    <div class="principle"><span class="k">1 · one model</span><h3>The lending permission engine decides everything</h3><p>Legacy roles are mapped to access roles once, then retired from the UI. Menus, queues and buttons all read the same grants the API checks.</p></div>
+    <div class="principle"><span class="k">2 · work first</span><h3>Home is your queue, not a dashboard</h3><p>Each person opens to the things waiting for them: to approve, to prepare, to chase. Charts move to Reports.</p></div>
+    <div class="principle"><span class="k">3 · find by name</span><h3>Search a customer, not a module</h3><p>One search finds a borrower, loan, facility, application or case by name, phone, reference or ID, whichever stack it lives in.</p></div>
+    <div class="principle"><span class="k">4 · explain refusals</span><h3>A blocked button says why and what would unblock it</h3><p>"Someone else must approve what you prepared" beats a 403. The reason comes from the policy decision itself.</p></div>
+    <div class="principle"><span class="k">5 · hide vs. show</span><h3>Hide what your role can never do. Show what you could do in a different situation.</h3><p>No permission: the item is absent. Permission but blocked by state, scope, MFA or limit: the item shows, disabled, with the reason.</p></div>
+    <div class="principle"><span class="k">6 · Khmer first-class</span><h3>Every screen ships in English and Khmer</h3><p>Including lending, accounting and the portal. Money shows as <span class="mono">$1,250.00</span> and <span class="mono">៛5,125,000</span> with the currency's own minor units.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="proto">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Live prototype</div>
+    <h2 id="proto">Pick a role and see that person's workspace</h2>
+    <p>The menu and home queue below are computed from the real role definitions in <code>lending/policy/catalogue.ts</code>. Toggle MFA and branch scope to see how the same role changes.</p>
+  </div>
+  <div class="proto-controls">
+    <label class="ctl" for="role">Signed in as
+      <select id="role"></select>
+    </label>
+    <label class="toggle" for="mfa"><input type="checkbox" id="mfa"> Signed in with authenticator (MFA)</label>
+    <label class="toggle" for="kh"><input type="checkbox" id="kh"> Khmer labels</label>
+  </div>
+  <p class="persona-note" id="persona-note"></p>
+  <div class="app" id="app">
+    <nav class="side" id="side" aria-label="Prototype navigation"></nav>
+    <div class="main">
+      <div class="top" id="top"></div>
+      <div id="banners"></div>
+      <div class="page" id="page"></div>
+    </div>
+  </div>
+  <p class="muted" style="font-size:13px">Counts and records are example data. Khmer labels are draft translations for review by a native speaker.</p>
+</section>
+
+<section aria-labelledby="nav">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Information architecture</div>
+    <h2 id="nav">Nine areas, each shown only to people who hold a permission inside it</h2>
+    <p>The legacy and lending screens merge into one tree. An area appears when the user holds any permission listed for one of its pages; a page appears when the user holds one of its permissions.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table id="ia-table">
+      <thead><tr><th>Area</th><th>Page</th><th>Shown with any of</th><th>Replaces</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="states">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Interaction pattern</div>
+    <h2 id="states">One button, seven possible answers</h2>
+    <p>The policy engine already checks seven layers in order and reports every failure. The UI turns each layer into a sentence the person can act on. Example: <em>Approve disbursement</em> on <span class="mono">LN-2026-00412</span>, <span class="mono">$8,400.00</span>, Toul Kork branch.</p>
+  </div>
+  <div class="board" id="board"></div>
+</section>
+
+<section aria-labelledby="record">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Record page</div>
+    <h2 id="record">The loan page groups actions by what you are trying to do</h2>
+    <p>Today the loan page stacks panels: disbursement, repayment, settlement, reversal, write-off, and a placeholder that says refinancing is unavailable. The proposal keeps the facts and history on the left, and puts actions in a right rail grouped by intent. Each group shows only the actions the loan's state allows.</p>
+  </div>
+  <div class="anatomy">
+    <div class="an-h">
+      <div class="t">
+        <span class="muted mono">LN-2026-00412 · Personal instalment PL-STD v3</span>
+        <b>Chan Sreymom</b>
+        <span class="muted" style="font-size:13.5px">Toul Kork branch · Relationship officer Sok Dara</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="chip ok"><span class="dot"></span>Active</span>
+        <span class="chip warn"><span class="dot"></span>DPD 1–30 · 12 days</span>
+        <span class="chip">Restructured · probation 4 of 6</span>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="fact"><span>Principal outstanding</span><b>$6,812.40</b></div>
+      <div class="fact"><span>Arrears</span><b>$418.75</b></div>
+      <div class="fact"><span>Next due</span><b>5 Nov 2026</b></div>
+      <div class="fact"><span>Instalment</span><b>$612.30</b></div>
+      <div class="fact"><span>Rate</span><b>16.0% ACT/365F</b></div>
+    </div>
+    <div class="an-body">
+      <div>
+        <div class="tabs"><span class="on">Activity</span><span>Schedule</span><span>Agreement versions</span><span>Ledger</span><span>Documents</span><span>Group</span></div>
+        <div class="timeline">
+          <div class="ev"><span class="when">17 Oct 00:15</span><span class="pin"><i></i><s></s></span><div class="what"><b>End-of-day</b> accrued $2.98 interest. Delinquency stays DPD 1–30.</div></div>
+          <div class="ev"><span class="when">14 Oct 10:42</span><span class="pin"><i></i><s></s></span><div class="what"><b>Repayment</b> $300.00 by KHQR, posted by Kim Sopheak. Allocated to penalty $12.00, interest $86.20, principal $201.80.</div></div>
+          <div class="ev"><span class="when">2 Sep 15:10</span><span class="pin"><i></i><s></s></span><div class="what"><b>Restructure executed</b>: term extended 4 instalments. Agreement v2 → v3. Approved by the restructure committee.</div></div>
+          <div class="ev"><span class="when">5 Jan 09:00</span><span class="pin"><i></i><s></s></span><div class="what"><b>Disbursed</b> $9,000.00, prepared by Kim Sopheak, approved by Heng Vuthy (MFA).</div></div>
+        </div>
+      </div>
+      <aside class="rail" aria-label="Actions">
+        <div class="intent"><h5>Collect</h5>
+          <div class="act">Post repayment <span class="tag money">money</span></div>
+          <div class="act">Record promise to pay</div>
+        </div>
+        <div class="intent"><h5>Help the borrower</h5>
+          <div class="act">Grant payment holiday <span class="muted" style="font-size:12px">Flood relief 2026</span></div>
+          <div class="act">Open restructure case</div>
+          <div class="act dis">Refinance <span style="font-size:12px">in probation</span></div>
+        </div>
+        <div class="intent"><h5>Close the loan</h5>
+          <div class="act">Early settlement quote</div>
+          <div class="act">Negotiate settlement <span class="tag mfa">MFA</span></div>
+        </div>
+        <div class="intent"><h5>Correct</h5>
+          <div class="act">Reverse an event <span class="tag checker">checker</span></div>
+          <div class="act">Propose write-off</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="roles">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Role model</div>
+    <h2 id="roles">Legacy roles map onto access roles once</h2>
+    <p>Each legacy role gets a starting set of access-role assignments in a one-off migration. Afterwards the admin manages people in one place, Team &amp; roles, and the legacy <code>role</code> column only decides tenant-admin vs. staff.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Legacy role</th><th>Becomes</th><th>Scope</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><code>TENANT_ADMIN</code>, <code>ADMIN</code></td><td>TENANT_ADMIN</td><td>All branches</td><td>Already implicit today. Cannot approve credit or move money.</td></tr>
+        <tr><td><code>BRANCH_MANAGER</code></td><td>RELATIONSHIP_OFFICER + COLLECTIONS_OFFICER</td><td>Own branch</td><td>Add CREDIT_APPROVER with a branch authority limit where the branch approves.</td></tr>
+        <tr><td><code>LOAN_OFFICER</code>, <code>OPERATOR</code></td><td>RELATIONSHIP_OFFICER</td><td>Own branch</td><td></td></tr>
+        <tr><td><code>CREDIT_OFFICER</code></td><td>CREDIT_ANALYST</td><td>All branches</td><td></td></tr>
+        <tr><td><code>APPROVER</code></td><td>CREDIT_APPROVER</td><td>All branches</td><td>Needs an approval-authority row per currency, or every approval is refused.</td></tr>
+        <tr><td><code>ACCOUNTANT</code>, <code>FINANCE</code></td><td>FINANCE_OFFICER + LOAN_OPS_MAKER</td><td>All branches</td><td>Split the checker side onto a second person.</td></tr>
+        <tr><td><code>AUDITOR</code></td><td>AUDITOR</td><td>All branches</td><td>Read only everywhere.</td></tr>
+        <tr><td><code>CUSTOMER_SUPPORT</code>, <code>SALES</code>, <code>CX</code></td><td>New: CUSTOMER_SERVICE</td><td>All branches</td><td>Proposed role: <code>loan.read</code>, <code>loan_application.read</code>, <code>restructure.request</code>. Answers borrower calls without moving money.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="portal">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Borrower portal</div>
+    <h2 id="portal">The borrower sees what they owe, how to pay, and how to ask for help</h2>
+  </div>
+  <div class="portal-stage">
+    <div class="phone" aria-label="Borrower portal mock-up">
+      <div class="phone-h"><span class="km">សួស្តី ស្រីមុំ</span><span class="chip">ខ្មែរ · EN</span></div>
+      <div class="due">
+        <span class="s km">ត្រូវបង់នៅថ្ងៃទី ៥ វិច្ឆិកា</span>
+        <span class="big">$612.30</span>
+        <span class="s">Due 5 Nov 2026 · includes $418.75 overdue</span>
+        <button class="btn primary" type="button" style="justify-self:start;margin-top:6px">Pay with KHQR</button>
+      </div>
+      <div class="ptile"><b>Having trouble paying?</b><span class="muted">Ask for a payment holiday or a new schedule. A loan officer replies within 2 working days.</span></div>
+      <div class="ptile"><b>Proposal waiting for you</b><span class="muted">Pay $480.00 a month for 18 months. Total interest rises by $96.40.</span><span style="color:var(--blue);font-weight:600">Review and accept</span></div>
+      <div class="ptile"><b>Documents</b><span class="muted">Key facts statement v3 · signed 2 Sep</span></div>
+    </div>
+    <div class="portal-notes">
+      <h3>Phone first, Khmer by default</h3>
+      <p>Borrowers sign in with a phone number and a one-time code. The first screen answers one question: how much and by when. Paying, asking for relief and reading documents are the only other actions.</p>
+      <p>Every number that changes the borrower's cost is stated in plain terms before they accept: the new instalment, the new end date, and how much more interest they pay. The current portal already has the restructure request and acceptance flows; this design changes their order and wording, not their rules.</p>
+      <p class="muted">Needs: SMS delivery for one-time codes (today codes are dropped when no SMS provider is set), and rate limits on code requests.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="platform">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Platform console</div>
+    <h2 id="platform">The platform operator works across organisations, never inside one</h2>
+    <p>The platform operator (SUPERADMIN) gets a separate console: organisations, plan payments to confirm, subscription plans, platform flags and the platform audit log. The policy engine already blocks platform users from tenant data, so the console never links into a tenant's loans. The top bar shows "Platform" in place of a branch, so nobody mistakes which world they are in.</p>
+  </div>
+</section>
+
+<section aria-labelledby="api">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">What the API must add</div>
+    <h2 id="api">Three endpoints make this possible</h2>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Returns</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /me/access</code></td><td>Effective permission codes, scope (branches, portfolios, legal entities), approval authorities by currency, active delegations, MFA assurance, enabled flags</td><td>Menus, scope chip, authority chips, delegation banner. Cached per session; refreshed on 403.</td></tr>
+        <tr><td><code>GET /me/work</code></td><td>Counts and top items per queue: to recommend, to approve, to prepare, past due, cases to decide, programmes to publish, access changes to approve</td><td>Home queue and sidebar badges. Each queue is filtered by the same scope filter the list pages use.</td></tr>
+        <tr><td><code>GET /lending/access/capabilities/:type/:id</code> extended</td><td>Add RESTRUCTURE_CASE, FACILITY, BORROWER_GROUP and TENANT</td><td>Button states on every record page. The browser must treat a missing action as <em>not allowed</em> (it currently allows it).</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="plan">
+  <div class="read" style="display:grid;gap:10px">
+    <div class="eyebrow">Delivery</div>
+    <h2 id="plan">Four releases, each usable on its own</h2>
+  </div>
+  <div class="phases read">
+    <div class="phase"><h3>Shell and access</h3><ul><li><code>/me/access</code>, <code>/me/work</code>, fail-closed capabilities</li><li>New sidebar and top bar (search, business date, scope chip, MFA state)</li><li>Role migration and Team &amp; roles page</li><li>Home queue per person</li></ul></div>
+    <div class="phase"><h3>One loan, one place</h3><ul><li>Unified search and loan page with the action rail</li><li>Screens for the API-only features: facilities, rate resets and benchmark rates, groups, negotiated settlement, recoveries, holiday programmes, refinance</li><li>Legacy loan pages redirect into the unified page</li></ul></div>
+    <div class="phase"><h3>Khmer and the portal</h3><ul><li>Translation keys for every lending, accounting and admin screen</li><li>Portal redesign, phone first</li></ul></div>
+    <div class="phase"><h3>Retire the duplicates</h3><ul><li>Remove legacy collections, restructure, write-off and audit screens once their data is reachable from the unified pages</li></ul></div>
+  </div>
+</section>
+
+</div>
+
+<script>
+// ── Role definitions, transcribed from apps/api/src/lending/policy/catalogue.ts ──
+const READ_ALL = ['loan.read','loan_application.read','loan_product.read','borrower_group.read'];
+const ROLES = {
+  TENANT_ADMIN: { label:'Tenant administrator', who:'Runs the organisation’s access, flags and settings. Cannot approve credit or move money.', p:['access_policy.read','access_policy.manage','access_policy.approve','feature_flag.read','feature_flag.manage','feature_flag.approve','loan_product.read','audit.read','policy.simulate','business_date.manage'] },
+  PRODUCT_MAKER: { label:'Product maker', who:'Designs and edits loan products and workflows, then submits them for approval.', p:['loan_product.read','loan_product.create','loan_product.update','loan_product.submit','workflow.manage','policy.simulate'] },
+  PRODUCT_CHECKER: { label:'Product checker', who:'Reviews submitted product versions and workflows, approves, activates and retires them.', p:['loan_product.read','loan_product.approve','loan_product.activate','loan_product.retire','workflow.approve'] },
+  RELATIONSHIP_OFFICER: { label:'Relationship officer', who:'Meets borrowers in a branch, takes applications, manages groups and collateral.', scoped:true, p:['borrower_group.read','borrower_group.manage','loan_application.create','loan_application.read','loan_application.update','loan_application.submit','collateral.manage','loan.read','loan_product.read','restructure.request','restructure.simulate','restructure.record_acceptance'] },
+  CREDIT_ANALYST: { label:'Credit analyst', who:'Assesses submitted applications and recommends a decision.', p:['borrower_group.read','loan_application.read','credit_decision.recommend','collateral.manage','loan.read','loan_product.read','restructure.assess','restructure.simulate','restructure.propose'] },
+  CREDIT_APPROVER: { label:'Credit approver', who:'Approves or rejects recommended applications within an authority limit.', authority:'up to $25,000 · ៛100,000,000', p:['loan_application.read','credit_decision.approve','credit_decision.reject','loan.read','loan_product.read','restructure.simulate','restructure.approve','facility.read','facility.limit.approve','facility.condition.waive'] },
+  LOAN_OPS_MAKER: { label:'Loan operations (maker)', who:'Books loans, prepares disbursements, posts repayments, proposes write-offs.', p:[...READ_ALL,'loan.agreement.book','loan.disbursement.prepare','loan.repayment.post','loan.writeoff.propose','servicing.batch.run','loan.rate_reset.apply','facility.read','facility.drawdown.request','facility.condition.manage','facility.limit.request','facility.statement.generate'] },
+  LOAN_OPS_CHECKER: { label:'Loan operations (checker)', who:'Approves and releases what the maker prepared, reverses events, approves write-offs.', authority:'up to $50,000', p:[...READ_ALL,'loan.disbursement.approve','loan.disbursement.execute','loan.repayment.reverse','loan.writeoff.approve','restructure.execute','restructure.monitor','facility.read','facility.drawdown.approve','facility.drawdown.release','facility.manage'] },
+  COLLECTIONS_OFFICER: { label:'Collections officer', who:'Chases overdue loans, posts collections and recoveries, grants payment holidays.', scoped:true, p:['loan.read','loan.repayment.post','loan.recovery.post','payment_holiday.read','payment_holiday.grant','restructure.request','restructure.simulate','restructure.monitor'] },
+  RESTRUCTURE_COMMITTEE: { label:'Restructure committee', who:'Decides restructures, settlements and concessions; publishes holiday programmes.', authority:'concessions up to $10,000', p:['loan.settlement.negotiate','loan.settlement.negotiate_principal','payment_holiday.read','payment_holiday.manage','payment_holiday.approve','loan.read','restructure.simulate','restructure.approve','restructure.waive_charges','restructure.forgive_principal','restructure.monitor'] },
+  FINANCE_OFFICER: { label:'Finance officer', who:'Owns the ledger, business date, benchmark rates and the end-of-day.', p:['loan.read','accounting.read','business_date.manage','rate_observation.manage','servicing.batch.run','loan_data.export'] },
+  RISK_COMPLIANCE: { label:'Risk & compliance', who:'Reads everything, simulates access, exports data for reporting.', p:[...READ_ALL,'audit.read','accounting.read','feature_flag.read','access_policy.read','policy.simulate','loan_data.export'] },
+  AUDITOR: { label:'Auditor', who:'Read-only across loans, ledger, audit trail, flags and access.', p:[...READ_ALL,'audit.read','accounting.read','feature_flag.read','access_policy.read'] },
+  PLATFORM: { label:'Platform operator (SUPERADMIN)', who:'Runs the Magic Money platform across organisations. No access to tenant loans.', platform:true, p:[] },
+  BORROWER: { label:'Borrower (portal)', who:'A customer signed in with phone and one-time code.', borrower:true, p:[] },
+};
+// INTEGRATION_SERVICE has no UI; it is managed under Administration › Service accounts.
+
+// MFA-gated actions, from apps/api/src/lending/policy/actions.ts
+const MFA = new Set(['credit_decision.approve','loan.disbursement.approve','loan.repayment.reverse','loan.settlement.negotiate','loan.settlement.negotiate_principal','loan.writeoff.approve','restructure.approve','restructure.waive_charges','restructure.forgive_principal','restructure.execute','restructure.reverse','facility.drawdown.approve','facility.condition.waive','facility.limit.approve']);
+
+// ── Navigation ──
+const NAV = [
+  { sec:'Work', km:'ការងារ', items:[ { t:'Home', km:'ទំព័រដើម', any:'*', on:true } ] },
+  { sec:'Customers', km:'អតិថិជន', items:[
+    { t:'Borrowers', km:'អ្នកខ្ចី', any:['loan_application.read','loan.read'], was:'/borrowers' },
+    { t:'Groups', km:'ក្រុម', any:['borrower_group.read'], was:'API only' } ] },
+  { sec:'Origination', km:'ការផ្តល់ប្រាក់កម្ចី', items:[
+    { t:'Applications', km:'ពាក្យស្នើសុំ', any:['loan_application.read'], was:'/lending/applications, /loans (legacy approval)' },
+    { t:'Credit decisions', km:'ការសម្រេចឥណទាន', any:['credit_decision.recommend','credit_decision.approve'], q:['recommend','approve'], was:'part of /lending/applications' } ] },
+  { sec:'Loans', km:'ប្រាក់កម្ចី', items:[
+    { t:'Loan accounts', km:'គណនីប្រាក់កម្ចី', any:['loan.read'], was:'/loans, /lending/loans' },
+    { t:'Facilities', km:'ឥណទានវិល', any:['facility.read'], was:'API only' },
+    { t:'Disbursements', km:'ការបញ្ចេញប្រាក់', any:['loan.disbursement.prepare','loan.disbursement.approve','loan.disbursement.execute'], q:['disbPrep','disbApprove'], was:'panel on loan page' } ] },
+  { sec:'Collections & relief', km:'ការប្រមូល និងជំនួយ', items:[
+    { t:'Collections', km:'ការប្រមូលប្រាក់', any:['loan.repayment.post','restructure.monitor','loan.recovery.post'], q:['pastDue'], was:'/collections, /lending/collections' },
+    { t:'Restructure cases', km:'ករណីរៀបចំឡើងវិញ', any:['restructure.request','restructure.assess','restructure.approve','restructure.execute','restructure.monitor'], q:['caseDecide'], was:'/lending/restructures, RiskDecisionPanel' },
+    { t:'Payment holidays', km:'ការផ្អាកការបង់', any:['payment_holiday.read'], q:['progPublish'], was:'API only' },
+    { t:'Settlements & recoveries', km:'ការទូទាត់ និងការប្រមូលវិញ', any:['loan.settlement.negotiate','loan.recovery.post'], was:'API only' } ] },
+  { sec:'Finance', km:'ហិរញ្ញវត្ថុ', items:[
+    { t:'Ledger & reconciliation', km:'បញ្ជីគណនេយ្យ', any:['accounting.read'], was:'/accounting, /lending/accounting' },
+    { t:'End of day', km:'បិទថ្ងៃ', any:['servicing.batch.run','business_date.manage'], was:'buttons on /lending/collections' },
+    { t:'Benchmark rates & calendars', km:'អត្រាយោង', any:['rate_observation.manage'], was:'API only' },
+    { t:'Reports & exports', km:'របាយការណ៍', any:['loan_data.export','accounting.read'], was:'/reports, /kpi, exports' } ] },
+  { sec:'Products', km:'ផលិតផល', items:[
+    { t:'Products & versions', km:'ផលិតផល', any:['loan_product.create','loan_product.approve','loan_product.activate'], q:['versionReview'], was:'/products, /lending/products' },
+    { t:'Catalogue', km:'កាតាឡុក', any:['loan_product.create','loan_product.approve'], was:'/lending/catalogue' },
+    { t:'Workflows', km:'លំហូរការងារ', any:['workflow.manage','workflow.approve'], was:'/lending/workflows' },
+    { t:'Simulator', km:'ការក្លែងធ្វើ', any:['loan_product.read'], was:'/lending/simulator' } ] },
+  { sec:'Risk & audit', km:'ហានិភ័យ និងសវនកម្ម', items:[
+    { t:'Audit trail', km:'កំណត់ត្រាសវនកម្ម', any:['audit.read'], was:'/audit, /lending/audit' },
+    { t:'Access simulator', km:'ការក្លែងសិទ្ធិ', any:['policy.simulate'], was:'tab in /lending/access' } ] },
+  { sec:'Administration', km:'ការគ្រប់គ្រង', items:[
+    { t:'Team & roles', km:'ក្រុមការងារ និងតួនាទី', any:['access_policy.read'], q:['accessApprove'], was:'/users, /lending/access' },
+    { t:'Feature flags', km:'មុខងារ', any:['feature_flag.read'], was:'tab in /lending/access' },
+    { t:'Settings', km:'ការកំណត់', any:['access_policy.manage'], was:'/settings' } ] },
+];
+const PLATFORM_NAV = [
+  { sec:'Platform', km:'វេទិកា', items:[ { t:'Home', km:'ទំព័រដើម', on:true }, { t:'Organisations', km:'អង្គភាព' }, { t:'Plan payments', km:'ការបង់ប្រាក់', cnt:3 }, { t:'Subscription plans', km:'គម្រោង' } ] },
+  { sec:'Governance', km:'អភិបាលកិច្ច', items:[ { t:'Platform flags', km:'មុខងារ' }, { t:'Platform team', km:'ក្រុមការងារ' }, { t:'Platform audit', km:'សវនកម្ម' } ] },
+];
+
+// ── Home queues ──
+const QUEUES = {
+  draftApps:     { need:'loan_application.create', t:'Applications in progress', n:6, d:'4 drafts, 2 returned for more information', kind:'maker' },
+  recommend:     { need:'credit_decision.recommend', t:'Applications to assess', n:7, d:'Oldest submitted 3 days ago', kind:'maker' },
+  approve:       { need:'credit_decision.approve', t:'Waiting for your credit decision', n:4, d:'$41,200 total · 1 above your limit', kind:'checker', money:true },
+  disbPrep:      { need:'loan.disbursement.prepare', t:'Disbursements to prepare', n:5, d:'Booked loans with conditions met', kind:'maker', money:true },
+  disbApprove:   { need:'loan.disbursement.approve', t:'Disbursements to approve', n:3, d:'$19,650 · prepared by others', kind:'checker', money:true },
+  writeoff:      { need:'loan.writeoff.approve', t:'Write-offs to approve', n:1, d:'LN-2025-00088 · 214 days past due', kind:'checker', money:true },
+  drawdown:      { need:'facility.drawdown.approve', t:'Drawdowns to approve', n:2, d:'Revolving and staged facilities', kind:'checker', money:true },
+  pastDue:       { need:'loan.repayment.post', t:'Past due in your scope', n:23, d:'PAR30 4.1% · 6 promises due today', kind:'maker', money:true },
+  monitor:       { need:'restructure.monitor', t:'Restructured loans to watch', n:9, d:'2 missed a revised instalment', kind:'maker' },
+  caseAssess:    { need:'restructure.assess', t:'Hardship cases to assess', n:3, d:'Affordability not yet recorded', kind:'maker' },
+  caseDecide:    { need:'restructure.approve', t:'Restructure proposals to decide', n:2, d:'Concession $1,840 total', kind:'checker', money:true },
+  progPublish:   { need:'payment_holiday.approve', t:'Holiday programmes to publish', n:1, d:'Flood relief 2026 · drafted by Mean Rithy', kind:'checker' },
+  holidayGrant:  { need:'payment_holiday.grant', t:'Loans eligible for a holiday', n:11, d:'Under the open programme', kind:'maker', money:true },
+  versionReview: { need:'loan_product.approve', t:'Product versions to review', n:1, d:'SME-TERM v4 · 6 fields changed', kind:'checker' },
+  versionDraft:  { need:'loan_product.create', t:'Product drafts', n:2, d:'MF-IND v2, AG-CROP v3', kind:'maker' },
+  eod:           { need:'servicing.batch.run', t:'End of day', n:'✓', d:'Ran 00:15 · 1,284 accounts · 0 failed', kind:'info' },
+  recon:         { need:'accounting.read', t:'Reconciliation breaks', n:0, d:'Sub-ledger matches the general ledger', kind:'info' },
+  rates:         { need:'rate_observation.manage', t:'Benchmark rates', n:1, d:'NBC-KHR-3M due for October', kind:'maker' },
+  accessApprove: { need:'access_policy.approve', t:'Access changes to approve', n:2, d:'Role assignment, ABAC policy', kind:'checker' },
+  flagApprove:   { need:'feature_flag.approve', t:'Flag changes to approve', n:1, d:'lending.refinance for Toul Kork', kind:'checker' },
+  audit:         { need:'audit.read', t:'Sensitive actions this week', n:37, d:'Approvals, reversals, access changes', kind:'info' },
+};
+const LIST = {
+  approve: [['LN-APP-2026-0931','Chan Sreymom · PL-STD','$8,400.00','ok'],['LN-APP-2026-0927','Pich Dalin · SME-TERM','$30,000.00','over'],['LN-APP-2026-0919','Ouk Vanna · MF-IND','៛4,000,000','ok']],
+  pastDue: [['LN-2026-00412','Chan Sreymom · 12 days','$418.75',''],['LN-2026-00377','Keo Bopha · 31 days','$1,020.00',''],['LN-2025-00911','Group Phum Thmei · 6 days','៛860,000','']],
+  disbApprove: [['LN-2026-00433','Sok Pisey · prepared by Kim Sopheak','$6,000.00','ok'],['LN-2026-00431','Lim Rotha · prepared by you','$9,650.00','self']],
+  recommend: [['LN-APP-2026-0934','Heng Malis · PL-STD','$3,200.00',''],['LN-APP-2026-0930','Chea Sokha · AG-CROP','$12,500.00','']],
+  draftApps: [['LN-APP-2026-0940','Nhem Srey · draft','$2,000.00',''],['LN-APP-2026-0936','Group Phum Thmei · more info','៛8,000,000','']],
+  caseDecide: [['RC-2026-0042','Keo Bopha · term +6, rate −2%','$1,240 concession','ok'],['RC-2026-0039','Pich Dalin · capitalise arrears','$600 concession','ok']],
+  versionReview: [['SME-TERM v4','Pricing, fees, DSCR threshold','6 changes','']],
+  accessApprove: [['Assign CREDIT_APPROVER','to Heng Vuthy · requested by admin','sensitive',''],['ABAC policy v7','Deny disbursement after 18:00','',''],],
+};
+
+const $ = (s) => document.querySelector(s);
+const roleSel = $('#role'), mfaEl = $('#mfa'), khEl = $('#kh');
+for (const [k, r] of Object.entries(ROLES)) {
+  const o = document.createElement('option'); o.value = k; o.textContent = r.label; roleSel.appendChild(o);
+}
+try { const saved = localStorage.getItem('mm-ui-role'); if (saved && ROLES[saved]) roleSel.value = saved; else roleSel.value = 'CREDIT_APPROVER'; } catch { roleSel.value = 'CREDIT_APPROVER'; }
+
+const has = (perms, any) => any === '*' || any.some((p) => perms.includes(p));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function lbl(item, kh) { return kh && item.km ? `<span class="kh">${item.km}</span>` : esc(item.t || item.sec); }
+
+function render() {
+  const key = roleSel.value, role = ROLES[key], kh = khEl.checked, mfa = mfaEl.checked;
+  try { localStorage.setItem('mm-ui-role', key); } catch {}
+  $('#persona-note').innerHTML = `<b>${esc(role.label)}.</b> ${esc(role.who)}`;
+  const app = $('#app');
+  if (role.borrower) {
+    app.style.display = 'none';
+    $('#persona-note').innerHTML += ' Borrowers never see the staff workspace; their screen is shown in the <a href="#portal">Borrower portal</a> section below.';
+    return;
+  }
+  app.style.display = '';
+  const perms = role.p;
+
+  // sidebar
+  const tree = role.platform ? PLATFORM_NAV : NAV.map((s) => ({ ...s, items: s.items.filter((i) => has(perms, i.any)) })).filter((s) => s.items.length);
+  const qCount = (i) => i.cnt ?? (i.q || []).map((q) => QUEUES[q]).filter((q) => q && perms.includes(q.need) && typeof q.n === 'number').reduce((a, q) => a + q.n, 0);
+  $('#side').innerHTML = `<div class="brand"><div class="brand-mark">M</div><div><b>Magic Money</b><span>${role.platform ? 'Platform console' : 'Acme Lending'}</span></div></div>` +
+    tree.map((s) => `<div class="nav-sec"><h4>${kh ? `<span class="kh">${s.km}</span>` : esc(s.sec)}</h4>${s.items.map((i) => { const c = qCount(i); return `<a class="nav-item${i.on ? ' on' : ''}" href="#proto" onclick="return false">${lbl(i, kh)}${c ? `<span class="cnt">${c}</span>` : ''}</a>`; }).join('')}</div>`).join('');
+
+  // top bar
+  const initials = role.label.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  const scope = role.platform ? '<span class="chip blue">Platform · all organisations</span>' : role.scoped ? '<span class="chip">Branch · Toul Kork</span>' : '<span class="chip">All branches</span>';
+  $('#top').innerHTML = `<div class="search"><span aria-hidden="true">⌕</span><span>${role.platform ? 'Search organisations, payments' : 'Search borrower, phone, loan, application'}</span><kbd>/</kbd></div>` +
+    (role.platform ? '' : '<span class="chip" title="Tenant business date">Business date · 17 Oct 2026</span>') + scope +
+    (role.authority ? `<span class="chip ok" title="Approval authority">Limit · ${esc(role.authority)}</span>` : '') +
+    `<span class="chip ${mfa ? 'ok' : 'warn'}"><span class="dot"></span>${mfa ? 'MFA' : 'Password only'}</span><div class="avatar" aria-hidden="true">${initials}</div>`;
+
+  // banners
+  const needsMfa = perms.some((p) => MFA.has(p));
+  let banners = '';
+  if (needsMfa && !mfa) banners += `<div class="banner warn"><b>Verify with your authenticator to approve.</b> You can review everything, but approvals and reversals need a code. <a href="#proto" onclick="document.querySelector('#mfa').click();return false" style="color:inherit;font-weight:700">Verify now</a></div>`;
+  if (key === 'CREDIT_ANALYST') banners += `<div class="banner info">Acting with authority delegated by Heng Vuthy until 24 Oct 2026, capped at $5,000.</div>`;
+  $('#banners').innerHTML = banners;
+
+  // page
+  const page = $('#page');
+  if (role.platform) {
+    page.innerHTML = `<div class="page-h"><div><h3>${kh ? '<span class="km">ទំព័រដើម</span>' : 'Good morning'}</h3><div class="sub">Platform · 42 organisations · 3 payments waiting</div></div></div>
+      <div class="queues">${[
+        ['Plan payments to confirm', 3, 'KHQR transfers claimed by new organisations', 'checker'],
+        ['Organisations pending activation', 2, 'Waiting on payment confirmation', 'info'],
+        ['Suspended organisations', 1, 'Payment overdue 14 days', 'info'],
+        ['Platform flag changes', 1, 'Second approver needed', 'checker']].map(([t, n, d, k]) => queueHtml({ t, n, d, kind: k }, false)).join('')}</div>`;
+    return;
+  }
+  const qs = Object.entries(QUEUES).filter(([, q]) => perms.includes(q.need));
+  const lockedFor = (q, k) => MFA.has(q.need) && !mfa;
+  const primary = ['approve','disbApprove','pastDue','recommend','caseDecide','versionReview','accessApprove','draftApps'].find((k) => perms.includes(QUEUES[k].need) && LIST[k]);
+  page.innerHTML = `<div class="page-h"><div><h3>${kh ? '<span class="km">ការងាររបស់ខ្ញុំ</span>' : 'My work'}</h3><div class="sub">${qs.length ? `${qs.filter(([, q]) => typeof q.n === 'number' && q.n > 0).length} queues need you today` : 'Nothing is assigned to this role yet'}</div></div>
+      ${perms.includes('loan_application.create') ? '<button class="btn primary" type="button">New application</button>' : ''}</div>
+    ${qs.length ? `<div class="queues">${qs.map(([k, q]) => queueHtml(q, lockedFor(q, k))).join('')}</div>` : '<div class="worklist"><div class="empty">This role reads data but has no queue. Use search or the menu.</div></div>'}
+    ${primary ? worklistHtml(primary, key, mfa) : ''}`;
+}
+
+function queueHtml(q, locked) {
+  const tags = [q.kind === 'maker' ? '<span class="tag maker">you prepare</span>' : q.kind === 'checker' ? '<span class="tag checker">you approve</span>' : '', q.money ? '<span class="tag money">money</span>' : '', locked ? '<span class="tag mfa">needs MFA</span>' : ''].join('');
+  return `<div class="q${locked ? ' locked' : ''}"><div class="q-top"><span class="q-t">${esc(q.t)}</span><span class="q-n">${esc(q.n)}</span></div><span class="q-d">${esc(q.d)}</span><div class="q-foot">${tags}</div></div>`;
+}
+
+function worklistHtml(k, roleKey, mfa) {
+  const q = QUEUES[k], rows = LIST[k];
+  const isChecker = q.kind === 'checker';
+  return `<div class="worklist"><div class="worklist-h"><b>${esc(q.t)}</b><span class="muted" style="font-size:12.5px">Oldest first · scoped to what you can see</span></div>${rows.map(([ref, who, amt, flag]) => {
+    let action = '';
+    if (isChecker) {
+      if (flag === 'self') action = `<span class="why"><b>Someone else must approve</b> you prepared it</span>`;
+      else if (flag === 'over') action = `<span class="why"><b>Above your limit</b> route to a higher approver</span>`;
+      else if (MFA.has(q.need) && !mfa) action = `<button class="btn" type="button" aria-disabled="true" title="Verify with your authenticator first">Approve</button>`;
+      else action = `<button class="btn primary" type="button">${k === 'versionReview' || k === 'accessApprove' ? 'Review' : 'Approve'}</button>`;
+    } else action = `<button class="btn" type="button">Open</button>`;
+    return `<div class="row"><div><div>${esc(who)}</div><div class="ref">${esc(ref)}</div></div><div class="amt mid">${esc(amt)}</div><div>${action}</div></div>`;
+  }).join('')}</div>`;
+}
+
+// IA table
+const ia = document.querySelector('#ia-table tbody');
+ia.innerHTML = NAV.flatMap((s) => s.items.map((i, idx) => `<tr><td>${idx === 0 ? `<b>${esc(s.sec)}</b>` : ''}</td><td>${esc(i.t)}</td><td>${i.any === '*' ? 'everyone signed in' : i.any.map((p) => `<code>${p}</code>`).join(' ')}</td><td class="muted">${esc(i.was || '')}</td></tr>`)).join('');
+
+// Button-state board
+const STATES = [
+  ['Allowed', '—', 'ok', 'Approve disbursement', false, 'You prepared nothing on this loan, it is within your limit, and you verified with MFA.'],
+  ['No permission', 'RBAC', '', null, true, 'The button is not shown. A collections officer never sees “Approve disbursement”.'],
+  ['Outside your scope', 'ABAC · scope', 'warn', 'Approve disbursement', true, '<b>This loan is in Toul Kork branch.</b> Your access covers Sen Sok and Chbar Ampov.'],
+  ['Maker-checker', 'ABAC · maker', 'warn', 'Approve disbursement', true, '<b>Someone else must approve.</b> You prepared this disbursement on 16 Oct.'],
+  ['Needs MFA', 'IDENTITY', 'warn', 'Approve disbursement', true, '<b>Verify with your authenticator.</b> Approvals that move money need a code. <a href="#states" onclick="return false" style="color:var(--blue);font-weight:600">Verify now</a>'],
+  ['Above your limit', 'ABAC · authority', 'warn', 'Approve disbursement', true, '<b>$8,400 is above your $5,000 limit.</b> Send it to an approver with a higher limit, or ask for a delegation.'],
+  ['Wrong state', 'WORKFLOW', '', 'Approve disbursement', true, '<b>Nothing to approve yet.</b> The disbursement has not been prepared. It needs to be in “Prepared”.'],
+  ['Turned off', 'FLAG', '', 'Approve disbursement', true, '<b>Disbursements are paused for this product</b> by your administrator (flag lending.disbursement, emergency off).'],
+];
+$('#board').innerHTML = STATES.map(([name, layer, tone, btn, dis, why]) => `<div class="state"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h3>${name}</h3><span class="layer">${layer}</span></div>${btn ? `<div><button class="btn ${dis ? '' : 'primary'}" type="button" ${dis ? 'aria-disabled="true"' : ''}>${btn}</button></div>` : '<div class="muted" style="font-size:13px;font-style:italic">(no button rendered)</div>'}<p style="font-size:13.5px;color:var(--ink-2)">${why}</p></div>`).join('');
+
+roleSel.addEventListener('change', render);
+mfaEl.addEventListener('change', render);
+khEl.addEventListener('change', render);
+render();
+</script>
+
+</body>
+</html>

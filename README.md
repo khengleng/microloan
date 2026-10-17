@@ -253,6 +253,37 @@ currently wrong as a result:
 Until those screens exist, configure and operate these features through the
 API; [OPERATIONS.md](docs/lending/OPERATIONS.md) gives the endpoints.
 
+### Web workspace: target design and current state
+
+The target UI is described in [docs/ui/WORKSPACE_DESIGN.md](docs/ui/WORKSPACE_DESIGN.md),
+with an interactive prototype in
+[docs/ui/workspace-prototype.html](docs/ui/workspace-prototype.html) (open it in
+a browser and pick a role). In short: one workspace whose menus, home queue and
+buttons are computed from the lending permission engine, so each of the 14
+access roles, the borrower and the platform operator sees exactly the work
+that is theirs, and every disabled action says why.
+
+Measured against that design, the web app today:
+
+| Area | Status | Gap |
+|---|---|---|
+| Navigation | ⛔ | Gated by legacy role names (`ADMIN`/`FINANCE`/`SALES`); most canonical roles see almost nothing, and the lending section is shown to everyone |
+| Home | ⛔ | Same KPI dashboard for every role; no "waiting for me" queues or badges |
+| Search | ⛔ | No global search across borrowers, loans, applications and cases |
+| Explaining refusals | 🟡 | Lending applications, loans and product versions show the policy reason on disabled buttons; restructure cases, facilities and legacy pages do not; the browser treats unknown actions as allowed |
+| Scope, authority, MFA, delegation in the shell | ⛔ | Enforced by the API but invisible until an action is refused |
+| Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending) |
+| Phase 2 screens | ⛔ | Facilities, rate resets and benchmark rates, groups, negotiated settlement, recoveries, payment holidays and refinance are API-only |
+| Role management | 🟡 | `/users` assigns only legacy roles; access roles are assigned separately under Lending › Access |
+| Khmer | 🟡 | Legacy screens and the portal page are translated; lending, accounting, FX, provisioning, KPI and audit screens are English only |
+| Borrower portal | 🟡 | Sign-in, loans, KHQR, documents, signing and relief acceptance work; one-time codes need an SMS provider; payment-holiday programmes are not offered |
+| Platform console | ✅ | Organisations, plan payments, plans, team and audit; platform flag rules are API-only |
+
+The design needs three API additions first: `GET /me/access` (effective
+permissions, scope, authorities, delegations, MFA, flags), `GET /me/work`
+(queue counts), and capabilities for restructure cases, facilities, groups and
+tenant actions.
+
 ### What is implemented, and what is not
 
 The [capability matrix](docs/lending/CAPABILITY_MATRIX.md) is generated from
@@ -353,6 +384,7 @@ packages/
   db/                  Prisma schema, migrations, seed, lending demo seed
   shared/              shared domain logic and the lending engine (+ engine tests)
 docs/lending/          lending platform documentation
+docs/ui/               web workspace design and interactive prototype
 scripts/               security scans, production config check, lending test-DB and capability-matrix tools
 ```
 
