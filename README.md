@@ -62,11 +62,15 @@ Built as a modular monolith inside the same API. Detailed design in
   and Ijarah as separate structures.
 * Secured / unsecured, fixed / floating rate, green purpose, digital channel and
   recourse type are separate attributes.
-* Templates that need a capability the engine does not yet have (credit cards,
-  BNPL, factoring, forfaiting, revolving facilities, construction drawdowns,
-  group lending, syndicated / project finance, income-contingent, Islamic
-  structures, …) are seeded **unavailable**: a product cannot be activated while
-  any required capability is missing. See the
+* **35 of the 55 templates are available** today. A template that needs a
+  capability the engine does not have is seeded **unavailable**, and a product
+  cannot be activated while any required capability is missing — the guard is
+  enforced at activation, not documented and hoped for.
+* Currently unavailable: credit cards, BNPL, income-contingent education,
+  inventory-backed lending, syndicated / project / infrastructure / acquisition
+  finance, import and export finance, invoice finance, factoring, supply-chain
+  finance, forfaiting, interbank / municipal / sovereign / concessional
+  lending, Murabaha and Ijarah. See the
   [capability matrix](docs/lending/CAPABILITY_MATRIX.md) (generated from code).
 
 ### Products, versions and agreements
@@ -120,6 +124,43 @@ postings in the same transaction, idempotency keys, per-loan locking and
 optimistic concurrency, reversal entries instead of deletes, business-date
 controls, and sub-ledger ↔ general-ledger reconciliation.
 
+### Facilities
+
+Three limit-based products sit beside term lending, sharing one servicing
+path: the drawn balance lives on an ordinary loan account, so repayment,
+delinquency, reconciliation and the ledger are the same code.
+
+| Type | Limit reinstates on repayment | Drawdowns | End of availability |
+|---|---|---|---|
+| Revolving | yes | repeated | terms out, if configured |
+| Overdraft | yes | continuous balance | repayable on demand |
+| Staged drawdown | **no** | tranches, released in full | terms out |
+
+Interest is charged on the drawn balance day by day, never on the limit, using
+the same daily accrual as a term loan; a balance above the limit is priced
+separately so the penalty element is visible, and is refused outright when no
+over-limit rate is configured. A commitment fee is priced the same way on the
+undrawn amount. Drawdowns are maker-checker with one in flight at a time, and
+the limit is re-checked against committed movements at request, at approval
+and again at release. A staged tranche releases in full or not at all, on or
+after its date, with every condition precedent satisfied with evidence or
+waived as a credit concession. A limit cannot be cut below what is already
+drawn.
+
+### Group lending
+
+Solidarity groups with formation, leadership and member tenure, equal or
+negotiated shares, and **joint liability for the whole balance rather than a
+share of it** — a member's share records what they agreed to carry, never what
+they can be pursued for. Liability is frozen onto the loan at booking, so a
+later membership change cannot alter a contract already running. Affordability
+is assessed on the group's combined income, because one instalment is serviced
+by every member together. A surplus from one member covers another's shortfall
+and the group is current; per-member positions are still reported, because that
+is what the group meeting acts on. Exit is governed by whether a live loan
+names the member, not by the balance: a loan booked but not yet disbursed owes
+nothing and still binds everyone on it.
+
 ### Restructuring and hardship
 
 Customer self-service requests (borrower portal), staff requests on a documented
@@ -137,6 +178,40 @@ Original agreements, schedules and arrears history are preserved, and
 delinquency is not reset by a restructure. See
 [RESTRUCTURING.md](docs/lending/RESTRUCTURING.md).
 
+### Settlement, recovery, relief and refinancing
+
+**Negotiated settlement** closes a loan for less than it owes. The concession
+is itemised by component and posted to an expense account — principal
+forgiveness and charge concessions to different ones — so the loss appears in
+the ledger instead of being implied by a receivable that stopped existing. By
+default the payment recovers principal first, so the concession falls on
+charges; that is deliberately the opposite of the ordinary repayment order,
+which clears penalties first. Forgiving principal is a separate action with its
+own approval authority, measured on the concession rather than the cash
+received, and a settlement that would forgive a component the product has not
+permitted is refused outright.
+
+**Recovery after write-off** posts money arriving on a loan already written
+off. The balance is zero, so the cash is income, attributed against what *was*
+written off, principal first. The loan stays written off — recovering part of a
+loss does not make a loan perform again.
+
+**Payment holidays** are published programmes, not hardship cases: eligibility
+is evaluated from recorded loan state and never from a justification, every
+refusal returns its reasons, and publishing one is maker-checker. The programme
+must state what happens to the interest (only waiving it is free; capitalizing
+it grows the debt) and to the term (extend maturity, or keep it and make the
+later instalments heavier).
+
+**Refinancing** settles the replaced loan from the new one's proceeds in the
+same transaction as its disbursement — a disbursement that landed without the
+payoff would leave the borrower owing twice. The supervisory part matters more
+than the arithmetic: each refinance records how much of the payoff was arrears,
+how much of those arrears the **new loan** funded rather than the borrower, and
+how delinquent the replaced loan was. Those two conditions together are
+evergreening, and permitting a delinquent refinance and permitting arrears
+roll-in are separate product settings.
+
 ### Access control
 
 Action-based RBAC with 14 seeded roles (platform administrators get no tenant
@@ -149,24 +224,6 @@ accounts, a capabilities endpoint for the UI, and a side-effect-free policy
 simulator answering *"can this user do this to this loan, and why?"*. See
 [ACCESS_CONTROL.md](docs/lending/ACCESS_CONTROL.md).
 
-Group lending adds solidarity groups: formation, leadership and member
-tenure, equal or negotiated shares, and joint liability for the whole balance
-rather than a share of it. Liability is frozen onto the loan at booking, so a
-later membership change never alters a contract already running.
-
-A loan can also be closed for less than it owes: a negotiated settlement
-itemises the concession by component, posts it as an expense rather than
-letting a receivable vanish, and authorizes forgiving principal separately
-from waiving charges. Money arriving after a write-off is posted as a
-recovery, attributed against what was written off, without reviving the loan.
-
-Payment holidays are run as published programmes with consistent, recorded
-eligibility and maker-checker publication, stating explicitly what the
-deferral does to the interest and to the term. Refinancing settles the
-replaced loan from the new one's proceeds in a single transaction, and
-records how much of the old loan's arrears the new loan funded — the
-difference between a refinance and evergreening.
-
 ### Administration screens
 
 Under **Lending** in the web app: product catalogue and capability matrix,
@@ -176,18 +233,54 @@ flags, access-policy simulator, applications, loan accounts, servicing and
 collections, accounting reconciliation, audit explorer, and restructuring cases.
 The borrower portal adds restructure requests and proposal acceptance.
 
-### What is not implemented yet
+#### The Phase 2 capabilities have no web UI yet
 
-Borrowing bases, connected-party exposure, break-glass access and the
-specialised modules (cards, BNPL, trade, factoring, income-contingent,
-syndicated, project finance, Islamic) are still outstanding. Revolving
-facilities, overdrafts, staged drawdowns, contractual floating-rate resets,
-joint-liability group lending, negotiated settlement, post-write-off
-recovery, payment-holiday programmes and refinancing shipped in Phase 2.
-Payment rails,
-external KYC, credit bureau, notifications and external accounting have adapter
-interfaces with clearly labelled mocks that are refused in production. The full
-list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
+Facilities, floating-rate resets, group lending, negotiated settlement,
+post-write-off recovery, payment holidays and refinancing are **API-only**.
+They are fully exercised by the integration suite, but an operator working
+only in the web portal cannot reach them. Two places in the portal are
+currently wrong as a result:
+
+* `LoanDetailView` states that refinancing and negotiated settlement are
+  "not available", which is no longer true.
+* The product configuration editor exposes `facility.type` but none of the
+  terms a facility now requires (limit bounds, availability, commitment fee,
+  tranches, minimum payment), nor the new group, settlement, refinance and
+  holiday configuration blocks. A product maker can therefore select a
+  facility type on screen and then fail validation with no way to fix it
+  there.
+
+Until those screens exist, configure and operate these features through the
+API; [OPERATIONS.md](docs/lending/OPERATIONS.md) gives the endpoints.
+
+### What is implemented, and what is not
+
+The [capability matrix](docs/lending/CAPABILITY_MATRIX.md) is generated from
+code (`pnpm docs:capabilities`) and is the authoritative answer. A product
+version can only be activated when every capability it requires is fully
+implemented, so the matrix is enforced, not aspirational. As it stands:
+
+| | Count |
+|---|---|
+| ✅ Fully implemented | 43 |
+| 🔌 Requires integration (adapter ships, no real provider) | 5 |
+| ⛔ Not implemented | 17 |
+
+**Needs a third-party provider** — payment rails, external KYC, credit bureau,
+notifications and external accounting have adapter interfaces with clearly
+labelled mocks that are refused in production. These stay at "requires
+integration" until a real provider is wired and tested; the matrix will not
+claim otherwise.
+
+**Still to build** — borrowing bases, connected-party exposure, break-glass
+access, and the specialised modules: credit cards, BNPL, trade and invoice
+finance, factoring, forfaiting, supply-chain finance, income-contingent
+education, syndication, project finance, institutional counterparty limits,
+Murabaha and Ijarah.
+
+Known limitations of what *is* implemented — including facility delinquency,
+group contributions and interest capitalization — are listed in
+[OPERATIONS.md](docs/lending/OPERATIONS.md).
 
 ---
 
