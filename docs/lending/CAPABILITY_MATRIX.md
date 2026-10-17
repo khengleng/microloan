@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 46 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 15
+✅ Fully implemented: 50 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 12
 
 ## Capabilities
 
@@ -127,26 +127,27 @@ A product version can be activated only when every capability it requires is **F
 
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
-| `card.revolving_credit` | ⛔ Not implemented | 3 | Credit cards: statements, minimum payment, grace on purchases |  |
-| `bnpl.merchant_settlement` | ⛔ Not implemented | 3 | BNPL: merchant settlement and purchase-linked plans |  |
+| `card.revolving_credit` | ✅ Fully implemented | 3 | Credit cards: purchases, cash advances and instalment plans as separate balances; monthly statements with a due date and minimum payment; purchase interest waived when the previous statement is paid in full by its due date; cash-advance fee plus interest from day one | Tests: `packages/shared/test/card.test.ts, apps/api/test/lending/cards.int-spec.ts` |
+| `bnpl.merchant_settlement` | ✅ Fully implemented | 3 | BNPL: the merchant is paid the purchase price net of its discount at disbursement; a merchant refund reduces the remaining instalments latest first, refunds what the customer already paid, and claws the money back from the merchant | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts` |
 | `trade.documentary` | ⛔ Not implemented | 3 | Import / export finance against trade documents |  |
-| `trade.invoice_finance` | ✅ Fully implemented | 3 | Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>Recourse only (no factoring or non-recourse purchase); no late penalty on recourse arrears (DECISIONS D-025). |
+| `trade.invoice_finance` | ✅ Fully implemented | 3 | Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>Recourse only (no factoring or non-recourse purchase); no late penalty on recourse arrears (DECISIONS D-012). |
 | `trade.letter_of_credit` | ✅ Fully implemented | 3 | Import letters of credit: maker-checker issuance with a fee and an off-balance-sheet contingent memo; a payment by the bank converts into a term loan for the importer | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>No SWIFT messaging, document examination or confirmation; payment is recorded, not sent. |
 | `trade.factoring` | ⛔ Not implemented | 3 | Factoring with debtor collections and recourse |  |
 | `trade.supply_chain` | ⛔ Not implemented | 3 | Supply-chain (reverse factoring) programmes |  |
 | `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
 | `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
-| `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-028). |
+| `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-015). |
 | `project_finance.waterfall` | ⛔ Not implemented | 3 | Project finance: cash waterfall, DSCR covenants, sculpted repayment |  |
 | `covenants.monitoring` | ⛔ Not implemented | 3 | Financial covenant monitoring |  |
 | `institutional.counterparty_limits` | ⛔ Not implemented | 3 | Interbank / sovereign / municipal counterparty limits and conventions |  |
+| `lease.true_lease` | ✅ Fully implemented | 3 | True lease: the lender buys and owns the asset (paid to the supplier), rentals to a residual purchase-option price, and at the end title transfer on purchase or return of the asset | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts` |
 
 ### Islamic
 
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
 | `islamic.murabaha` | ⛔ Not implemented | 3 | Murabaha: asset purchase and resale at disclosed profit |  |
-| `islamic.ijarah` | ⛔ Not implemented | 3 | Ijarah: lease with rentals and asset ownership |  |
+| `islamic.ijarah` | ✅ Fully implemented | 3 | Ijarah: lease with rentals and asset ownership, rental income and late charges to charity on their own accounts | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts`<br>Lessor accounting is the net-investment (finance-lease) method; an operating Ijarah with depreciation is not modelled (DECISIONS D-032). |
 
 ### Access
 
@@ -163,8 +164,8 @@ A product version can be activated only when every capability it requires is **F
 | Personal / consumer | Salary advance (`SALARY_ADVANCE`) |  | ✅ |  |
 | Personal / consumer | Emergency loan (`EMERGENCY_LOAN`) |  | ✅ |  |
 | Personal / consumer | Debt consolidation (`DEBT_CONSOLIDATION`) |  | ✅ |  |
-| Personal / consumer | Credit card (`CREDIT_CARD`) |  | ⛔ | `card.revolving_credit` (not implemented) |
-| Personal / consumer | Buy now, pay later (`BNPL`) |  | ⛔ | `bnpl.merchant_settlement` (not implemented) |
+| Personal / consumer | Credit card (`CREDIT_CARD`) |  | ✅ |  |
+| Personal / consumer | Buy now, pay later (`BNPL`) |  | ✅ |  |
 | Personal / consumer | Murabaha financing (`MURABAHA`) |  | ⛔ | `islamic.murabaha` (not implemented) |
 | Property | Home mortgage (`HOME_MORTGAGE`) | Yes | ✅ |  |
 | Property | Construction loan (`CONSTRUCTION`) |  | ✅ |  |
@@ -178,7 +179,7 @@ A product version can be activated only when every capability it requires is **F
 | Vehicle / assets | Commercial vehicle loan (`COMMERCIAL_VEHICLE`) |  | ✅ |  |
 | Vehicle / assets | Machinery / equipment loan (`EQUIPMENT_LOAN`) |  | ✅ |  |
 | Vehicle / assets | Balloon vehicle loan (`BALLOON_VEHICLE`) |  | ✅ |  |
-| Vehicle / assets | Ijarah financing (`IJARAH`) |  | ⛔ | `islamic.ijarah` (not implemented) |
+| Vehicle / assets | Ijarah financing (`IJARAH`) |  | ✅ |  |
 | Education | Student loan (`STUDENT_LOAN`) |  | ✅ |  |
 | Education | Tuition loan (`TUITION_LOAN`) |  | ✅ |  |
 | Education | Vocational training loan (`VOCATIONAL_TRAINING`) |  | ✅ |  |

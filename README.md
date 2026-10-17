@@ -256,6 +256,32 @@ The borrower portal adds restructure requests and proposal acceptance.
   maker-checker; Rule of 78 and actuarial payoff rebates for flat loans.
 * **Facilities** term out into an amortizing schedule, and unpaid minimum
   payments are aged like any arrears.
+* **Disbursement** — minimum down payments collected before payout, payout
+  split between seller, dealer, school, previous lender or the borrower, and
+  consolidation loans that settle the borrower's other loans from the proceeds.
+* **Pricing and schedules** — promotional campaign rates, stepped (graduated
+  or step-down) instalments, payoff letters good through a date and takeover
+  quotes for another lender; a rescheduling prepayment can be reversed.
+* **Collections** — an escalation ladder per product (SMS, call, visit,
+  notice, legal review) feeding collector work queues; guarantor demands and
+  payments; set-off of the borrower's deposit under maker-checker.
+* **Customer outputs and reporting** — statements for any period, due-soon
+  and overdue notices, closure letters, the credit bureau file and a
+  general-ledger export.
+* **Underwriting and commercial loans** — an explainable origination credit
+  score, DSCR gate, and DSCR / LTV / financial-statement covenants with
+  breach, cure and waiver.
+* **Recovery** — repossession, pawn custody and auction, credit insurance
+  claims and debt sale.
+* **Payment channels** — direct-debit mandates and auto-debit (mock bank),
+  settlement and payroll files with daily reconciliation, cross-currency
+  payments with FX gain/loss.
+* **Specialised products** — credit cards (grace period, cash advances,
+  instalment plans), BNPL with merchant settlement and refunds, Ijarah
+  leases, invoice finance with recourse, letters of credit and syndicated
+  loans; facility over-limit allowance and fee, and annual renewal.
+* **Customer documents** — one library with review, versions, expiry,
+  retention, legal hold and audited short-lived downloads.
 
 Every Phase 2 and servicing capability now has a web screen: facilities,
 groups, the policy library, unidentified payments, relief programmes,
@@ -305,9 +331,9 @@ implemented, so the matrix is enforced, not aspirational. As it stands:
 
 | | Count |
 |---|---|
-| ✅ Fully implemented | 46 |
+| ✅ Fully implemented | 50 |
 | 🔌 Requires integration (adapter ships, no real provider) | 5 |
-| ⛔ Not implemented | 15 |
+| ⛔ Not implemented | 12 |
 
 **Needs a third-party provider** — payment rails, external KYC, credit bureau,
 notifications and external accounting have adapter interfaces with clearly
@@ -316,12 +342,12 @@ integration" until a real provider is wired and tested; the matrix will not
 claim otherwise.
 
 **Still to build** — borrowing bases, connected-party exposure, break-glass
-access, and the specialised modules: credit cards, BNPL, documentary
-import/export finance, factoring, forfaiting, supply-chain finance,
-income-contingent education, project finance, institutional counterparty
-limits, Murabaha and Ijarah. Invoice financing with recourse, import letters
-of credit (converting to loans when paid) and syndicated loans are
-implemented; see DECISIONS D-011..D-016 for their assumed rules.
+access, and the remaining specialised modules: documentary export finance,
+factoring, forfaiting, supply-chain finance, income-contingent education,
+project finance, institutional counterparty limits and Murabaha. Credit
+cards, BNPL, Ijarah leases, invoice financing with recourse, import letters
+of credit and syndicated loans are implemented; their assumed rules are in
+DECISIONS D-024..D-034.
 
 Known limitations of what *is* implemented are listed in
 [OPERATIONS.md](docs/lending/OPERATIONS.md) and, item by item, in
@@ -340,9 +366,9 @@ traced to code, tests and a status in
 
 | Group | ✅ Done | 🟡 Partial | ⛔ Missing | Total |
 |---|---|---|---|---|
-| Loan types | 15 | 8 | 1 | 24 |
-| Use cases | 48 | 8 | 19 | 75 |
-| Operations | 3 | 5 | 0 | 8 |
+| Loan types | 24 | 0 | 0 | 24 |
+| Use cases | 74 | 1 | 0 | 75 |
+| Operations | 7 | 1 | 0 | 8 |
 | Customer documents | 10 | 0 | 0 | 10 |
 | Test vectors | 20 match to the cent | 0 | 0 | 20 |
 
@@ -360,19 +386,21 @@ reminders, retention and legal hold, audited short-lived downloads, filed
 key facts and letters, portal requests), and a tested tenant
 wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
 
-**Largest remaining gaps, by risk to money owed** (full list in
+**Remaining gaps** (full list in
 [TRACEABILITY.md](docs/servicing/TRACEABILITY.md)):
 
-1. No collection escalation engine or collector work queues in the lending
-   stack; no guarantor demand or set-off (UC-58, UC-60, UC-61).
-3. Auto-debit has no real bank integration: mandates, collection, retries
-   and reconciliation run on a mock bank (UC-16). Settlement and payroll
-   files and cross-currency payments are built (UC-18, UC-19, UC-21).
-4. Recovery workflows: repossession, pawn forfeiture, credit insurance, debt
-   sale (UC-65, UC-66, UC-68, UC-71).
-4. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
+1. Auto-debit, SMS, KYC and credit-bureau submission run on mock adapters
+   that production refuses (UC-16 and the integration rows of the
+   capability matrix).
+2. Borrower notices are produced on demand, not sent by the end-of-day
+   batch (OPS-4).
+3. Several money rules are documented assumptions awaiting product-owner,
+   finance or Sharia sign-off (DECISIONS D-011..D-034).
 
-Not started: credit cards and BNPL merchant settlement.
+End-to-end QA journeys (onboarding → KYC → application → approval →
+disbursement → servicing → closure) for every loan type are in
+`apps/api/test/lending/e2e/` and the module specs; the scenario matrix is
+[docs/servicing/SCENARIOS.md](docs/servicing/SCENARIOS.md).
 
 ---
 
