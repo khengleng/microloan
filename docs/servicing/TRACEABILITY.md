@@ -19,8 +19,8 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 
 | Group | ✅ | 🟡 | ⛔ | Total |
 |---|---|---|---|---|
-| Loan types (LT) | 21 | 2 | 1 | 24 |
-| Use cases (UC) | 70 | 1 | 4 | 75 |
+| Loan types (LT) | 24 | 0 | 0 | 24 |
+| Use cases (UC) | 74 | 1 | 0 | 75 |
 | Operations (OPS) | 7 | 1 | 0 | 8 |
 | Documents (DOC) | 10 | 0 | 0 | 10 |
 | Test vectors (TV) | 20 match | 0 engine only | 0 not reproduced | 20 |
@@ -59,14 +59,15 @@ renewal (UC-41, UC-42), statements, notices, closure letters, bureau file
 and GL export (OPS-4/6/7, UC-75), origination credit score and DSCR with
 covenant monitoring (OPS-2, LT-16), the customer document library
 (DOC-1..10), invoice finance, letters of credit and syndication (LT-18,
-LT-19, LT-24).
+LT-19, LT-24), and credit cards, BNPL and leases (LT-07, LT-11, LT-15,
+UC-39, UC-40, UC-44, UC-52).
 
 ## Remaining gaps ranked by risk to money owed
 
 | # | Gap | Items | Why it matters |
 |---|---|---|---|
 | 1 | Auto-debit has no real bank integration (mandates, collection, retries and reconciliation are built on a mock bank) | UC-16 | Production cannot collect by direct debit until a bank adapter exists |
-| 2 | Specialised products: cards and BNPL merchant settlement; true lease (Ijarah) | LT-07, LT-11, LT-15, UC-39, UC-40, UC-44, UC-52 | Not offered (capability-gated) |
+| 2 | Several assumed rules change what customers, merchants or participants owe and need product-owner, finance or Sharia sign-off | DECISIONS D-011..D-034 marked "needs the product owner" | Built on documented assumptions, not signed-off policy |
 | 3 | Borrower notices are listed on demand, not sent by the end-of-day batch; SMS, KYC and bureau adapters are mocks | OPS-4, UC-58, UC-75 | Communication depends on a person exporting and sending |
 
 ## Loan types
@@ -79,15 +80,15 @@ LT-19, LT-24).
 | LT-04 HELOC | ✅ | L | `HOME_EQUITY_LINE`; combined LTV with prior liens (applications.service assess); term-out books a schedule (facilities.service termOut); int/collateral.int-spec.ts (TV-17), int/facilities.int-spec.ts | — |
 | LT-05 Auto / motorbike | ✅ | L | `CAR_LOAN`, `MOTORCYCLE_LOAN`, `BALLOON_VEHICLE`; minimum down payment (UC-02) and dealer payout (UC-05); repossession (UC-65); int/disbursement-payees.int-spec.ts, int/recovery.int-spec.ts | — |
 | LT-06 Student | ✅ | L | `STUDENT_LOAN`; grace + capitalization, `pricing.capitalization.basis` SIMPLE (TV-16) | Template still COMPOUND by default (D-009) |
-| LT-07 Credit card | ⛔ | — | `CREDIT_CARD` blocked by `card.revolving_credit` | No purchase grace, statement cycle or card minimum payment |
+| LT-07 Credit card | ✅ | L | `CREDIT_CARD` on a REVOLVING facility; balances by kind, monthly statements with due date and minimum payment, grace period, card arrears: eng/card.ts; api/cards/cards.service.ts; et/card.test.ts; int/cards.int-spec.ts | Transactions are posted by operations (no card-processor feed); purchases settle to cash on the day (D-031); no annual fee or rewards |
 | LT-08 Payday | ✅ | L | `SALARY_ADVANCE` catalogue.ts:204 (interest-only, one instalment) | Needs reconfiguring for a fee; no nominal APR (TV-08) |
 | LT-09 Pawn / gold | ✅ | L | Custody record, valuation by weight × purity × price per gram (eng/recovery.ts `pawnValuation`), forfeiture after the redemption deadline under maker-checker, auction, return on redemption: api/recovery/recovery.service.ts; et/recovery.test.ts; int/recovery.int-spec.ts | Gold price entered per item (no price feed) |
 | LT-10 Debt consolidation | ✅ | L | `DEBT_CONSOLIDATION`; disbursement payees settle several internal loans (`INTERNAL_LOAN`) and pay outside lenders (`PREVIOUS_LENDER`) from the proceeds (servicing.service executeDisbursement); int/disbursement-payees.int-spec.ts | — |
-| LT-11 BNPL | 🟡 | L | `BNPL` blocked by `bnpl.merchant_settlement`; a 4×fortnightly 0% plan can be configured | No merchant settlement or refund handling (UC-52) |
+| LT-11 BNPL | ✅ | L | `BNPL` (interest-free fortnightly plan); merchant paid net of the merchant discount through a disbursement hook: api/bnpl/bnpl-lease.service.ts; eng/bnpl.ts; et/bnpl.test.ts; int/bnpl-lease.int-spec.ts | Merchant discount is one rate per product (per merchant programme), recognised at disbursement (D-030) |
 | LT-12 Term loan | ✅ | L | `SME_TERM` catalogue.ts:301; `CORPORATE_TERM` :353 (quarterly) | Quarterly untested end to end |
 | LT-13 Overdraft | ✅ | L | `OVERDRAFT`; minimum-payment arrears aged (UC-38); renewal (UC-42) and over-limit allowance/fee (UC-41): int/facilities.int-spec.ts | — |
 | LT-14 Business line of credit | ✅ | L | `REVOLVING_CREDIT`; term-out books an amortizing schedule (int/facilities.int-spec.ts UC-43) | — |
-| LT-15 Equipment lease | 🟡 | L | `EQUIPMENT_LOAN` catalogue.ts:249 with balloon; TV-19 passes | True lease (`IJARAH`) blocked |
+| LT-15 Equipment lease | ✅ | L | `EQUIPMENT_LOAN` with balloon (TV-19); true lease `IJARAH`: asset registered and paid to its supplier, owned by the lender, rentals as rental income (1250/1255/4510), late charges to charity (2800), title transfer or return at the end: api/bnpl/bnpl-lease.service.ts; int/bnpl-lease.int-spec.ts | Net-investment lessor accounting, no depreciation or operating-lease model; returned assets held at the residual, remarketing off-system (D-032) |
 | LT-16 Commercial real estate | ✅ | L | `COMMERCIAL_PROPERTY`; origination DSCR gate `eligibility.minDscr` from `terms.financials` (eng/scorecard.ts `debtServiceCoverage`); covenants MIN_DSCR / MAX_LTV / FINANCIAL_STATEMENTS tested on schedule, breach → notice, cure or waiver by a second person (api/covenants/covenants.service.ts); int/commercial-covenants.int-spec.ts | — |
 | LT-17 Construction | ✅ | L | `CONSTRUCTION` staged facility; term-out schedule | — |
 | LT-18 Invoice financing | ✅ | L | `INVOICE_BACKED` (revolving, `trade.invoice`); register, maker-checker advance, debtor settlement and borrower payout: api/trade/invoice-finance.service.ts; eng/invoice.ts `allocateInvoiceCollection`; et/trade.test.ts; int/trade.int-spec.ts "LT-18", "TV-20" | No factoring / non-recourse purchase; collections cannot be reversed through the API (D-024) |
@@ -161,12 +162,12 @@ LT-19, LT-24).
 | UC-36 | ✅ | L | api/facilities/facilities.service.ts:170; int/facilities.int-spec.ts:217 | — |
 | UC-37 | ✅ | L | eng/facility.ts:471; TV-07; int/facilities.int-spec.ts:320 | Posted at statement, not by end-of-day |
 | UC-38 | ✅ | L | Overdraft minimum payment; unpaid minimum aged by end of day (facilities batch hook) | — |
-| UC-39 | ⛔ | — | `card.revolving_credit` not implemented | No purchase grace |
-| UC-40 | ⛔ | — | none | No cash-advance type or fee |
+| UC-39 | ✅ | L | Purchase interest computed daily from each purchase and waived when the previous statement was paid in full by its due date: eng/card.ts `cardGraceApplies`, `cardCycleCharges`; api/cards/cards.service.ts `generateStatement`; int/cards.int-spec.ts (kept, then lost) | Interest is charged at statement, not daily |
+| UC-40 | ✅ | L | Cash advance: fee (rate with minimum) charged at once to 4520, interest at the cash-advance rate from the advance date, never waived, cash-advance share of the limit: eng/card.ts `cashAdvanceFee`; int/cards.int-spec.ts | — |
 | UC-41 | ✅ | L | Over-limit rate plus `facility.overlimitTolerance` allowance on drawdowns and a flat `facility.overlimitFee` per statement period over the limit; limit change maker-checker; int/facilities.int-spec.ts | — |
 | UC-42 | ✅ | L | RENEWAL limit change (maker-checker) extends availability and maturity by `renewalMonths`, reactivating an expired line; int/facilities.int-spec.ts | — |
 | UC-43 | ✅ | L | Term-out books an amortizing schedule; int/facilities.int-spec.ts | — |
-| UC-44 | ⛔ | — | none | — |
+| UC-44 | ✅ | L | A current-cycle purchase converts into a fixed monthly plan; one instalment billed per statement into the purchase balance and the minimum payment: eng/card.ts `instalmentPlan`; api/cards/cards.service.ts `convertToPlan`; int/cards.int-spec.ts | No conversion fee; plans prepay only after purchases (D-034) |
 
 ### G. Changes during the loan
 | ID | Status | Stack | Evidence | Gap |
@@ -178,7 +179,7 @@ LT-19, LT-24).
 | UC-49 | ✅ | L | Payment-holiday programmes api/restructuring/payment-holiday.service.ts; int/relief.int-spec.ts; capitalize path end to end incl. TV-13 (int/e2e/servicing-events S27) | A deferral without capitalization drops the deferred interest ([SCENARIOS.md](SCENARIOS.md) D-QA-05) |
 | UC-50 | ✅ | L | Refinance top-up eng/refinance.ts:125 | Only via refinance |
 | UC-51 | ✅ | L | Revaluation → margin call with deadline, cure/expiry by end of day; api/collateral/collateral.service.ts; int/collateral.int-spec.ts (TV-18); int/e2e/vehicle-asset S13 | Paying the required repayment does not cure the call ([SCENARIOS.md](SCENARIOS.md) D-QA-04) |
-| UC-52 | ⛔ | — | BNPL blocked | — |
+| UC-52 | ✅ | L | Merchant refund reduces remaining instalments latest first, refunds what the customer already paid, reverses the merchant discount pro rata, merchant clawback (1240) collected separately: eng/bnpl.ts `bnplRefund`; api/bnpl/bnpl-lease.service.ts; int/bnpl-lease.int-spec.ts | Clawback is not netted against later merchant settlements (D-030) |
 | UC-53 | ✅ | L | Drawing request → approve → pay books the importer's loan under the configured conversion product (schedule, account, DISBURSEMENT to the beneficiary) and releases the memo: `LettersOfCreditService.payDrawing`; int/trade.int-spec.ts "UC-53" | Conversion loans carry no upfront fee (D-027) |
 
 ### H. Late and missed payments

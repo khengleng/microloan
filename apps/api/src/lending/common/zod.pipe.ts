@@ -377,6 +377,10 @@ export const S = {
                 'SCHOOL',
                 'PREVIOUS_LENDER',
                 'INTERNAL_LOAN',
+                // BNPL (LT-11): paid net of the merchant discount.
+                'MERCHANT',
+                // Leases (LT-15): the lender buys the asset from the supplier.
+                'SUPPLIER',
                 'OTHER',
               ]),
               name: z.string().min(2).max(120),

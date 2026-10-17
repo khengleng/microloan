@@ -66,6 +66,8 @@ export class FacilitiesService {
     // UC-38: a line with no schedule still has payments due — each
     // statement's minimum payment — and arrears on them age like any other.
     this.servicing.registerBatchHook(async (tx, state, businessDate) => {
+      // A card ages its own minimum payments (CardsService); leave it alone.
+      if (state.config.card) return;
       state.externalDpd = await this.minimumPaymentArrears(
         tx,
         state.account.tenantId,
@@ -196,8 +198,13 @@ export class FacilitiesService {
       const position = engineCall(() =>
         lending.facilityPosition(state.terms, state.movements, asOf),
       );
+      const card = await tx.cardAccount.findFirst({
+        where: { tenantId, facilityId: id },
+        select: { id: true, reference: true, status: true },
+      });
       return {
         facility: view(state.facility),
+        card,
         terms: state.terms,
         position,
         loanAccountId: state.account.id,
@@ -253,6 +260,7 @@ export class FacilitiesService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
       assertNotInvoiceFacility(state, 'drawn');
+      refuseCard(state, 'drawdowns');
       await this.policy.enforce(
         actor,
         'facility.drawdown.request',
@@ -588,6 +596,7 @@ export class FacilitiesService {
     const hash = requestHash({ op: 'facility.statement', id, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      refuseCard(state, 'statements');
       await this.policy.enforce(
         actor,
         'facility.statement.generate',
@@ -762,6 +771,7 @@ export class FacilitiesService {
     const hash = requestHash({ op: 'facility.repay', id, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      refuseCard(state, 'payments');
       const amount = lending.parseMoney(
         String(body.amount ?? ''),
         state.facility.currency,
@@ -1135,6 +1145,7 @@ export class FacilitiesService {
         resourceOf(state),
         tx,
       );
+      refuseCard(state, 'term-out');
       if (!state.config.facility.termOutOnExpiry) {
         throw new BadRequestException(
           'This facility is repayable on demand; it does not term out.',
@@ -1449,6 +1460,20 @@ export class FacilitiesService {
       tx,
     );
   }
+}
+
+/**
+ * A card's facility carries the limit, but its balance is split into
+ * purchases, cash advances and plans that price differently; moving it
+ * through the generic facility path would bypass that split. Card money
+ * moves through /lending/cards (CardsService) only.
+ */
+function refuseCard(state: FacilityState, what: string) {
+  if (state.config.card)
+    throw new ConflictException({
+      message: `This facility is a credit card: post ${what} through the card, not the facility.`,
+      code: 'CARD_FACILITY',
+    });
 }
 
 /**

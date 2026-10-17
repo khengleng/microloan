@@ -49,6 +49,17 @@ export const ACCOUNT_CODES = {
   PARTICIPANT_SHARE_EXPENSE: '5310',
   LC_CONTINGENT_ASSET: '9100',
   LC_CONTINGENT_LIABILITY: '9200',
+  // Specialised products: BNPL merchant settlement (LT-11, UC-52)
+  MERCHANT_CLAWBACK_RECEIVABLE: '1240',
+  MERCHANT_DISCOUNT_INCOME: '4500',
+  // Credit cards (LT-07, UC-40)
+  CARD_CASH_ADVANCE_FEE_INCOME: '4520',
+  // Leases / Ijarah (LT-15): the lessor's asset, rentals and charity
+  IJARAH_ASSETS: '1250',
+  IJARAH_RENTALS_RECEIVABLE: '1255',
+  RETURNED_LEASE_ASSETS: '1260',
+  IJARAH_RENTAL_INCOME: '4510',
+  LATE_PAYMENT_CHARITY_PAYABLE: '2800',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -230,6 +241,48 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.LC_CONTINGENT_LIABILITY,
     name: 'Letters of Credit: Commitments Issued (memo)',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.MERCHANT_CLAWBACK_RECEIVABLE,
+    name: 'Merchant Refund Clawbacks Receivable',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.MERCHANT_DISCOUNT_INCOME,
+    name: 'Merchant Discount Income',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.CARD_CASH_ADVANCE_FEE_INCOME,
+    name: 'Card Cash Advance Fee Income',
+    type: LedgerAccountType.INCOME,
+  },
+  // A lease is not a loan: the asset the lessor owns, the rentals it is owed
+  // and the rental income it earns sit on their own accounts.
+  {
+    code: ACCOUNT_CODES.IJARAH_ASSETS,
+    name: 'Ijarah / Leased Assets (Net Investment)',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.IJARAH_RENTALS_RECEIVABLE,
+    name: 'Ijarah Rentals Receivable',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.RETURNED_LEASE_ASSETS,
+    name: 'Returned Lease Assets Held for Sale',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.IJARAH_RENTAL_INCOME,
+    name: 'Ijarah Rental Income',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.LATE_PAYMENT_CHARITY_PAYABLE,
+    name: 'Late Payment Charges Payable to Charity',
     type: LedgerAccountType.LIABILITY,
   },
 ];

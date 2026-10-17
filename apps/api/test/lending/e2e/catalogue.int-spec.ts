@@ -4,6 +4,7 @@
  * to a product template; the ones the journeys exercise must be offerable,
  * and a template whose capability is not built cannot be activated.
  */
+import { lending } from '@microloan/shared';
 import { TEST_DB } from '../harness';
 import { Journey, expectOk } from './journey';
 
@@ -69,20 +70,29 @@ d('S33 loan-type coverage and pending modules', () => {
     expect(res.body.missing.length).toBeGreaterThan(0);
   });
 
-  // Pending modules, being built separately: no journey until they land.
-  it.todo(
-    'LT-07 credit card (CREDIT_CARD) — pending module card.revolving_credit',
-  );
-  it.todo(
-    'LT-11 buy now, pay later (BNPL) — pending module bnpl.merchant_settlement',
-  );
-  it.todo(
-    'LT-18 invoice financing (INVOICE_BACKED, TV-20) — pending module trade.invoice_finance',
-  );
-  it.todo(
-    'LT-19 letter of credit — pending module (no template; trade.documentary)',
-  );
-  it.todo(
-    'LT-24 syndicated loan (SYNDICATED) — pending module syndication.participations',
-  );
+  // The specialised modules are now available; their journeys from booking to
+  // closure live with each module: cards.int-spec.ts (LT-07), bnpl-lease.int-spec.ts
+  // (LT-11, LT-15), trade.int-spec.ts (LT-18, LT-19, TV-20) and
+  // syndication.int-spec.ts (LT-24).
+  it('LT-07, LT-11, LT-15, LT-18, LT-19, LT-24: the specialised templates can be configured', async () => {
+    for (const code of [
+      'CREDIT_CARD',
+      'BNPL',
+      'IJARAH',
+      'INVOICE_BACKED',
+      'LETTER_OF_CREDIT',
+      'SYNDICATED',
+    ]) {
+      const tpl = lending.TEMPLATE_BY_CODE[code];
+      expect(tpl).toBeTruthy();
+      expect(lending.templateAvailability(tpl).available).toBe(true);
+      const res = await j.as('maker').post('/lending/products', {
+        templateCode: code,
+        code: `SPEC-${code}`.slice(0, 30),
+        name: `Specialised ${code}`,
+        config: tpl.defaultConfig,
+      });
+      expect([200, 201]).toContain(res.status);
+    }
+  });
 });

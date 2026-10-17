@@ -609,6 +609,57 @@ export const ACTIONS: ActionDefinition[] = [
     makerChecker: true,
     minAssurance: 'MFA',
   }),
+  // Credit cards (LT-07, UC-39, UC-40, UC-44). A card is a facility, so its
+  // actions are facility actions reusing the facility and servicing
+  // permissions: card transactions are posted by whoever posts repayments
+  // (the processor feed's operator), statements by whoever states facilities.
+  A('card.read', 'FACILITY', 'READ', { permission: 'facility.read' }),
+  A('card.purchase.post', 'FACILITY', 'DRAWDOWN', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('card.cash_advance.post', 'FACILITY', 'DRAWDOWN', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('card.statement.generate', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'facility.statement.generate',
+    workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  A('card.payment.post', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  A('card.instalment_plan.convert', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('card.close', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'facility.manage',
+    workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  // BNPL (LT-11, UC-52): a merchant refund moves money both ways, so it is
+  // posted like a repayment; it may arrive after the plan is paid off.
+  A('loan.bnpl.refund', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE', 'CLOSED'],
+  }),
+  A('loan.bnpl.clawback.collect', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  // Leases (LT-15): the asset is registered before the purchase is paid out.
+  A('loan.lease.register', 'LOAN_ACCOUNT', 'DISBURSEMENT', {
+    permission: 'loan.disbursement.prepare',
+    workflowStates: ['BOOKED'],
+  }),
+  A('loan.lease.return', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.lease.transfer_title', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['CLOSED'],
+  }),
   // Re-pricing moves no money, but it changes a booked contract, so it is
   // gated like servicing rather than like a read.
   A('loan.rate_reset.apply', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {

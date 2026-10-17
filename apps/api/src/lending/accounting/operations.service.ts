@@ -421,8 +421,24 @@ export class LendingOperationsService {
     // repayments, so it is reconciled against those instead.
     const facilities = await this.prisma.facility.findMany({
       where: { tenantId },
-      select: { agreementId: true, reference: true, totalDrawn: true },
+      select: {
+        id: true,
+        agreementId: true,
+        reference: true,
+        totalDrawn: true,
+      },
     });
+    const cards = await this.prisma.cardAccount.findMany({
+      where: { tenantId },
+      select: {
+        facilityId: true,
+        reference: true,
+        purchaseBalance: true,
+        cashBalance: true,
+        planBalance: true,
+      },
+    });
+    const cardByFacility = new Map(cards.map((c) => [c.facilityId, c]));
     const facilityByAgreement = new Map(
       facilities.map((x) => [x.agreementId, x]),
     );
@@ -495,6 +511,22 @@ export class LendingOperationsService {
           .plus(movedBy('CAPITALIZATION'))
           .minus(movedBy('REPAYMENT'))
           .minus(movedBy('SETTLEMENT'));
+        // A card's balances (purchases, cash advances, plans) are the principal, split.
+        const card = cardByFacility.get(facility.id);
+        if (card) {
+          const split = D(card.purchaseBalance)
+            .plus(D(card.cashBalance))
+            .plus(D(card.planBalance));
+          if (!split.eq(D(a.principalOutstanding)))
+            breaks.push({
+              loanAccountId: a.id,
+              reference: a.reference,
+              check: 'cardBalances',
+              card: card.reference,
+              subledger: D(a.principalOutstanding).toString(),
+              cardBalances: split.toString(),
+            });
+        }
         if (!expected.eq(D(a.principalOutstanding)))
           breaks.push({
             loanAccountId: a.id,

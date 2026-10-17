@@ -145,6 +145,8 @@ export interface FacilityLimitChange {
 
 export interface FacilityDetail {
     facility: FacilitySummary;
+    /** Set when this line is a credit card's (LT-07): card money moves on the card. */
+    card?: { id: string; reference: string; status: string } | null;
     terms: FacilityTerms;
     position: FacilityPosition;
     /** The loan account carrying the drawn balance. */

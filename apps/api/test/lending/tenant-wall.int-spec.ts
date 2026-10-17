@@ -114,6 +114,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'drawings/:drawingId': 'lcDrawing',
       'participants/:participantId': 'syndicateParticipant',
       'payouts/:taskId': 'approvalTask',
+      'cards/:cardId': 'cardAccount',
+      'transactions/:transactionId': 'cardTransaction',
+      'refunds/:bnplRefundId': 'bnplRefund',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

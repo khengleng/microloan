@@ -95,6 +95,26 @@ export const STEPS: StepSpec[] = [
         ],
     },
     {
+        key: 'specialised', label: 'Card / BNPL / lease', roots: ['card', 'bnpl', 'lease'],
+        note: 'Card terms need a REVOLVING facility; BNPL and lease terms a TERM product (a lease also needs BALLOON repayment for its residual).',
+        fields: [
+            { path: 'card', label: 'Credit card terms (LT-07)', kind: 'toggleObject', defaultValue: { cashAdvanceAnnualRate: '0.18', cashAdvanceFeeRate: '0.03', cashAdvanceFeeMinimum: '5', cashAdvanceLimitShare: '0.3', minimumPaymentRate: '0.05', minimumPaymentFloor: '10', paymentDueDays: 21, instalmentPlan: null } },
+            { path: 'card.cashAdvanceAnnualRate', label: 'Cash-advance annual rate (from day one)', kind: 'rate', when: 'card' },
+            { path: 'card.cashAdvanceFeeRate', label: 'Cash-advance fee rate', kind: 'nrate', when: 'card' },
+            { path: 'card.cashAdvanceFeeMinimum', label: 'Cash-advance minimum fee', kind: 'ndecimal', when: 'card' },
+            { path: 'card.cashAdvanceLimitShare', label: 'Cash-advance share of the limit', kind: 'rate', when: 'card' },
+            { path: 'card.minimumPaymentRate', label: 'Minimum payment: share of principal', kind: 'rate', when: 'card' },
+            { path: 'card.minimumPaymentFloor', label: 'Minimum payment floor', kind: 'decimal', when: 'card' },
+            { path: 'card.paymentDueDays', label: 'Days from statement to due date', kind: 'int', when: 'card' },
+            { path: 'card.instalmentPlan', label: 'Instalment plans (UC-44)', kind: 'json', when: 'card', hint: '{ "annualRate": "0.12", "minAmount": "200", "allowedMonths": [3, 6, 12] } or null' },
+            { path: 'bnpl', label: 'BNPL merchant settlement (LT-11)', kind: 'toggleObject', defaultValue: { merchantDiscountRate: '0.04' } },
+            { path: 'bnpl.merchantDiscountRate', label: 'Merchant discount rate', kind: 'rate', when: 'bnpl' },
+            { path: 'lease', label: 'Lease terms (LT-15)', kind: 'toggleObject', defaultValue: { assetTypes: ['VEHICLE'], allowReturn: true } },
+            { path: 'lease.assetTypes', label: 'Leasable asset types', kind: 'list', when: 'lease', hint: 'Comma-separated codes' },
+            { path: 'lease.allowReturn', label: 'Lessee may return the asset instead of paying the residual', kind: 'bool', when: 'lease' },
+        ],
+    },
+    {
         key: 'limits', label: 'Limits', roots: ['limits'],
         fields: [
             { path: 'limits.minAmount', label: 'Minimum amount', kind: 'decimal' },
@@ -253,7 +273,8 @@ export const STEPS: StepSpec[] = [
         fields: [
             'cash', 'loansReceivable', 'interestReceivable', 'feesReceivable', 'penaltyReceivable', 'interestIncome', 'feeIncome',
             'penaltyIncome', 'taxPayable', 'writeOffExpense', 'roundingDifferences', 'concessionsExpense', 'principalForgivenessExpense',
-            'recoveryIncome', 'customerAdvances', 'interestSuspense',
+            'recoveryIncome', 'customerAdvances', 'interestSuspense', 'merchantDiscountIncome', 'merchantClawbackReceivable',
+            'cardCashAdvanceFeeIncome', 'returnedLeaseAssets',
         ].map((k) => ({ path: `accounting.${k}`, label: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()), kind: 'text' as const })),
     },
 ];

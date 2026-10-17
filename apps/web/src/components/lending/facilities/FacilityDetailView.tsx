@@ -118,6 +118,12 @@ export function FacilityDetailView({ id }: { id: string }) {
                     {t.overlimitRate ? <> Over-limit interest accrues at {fmtRate(t.overlimitRate)}.</> : null}
                 </Notice>
             )}
+            {d.card && (
+                <Notice title={`Credit card ${d.card.reference}`}>
+                    This line carries a credit card. Purchases, cash advances, statements and payments move on the card; the line keeps the limit, its changes and its status.{' '}
+                    <Link href={href(`/lending/cards/${d.card.id}`)} className="font-semibold text-[#635BFF] hover:underline">Open the card →</Link>
+                </Notice>
+            )}
             {status === 'SUSPENDED' && <Notice tone="warn" title="Suspended">No drawdowns can be requested, approved or released while the facility is suspended.</Notice>}
 
             <Card title="Facility actions" subtitle="The server re-checks every action against policy, limits and maker-checker; refusals show the reason.">

@@ -369,6 +369,61 @@ export const productConfigSchema = z
           .default([]),
       })
       .strict(),
+    /**
+     * Credit-card terms (LT-07). Only on a REVOLVING facility: the card splits
+     * the drawn balance into purchases, cash advances and instalment plans,
+     * which price differently (UC-39, UC-40, UC-44). The purchase rate is the
+     * facility's negotiated annual rate.
+     */
+    card: z
+      .object({
+        cashAdvanceAnnualRate: rateFraction,
+        /** Fee on each cash advance: the greater of rate × amount and the minimum (UC-40). */
+        cashAdvanceFeeRate: rateFraction.nullable().default(null),
+        cashAdvanceFeeMinimum: decimalString.nullable().default(null),
+        /** Share of the limit that may be outstanding as cash advances. */
+        cashAdvanceLimitShare: rateFraction.default('0.3'),
+        minimumPaymentRate: rateFraction.default('0.05'),
+        minimumPaymentFloor: decimalString.default('10'),
+        /** Days from the statement date to the payment due date. */
+        paymentDueDays: z.number().int().min(14).max(25).default(21),
+        /** Converting a purchase into fixed instalments (UC-44). Null: not offered. */
+        instalmentPlan: z
+          .object({
+            annualRate: rateFraction,
+            minAmount: decimalString,
+            allowedMonths: z.array(z.number().int().min(2).max(60)).min(1),
+          })
+          .strict()
+          .nullable()
+          .default(null),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Buy now, pay later (LT-11): the merchant is paid the purchase price less
+     * this discount at disbursement, and refunds come back through it (UC-52).
+     */
+    bnpl: z
+      .object({ merchantDiscountRate: rateFraction })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * A true lease (LT-15; Ijarah when the structure says so): the lender buys
+     * and owns the asset, the customer pays rentals, and at the end either
+     * buys it for the residual or hands it back.
+     */
+    lease: z
+      .object({
+        assetTypes: z.array(code).min(1),
+        /** Whether the lessee may return the asset instead of paying the residual. */
+        allowReturn: z.boolean().default(true),
+      })
+      .strict()
+      .nullable()
+      .default(null),
     operations: z
       .object({
         workflowCode: code,
@@ -617,6 +672,13 @@ export const productConfigSchema = z
         recoveryCostsExpense: code.default('5300'),
         debtSaleGain: code.default('4400'),
         debtSaleLoss: code.default('5400'),
+        /** BNPL (LT-11, UC-52): merchant discount earned, and refunds owed back by merchants. */
+        merchantDiscountIncome: code.default('4500'),
+        merchantClawbackReceivable: code.default('1240'),
+        /** Cards (UC-40): the fee charged on a cash advance. */
+        cardCashAdvanceFeeIncome: code.default('4520'),
+        /** Leases (LT-15): assets handed back at lease end, held for sale. */
+        returnedLeaseAssets: code.default('1260'),
       })
       .strict(),
   })
@@ -741,6 +803,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   validateGroupBlock(c, add);
   validateFacilityBlock(c, add);
   validateTradeBlock(c, add);
+  validateSpecialisedBlocks(c, add);
 
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
   if (buckets[0].minDpd !== 0) add('operations.delinquencyBuckets', 'buckets must start at 0 DPD');
@@ -901,6 +964,31 @@ function validateTradeBlock(c: ProductConfig, add: (path: string, message: strin
   }
 }
 
+/**
+ * Cards, BNPL and leases each ride on one existing shape: a card is a
+ * revolving line, BNPL and leases are term loans. A block on the wrong shape
+ * would be configuration nothing in the servicing path reads.
+ */
+function validateSpecialisedBlocks(c: ProductConfig, add: (path: string, message: string) => void): void {
+  if (c.card) {
+    if (c.facility.type !== 'REVOLVING') add('card', 'card terms apply to a REVOLVING facility');
+    if (c.facility.termOutOnExpiry) add('facility.termOutOnExpiry', 'a card is repayable against a minimum payment; it does not term out');
+    if (c.card.cashAdvanceFeeRate === null && c.card.cashAdvanceFeeMinimum === null) add('card.cashAdvanceFeeRate', 'a cash advance needs a fee rate or a minimum fee');
+    if (c.card.instalmentPlan && new Set(c.card.instalmentPlan.allowedMonths).size !== c.card.instalmentPlan.allowedMonths.length)
+      add('card.instalmentPlan.allowedMonths', 'list each term once');
+  }
+  if (c.bnpl) {
+    if (c.facility.type !== 'TERM') add('bnpl', 'BNPL is a purchase-linked instalment plan, not a facility');
+    if (dec(c.bnpl.merchantDiscountRate).gte(dec('0.5'))) add('bnpl.merchantDiscountRate', 'a merchant discount of half the price or more is not a discount');
+  }
+  if (c.lease) {
+    if (c.facility.type !== 'TERM') add('lease', 'a lease is a rental schedule, not a facility');
+    if (c.repayment.method !== 'BALLOON') add('repayment.method', 'a lease carries its residual (purchase-option price) as the final balloon: use BALLOON');
+    if (!c.security.collateralRequired) add('security.collateralRequired', 'the leased asset is the security: a lease must be secured');
+  }
+  if (c.attributes.structure === 'IJARAH' && !c.lease) add('lease', 'an Ijarah product is a lease and needs lease terms');
+}
+
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
 export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   const req = new Set<string>(['accounting.double_entry', 'servicing.repayment', 'servicing.accrual', 'servicing.closure', 'servicing.delinquency', 'credit.decision', 'origination.individual']);
@@ -942,6 +1030,9 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.syndication) req.add('syndication.participations');
   if (c.attributes.structure === 'MURABAHA') req.add('islamic.murabaha');
   if (c.attributes.structure === 'IJARAH') req.add('islamic.ijarah');
+  if (c.card) req.add('card.revolving_credit');
+  if (c.bnpl) req.add('bnpl.merchant_settlement');
+  if (c.lease) req.add('lease.true_lease');
   return [...req].sort();
 }
 

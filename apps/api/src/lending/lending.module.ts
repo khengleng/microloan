@@ -40,6 +40,10 @@ import {
 } from './trade/trade.controller';
 import { SyndicationService } from './syndication/syndication.service';
 import { SyndicationController } from './syndication/syndication.controller';
+import { CardsService } from './cards/cards.service';
+import { LendingCardsController } from './cards/cards.controller';
+import { BnplLeaseService } from './bnpl/bnpl-lease.service';
+import { LendingBnplLeaseController } from './bnpl/bnpl-lease.controller';
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
@@ -92,6 +96,8 @@ import {
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
+    LendingCardsController,
+    LendingBnplLeaseController,
     RecoveryController,
     RecoveryDeskController,
     PaymentChannelsController,
@@ -127,6 +133,8 @@ import {
     ChannelFilesService,
     ImpairmentService,
     FacilitiesService,
+    CardsService,
+    BnplLeaseService,
     RateResetService,
     EodSchedulerService,
     AccessAdminService,

@@ -18,6 +18,8 @@ const PAYEE_TYPES = [
     { value: 'SCHOOL', label: 'School' },
     { value: 'PREVIOUS_LENDER', label: 'Previous lender' },
     { value: 'INTERNAL_LOAN', label: 'Our loan (consolidate)' },
+    { value: 'MERCHANT', label: 'Merchant (BNPL — paid net of the discount)' },
+    { value: 'SUPPLIER', label: 'Asset supplier (lease)' },
     { value: 'OTHER', label: 'Other' },
 ];
 interface PayeeDraft { type: string; name: string; reference: string; account: string; loanId: string; amount: string }

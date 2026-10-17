@@ -85,6 +85,23 @@ export function facilityTerms(
   };
 }
 
+/**
+ * How much of an event moved the drawn principal. A facility or card
+ * repayment that also cleared interest or fees records its principal share as
+ * the PRINCIPAL component; only that share reduces the balance.
+ */
+export function principalMoved(e: {
+  type: string;
+  amount: unknown;
+  components: unknown;
+}): string {
+  const principal = (e.components as { PRINCIPAL?: string } | null)
+    ?.PRINCIPAL;
+  if (e.type === 'REPAYMENT' && principal != null)
+    return decStr(principal);
+  return decStr(e.amount as string);
+}
+
 export async function loadFacilityState(
   tx: Tx,
   tenantId: string,

@@ -93,8 +93,8 @@ export const CAPABILITIES: Capability[] = [
   C('integration.credit_bureau', 'Integration', 'REQUIRES_INTEGRATION', 2, 'Live credit bureau enquiry', undefined, 'The existing CBC provider is used when configured; products requiring a bureau cannot activate without it.'),
   C('integration.notifications', 'Integration', 'REQUIRES_INTEGRATION', 2, 'Borrower notifications (SMS / Telegram)'),
   // Specialized (Phase 3)
-  C('card.revolving_credit', 'Specialized', 'NOT_IMPLEMENTED', 3, 'Credit cards: statements, minimum payment, grace on purchases'),
-  C('bnpl.merchant_settlement', 'Specialized', 'NOT_IMPLEMENTED', 3, 'BNPL: merchant settlement and purchase-linked plans'),
+  C('card.revolving_credit', 'Specialized', 'IMPLEMENTED', 3, 'Credit cards: purchases, cash advances and instalment plans as separate balances; monthly statements with a due date and minimum payment; purchase interest waived when the previous statement is paid in full by its due date; cash-advance fee plus interest from day one', 'packages/shared/test/card.test.ts, apps/api/test/lending/cards.int-spec.ts'),
+  C('bnpl.merchant_settlement', 'Specialized', 'IMPLEMENTED', 3, 'BNPL: the merchant is paid the purchase price net of its discount at disbursement; a merchant refund reduces the remaining instalments latest first, refunds what the customer already paid, and claws the money back from the merchant', 'packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts'),
   C('trade.documentary', 'Specialized', 'NOT_IMPLEMENTED', 3, 'Import / export finance against trade documents'),
   C('trade.invoice_finance', 'Specialized', 'IMPLEMENTED', 3, 'Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears', 'packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts', 'Recourse only (no factoring or non-recourse purchase); no late penalty on recourse arrears (DECISIONS D-012).'),
   C('trade.letter_of_credit', 'Specialized', 'IMPLEMENTED', 3, 'Import letters of credit: maker-checker issuance with a fee and an off-balance-sheet contingent memo; a payment by the bank converts into a term loan for the importer', 'packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts', 'No SWIFT messaging, document examination or confirmation; payment is recorded, not sent.'),
@@ -107,7 +107,8 @@ export const CAPABILITIES: Capability[] = [
   C('covenants.monitoring', 'Specialized', 'NOT_IMPLEMENTED', 3, 'Financial covenant monitoring'),
   C('institutional.counterparty_limits', 'Specialized', 'NOT_IMPLEMENTED', 3, 'Interbank / sovereign / municipal counterparty limits and conventions'),
   C('islamic.murabaha', 'Islamic', 'NOT_IMPLEMENTED', 3, 'Murabaha: asset purchase and resale at disclosed profit'),
-  C('islamic.ijarah', 'Islamic', 'NOT_IMPLEMENTED', 3, 'Ijarah: lease with rentals and asset ownership'),
+  C('islamic.ijarah', 'Islamic', 'IMPLEMENTED', 3, 'Ijarah: lease with rentals and asset ownership, rental income and late charges to charity on their own accounts', 'packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts', 'Lessor accounting is the net-investment (finance-lease) method; an operating Ijarah with depreciation is not modelled (DECISIONS D-032).'),
+  C('lease.true_lease', 'Specialized', 'IMPLEMENTED', 3, 'True lease: the lender buys and owns the asset (paid to the supplier), rentals to a residual purchase-option price, and at the end title transfer on purchase or return of the asset', 'packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts'),
   C('access.emergency_break_glass', 'Access', 'NOT_IMPLEMENTED', 2, 'Emergency (break-glass) access'),
 ];
 
