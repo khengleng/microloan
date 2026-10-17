@@ -161,6 +161,7 @@ async function main() {
 
   // Demo only: switch on the loan types that ship off by default (credit
   // lines, overdrafts, staged drawdowns, invoice finance, letters of credit,
+  // factoring, supply-chain finance, forfaiting, import / export loans,
   // syndication, group lending, floating rates). In a real organisation each
   // is a two-administrator change under Access & policy.
   for (const flagKey of [
@@ -169,6 +170,8 @@ async function main() {
     'lending.facility.staged_drawdown',
     'lending.trade.invoice_finance',
     'lending.trade.letters_of_credit',
+    'lending.trade.receivables_purchase',
+    'lending.trade.documentary',
     'lending.syndication',
     'lending.group.joint_liability',
     'lending.pricing.floating_rate',

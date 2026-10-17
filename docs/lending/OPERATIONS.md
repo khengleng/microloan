@@ -448,6 +448,105 @@ thereafter.
   `evergreening` verdict. Review those: a refinance that replaces a
   delinquent loan and funds its arrears has moved a problem, not solved it.
 
+## Trade finance: bought receivables and import / export loans
+
+Lending › Trade finance has three tabs: letters of credit, **Receivables**
+(invoice finance, factoring, supply-chain finance, forfaiting) and **Import &
+export loans**. The new kinds are behind two flags, **off by default** (two
+administrators under Access → Feature flags):
+
+| Product | Flag | Template | Shape |
+|---|---|---|---|
+| Factoring | `lending.trade.receivables_purchase` | `FACTORING` | revolving programme limit |
+| Supply-chain finance | `lending.trade.receivables_purchase` | `SUPPLY_CHAIN_FINANCE` | revolving limit of the anchor buyer |
+| Forfaiting | `lending.trade.receivables_purchase` | `FORFAITING` | revolving programme limit |
+| Import loan | `lending.trade.documentary` | `IMPORT_LOAN` | term loan (bullet) |
+| Export working capital | `lending.trade.documentary` | `EXPORT_WORKING_CAPITAL` | term loan (bullet) |
+
+The receivables products also need `lending.revolving.drawdown`, like invoice
+finance. A programme is booked like any facility (an application under the
+product); for supply-chain finance the borrower is the **anchor buyer** and
+the approved limit is its programme limit.
+
+**Receivables register** (`/lending/trade/invoices/:facilityId`). Every kind
+follows the invoice-finance steps — register (maker) → approve as eligible
+(credit approver) → request funding → approve funding (drawdown checker, MFA,
+authority) → release (not the requester, `Idempotency-Key`) — plus:
+
+* **Acknowledgement before funding.** Factoring: record the notice of
+  assignment to the debtor (`notificationRequired`, on by default).
+  Supply-chain finance: record the buyer's approval of the payable.
+  Forfaiting: record the aval and the avalising bank. Funding is refused
+  (`ACKNOWLEDGEMENT_REQUIRED`) until it is recorded
+  (`POST invoices/:id/acknowledge`, register maker).
+* **Price.** Factoring advances `advanceRate` of the invoice less the
+  `serviceFeeRate` service fee (income 4540), and charges `feeRatePerPeriod`
+  per started period on collection, like invoice finance. Supply-chain
+  finance and forfaiting buy the **face value** at a discount — `face × rate
+  × days / 360 (or 365)` (straight) or to yield — for the days from release
+  to maturity (+ `graceDays` for forfaiting). The receivable is carried at
+  face (1200); the discount is held as **unearned discount (2340)** and
+  earned straight-line by the end-of-day batch into **discount income
+  (4530)**, all of it once paid.
+* **Limits.** Factoring refuses an advance that would put more than
+  `maxDebtorConcentration` of the limit on one debtor; a supplier's
+  `sublimit` caps what may be outstanding on its invoices.
+* **Suppliers** (supply-chain finance): onboarded on the register by the
+  register maker, approved (or rejected / suspended) by a credit approver —
+  never the same person. Only an approved supplier's invoices are taken; the
+  early payment names the supplier as payee.
+* **Collections.** The debtor, the buyer (supply chain) or the obligor
+  (forfaiting) pays; the money clears the fee, then the face or advance; any
+  surplus is the holder's reserve, paid out under maker-checker. A recourse
+  payment by the holder is refused when there is no recourse, and capped at
+  the recourse cap under limited recourse.
+* **Default.** When the obligor has not paid by due date + grace, end of day
+  applies the recourse the receivable was bought with: **FULL** (factoring
+  with recourse; the buyer under supply-chain finance) → `RECOURSE`, the
+  holder owes it all and the facility ages as arrears; **LIMITED** →
+  `RECOURSE` up to `limitedRecourseRate × invoice`, ageing stops once the cap
+  is paid; **NONE** (factoring without recourse, forfaiting) → `DEFAULTED`,
+  the lender keeps the claim and the facility does not age.
+* **Write-off** of what the lender bears: a write-off maker proposes
+  (`POST invoices/:id/write-offs`), a write-off checker with authority
+  decides (`.../write-offs/:taskId/decision`, `Idempotency-Key`). It posts
+  `TRADE_WRITE_OFF`: the face/advance and fee off the books, the unearned
+  discount released, the rest to **credit losses on bought receivables
+  (5500)**. Under limited recourse it is refused until the holder has paid
+  its cap.
+* **Closing** (`POST facilities/:id/receivables/close`, facility manager):
+  once every receivable is settled, written off or rejected, nothing is owed
+  to the holder and the balance is zero, the facility and its loan account
+  close.
+
+**Import & export loans** (`/lending/trade/transactions/:loanId`, linked
+from the loan page). The loan is originated and booked as usual (a bullet:
+interest-only instalments, principal at maturity; no debt-service ratio —
+the trade repays it). Before payout:
+
+1. **Record the trade** on the booked loan (disbursement maker): the
+   counterparty, goods, transaction value, the start of the cycle (shipment
+   for an import, contract for an export) and the expected proceeds. It is
+   refused if the loan exceeds `maxFinancingRatio` of the value, the cycle
+   exceeds `maxTradeCycleDays`, or the loan matures after the expected
+   proceeds + `proceedsGraceDays`.
+2. **Documents** — the product's `requiredDocuments` checklist is created
+   with the trade. A disbursement maker records each one received (with its
+   reference); a disbursement checker verifies or rejects it — never the
+   person who received it. A rejected document can be presented again.
+3. **Disbursement** goes through the usual prepare → approve → execute; each
+   step is refused (`TRADE_NOT_RECORDED`, `TRADE_DOCUMENTS_INCOMPLETE`,
+   `TRADE_TENOR`…) until the trade is recorded, every required document is
+   verified and the loan still fits the trade on the day it pays out.
+4. **Proceeds** (`POST trade-transactions/:id/proceeds`, repayment poster,
+   `Idempotency-Key`): proceeds at or above the payoff **settle** the loan
+   (early settlement, interest to date) and the rest is recorded as passed to
+   the customer (its reference is required); less is posted as a repayment.
+
+Not yet covered: recoveries on a written-off receivable, late charges on a
+defaulted obligor, credit insurance, a supplier or buyer portal, document
+examination against a letter of credit, and SWIFT messaging.
+
 ## Payment channels
 
 Lending › Payment channels; decisions D-017..D-019 in
@@ -537,8 +636,8 @@ without S3; a temporary directory is used in development).
 
 ## Known limitations
 
-* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
-  factoring, forfaiting, supply-chain finance, income-contingent education,
+* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL,
+  income-contingent education,
   syndication, project finance, institutional lending, Murabaha, Ijarah,
   emergency (break-glass) access.
 * Reversal is latest-first and not available for repayments that triggered a
@@ -562,6 +661,7 @@ without S3; a temporary directory is used in development).
 | Loans | `GET loans`, `GET loans/export.csv`, `POST loans/batch/run`, `GET loans/:id`, `GET :id/settlement-quote`, `POST :id/disbursements`, `POST :id/disbursements/:taskId/decision`, `POST :id/disbursements/execute`, `POST :id/repayments`, `POST :id/settlement`, `POST :id/events/:eventId/reverse`, `POST :id/write-offs`, `POST :id/write-offs/:taskId/decision` |
 | Restructuring | `GET restructures`, `GET restructures/tasks`, `POST restructures/loans/:loanId`, `GET/POST restructures/:id/...` (`evidence`, `more-info`, `assessments`, `simulate`, `proposals`, `proposals/:pid/approve`, `reject`, `proposals/:pid/acceptance`, `conditions/:code`, `execute`, `reverse`, `withdraw`), `GET restructures/policy/current`, `POST restructures/policy`, `POST restructures/policy/:id/decision` |
 | Documents | `GET/POST customers/:borrowerId/documents`, `GET customers/:borrowerId/document-checklist`, `POST customers/:borrowerId/document-requests`, `POST document-requests/:requestId/cancel`, `GET applications/:id/document-checklist`, `GET documents/:documentId`, `POST documents/:documentId/{versions,review,link,legal-hold,delete}`, `PUT documents/:documentId/expiry`, `GET document-review-queue`, `GET document-expiries`, `POST document-expiries/run`, `GET/PUT document-retention`, `POST document-library/link-legacy`, `POST loans/:id/settlement-quote-letter`, `GET document-links/:token` (signed, public); portal: `GET /v1/borrower/document-requests`, `POST /v1/borrower/document-requests/:requestId/upload`, `GET /v1/borrower/my-documents`, `GET /v1/borrower/my-documents/:documentId/download` |
+| Trade finance | `GET trade/receivables`, `GET facilities/:id/invoices`, `POST facilities/:id/invoices`, `GET invoices/:invoiceId`, `GET :invoiceId/quote`, `POST invoices/:invoiceId/{acknowledge,approve,reject,advance,advance/approve,advance/release,collections,reserve-payouts,write-offs}`, `POST :invoiceId/reserve-payouts/:taskId/decision`, `POST :invoiceId/write-offs/:taskId/decision`, `POST facilities/:id/suppliers`, `POST suppliers/:supplierId/{approve,reject}`, `POST facilities/:id/receivables/close`; `GET trade/transactions`, `GET/POST loans/:loanId/trade`, `POST trade-transactions/:transactionId/{documents,proceeds}`, `POST trade-documents/:tradeDocumentId/{verify,reject}`; letters of credit: `GET/POST letters-of-credit`, `GET :id`, `POST :id/{issue,reject,close,drawings}`, `POST :id/drawings/:drawingId/{approve,reject,pay}` |
 | Customer portal | `POST portal/loans/:loanId/restructure-requests`, `GET portal/restructures`, `GET portal/restructures/:id`, `POST portal/restructures/:id/proposals/:pid/accept` |
 | Payment channels | `GET/PUT payment-channels/settings`, `POST payment-channels/{settlement-files,payroll-files}`, `GET payment-channels/files`, `GET payment-channels/files/:fileId`, `GET payment-channels/reconciliation?date=&channel=`, `GET payment-channels/payroll-summary`, `GET payment-channels/auto-debit/attempts`; loans: `GET/POST :id/mandates`, `POST :id/mandates/:mandateId/revoke`, `GET :id/fx-quote`, `POST :id/fx-repayments`; service key: `POST integrations/{settlement-files,payroll-files}` |
 | Access | `GET access`, `POST access/{roles,assignments,delegations,authorities,policies,cohorts,simulate,service-accounts}`, decisions and revocations, `GET access/flags`, `POST access/flags/rules`, `GET access/capabilities/:type/:id` |

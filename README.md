@@ -62,15 +62,13 @@ Built as a modular monolith inside the same API. Detailed design in
   and Ijarah as separate structures.
 * Secured / unsecured, fixed / floating rate, green purpose, digital channel and
   recourse type are separate attributes.
-* **38 of the 56 templates are available** today. A template that needs a
+* **46 of the 56 templates are available** today. A template that needs a
   capability the engine does not have is seeded **unavailable**, and a product
   cannot be activated while any required capability is missing — the guard is
   enforced at activation, not documented and hoped for.
-* Currently unavailable: credit cards, BNPL, income-contingent education,
-  inventory-backed lending, project / infrastructure / acquisition
-  finance, import and export finance, factoring, supply-chain
-  finance, forfaiting, interbank / municipal / sovereign / concessional
-  lending, Murabaha and Ijarah. See the
+* Currently unavailable: income-contingent education, inventory-backed
+  lending, project / infrastructure / acquisition finance, interbank /
+  municipal / sovereign / concessional lending and Murabaha. See the
   [capability matrix](docs/lending/CAPABILITY_MATRIX.md) (generated from code).
 
 ### Products, versions and agreements
@@ -365,12 +363,13 @@ integration" until a real provider is wired and tested; the matrix will not
 claim otherwise.
 
 **Still to build** — borrowing bases, connected-party exposure, break-glass
-access, and the remaining specialised modules: documentary export finance,
-factoring, forfaiting, supply-chain finance, income-contingent education,
+access, and the remaining specialised modules: income-contingent education,
 project finance, institutional counterparty limits and Murabaha. Credit
 cards, BNPL, Ijarah leases, invoice financing with recourse, import letters
 of credit and syndicated loans are implemented; their assumed rules are in
-DECISIONS D-024..D-034.
+DECISIONS D-024..D-034. Factoring, supply-chain finance, forfaiting and
+import / export loans against trade documents are implemented too
+(DECISIONS D-055..D-059).
 
 Known limitations of what *is* implemented are listed in
 [OPERATIONS.md](docs/lending/OPERATIONS.md) and, item by item, in

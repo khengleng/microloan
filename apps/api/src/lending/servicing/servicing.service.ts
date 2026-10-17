@@ -206,7 +206,12 @@ export class ServicingService {
             ? { kind: 'BNPL' }
             : state.config.lease
               ? { kind: 'LEASE', structure: state.config.attributes.structure }
-              : null,
+              : state.config.trade?.documentary
+                ? {
+                    kind: 'TRADE',
+                    direction: state.config.trade.documentary.direction,
+                  }
+                : null,
       };
     });
   }
