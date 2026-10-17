@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 43 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 17
+✅ Fully implemented: 46 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 15
 
 ## Capabilities
 
@@ -130,12 +130,13 @@ A product version can be activated only when every capability it requires is **F
 | `card.revolving_credit` | ⛔ Not implemented | 3 | Credit cards: statements, minimum payment, grace on purchases |  |
 | `bnpl.merchant_settlement` | ⛔ Not implemented | 3 | BNPL: merchant settlement and purchase-linked plans |  |
 | `trade.documentary` | ⛔ Not implemented | 3 | Import / export finance against trade documents |  |
-| `trade.invoice_finance` | ⛔ Not implemented | 3 | Invoice-backed lending with an invoice register |  |
+| `trade.invoice_finance` | ✅ Fully implemented | 3 | Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>Recourse only (no factoring or non-recourse purchase); no late penalty on recourse arrears (DECISIONS D-012). |
+| `trade.letter_of_credit` | ✅ Fully implemented | 3 | Import letters of credit: maker-checker issuance with a fee and an off-balance-sheet contingent memo; a payment by the bank converts into a term loan for the importer | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>No SWIFT messaging, document examination or confirmation; payment is recorded, not sent. |
 | `trade.factoring` | ⛔ Not implemented | 3 | Factoring with debtor collections and recourse |  |
 | `trade.supply_chain` | ⛔ Not implemented | 3 | Supply-chain (reverse factoring) programmes |  |
 | `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
 | `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
-| `syndication.participations` | ⛔ Not implemented | 3 | Syndicated loans: agency, participations, pro-rata sharing |  |
+| `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-015). |
 | `project_finance.waterfall` | ⛔ Not implemented | 3 | Project finance: cash waterfall, DSCR covenants, sculpted repayment |  |
 | `covenants.monitoring` | ⛔ Not implemented | 3 | Financial covenant monitoring |  |
 | `institutional.counterparty_limits` | ⛔ Not implemented | 3 | Interbank / sovereign / municipal counterparty limits and conventions |  |
@@ -198,13 +199,14 @@ A product version can be activated only when every capability it requires is **F
 | Agriculture | Farm equipment loan (`AGRI_FARM_EQUIPMENT`) |  | ✅ |  |
 | Agriculture | Plantation development loan (`AGRI_PLANTATION`) |  | ✅ |  |
 | Corporate / project | Corporate term loan (`CORPORATE_TERM`) |  | ✅ |  |
-| Corporate / project | Syndicated loan (`SYNDICATED`) |  | ⛔ | `syndication.participations` (not implemented) |
+| Corporate / project | Syndicated loan (`SYNDICATED`) |  | ✅ |  |
 | Corporate / project | Project finance (`PROJECT_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
 | Corporate / project | Infrastructure finance (`INFRASTRUCTURE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
 | Corporate / project | Acquisition finance (`ACQUISITION_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented) |
 | Trade / receivables | Import loan (`IMPORT_LOAN`) |  | ⛔ | `trade.documentary` (not implemented) |
 | Trade / receivables | Export working capital (`EXPORT_WORKING_CAPITAL`) |  | ⛔ | `trade.documentary` (not implemented) |
-| Trade / receivables | Invoice-backed loan (`INVOICE_BACKED`) |  | ⛔ | `collateral.borrowing_base` (not implemented), `trade.invoice_finance` (not implemented) |
+| Trade / receivables | Invoice-backed loan (`INVOICE_BACKED`) |  | ✅ |  |
+| Trade / receivables | Import letter of credit (`LETTER_OF_CREDIT`) |  | ✅ |  |
 | Trade / receivables | Factoring (`FACTORING`) |  | ⛔ | `trade.factoring` (not implemented) |
 | Trade / receivables | Supply-chain finance (`SUPPLY_CHAIN_FINANCE`) |  | ⛔ | `trade.supply_chain` (not implemented) |
 | Trade / receivables | Forfaiting (`FORFAITING`) |  | ⛔ | `trade.forfaiting` (not implemented) |
