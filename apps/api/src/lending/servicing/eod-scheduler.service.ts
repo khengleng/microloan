@@ -6,6 +6,7 @@ import { runAsSystem, runAsTenant } from '../../prisma/tenant-context';
 import { BusinessDateService } from '../common/business-date.service';
 import { LendingActor } from '../common/util';
 import { ServicingService } from './servicing.service';
+import { PeriodCloseService } from '../accounting/period-close.service';
 
 /** Arbitrary, fixed key for the cross-instance advisory lock. */
 const EOD_LOCK_KEY = 7_264_190_311;
@@ -61,6 +62,7 @@ export class EodSchedulerService {
     private readonly prisma: PrismaService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
+    private readonly periods: PeriodCloseService,
   ) {}
 
   @Cron(process.env.LENDING_EOD_CRON || '15 0 * * *', {
@@ -125,6 +127,9 @@ export class EodSchedulerService {
       for (const day of days) {
         await this.businessDate.advance(tenantId, day, actor.id);
         const r = await this.servicing.runBatch(actor);
+        // Month end is a stage of end of day: once the last day of a month
+        // is processed, its close is prepared for a person to approve.
+        if (!r.failed.length) await this.periods.autoPrepare(tenantId, day);
         runs.push({
           businessDate: day,
           processed: r.processed,

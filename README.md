@@ -265,6 +265,11 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Collections** — an escalation ladder per product (SMS, call, visit,
   notice, legal review) feeding collector work queues; guarantor demands and
   payments; set-off of the borrower's deposit under maker-checker.
+* **Month-end and year-end close** — month end is a stage of end of day:
+  checks, a frozen snapshot of the books and the portfolio, a lock approved
+  by a second person (enforced in the posting service and the database),
+  reopening under maker-checker, and year-end close into retained earnings;
+  Lending › Period close.
 * **Customer outputs and reporting** — statements for any period, due-soon
   and overdue notices, closure letters, the credit bureau file and a
   general-ledger export.

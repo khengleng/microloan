@@ -154,6 +154,9 @@ const LITERALS: Record<string, string> = {
   'conditions/:code': 'AGREEMENT_SIGNED',
   'capabilities/:resourceType': 'LOAN_ACCOUNT',
   'payment/:reference': 'PAY-0000',
+  'periods/:year': '2026',
+  ':year/:month': '1',
+  'years/:year': '2026',
   'document-links/:token': 'not-a-signed-document-link',
 };
 

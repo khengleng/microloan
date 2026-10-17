@@ -71,6 +71,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'CollectionTask',
   'GuarantorDemand',
   'LoanCovenant',
+  'AccountingPeriod',
+  'PeriodCloseLog',
   'CovenantTest',
   // Payment channels (UC-16, UC-18, UC-19, UC-21)
   'PaymentChannelSettings',

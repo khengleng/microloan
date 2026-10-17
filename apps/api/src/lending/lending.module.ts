@@ -16,6 +16,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
+import { PeriodCloseService } from './accounting/period-close.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { SuspenseService } from './payments/suspense.service';
@@ -111,6 +112,7 @@ import {
   ],
   providers: [
     ReportingService,
+    PeriodCloseService,
     CollectionsService,
     CovenantsService,
     LendingPrisma,

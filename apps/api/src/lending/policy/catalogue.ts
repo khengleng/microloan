@@ -201,6 +201,19 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Approve an impairment policy proposed by someone else',
     category: 'Operations',
   },
+  {
+    code: 'accounting.period.close',
+    description:
+      'Prepare month-end and year-end close, and request a period be reopened',
+    category: 'Operations',
+  },
+  {
+    code: 'accounting.period.approve',
+    description:
+      'Approve (lock) a period close or a reopening prepared by someone else',
+    category: 'Operations',
+    financial: true,
+  },
   // Restructuring and hardship
   {
     code: 'restructure.request',
@@ -736,6 +749,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'impairment.manage',
       'servicing.batch.run',
       'loan_data.export',
+      'accounting.period.close',
     ],
   },
   {
@@ -748,6 +762,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'audit.read',
       'accounting.read',
       'impairment.approve',
+      'accounting.period.approve',
       'feature_flag.read',
       'access_policy.read',
       'policy.simulate',

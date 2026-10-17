@@ -26,6 +26,7 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
 import { ReportingService } from './reporting/reporting.service';
+import { PeriodCloseService } from './accounting/period-close.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
@@ -1274,7 +1275,117 @@ export class LendingOperationsController {
     private readonly holidays: PaymentHolidayService,
     private readonly impairment: ImpairmentService,
     private readonly reporting: ReportingService,
+    private readonly periods: PeriodCloseService,
   ) {}
+
+  // ── Month-end and year-end close (OPS-6) ──────────────────────────────────
+
+  /** The year at a glance: every month's close state and the year's. */
+  @LendingAction('accounting.read')
+  @Get('periods')
+  periodOverview(@Req() req: Req_, @Query('year') year?: string) {
+    return this.periods.overview(actor(req), year ? Number(year) : undefined);
+  }
+
+  @LendingAction('accounting.read')
+  @Get('periods/:year/:month')
+  periodMonth(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Param('month') month: string,
+  ) {
+    return this.periods.month(actor(req), Number(year), Number(month));
+  }
+
+  @LendingAction('accounting.period.close')
+  @Post('periods/:year/:month/prepare')
+  prepareMonth(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Body(new ZodPipe(S.periodComment)) body: { comment?: string },
+  ) {
+    return this.periods.prepareMonth(
+      actor(req),
+      Number(year),
+      Number(month),
+      body,
+    );
+  }
+
+  @LendingAction('accounting.period.approve')
+  @Post('periods/:year/:month/decision')
+  decideMonth(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.periods.decideMonth(
+      actor(req),
+      Number(year),
+      Number(month),
+      body,
+    );
+  }
+
+  @LendingAction('accounting.period.close')
+  @Post('periods/:year/:month/reopen')
+  reopenMonth(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Body(new ZodPipe(S.periodReopen)) body: { reason: string },
+  ) {
+    return this.periods.requestReopen(
+      actor(req),
+      Number(year),
+      Number(month),
+      body,
+    );
+  }
+
+  @LendingAction('accounting.period.approve')
+  @Post('periods/:year/:month/reopen-decision')
+  decideReopen(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.periods.decideReopen(
+      actor(req),
+      Number(year),
+      Number(month),
+      body,
+    );
+  }
+
+  @LendingAction('accounting.read')
+  @Get('years/:year')
+  yearView(@Req() req: Req_, @Param('year') year: string) {
+    return this.periods.yearView(actor(req), Number(year));
+  }
+
+  @LendingAction('accounting.period.close')
+  @Post('years/:year/prepare')
+  prepareYear(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Body(new ZodPipe(S.periodComment)) body: { comment?: string },
+  ) {
+    return this.periods.prepareYear(actor(req), Number(year), body);
+  }
+
+  @LendingAction('accounting.period.approve')
+  @Post('years/:year/decision')
+  decideYear(
+    @Req() req: Req_,
+    @Param('year') year: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.periods.decideYear(actor(req), Number(year), body);
+  }
 
   /** Due-soon reminders and overdue notices, with the text to send (OPS-7). */
   @LendingAction('loan.read')

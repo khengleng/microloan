@@ -230,6 +230,10 @@ export const S = {
   approve: z
     .object({ approve: z.boolean(), comment: z.string().max(500).optional() })
     .strict(),
+  periodComment: z.object({ comment: z.string().max(500).optional() }).strict(),
+  periodReopen: z
+    .object({ reason: z.string().trim().min(10).max(500) })
+    .strict(),
   createApplication: z
     .object({
       borrowerId: uuid,

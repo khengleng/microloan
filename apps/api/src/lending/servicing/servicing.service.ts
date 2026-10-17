@@ -3844,6 +3844,15 @@ export class ServicingService {
       outcome: failed.length ? 'FAILURE' : 'SUCCESS',
       details: { businessDate, processed, failed: failed.length },
     });
+    // Period close (OPS-6) needs to know end of day ran for the whole book.
+    if (Object.keys(scope).length === 0)
+      await this.prisma.tenantBusinessDate.updateMany({
+        where: { tenantId },
+        data: {
+          lastBatchDate: fromLocalDate(businessDate),
+          lastBatchFailures: failed.length,
+        },
+      });
     return { businessDate, processed, failed };
   }
 

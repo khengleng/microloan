@@ -3,6 +3,7 @@ import { lending } from '@microloan/shared';
 import { LedgerService } from '../../ledger/ledger.service';
 import type { Tx } from '../common/lending-prisma';
 import { D } from '../common/util';
+import { assertPeriodOpen } from './period-lock';
 
 export interface PostingLine {
   accountCode: string;
@@ -33,6 +34,8 @@ export class PostingService {
       currency: string;
       description: string;
       lines: PostingLine[];
+      /** Only the year-end closing journal is dated in a closed period. */
+      allowClosedPeriod?: boolean;
     },
   ) {
     const lines = input.lines
@@ -70,6 +73,8 @@ export class PostingService {
       );
     }
 
+    if (!input.allowClosedPeriod)
+      await assertPeriodOpen(tx, input.tenantId, input.entryDate);
     await this.ledger.ensureChartOfAccounts(input.tenantId, tx);
     const accounts = await tx.ledgerAccount.findMany({
       where: {

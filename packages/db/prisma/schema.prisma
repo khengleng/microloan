@@ -1039,6 +1039,9 @@ model TenantBusinessDate {
   businessDate DateTime @db.Date
   updatedBy    String?
   updatedAt    DateTime @updatedAt
+  /// The last business date end of day processed for the whole book, and how many accounts failed.
+  lastBatchDate     DateTime? @db.Date
+  lastBatchFailures Int       @default(0)
 }
 
 model HolidayCalendar {
@@ -3761,4 +3764,52 @@ model LeaseAsset {
   @@unique([tenantId, id])
   @@unique([tenantId, loanAccountId])
   @@index([tenantId, ownership])
+}
+
+/// An accounting month (month 1–12) or financial year (month 0) and its close
+/// (OPS-6): prepared with checks and a snapshot, locked by a second person.
+/// Nothing is posted into a closed month.
+model AccountingPeriod {
+  id             String    @id @default(uuid())
+  tenantId       String
+  year           Int
+  /// 1–12 for a month; 0 for the financial year.
+  month          Int
+  startDate      DateTime  @db.Date
+  endDate        DateTime  @db.Date
+  /// OPEN, PENDING, CLOSED, REOPEN_PENDING
+  status         String    @default("OPEN")
+  checks         Json      @default("[]")
+  snapshot       Json      @default("{}")
+  preparedBy     String?
+  preparedAt     DateTime?
+  approvedBy     String?
+  closedAt       DateTime?
+  /// Year end: the closing journal's event ids, one per currency.
+  closingEventIds String[] @default([])
+  reopenCount    Int       @default(0)
+  reopenReason   String    @default("")
+  reopenRequestedBy String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  log            PeriodCloseLog[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, year, month])
+  @@index([tenantId, status])
+}
+
+/// Who did what to a period: prepared, approved, rejected, reopen requested, reopened.
+model PeriodCloseLog {
+  id        String           @id @default(uuid())
+  tenantId  String
+  periodId  String
+  period    AccountingPeriod @relation(fields: [tenantId, periodId], references: [tenantId, id], onDelete: Cascade)
+  action    String
+  actorId   String
+  comment   String           @default("")
+  createdAt DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, periodId])
 }

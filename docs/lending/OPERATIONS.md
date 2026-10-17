@@ -86,6 +86,35 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
    only accounts in the caller's scope; each account is its own transaction.
 4. Check reconciliation: `GET /v1/lending/ops/reconciliation` must report no breaks.
 
+## Month-end and year-end close
+
+Lending › Period close. Month end and year end are stages of end of day, as
+in core banking systems: once end of day processes the last day of a month,
+the month's close is **prepared automatically** (checks plus a frozen
+snapshot) and waits for a person to approve it.
+
+* **Checks** — the business date has reached month end; end of day has
+  processed every day without failures; the previous month is closed;
+  debits equal credits; the sub-ledgers reconcile. Open money approvals and
+  unidentified payments are warnings shown to the approver.
+* **Snapshot** — trial balance at month end, the month's disbursements,
+  collections, write-offs and net income, and the portfolio (outstanding,
+  PAR 1/30/90, buckets, allowance), kept with the close.
+* **Lock** — finance (`accounting.period.close`) prepares; another person
+  (`accounting.period.approve`, Risk / compliance by default) approves. A
+  locked month accepts no posting: the posting service refuses it with
+  `PERIOD_CLOSED`, and the database trigger `LendingJournalEntry_period_lock`
+  refuses it again. Postings carry the business date, so normal work simply
+  continues in the next month.
+* **Reopen** — only the latest closed month, with a reason, approved by a
+  second person; never once its year is closed.
+* **Year end** — when every month with activity is closed (and the previous
+  year), finance prepares and another person approves; the approval posts a
+  balanced journal per currency dated 31 December that brings every income
+  and expense account to zero against retained earnings (3100).
+
+The close covers the lending ledger. The legacy ledger is closed separately.
+
 ## Migrations and deployment
 
 * `packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql`

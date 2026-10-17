@@ -211,6 +211,9 @@ export const ACTIONS: ActionDefinition[] = [
   A('impairment.read', 'TENANT', 'READ', { permission: 'accounting.read' }),
   A('impairment.manage', 'TENANT', 'CONFIG'),
   A('impairment.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
+  // Month-end and year-end close (OPS-6): finance prepares, someone else locks.
+  A('accounting.period.close', 'TENANT', 'CONFIG'),
+  A('accounting.period.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {
     workflowStates: ['SUBMITTED'],
