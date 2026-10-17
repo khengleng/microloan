@@ -6,12 +6,13 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatusBadge } from '../StatusBadge';
+import { ImpairmentTab } from './ImpairmentTab';
 import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Table, Tabs, TextInput, td, th } from '../ui';
 import { qs, useAction, useApi } from '../useAsync';
 import { fmtDateTime, fmtRate, percentToFraction } from '../format';
 import type { BatchResult, BusinessDate, CalendarHoliday, HolidayCalendar, IntegrationsStatus, RateObservation } from './types';
 
-type Tab = 'date' | 'rates' | 'calendars' | 'integrations';
+type Tab = 'date' | 'rates' | 'calendars' | 'impairment' | 'integrations';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CODE_RE = /^[A-Z0-9_]{2,20}$/;
@@ -447,12 +448,14 @@ export function OperationsView() {
                     { value: 'date', label: 'Business date & end of day' },
                     { value: 'rates', label: 'Benchmark rates' },
                     { value: 'calendars', label: 'Holiday calendars' },
+                    { value: 'impairment', label: 'Impairment policy' },
                     { value: 'integrations', label: 'Integrations' },
                 ]}
             />
             {tab === 'date' && <BusinessDateTab />}
             {tab === 'rates' && <RatesTab />}
             {tab === 'calendars' && <CalendarsTab />}
+            {tab === 'impairment' && <ImpairmentTab />}
             {tab === 'integrations' && <IntegrationsTab />}
         </div>
     );

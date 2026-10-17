@@ -274,6 +274,8 @@ export interface LoanAccount extends LoanSummary {
     advanceBalance?: Money;
     /** Interest is held in suspense instead of income while true (UC-62). */
     nonAccrual?: boolean; nonAccrualSince?: LocalDate | null; interestInSuspense?: Money;
+    /** Loss allowance and classification from the tenant's impairment policy (OPS-5). */
+    allowance?: Money; classification?: string | null; impairmentStage?: number | null;
 }
 
 export interface LoanScheduleLine {

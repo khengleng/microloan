@@ -123,6 +123,8 @@ export function LoanDetailView({ id }: { id: string }) {
                             ? <span key="na" className="text-amber-700 font-semibold" title="Interest is still owed but held in suspense, not income">Non-accrual since {acc.nonAccrualSince?.slice(0, 10)}</span>
                             : 'Accruing'],
                         ['Interest in suspense', <Money key="sus" value={acc.interestInSuspense ?? '0'} currency={cur} />],
+                        ['Classification', acc.classification ? `${acc.classification.replace(/_/g, ' ').toLowerCase()}${acc.impairmentStage ? ` · stage ${acc.impairmentStage}` : ''}` : 'Not classified'],
+                        ['Loss allowance', <Money key="allow" value={acc.allowance ?? '0'} currency={cur} />],
                         ['Instalment', <Money key="in" value={acc.instalmentAmount} currency={cur} />],
                         ['Days past due', <span key="dpd" className={acc.daysPastDue > 0 ? 'text-red-600 font-semibold' : ''}>{acc.daysPastDue}</span>],
                         ['Delinquency bucket', <StatusBadge key="b" status={acc.delinquencyBucket} />],
