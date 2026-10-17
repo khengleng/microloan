@@ -75,6 +75,21 @@ const bucketSchema = z.object({ code, label: text(60), minDpd: z.number().int().
 
 const componentEnum = z.enum(['PENALTY', 'FEE', 'TAX', 'INTEREST', 'PRINCIPAL']);
 
+/** Policy kinds a contract can be composed from (docs/servicing/POLICY_MODEL.md). */
+export const POLICY_KINDS = ['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL'] as const;
+export type PolicyKind = (typeof POLICY_KINDS)[number];
+
+const policyChoiceSchema = z
+  .object({
+    /** Policy code used when the contract makes no choice. */
+    defaultCode: code,
+    /** Policies a contract on this product may choose. Must include the default. */
+    menu: z.array(code).min(1).max(20),
+    /** Narrower bounds for policy parameters on this product. */
+    parameterBounds: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9]{0,39}$/), z.object({ min: z.number(), max: z.number() }).strict()).default({}),
+  })
+  .strict();
+
 export const productConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -181,11 +196,41 @@ export const productConfigSchema = z
           })
           .strict(),
         earlySettlement: z.object({ allowed: z.boolean(), feeRate: rateFraction.nullable().default(null), feeFixed: decimalString.nullable().default(null) }).strict(),
+        /**
+         * Lock-in tiers for repaying early (DECISIONS D-004). Tiers are checked in
+         * order by whole months since disbursement; the first tier whose
+         * `untilMonth` has not passed applies and replaces the base fee.
+         */
+        earlyRepaymentCharges: z
+          .object({
+            appliesTo: z.array(z.enum(['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT'])).min(1).default(['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT']),
+            basis: z.enum(['AMOUNT_REPAID', 'OUTSTANDING_PRINCIPAL']).default('AMOUNT_REPAID'),
+            tiers: z
+              .array(
+                z
+                  .object({
+                    untilMonth: z.number().int().min(1).max(600),
+                    action: z.enum(['CHARGE', 'REFUSE']),
+                    rate: rateFraction.nullable().default(null),
+                    fixed: decimalString.nullable().default(null),
+                  })
+                  .strict(),
+              )
+              .max(12)
+              .default([]),
+          })
+          .strict()
+          .default({ appliesTo: ['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT'], basis: 'AMOUNT_REPAID', tiers: [] }),
         allocation: z
           .object({
             order: z.array(componentEnum).length(5),
             strategy: z.enum(['OLDEST_DUE_FIRST', 'COMPONENT_FIRST']),
-            excessHandling: z.enum(['PREPAY', 'REJECT']),
+            /**
+             * What a payment above the amount currently due does. ADVANCE holds it
+             * as a customer advance applied to instalments on their due dates
+             * (DECISIONS D-001); PREPAY reduces principal now; REJECT refuses it.
+             */
+            excessHandling: z.enum(['ADVANCE', 'PREPAY', 'REJECT']),
           })
           .strict(),
         maxBackdateDays: z.number().int().min(0).max(31).default(0),
@@ -276,6 +321,16 @@ export const productConfigSchema = z
         collectionStages: z.array(z.object({ code, label: text(60), fromDpd: z.number().int().min(0) }).strict()).default([]),
         writeOffMinDpd: z.number().int().min(0).nullable().default(null),
         restructureAllowed: z.boolean().default(true),
+        /** Stop recognising interest as income past a days-past-due threshold (DECISIONS D-002). */
+        nonAccrual: z
+          .object({
+            enabled: z.boolean().default(false),
+            fromDpd: z.number().int().min(1).max(3650).nullable().default(null),
+            /** The loan returns to accrual when days past due falls to this or below. */
+            cureAtDpd: z.number().int().min(0).max(3650).default(0),
+          })
+          .strict()
+          .default({ enabled: false, fromDpd: null, cureAtDpd: 0 }),
         integrations: z
           .object({
             creditBureau: z.enum(['NONE', 'OPTIONAL', 'REQUIRED']),
@@ -341,6 +396,19 @@ export const productConfigSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * Policy kinds this product composes from the policy library. A kind not
+     * listed uses this configuration's own section for every contract.
+     */
+    policies: z
+      .object({
+        PREPAYMENT: policyChoiceSchema.optional(),
+        LATE_CHARGES: policyChoiceSchema.optional(),
+        ALLOCATION: policyChoiceSchema.optional(),
+        NON_ACCRUAL: policyChoiceSchema.optional(),
+      })
+      .strict()
+      .default({}),
     accounting: z
       .object({
         cash: code,
@@ -358,6 +426,10 @@ export const productConfigSchema = z
         /** Income from money recovered on loans already written off. */
         recoveryIncome: code.default('4300'),
         principalForgivenessExpense: code.default('5110'),
+        /** Money received ahead of its due date, held for the borrower (liability). */
+        customerAdvances: code.default('2300'),
+        /** Interest accrued on non-accrual loans, not yet recognised as income. */
+        interestSuspense: code.default('2400'),
       })
       .strict(),
   })
@@ -470,6 +542,27 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
     if (buckets[i - 1].maxDpd === null || buckets[i - 1].maxDpd! + 1 !== buckets[i].minDpd) add('operations.delinquencyBuckets', 'buckets must be contiguous');
   }
   if (buckets[buckets.length - 1].maxDpd !== null) add('operations.delinquencyBuckets', 'the last bucket must be open-ended');
+
+  // Lock-in tiers: ascending, and a CHARGE tier must charge something.
+  const erc = c.repayment.earlyRepaymentCharges;
+  erc.tiers.forEach((t, i) => {
+    if (i > 0 && t.untilMonth <= erc.tiers[i - 1].untilMonth)
+      add(`repayment.earlyRepaymentCharges.tiers.${i}.untilMonth`, 'tiers must be in ascending untilMonth order');
+    if (t.action === 'CHARGE' && !t.rate && !t.fixed)
+      add(`repayment.earlyRepaymentCharges.tiers.${i}`, 'a CHARGE tier needs a rate or a fixed amount');
+    if (t.action === 'REFUSE' && (t.rate || t.fixed))
+      add(`repayment.earlyRepaymentCharges.tiers.${i}`, 'a REFUSE tier cannot also charge');
+  });
+  if (c.operations.nonAccrual.enabled) {
+    if (c.operations.nonAccrual.fromDpd == null) add('operations.nonAccrual.fromDpd', 'required when non-accrual is enabled');
+    else if (c.operations.nonAccrual.cureAtDpd >= c.operations.nonAccrual.fromDpd)
+      add('operations.nonAccrual.cureAtDpd', 'must be below fromDpd');
+  }
+  for (const [kind, choice] of Object.entries(c.policies)) {
+    if (choice && !choice.menu.includes(choice.defaultCode)) add(`policies.${kind}.menu`, 'must include the default policy');
+    for (const [name, b] of Object.entries(choice?.parameterBounds ?? {}))
+      if (b.min > b.max) add(`policies.${kind}.parameterBounds.${name}`, 'min exceeds max');
+  }
 
   return issues.length ? { ok: false, issues } : { ok: true, config: c };
 }

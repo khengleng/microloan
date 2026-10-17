@@ -16,3 +16,4 @@ export * from './group.js';
 export * from './settlement.js';
 export * from './refinance.js';
 export * from './payment-holiday.js';
+export * from './policies.js';
