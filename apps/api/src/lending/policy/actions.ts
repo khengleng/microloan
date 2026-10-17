@@ -22,9 +22,12 @@ export type ActionKind =
   /** Restructuring workflow: gated by restructure flags, never by origination flags. */
   | 'RESTRUCTURE'
   /** Drawing against a limit: new money out, like a disbursement. */
-  | 'DRAWDOWN';
+  | 'DRAWDOWN'
+  /** Customer documents (DOC-1..10): no money, no product flags. */
+  | 'DOCUMENT';
 
 export type ResourceType =
+  | 'CUSTOMER_DOCUMENT'
   | 'RESTRUCTURE_CASE'
   | 'FACILITY'
   | 'BORROWER_GROUP'
@@ -482,6 +485,24 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.rate_reset.apply', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     workflowStates: ['ACTIVE'],
   }),
+  // Customer documents (DOC-1..10). The resource is the customer: tenant,
+  // the borrower's branch, and the uploader of the version under review.
+  A('document.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('document.upload', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('document.review', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('document.manage', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('document.retention.manage', 'TENANT', 'DOCUMENT', {
+    permission: 'document.manage',
+  }),
+  A('document.expiry.run', 'TENANT', 'DOCUMENT', {
+    permission: 'document.manage',
+  }),
+  // The borrower, in the portal, on their own documents only.
+  A('document.read_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),
+  A('document.upload_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),
   A('servicing.batch.run', 'TENANT', 'SERVICING_MONEY'),
   A('loan_data.export', 'TENANT', 'READ'),
   A('accounting.read', 'TENANT', 'READ'),

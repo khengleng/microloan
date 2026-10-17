@@ -44,6 +44,14 @@ import {
   RestructuringController,
   RestructuringPortalController,
 } from './restructuring/restructuring.controller';
+import { DocumentStorageService } from './documents/document-storage';
+import { CustomerDocumentsService } from './documents/customer-documents.service';
+import { GeneratedDocumentsService } from './documents/generated-documents.service';
+import { DocumentExpiryScheduler } from './documents/document-expiry.scheduler';
+import {
+  DocumentLinksController,
+  LendingDocumentsController,
+} from './documents/documents.controller';
 import {
   LendingAccessController,
   LendingApplicationsController,
@@ -80,6 +88,8 @@ import {
     PaymentChannelsController,
     LoanPaymentChannelsController,
     ChannelIntegrationsController,
+    LendingDocumentsController,
+    DocumentLinksController,
   ],
   providers: [
     ReportingService,
@@ -111,8 +121,13 @@ import {
     RestructuringService,
     PaymentHolidayService,
     RecoveryService,
+    DocumentStorageService,
+    CustomerDocumentsService,
+    GeneratedDocumentsService,
+    DocumentExpiryScheduler,
   ],
   exports: [
+    CustomerDocumentsService,
     PolicyService,
     LendingActionGuard,
     AccessAdminService,

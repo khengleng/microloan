@@ -435,6 +435,30 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Facilities',
     financial: true,
   },
+  // Customer documents (DOC-1..10)
+  {
+    code: 'document.read',
+    description:
+      'View customer documents and download them (every access is audited)',
+    category: 'Documents',
+  },
+  {
+    code: 'document.upload',
+    description:
+      'Upload and replace customer documents; request documents from customers',
+    category: 'Documents',
+  },
+  {
+    code: 'document.review',
+    description:
+      'Accept or reject a document uploaded by someone else (checker)',
+    category: 'Documents',
+  },
+  {
+    code: 'document.manage',
+    description: 'Legal hold, retention rules and deletion after retention',
+    category: 'Documents',
+  },
 ];
 
 export const PERMISSION_CODES = new Set(PERMISSIONS.map((p) => p.code));
@@ -444,6 +468,8 @@ export const CUSTOMER_PERMISSIONS = [
   'restructure.request',
   'restructure.read_own',
   'restructure.accept_own',
+  'document.read_own',
+  'document.upload_own',
 ];
 
 /** Permissions a platform administrator holds. None touch tenant borrower data or money. */
@@ -459,6 +485,7 @@ export interface RoleDefinition {
 }
 
 const READ_ALL = [
+  'document.read',
   'loan.read',
   'loan_application.read',
   'loan_product.read',
@@ -516,6 +543,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Originates applications and runs solidarity groups for borrowers in their scope.',
     permissions: [
+      'document.read',
+      'document.upload',
       'borrower_group.read',
       'borrower_group.manage',
       'loan_application.create',
@@ -535,6 +564,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit analyst',
     description: 'Assesses applications and recommends decisions.',
     permissions: [
+      'document.read',
+      'document.upload',
+      'document.review',
       'borrower_group.read',
       'loan_application.read',
       'credit_decision.recommend',
@@ -551,6 +583,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit approver',
     description: 'Approves or rejects credit within approval authority.',
     permissions: [
+      'document.read',
       'loan_application.read',
       'credit_decision.approve',
       'credit_decision.reject',
@@ -569,6 +602,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Books agreements, prepares disbursements, posts repayments, proposes write-offs.',
     permissions: [
+      'document.upload',
+      'document.review',
       ...READ_ALL,
       'loan.agreement.book',
       'loan.disbursement.prepare',
@@ -589,6 +624,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Approves and executes disbursements, reverses repayments, approves write-offs.',
     permissions: [
+      'document.review',
       ...READ_ALL,
       'loan.disbursement.approve',
       'loan.disbursement.execute',
@@ -607,6 +643,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Collections officer',
     description: 'Works delinquent accounts and posts collections.',
     permissions: [
+      'document.read',
+      'document.upload',
       'loan.read',
       'loan.repayment.post',
       'loan.recovery.post',
@@ -655,6 +693,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Risk / compliance reviewer',
     description: 'Read access across lending with the policy simulator.',
     permissions: [
+      'document.manage',
       ...READ_ALL,
       'audit.read',
       'accounting.read',

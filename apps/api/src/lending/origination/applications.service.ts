@@ -29,16 +29,9 @@ import { WorkflowsService } from '../products/workflows.service';
 import { AdapterRegistry } from '../integrations/adapters';
 import { LendingPoliciesService } from '../products/lending-policies.service';
 import { GroupsService } from './groups.service';
+import { CustomerDocumentsService } from '../documents/customer-documents.service';
 
 type Json = Prisma.InputJsonValue;
-const ALLOWED_MIME = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
-// Uploads arrive base64-encoded in a JSON body capped at 5 MB, so the file itself must stay under ~3.5 MB.
-const MAX_DOCUMENT_BYTES = 3.5 * 1024 * 1024;
 
 export interface CreateApplicationBody {
   /** For a group loan, the group's leader; they sign for the group. */
@@ -75,6 +68,7 @@ export class ApplicationsService {
     private readonly adapters: AdapterRegistry,
     private readonly groups: GroupsService,
     private readonly policies: LendingPoliciesService,
+    private readonly library: CustomerDocumentsService,
   ) {}
 
   // ── Reads (scope-filtered) ────────────────────────────────────────────────
@@ -486,55 +480,47 @@ export class ApplicationsService {
       'loan_application.update',
       applicationResource(app, version, product, []),
     );
-    if (!ALLOWED_MIME.has(body.mimeType))
-      throw new BadRequestException(
-        'Accepted document types: PDF, JPEG, PNG, WebP.',
-      );
-    const bytes = Buffer.from(body.contentBase64 ?? '', 'base64');
-    if (!bytes.length || bytes.length > MAX_DOCUMENT_BYTES)
-      throw new BadRequestException(
-        'Documents must be between 1 byte and 3.5 MB.',
-      );
     if (!/^[A-Z0-9_]{2,40}$/.test(body.code ?? ''))
       throw new BadRequestException('Invalid document code.');
-    const fileName = String(body.fileName ?? 'document')
-      .replace(/[^\w.\- ]/g, '_')
-      .slice(0, 120);
-    const digest = sha256(bytes.toString('binary'));
-    const storage = this.adapters.documents();
-    const stored = await storage.put({
-      tenantId,
-      key: `applications/${id}/${Date.now()}-${digest.slice(0, 12)}`,
-      body: bytes,
-      contentType: body.mimeType,
+    // DOC-1/DOC-2: the file goes to the customer's document library (object
+    // storage, tenant-prefixed key, checksum, type check); the application
+    // keeps its ApplicationDocument row pointing at the same stored object.
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const filed = await this.library.fileForApplication(
+        tx,
+        actor,
+        app,
+        body.code,
+        body,
+      );
+      const row = await tx.applicationDocument.create({
+        data: {
+          tenantId,
+          applicationId: id,
+          code: body.code,
+          ...filed.file,
+          uploadedBy: actor.id,
+        },
+      });
+      await filed.bind(row.id);
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan_application.document_upload',
+          resourceType: 'Application',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            code: body.code,
+            sizeBytes: filed.file.sizeBytes,
+            storage: filed.file.storageProvider,
+            documentId: filed.document.id,
+          },
+        },
+        tx,
+      );
+      return { ...row, documentId: filed.document.id };
     });
-    const doc = await this.prisma.applicationDocument.create({
-      data: {
-        tenantId,
-        applicationId: id,
-        code: body.code,
-        fileName,
-        mimeType: body.mimeType,
-        sizeBytes: bytes.length,
-        sha256: digest,
-        storageProvider: stored.provider,
-        storageKey: stored.key,
-        uploadedBy: actor.id,
-      },
-    });
-    await this.audit.write({
-      actor,
-      action: 'loan_application.document_upload',
-      resourceType: 'Application',
-      resourceId: id,
-      outcome: 'SUCCESS',
-      details: {
-        code: body.code,
-        sizeBytes: bytes.length,
-        storage: stored.provider,
-      },
-    });
-    return doc;
   }
 
   async addCollateral(
@@ -1498,19 +1484,22 @@ export class ApplicationsService {
     if (steps.includes('DOCUMENT_CHECK')) {
       const stages =
         stage === 'APPLICATION' ? ['APPLICATION'] : ['APPLICATION', 'APPROVAL'];
-      const docs = await tx.applicationDocument.findMany({
-        where: { tenantId: app.tenantId, applicationId: app.id },
-        select: { code: true },
-      });
-      const have = new Set(docs.map((d) => d.code));
-      for (const req of config.operations.requiredDocuments.filter(
-        (d) => d.mandatory && stages.includes(d.stage),
-      )) {
-        if (!have.has(req.code))
-          blocking.push({
-            code: 'DOCUMENT',
-            message: `Missing document: ${req.label}`,
-          });
+      // DOC-3: the checklist reads the customer's library; a document that
+      // was rejected or has expired does not count.
+      const items = await this.library.applicationChecklist(
+        tx,
+        app,
+        stages,
+        config,
+      );
+      for (const item of items.filter((d) => d.mandatory && !d.present)) {
+        blocking.push({
+          code: 'DOCUMENT',
+          message:
+            item.status === 'MISSING'
+              ? `Missing document: ${item.label}`
+              : `Document ${item.label} is ${item.status.toLowerCase().replace('_', ' ')}`,
+        });
       }
     }
 

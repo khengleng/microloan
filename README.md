@@ -341,7 +341,7 @@ traced to code, tests and a status in
 | Loan types | 12 | 8 | 4 | 24 |
 | Use cases | 46 | 8 | 21 | 75 |
 | Operations | 3 | 5 | 0 | 8 |
-| Customer documents | 0 | 6 | 4 | 10 |
+| Customer documents | 10 | 0 | 0 | 10 |
 | Test vectors | 19 match to the cent | 1 engine only (invoice finance) | 0 | 20 |
 
 **Strong today:** every schedule method and golden test vector, configurable
@@ -352,25 +352,26 @@ restructuring, payment holidays, refinance, negotiated settlement, write-off
 and recovery, floating-rate resets, facilities with term-out and arrears,
 group lending with member contributions, collateral margin calls and release,
 recovery workflows (repossession, pawn custody and auction, credit insurance
-claims, debt sale), maker-checker throughout, an automatic end-of-day run, and a tested tenant
+claims, debt sale), maker-checker throughout, an automatic end-of-day run, one customer
+document library (object storage, review by another user, versions, expiry
+reminders, retention and legal hold, audited short-lived downloads, filed
+key facts and letters, portal requests), and a tested tenant
 wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
 
 **Largest remaining gaps, by risk to money owed** (full list in
 [TRACEABILITY.md](docs/servicing/TRACEABILITY.md)):
 
-1. Customer documents live in three unrelated stores, two of them as base64
-   in the database, with no versions, expiry or retention (DOC-1..10).
-2. No collection escalation engine or collector work queues in the lending
+1. No collection escalation engine or collector work queues in the lending
    stack; no guarantor demand or set-off (UC-58, UC-60, UC-61).
 3. Auto-debit has no real bank integration: mandates, collection, retries
    and reconciliation run on a mock bank (UC-16). Settlement and payroll
    files and cross-currency payments are built (UC-18, UC-19, UC-21).
 4. Recovery workflows: repossession, pawn forfeiture, credit insurance, debt
    sale (UC-65, UC-66, UC-68, UC-71).
-5. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
+4. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
 
 Not started: credit cards, BNPL merchant settlement, invoice finance, letters
-of credit, syndication, closure letters and credit bureau reporting,
+of credit, syndication, credit bureau reporting,
 promotional rates.
 
 ---

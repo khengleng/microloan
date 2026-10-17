@@ -10,10 +10,12 @@ import { BorrowerJwtStrategy } from './borrower-jwt.strategy';
 import { AuthzModule } from '../authz/authz.module';
 import { PaymentInstrumentsModule } from '../payment-instruments/payment-instruments.module';
 import { AgreementsModule } from '../agreements/agreements.module';
+import { LendingModule } from '../lending/lending.module';
+import { PortalDocumentsController } from './portal-documents.controller';
 
 @Module({
-  imports: [PassportModule, JwtModule.register({}), AuthzModule, PaymentInstrumentsModule, AgreementsModule],
-  controllers: [BorrowerPortalController, KycReviewController],
+  imports: [PassportModule, JwtModule.register({}), AuthzModule, PaymentInstrumentsModule, AgreementsModule, LendingModule],
+  controllers: [BorrowerPortalController, KycReviewController, PortalDocumentsController],
   providers: [BorrowerAuthService, BorrowerPortalService, KycReviewService, BorrowerJwtStrategy],
 })
 export class BorrowerPortalModule {}

@@ -6,6 +6,7 @@ import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { KycReviewDto } from './dto/kyc-review.dto';
 import { decryptField } from '../common/field-crypto';
+import { CustomerDocumentsService } from '../lending/documents/customer-documents.service';
 
 // Staff-facing manual e-KYC review. Reads borrower-uploaded documents and
 // flips the borrower's aggregate kycStatus. Tenant/branch scoped via authz.
@@ -15,6 +16,7 @@ export class KycReviewService {
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
     private readonly audit: AuditService,
+    private readonly library: CustomerDocumentsService,
   ) {}
 
   private async ownedBorrower(actor: JwtPayload, borrowerId: string) {
@@ -34,8 +36,22 @@ export class KycReviewService {
       where: { borrowerId },
       orderBy: { createdAt: 'desc' },
     });
-    // Decrypt the stored image content for staff review.
-    const decrypted = documents.map((d) => ({ ...d, content: decryptField(d.content) }));
+    // Decrypt the stored image content for staff review. Files held in the
+    // customer document library are served through a short-lived, audited link.
+    const decrypted: Record<string, unknown>[] = [];
+    for (const d of documents) {
+      const content = decryptField(d.content) ?? '';
+      if (!content.startsWith('library:')) {
+        decrypted.push({ ...d, content });
+        continue;
+      }
+      const link = await this.library.kycLink(
+        { id: this.authz.actorId(actor as any), type: 'USER', tenantId: actor.tenantId ?? null },
+        d.tenantId,
+        content.slice('library:'.length),
+      );
+      decrypted.push({ ...d, content: '', libraryDocumentId: content.slice('library:'.length), link });
+    }
     return { kycStatus: borrower.kycStatus, documents: decrypted };
   }
 

@@ -5,7 +5,10 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Check, X } from 'lucide-react';
 
-type Doc = { id: string; type: string; content: string; mimeType?: string | null; createdAt: string };
+type Doc = { id: string; type: string; content: string; mimeType?: string | null; createdAt: string; link?: string | null };
+
+/** Files held in the customer document library come as a short-lived link (API-served links go through the proxy). */
+const srcOf = (d: Doc) => (d.link ? (/^https?:/.test(d.link) ? d.link : `/api/proxy${d.link}`) : d.content);
 
 const DOC_LABEL: Record<string, string> = {
     NATIONAL_ID_FRONT: 'National ID (front)',
@@ -68,10 +71,10 @@ export function BorrowerKycReview({ borrowerId }: { borrowerId: string }) {
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {docs.map(d => (
-                            <a key={d.id} href={d.content} target="_blank" rel="noopener" className="block group">
+                            <a key={d.id} href={srcOf(d)} target="_blank" rel="noopener" className="block group">
                                 <div className="aspect-square rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
                                     {(d.mimeType || '').startsWith('image') || d.content.startsWith('data:image')
-                                        ? <img src={d.content} alt={d.type} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                        ? <img src={srcOf(d)} alt={d.type} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                                         : <span className="text-xs text-slate-400 px-2 text-center">{DOC_LABEL[d.type] || d.type}</span>}
                                 </div>
                                 <p className="text-[11px] text-slate-500 mt-1.5 text-center">{DOC_LABEL[d.type] || d.type}</p>

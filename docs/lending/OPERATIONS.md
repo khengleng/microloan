@@ -369,6 +369,28 @@ currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410).
 points, how many days old a rate may be, auto-debit attempts per due date and
 days between attempts.
 
+## Customer documents
+
+Lending › Documents (review queue, expiries, retention) and each customer's
+library (from the customer profile: Documents). Files go to S3 when
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_S3_BUCKET_NAME` are set;
+otherwise to local disk under `DOCUMENT_STORAGE_DIR` (required in production
+without S3; a temporary directory is used in development).
+
+* Every upload waits for review by a different user (Credit analyst, Loan
+  operations maker/checker hold `document.review`).
+* Expiry: a nightly job (`DOCUMENT_EXPIRY_CRON`, default 00:45,
+  `DOCUMENT_EXPIRY_DISABLED=true` to stop it) flags expired documents and
+  raises one reminder `DOCUMENT_EXPIRY_REMINDER_DAYS` (default 30) before
+  expiry; "Run expiry check now" does the same for your organisation.
+* Retention, legal hold and deletion need `document.manage` (Risk /
+  compliance). Defaults are in docs/servicing/DECISIONS.md (D-020).
+* Download links expire after `DOCUMENT_LINK_TTL_SECONDS` (default 300). API
+  links are signed with `DOCUMENT_LINK_SECRET` (falls back to a key derived
+  from `JWT_ACCESS_SECRET`).
+* Older KYC images, legacy loan documents and application uploads appear in
+  the library when it is opened; "Link older documents" does every customer.
+
 ## Known limitations
 
 * Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
@@ -395,6 +417,7 @@ days between attempts.
 | Applications | `GET/POST applications`, `GET applications/:id`, `PUT :id/terms`, `POST :id/{documents,collateral,guarantees,submit,simulate,recommend,approve,reject,book}`, `POST :id/conditions/:code` |
 | Loans | `GET loans`, `GET loans/export.csv`, `POST loans/batch/run`, `GET loans/:id`, `GET :id/settlement-quote`, `POST :id/disbursements`, `POST :id/disbursements/:taskId/decision`, `POST :id/disbursements/execute`, `POST :id/repayments`, `POST :id/settlement`, `POST :id/events/:eventId/reverse`, `POST :id/write-offs`, `POST :id/write-offs/:taskId/decision` |
 | Restructuring | `GET restructures`, `GET restructures/tasks`, `POST restructures/loans/:loanId`, `GET/POST restructures/:id/...` (`evidence`, `more-info`, `assessments`, `simulate`, `proposals`, `proposals/:pid/approve`, `reject`, `proposals/:pid/acceptance`, `conditions/:code`, `execute`, `reverse`, `withdraw`), `GET restructures/policy/current`, `POST restructures/policy`, `POST restructures/policy/:id/decision` |
+| Documents | `GET/POST customers/:borrowerId/documents`, `GET customers/:borrowerId/document-checklist`, `POST customers/:borrowerId/document-requests`, `POST document-requests/:requestId/cancel`, `GET applications/:id/document-checklist`, `GET documents/:documentId`, `POST documents/:documentId/{versions,review,link,legal-hold,delete}`, `PUT documents/:documentId/expiry`, `GET document-review-queue`, `GET document-expiries`, `POST document-expiries/run`, `GET/PUT document-retention`, `POST document-library/link-legacy`, `POST loans/:id/settlement-quote-letter`, `GET document-links/:token` (signed, public); portal: `GET /v1/borrower/document-requests`, `POST /v1/borrower/document-requests/:requestId/upload`, `GET /v1/borrower/my-documents`, `GET /v1/borrower/my-documents/:documentId/download` |
 | Customer portal | `POST portal/loans/:loanId/restructure-requests`, `GET portal/restructures`, `GET portal/restructures/:id`, `POST portal/restructures/:id/proposals/:pid/accept` |
 | Payment channels | `GET/PUT payment-channels/settings`, `POST payment-channels/{settlement-files,payroll-files}`, `GET payment-channels/files`, `GET payment-channels/files/:fileId`, `GET payment-channels/reconciliation?date=&channel=`, `GET payment-channels/payroll-summary`, `GET payment-channels/auto-debit/attempts`; loans: `GET/POST :id/mandates`, `POST :id/mandates/:mandateId/revoke`, `GET :id/fx-quote`, `POST :id/fx-repayments`; service key: `POST integrations/{settlement-files,payroll-files}` |
 | Access | `GET access`, `POST access/{roles,assignments,delegations,authorities,policies,cohorts,simulate,service-accounts}`, decisions and revocations, `GET access/flags`, `POST access/flags/rules`, `GET access/capabilities/:type/:id` |

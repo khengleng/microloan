@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { PaymentReliefSection } from '@/components/lending/portal/PaymentReliefSection';
+import { PortalDocumentsSection } from '@/components/lending/portal/PortalDocumentsSection';
 
 type Me = { firstName: string; lastName: string; organization: string | null; kycStatus: string };
 type Loan = {
@@ -149,6 +150,9 @@ export default function BorrowerPortalPage() {
                 </section>
 
                 <PaymentReliefSection />
+
+                {/* Documents the bank has asked for (DOC-10) */}
+                <PortalDocumentsSection />
 
                 {/* Payment QR */}
                 {qr?.qrRendered && (

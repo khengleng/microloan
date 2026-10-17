@@ -20,6 +20,7 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/payment-channels', label: 'Payment channels' },
     { href: '/lending/restructures', label: 'Restructures' },
     { href: '/lending/relief', label: 'Relief programmes' },
+    { href: '/lending/documents', label: 'Documents' },
     { href: '/lending/accounting', label: 'Accounting' },
     { href: '/lending/operations', label: 'Operations' },
     { href: '/lending/audit', label: 'Audit' },
