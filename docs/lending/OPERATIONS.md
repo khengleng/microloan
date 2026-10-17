@@ -86,6 +86,92 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
    only accounts in the caller's scope; each account is its own transaction.
 4. Check reconciliation: `GET /v1/lending/ops/reconciliation` must report no breaks.
 
+The scheduler (`EodSchedulerService`, LENDING_EOD_CRON, default 00:15 in
+LENDING_EOD_TZ) does steps 2–3 automatically, a day at a time, on one instance.
+Loans are processed `LENDING_EOD_CONCURRENCY` at a time (default 4, capped at
+the connection pool size minus two); each loan is still its own transaction
+with its row lock and compare-and-set. Sizing and measured throughput are in
+[PERFORMANCE.md](PERFORMANCE.md).
+
+## Monitoring
+
+### Endpoints
+
+| Path | Purpose | Access |
+| --- | --- | --- |
+| `GET /v1/health/live` | Liveness: the process answers. Never touches the database, so a database outage does not get instances restarted. | Public |
+| `GET /v1/health/ready` | Readiness: `SELECT 1` within `READINESS_DB_TIMEOUT_MS` (default 2000). 503 `{status:"unavailable"}` otherwise, so the load balancer drains the instance. | Public |
+| `GET /v1/health` | Unchanged minimal probe (`{status:"ok"}`). | Public |
+| `GET /v1/metrics` | Prometheus text format. | `Authorization: Bearer $METRICS_BEARER_TOKEN` (at least 16 characters), or — with `METRICS_ALLOW_PRIVATE_NETWORK=true` — a direct request from a loopback/private address carrying no `X-Forwarded-For`/`Forwarded` header. Anything else gets 404. Unconfigured, the endpoint is closed. |
+
+The metrics carry **aggregates only**: no label holds a tenant, user, loan,
+branch or any other record id (tenants appear only as counts), and HTTP routes
+are labelled with their pattern (`/v1/lending/loans/:id`), never the raw path.
+`monitoring.int-spec.ts` scrapes after real activity and checks that no id of
+any tenant, user, branch or loan appears anywhere in the body.
+
+Gauges that need the database are refreshed by a periodic job on every
+instance (`LENDING_METRICS_REFRESH_SECONDS`, default 60, minimum 10;
+`LENDING_METRICS_REFRESH_DISABLED=true` turns it off); a scrape reads the last
+values and never queries. The reconciliation itself runs on
+`LENDING_RECONCILIATION_CRON` (default `40 */6 * * *`) on one instance (advisory
+lock) for every tenant with loans; each run is written to the audit trail
+(`accounting.reconciliation`), which is what the breaks gauge reads, so every
+instance reports the same figure and a restart loses nothing.
+`LENDING_RECONCILIATION_JOB_DISABLED=true` turns the job off.
+
+### Metrics
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `lending_eod_run_duration_seconds` | histogram | One end-of-day batch run (one tenant, one business date). |
+| `lending_eod_loan_duration_seconds` | histogram | One loan in the batch. |
+| `lending_eod_loans_processed_total` / `lending_eod_loans_failed_total` | counter | Loans processed / failed by end of day. |
+| `lending_eod_runs_total{outcome}` | counter | Runs, `success` (no loan failed) or `failure`. |
+| `lending_eod_last_run_loans_processed` / `_failed`, `lending_eod_last_run_finished_timestamp_seconds` | gauge | The latest run on this instance. |
+| `lending_eod_tenants_behind` | gauge | Tenants with active loans whose end of day has not processed yesterday (the 00:15 run processes the day it starts on). |
+| `lending_eod_tenants_with_failures` | gauge | Tenants whose last end of day left failed accounts (blocks month end). |
+| `lending_tenants_with_active_loans` | gauge | Denominator for the two above. |
+| `lending_month_end_closes_pending{status}` | gauge | Closes `PENDING` approval, and reopen requests (`REOPEN_PENDING`). |
+| `lending_month_end_closes_not_prepared` | gauge | Tenants whose previous month had postings but has no close prepared or approved. |
+| `lending_reconciliation_breaks` | gauge | Breaks in the latest reconciliation of each tenant, summed. |
+| `lending_reconciliation_tenants_with_breaks` | gauge | Tenants whose latest reconciliation found a break. |
+| `lending_reconciliation_oldest_run_timestamp_seconds` | gauge | Oldest of the tenants' latest reconciliations (0 if a tenant with loans has none in the last 7 days). |
+| `lending_outbox_backlog{status}` | gauge | Outbox messages `PENDING` and `FAILED`. |
+| `lending_outbox_oldest_pending_age_seconds` | gauge | Age of the oldest pending message. |
+| `lending_db_connections{state}` | gauge | Connections the application role holds on its database, all instances (`pg_stat_activity`). |
+| `lending_db_pool_size` | gauge | `connection_limit` of this instance's pool. |
+| `prisma_pool_connections_open` / `_busy` / `_idle`, `prisma_client_queries_wait`, … | Prisma | The pool itself, per instance (Prisma `metrics` preview feature; read from the client's own counters). |
+| `http_request_duration_seconds{method,route,status}` | histogram | Latency by route pattern and status class (`2xx`, `4xx`, `5xx`). |
+| `http_requests_total{method,route,status}` | counter | Requests; the error rate is the `5xx` share. |
+| `lending_metrics_collector_errors_total{job}`, `lending_metrics_collector_last_success_timestamp_seconds{job}` | counter, gauge | Health of the refresh (`refresh`) and reconciliation (`reconciliation`) jobs. |
+| `process_*`, `nodejs_*` | default | Node.js process metrics. |
+
+### Alerts and dashboard
+
+* `ops/monitoring/prometheus-alerts.yml` — Prometheus alerting rules: API down,
+  5xx rate above 2 %, p95 latency above 2 s, pool ≥ 90 % busy, more than 80
+  server connections, end of day behind (2 h) or leaving failures, loans failing,
+  runs over an hour, any reconciliation break, reconciliation older than two
+  days, a close waiting three days or a month not prepared for five, outbox not
+  draining, and the metrics refresh failing.
+* `ops/monitoring/grafana-lending-dashboard.json` — Grafana dashboard (import,
+  choose the Prometheus data source): lending health tiles, end of day, HTTP
+  and database rows.
+
+Errors themselves still go to Sentry (`SENTRY_DSN`); the metrics say *that*
+something is wrong, Sentry and the logs say *what*.
+
+### Responding
+
+| Alert | First steps |
+| --- | --- |
+| `LendingEndOfDayBehind` | Logs: `End-of-day run failed` or `End-of-day already running on another instance`. Fix the cause, then let the next 00:15 run catch up (up to `LENDING_EOD_MAX_CATCHUP_DAYS` days per run) or run the batch from Lending › Operations. |
+| `LendingEndOfDayFailures` | Logs `EOD <tenant> <date>: N account(s) failed — <id>: <error>`. Failed loans are rolled back and retried by the next run; month end stays blocked until a clean run. |
+| `LendingReconciliationBreaks` | Accounting › Reconciliation for the tenant; nothing is corrected automatically. Do not close the month. |
+| `LendingMonthEndNotPrepared` | Lending › Period close shows the failing check. |
+| `DatabasePoolSaturated` | During end of day: lower `LENDING_EOD_CONCURRENCY` or raise `connection_limit` (keeping the total under the server's `max_connections`). |
+
 ## Month-end and year-end close
 
 Lending › Period close. Month end and year end are stages of end of day, as

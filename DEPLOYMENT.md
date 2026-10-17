@@ -128,6 +128,58 @@ made it useless as a gate for the api. In order:
   Subscription Plans. The `PLAN_PRICE_*` environment variables were removed and
   are no longer read; the api logs a warning at boot if any are still set.
 
+## Monitoring
+
+Details and the metric list: `docs/lending/OPERATIONS.md` → Monitoring.
+
+- **Probes.** Point the platform's liveness check at `GET /v1/health/live`
+  (no database) and its readiness/deploy healthcheck at
+  `GET /v1/health/ready` (`SELECT 1`, 503 when the database is unreachable).
+  `GET /v1/health` is unchanged.
+- **Scraping.** Set `METRICS_BEARER_TOKEN` (≥ 16 random characters, kept in
+  the platform's secret store) on the **api** service and configure the
+  scraper:
+
+  ```yaml
+  scrape_configs:
+    - job_name: microloan-api
+      metrics_path: /v1/metrics
+      scheme: https
+      authorization:
+        type: Bearer
+        credentials_file: /etc/prometheus/microloan-metrics-token
+      static_configs:
+        - targets: ['<api host>']
+  ```
+
+  With a scraper on the same private network instead, set
+  `METRICS_ALLOW_PRIVATE_NETWORK=true` and scrape the instance directly (not
+  through the public proxy: a request carrying `X-Forwarded-For` is always
+  refused). With neither set, `/v1/metrics` answers 404.
+- **Rules and dashboard.** Load `ops/monitoring/prometheus-alerts.yml` in
+  Prometheus (`rule_files`) and import
+  `ops/monitoring/grafana-lending-dashboard.json` into Grafana. The rules
+  expect the job name `microloan-api`.
+- **Optional settings.** `LENDING_METRICS_REFRESH_SECONDS` (60),
+  `LENDING_RECONCILIATION_CRON` (`40 */6 * * *`),
+  `LENDING_RECONCILIATION_JOB_DISABLED`, `LENDING_METRICS_REFRESH_DISABLED`,
+  `READINESS_DB_TIMEOUT_MS` (2000).
+
+## End of day and the connection pool
+
+- `LENDING_EOD_CONCURRENCY` (default 4) loans are processed at once, each
+  holding one connection for its transaction; it is capped at the pool size
+  (`connection_limit` in `DATABASE_URL`, else Prisma's default of CPUs × 2 + 1)
+  minus two. Measured throughput and sizing: `docs/lending/PERFORMANCE.md`.
+- Migration `20261019001600_lending_eod_scale` adds an index on
+  `LendingJournalLine("entryId")`; building it blocks writes to the journal
+  for its duration (seconds per few million lines). Deploy outside end of day.
+- Set `connection_limit` explicitly in `DATABASE_URL` and keep
+  `instances × connection_limit` comfortably under PostgreSQL's
+  `max_connections` (plus anything else connecting). The API now opens **one**
+  pool per instance; before this change three modules each opened their own,
+  so an instance could hold up to four times `connection_limit`.
+
 ## Guardrails in place
 
 - CI security scans on every PR and on pushes to `main`.
