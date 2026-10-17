@@ -56,7 +56,17 @@ export class RateResetService {
     // batch rather than waiting for someone to remember to run them.
     this.servicing.registerBatchHook(async (tx, state, businessDate, actor) => {
       if (!this.isFloating(state)) return;
-      await this.catchUpResets(tx, state, businessDate, actor);
+      const applied = await this.catchUpResets(tx, state, businessDate, actor);
+      if (!applied.length) return;
+      // Each reset compare-and-sets the account. The batch writes this same
+      // state afterwards, so carry the new version (and the re-priced
+      // instalment) across, or its write fails and rolls the reset back.
+      const latest = await tx.loanAccount.findFirstOrThrow({
+        where: { id: state.account.id, tenantId: state.account.tenantId },
+        select: { version: true, instalmentAmount: true },
+      });
+      state.account.version = latest.version;
+      state.account.instalmentAmount = latest.instalmentAmount;
     });
   }
 

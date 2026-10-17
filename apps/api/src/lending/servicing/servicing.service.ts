@@ -2118,7 +2118,13 @@ export class ServicingService {
     businessDate: string,
     actor: LendingActor,
   ) => Promise<void>)[] = [];
-  /** Lets the restructuring module add monitoring to the end-of-day batch without a circular dependency. */
+  /**
+   * Lets other modules add work to the end-of-day batch without a circular
+   * dependency. Hooks share the batch's in-memory state, which the batch writes
+   * once at the end with a compare-and-set: a hook may change fields on it for
+   * that write (restructure monitoring does), and a hook that writes the
+   * account itself must keep `state.account.version` in step.
+   */
   registerBatchHook(
     hook: (
       tx: Tx,

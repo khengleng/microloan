@@ -2,7 +2,9 @@
 // it is stubbed — with the real library's contract: verify() returns a Promise
 // resolving to { valid }. The original bug treated that Promise as the result.
 const verify = jest.fn();
-jest.mock('otplib', () => ({ verify: (...args: unknown[]) => verify(...args) }));
+jest.mock('otplib', () => ({
+  verify: (...args: unknown[]) => verify(...args),
+}));
 
 import { encryptField } from '../common/field-crypto';
 import { totpCodeMatches } from './totp';
@@ -20,7 +22,10 @@ describe('totpCodeMatches', () => {
   it('accepts a code otplib reports as valid', async () => {
     verify.mockResolvedValue({ valid: true });
     await expect(totpCodeMatches('123456', secret)).resolves.toBe(true);
-    expect(verify).toHaveBeenCalledWith({ token: '123456', secret: 'JBSWY3DPEHPK3PXP' });
+    expect(verify).toHaveBeenCalledWith({
+      token: '123456',
+      secret: 'JBSWY3DPEHPK3PXP',
+    });
   });
 
   it.each([undefined, '', '12345', '1234567', 'abcdef', 123456])(
