@@ -314,22 +314,24 @@ Measured against that design, the web app today:
 
 | Area | Status | Gap |
 |---|---|---|
-| Navigation | ⛔ | Gated by legacy role names (`ADMIN`/`FINANCE`/`SALES`); most canonical roles see almost nothing, and the lending section is shown to everyone |
-| Home | ⛔ | Same KPI dashboard for every role; no "waiting for me" queues or badges |
-| Search | ⛔ | No global search across borrowers, loans, applications and cases |
+| Navigation | ✅ | Menus are computed from `GET /v1/me/access` (lending permissions) plus the legacy screens' own permissions, so each access role sees its own work and the lending section is hidden from people with no lending permission; lending sub-tabs follow the same rules; queue badges come from `/me/work` |
+| Home | ✅ | `/home` shows the person's queues from `GET /v1/me/work` (counts, oldest items, deep links, "you approve" / "needs MFA" / "above your limit"); the KPI dashboard stays in the menu for those who had it, and people without lending permissions still land on it |
+| Search | ✅ | `GET /v1/search` and a search box in the top bar (`/` or Ctrl/⌘-K): borrowers by name, phone or national ID (blind index), loans, legacy loans, applications, facilities, cards and restructure cases by reference, within the caller's tenant and scope |
 | Explaining refusals | 🟡 | Lending applications, loans and product versions show the policy reason on disabled buttons; restructure cases, facilities and legacy pages do not; the browser treats unknown actions as allowed |
-| Scope, authority, MFA, delegation in the shell | ⛔ | Enforced by the API but invisible until an action is refused |
+| Scope, authority, MFA, delegation in the shell | ✅ | Top-bar chips for business date, scope, approval limit and sign-in strength; banners for "verify to approve" and delegated authority. No inline MFA step-up yet (the banner sends the person to sign in again) |
 | Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending) |
 | Phase 2 screens | ✅ | Facilities, groups, policy library, unidentified payments, relief programmes, operations, and the servicing panels on the loan screen |
 | Role management | 🟡 | `/users` assigns only legacy roles; access roles are assigned separately under Lending › Access |
-| Khmer | 🟡 | Legacy screens and the portal page are translated; lending, accounting, FX, provisioning, KPI and audit screens are English only |
+| Khmer | 🟡 | Legacy screens, the portal page, the new menu, lending sub-tabs, home queues, shell chips and search are translated; the lending, accounting, FX, provisioning, KPI and audit screens themselves are English only |
 | Borrower portal | 🟡 | Sign-in, loans, KHQR, documents, signing and relief acceptance work; one-time codes need an SMS provider; payment-holiday programmes are not offered |
 | Platform console | ✅ | Organisations, plan payments, plans, team and audit; platform flag rules are API-only |
 
-The design needs three API additions first: `GET /me/access` (effective
-permissions, scope, authorities, delegations, MFA, flags), `GET /me/work`
-(queue counts), and capabilities for restructure cases, facilities, groups and
-tenant actions.
+The workspace runs on three endpoints: `GET /v1/me/access` (effective
+permissions, scope, authorities, delegations, MFA, flags, with platform and
+borrower-portal variants), `GET /v1/me/work` (queue counts and oldest items,
+scope-filtered and maker-checker aware) and `GET /v1/search`. Still to come:
+capabilities for restructure cases, facilities, groups and tenant actions, and
+a fail-closed browser capability check.
 
 ### What is implemented, and what is not
 

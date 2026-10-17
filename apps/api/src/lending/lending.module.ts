@@ -78,6 +78,14 @@ import {
   LendingOperationsController,
   LendingProductsController,
 } from './lending.controllers';
+import {
+  WorkspaceMeController,
+  WorkspacePortalController,
+  WorkspaceSearchController,
+} from './workspace/workspace.controller';
+import { WorkspaceAccessService } from './workspace/workspace-access.service';
+import { WorkspaceWorkService } from './workspace/workspace-work.service';
+import { WorkspaceSearchService } from './workspace/workspace-search.service';
 
 /**
  * Configurable lending platform (modular monolith). Shares tenants, users,
@@ -112,6 +120,9 @@ import {
     InvoiceFinanceController,
     LettersOfCreditController,
     SyndicationController,
+    WorkspaceMeController,
+    WorkspaceSearchController,
+    WorkspacePortalController,
   ],
   providers: [
     ReportingService,
@@ -155,6 +166,9 @@ import {
     InvoiceFinanceService,
     LettersOfCreditService,
     SyndicationService,
+    WorkspaceAccessService,
+    WorkspaceWorkService,
+    WorkspaceSearchService,
   ],
   exports: [
     CustomerDocumentsService,
