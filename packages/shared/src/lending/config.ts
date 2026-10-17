@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CURRENCY_DEFINITIONS, validateRoundingRule } from './money.js';
 import { SUPPORTED_DAY_COUNTS } from './dates.js';
 import { EngineError, dec } from './decimal.js';
-import type { ScheduleInput } from './schedule.js';
+import { buildPeriods, type ScheduleInput } from './schedule.js';
 import type { FeeDefinition } from './fees.js';
 
 /**
@@ -180,6 +180,16 @@ export const productConfigSchema = z
           .strict(),
         /** Charged when a repayment is reversed because it bounced or was returned (UC-23). */
         returnedPaymentFee: decimalString.nullable().default(null),
+        /**
+         * A promotional rate for the first instalments of contracts that quote
+         * the campaign code (UC-46); the contract rate applies after it and the
+         * instalment is re-solved when it does.
+         */
+        promotion: z
+          .object({ code, annualRate: rateFraction, instalments: z.number().int().min(1).max(120), label: z.string().max(120).default('') })
+          .strict()
+          .nullable()
+          .default(null),
         capitalization: z
           .object({
             allowInterestGraceCapitalization: z.boolean(),
@@ -197,6 +207,12 @@ export const productConfigSchema = z
         maxPrincipalGraceInstalments: z.number().int().min(0).default(0),
         maxInterestGraceInstalments: z.number().int().min(0).default(0),
         maxBalloonFraction: rateFraction.nullable().default(null),
+        /** Stepped (graduated or step-down) instalments (UC-15); null for level instalments. */
+        instalmentSteps: z
+          .array(z.object({ instalments: z.number().int().min(1).max(600), multiplier: decimalString }).strict())
+          .max(12)
+          .nullable()
+          .default(null),
         allowIrregularFirstPeriod: z.boolean().default(false),
         maxFirstPeriodDays: z.number().int().min(1).max(730).nullable().default(null),
         businessDayConvention: z.enum(['NONE', 'FOLLOWING', 'MODIFIED_FOLLOWING', 'PRECEDING']),
@@ -548,6 +564,18 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.repayment.method !== 'EXPLICIT' && c.repayment.frequency === null) add('repayment.frequency', 'a frequency is required');
   if (c.repayment.frequency === 'CUSTOM' && !c.repayment.customFrequency) add('repayment.customFrequency', 'required for CUSTOM frequency');
   if (c.repayment.method === 'BALLOON' && !c.repayment.maxBalloonFraction) add('repayment.maxBalloonFraction', 'required for BALLOON');
+  if (c.repayment.instalmentSteps?.length) {
+    if (c.repayment.method !== 'EQUAL_INSTALMENT' || c.pricing.interestMethod !== 'REDUCING_BALANCE') {
+      add('repayment.instalmentSteps', 'stepped instalments need level instalments on a reducing balance');
+    }
+    if (c.repayment.instalmentSteps.some((st) => dec(st.multiplier).lte(0))) add('repayment.instalmentSteps', 'multipliers must be positive');
+    const stepped = c.repayment.instalmentSteps.reduce((n, st) => n + st.instalments, 0);
+    if (stepped > c.limits.minInstalments) add('repayment.instalmentSteps', `the steps cover ${stepped} instalments, more than the shortest allowed term (${c.limits.minInstalments})`);
+  }
+  if (c.pricing.promotion) {
+    if (!c.pricing.fixed) add('pricing.promotion', 'a promotional rate needs fixed pricing');
+    if (c.pricing.promotion.instalments >= c.limits.minInstalments) add('pricing.promotion.instalments', `must be shorter than the shortest allowed term (${c.limits.minInstalments})`);
+  }
   if (c.repayment.maxInterestGraceInstalments > c.repayment.maxPrincipalGraceInstalments) add('repayment', 'interest grace cannot exceed principal grace');
   if (c.repayment.maxInterestGraceInstalments > 0 && !c.pricing.capitalization.allowInterestGraceCapitalization) {
     add('pricing.capitalization', 'interest grace requires capitalization to be allowed');
@@ -772,6 +800,8 @@ export interface NegotiatedTerms {
   waivedFeeCodes?: string[];
   /** Paid by the borrower towards the purchase, not financed (UC-02). */
   downPayment?: string;
+  /** The campaign code of the product's promotional rate (UC-46). */
+  promotionCode?: string;
   /**
    * The contract's choice from the product's policy menus (POLICY_MODEL.md).
    * A kind left out uses the product's default policy.
@@ -822,6 +852,7 @@ export function checkTerms(c: ProductConfig, t: NegotiatedTerms): TermsCheck {
     if (c.repayment.method !== 'BALLOON') add('balloonAmount', 'not allowed for this product');
     else if (dec(t.balloonAmount).gt(principal.times(dec(c.repayment.maxBalloonFraction ?? '0')))) add('balloonAmount', `at most ${c.repayment.maxBalloonFraction} of principal`);
   } else if (c.repayment.method === 'BALLOON') add('balloonAmount', 'required for this product');
+  if (t.promotionCode && t.promotionCode !== c.pricing.promotion?.code) add('promotionCode', 'no such promotion on this product');
   for (const code of t.waivedFeeCodes ?? []) {
     const fee = c.pricing.fees.find((f) => f.code === code);
     if (!fee) add('waivedFeeCodes', `unknown fee ${code}`);
@@ -848,7 +879,7 @@ export function toScheduleInput(
   if (c.repayment.businessDayConvention !== 'NONE' && !calendar) {
     throw new EngineError('MISSING_CALENDAR', `Holiday calendar ${c.repayment.holidayCalendarCode} is not available.`);
   }
-  return {
+  const input: ScheduleInput = {
     principal: bookedPrincipal,
     currency: c.identity.currency,
     rounding: c.pricing.rounding,
@@ -873,7 +904,20 @@ export function toScheduleInput(
     businessDayConvention: c.repayment.businessDayConvention,
     calendar,
     accrualDateBasis: c.repayment.accrualDateBasis,
+    instalmentSteps: c.repayment.instalmentSteps ?? undefined,
   };
+  const promo = c.pricing.promotion;
+  if (!rates && promo && t.promotionCode === promo.code) {
+    // UC-46: the promotional rate from disbursement, the contract rate from the start of the period after the promotion.
+    const periods = buildPeriods(input).periods;
+    if (promo.instalments >= periods.length) throw new EngineError('INVALID_PROMOTION', 'The promotion must end before the last instalment.');
+    input.rates = [
+      { effectiveFrom: t.disbursementDate, annualRate: promo.annualRate, source: `PROMOTION:${promo.code}` },
+      { effectiveFrom: periods[promo.instalments].start, annualRate: input.annualRate!, source: 'CONTRACT_FIXED' },
+    ];
+    input.annualRate = undefined;
+  }
+  return input;
 }
 
 export function feesOf(c: ProductConfig): FeeDefinition[] {

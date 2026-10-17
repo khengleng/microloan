@@ -169,6 +169,8 @@ export interface Terms {
     waivedFeeCodes?: string[];
     /** Paid by the borrower before disbursement (UC-02); not part of the loan. */
     downPayment?: Money;
+    /** Campaign code of the product's promotional rate (UC-46). */
+    promotionCode?: string;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */

@@ -12,10 +12,11 @@ export interface TermsDraft {
     annualRatePct: string;
     firstDueDate: string;
     downPayment: string;
+    promotionCode: string;
 }
 
 export function emptyTermsDraft(disbursementDate: string): TermsDraft {
-    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '' };
+    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '', promotionCode: '' };
 }
 
 export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft {
@@ -26,6 +27,7 @@ export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft
         annualRatePct: t?.annualRate ? shiftDecimal(String(t.annualRate), 2) : '',
         firstDueDate: t?.firstDueDate ?? '',
         downPayment: t?.downPayment ?? '',
+        promotionCode: t?.promotionCode ?? '',
     };
 }
 
@@ -50,6 +52,7 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
         annualRate: d.annualRatePct.trim() ? percentToFraction(d.annualRatePct) : undefined,
         firstDueDate: d.firstDueDate || undefined,
         downPayment: d.downPayment.trim() || undefined,
+        promotionCode: d.promotionCode.trim() || undefined,
     } as Terms;
 }
 
@@ -74,6 +77,9 @@ export function TermsFields({ value, onChange, currency }: { value: TermsDraft; 
             </Field>
             <Field label={`Down payment${currency ? ` (${currency})` : ''}`} hint="Optional — paid by the borrower before disbursement">
                 <TextInput value={value.downPayment} onChange={set('downPayment')} inputMode="decimal" />
+            </Field>
+            <Field label="Promotion code" hint="Optional — the product's campaign code for its promotional rate">
+                <TextInput value={value.promotionCode} onChange={set('promotionCode')} maxLength={40} />
             </Field>
         </div>
     );

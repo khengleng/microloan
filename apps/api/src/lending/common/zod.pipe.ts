@@ -48,6 +48,7 @@ export const termsSchema = z
       .optional(),
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
     downPayment: money.optional(),
+    promotionCode: z.string().trim().min(1).max(40).optional(),
     riskCategory: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     policies: z
       .record(

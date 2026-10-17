@@ -1740,6 +1740,7 @@ export class ApplicationsService {
       explicitSchedule: t.explicitSchedule,
       waivedFeeCodes: t.waivedFeeCodes,
       downPayment: t.downPayment,
+      promotionCode: t.promotionCode,
       policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)
