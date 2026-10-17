@@ -365,7 +365,24 @@ export const productConfigSchema = z
         requiredDocuments: z.array(z.object({ code, label: text(80), stage: z.enum(['APPLICATION', 'APPROVAL', 'DISBURSEMENT']), mandatory: z.boolean() }).strict()).default([]),
         disbursementConditions: z.array(z.object({ code, label: text(160) }).strict()).default([]),
         delinquencyBuckets: z.array(bucketSchema).min(1),
-        collectionStages: z.array(z.object({ code, label: text(60), fromDpd: z.number().int().min(0) }).strict()).default([]),
+        /**
+         * The collections ladder (UC-58): at each stage end of day raises one
+         * task — an SMS or notice is sent at once; a call, visit or legal
+         * review waits in the stage's work queue.
+         */
+        collectionStages: z
+          .array(
+            z
+              .object({
+                code,
+                label: text(60),
+                fromDpd: z.number().int().min(0),
+                action: z.enum(['SMS', 'CALL', 'VISIT', 'NOTICE', 'LEGAL_REVIEW', 'NONE']).default('CALL'),
+                queue: z.string().trim().max(40).default(''),
+              })
+              .strict(),
+          )
+          .default([]),
         writeOffMinDpd: z.number().int().min(0).nullable().default(null),
         restructureAllowed: z.boolean().default(true),
         /**
@@ -496,6 +513,8 @@ export const productConfigSchema = z
         provisionExpense: code.default('5000'),
         /** Down payments the lender collected, held until paid to the seller (UC-02). */
         downPaymentsHeld: code.default('2600'),
+        /** Customer deposits applied to a loan under the right of set-off (UC-61). */
+        setOffClearing: code.default('2700'),
       })
       .strict(),
   })

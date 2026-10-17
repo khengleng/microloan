@@ -1957,6 +1957,8 @@ model LoanAccount {
   downPaymentHeld        Decimal          @default(0) @db.Decimal(24, 4)
   marginCalls            MarginCall[]
   payoffQuotes           PayoffQuote[]
+  collectionTasks        CollectionTask[]
+  guarantorDemands       GuarantorDemand[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2702,6 +2704,61 @@ model PayoffQuote {
   settlementEventId  String?
   createdBy          String
   createdAt          DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, loanAccountId])
+}
+
+/// One step of the collections ladder for a loan in arrears (UC-58): raised
+/// by end of day when the loan reaches a stage, worked from the stage's queue.
+model CollectionTask {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  stage         String
+  /// SMS, CALL, VISIT, NOTICE, LEGAL_REVIEW
+  action        String
+  queue         String
+  /// First day of the arrears episode; one task per stage per episode.
+  episodeFrom   DateTime    @db.Date
+  daysPastDue   Int
+  amountOverdue Decimal     @db.Decimal(24, 4)
+  dueOn         DateTime    @db.Date
+  /// OPEN, DONE, CANCELLED
+  status        String      @default("OPEN")
+  assignedTo    String?
+  outcome       String      @default("")
+  note          String      @default("")
+  completedBy   String?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([loanAccountId, stage, episodeFrom])
+  @@index([tenantId, status, queue])
+}
+
+/// A demand on a guarantor to pay what the borrower has not (UC-60).
+model GuarantorDemand {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  guaranteeId   String
+  guarantorName String
+  reference     String
+  amount        Decimal     @db.Decimal(24, 4)
+  paid          Decimal     @default(0) @db.Decimal(24, 4)
+  currency      String
+  issuedOn      DateTime    @db.Date
+  payBy         DateTime    @db.Date
+  /// OPEN, PAID, WITHDRAWN
+  status        String      @default("OPEN")
+  letter        String
+  createdBy     String
+  createdAt     DateTime    @default(now())
 
   @@unique([tenantId, id])
   @@unique([tenantId, reference])

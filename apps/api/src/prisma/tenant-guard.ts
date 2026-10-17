@@ -68,6 +68,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'ImpairmentPolicy',
   'MarginCall',
   'PayoffQuote',
+  'CollectionTask',
+  'GuarantorDemand',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

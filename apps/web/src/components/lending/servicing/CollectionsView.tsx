@@ -14,6 +14,7 @@ import { StatusBadge } from '../StatusBadge';
 import type { LoanSummary, Paged } from '../types';
 import { RestructuredBadge } from './LoansList';
 import { NoticesCard } from './NoticesCard';
+import { WorkQueueCard } from './WorkQueueCard';
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 40;
@@ -130,6 +131,7 @@ export function CollectionsView() {
     return (
         <LendingShell title="Collections" subtitle="Loans past due, worst first. Run the end-of-day batch to refresh delinquency.">
             <BusinessDateCard onChanged={loans.reload} />
+            <WorkQueueCard />
             <NoticesCard />
             <Card
                 title="Past-due loans"

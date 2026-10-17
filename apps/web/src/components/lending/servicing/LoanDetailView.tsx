@@ -19,6 +19,7 @@ import { DisbursementPanel } from './DisbursementPanel';
 import { RepaymentForm } from './RepaymentForm';
 import { SettlementPanel } from './SettlementPanel';
 import { PayoffLettersPanel } from './PayoffLettersPanel';
+import { ArrearsRemediesPanel } from './ArrearsRemediesPanel';
 import { ReverseEventForm } from './ReverseEvent';
 import { WriteOffPanel } from './WriteOffPanel';
 import { EventsTable } from './EventsTable';
@@ -47,7 +48,7 @@ const ACTIONS = [
     { code: 'loan.advance_refund.approve', label: 'Approve advance refund' },
 ];
 
-type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
+type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'remedies' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
 
 export function LoanDetailView({ id }: { id: string }) {
     const href = useLendingHref();
@@ -151,6 +152,7 @@ export function LoanDetailView({ id }: { id: string }) {
                         {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}
                         {isActive && actionBtn('Early settlement', 'settle', ['loan.repayment.post'])}
                         {isActive && actionBtn('Payoff letters', 'payoff', ['loan.repayment.post'])}
+                        {isActive && (acc.daysPastDue > 0 || d.tasks.some((t) => t.action === 'SET_OFF' && t.status === 'PENDING')) && actionBtn('Guarantor / set-off', 'remedies', ['loan.repayment.post', 'loan.repayment.reverse'])}
                         {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? 'Write-off decision' : 'Propose write-off', 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
                         {isActive && actionBtn('Request restructure', 'restructure', ['restructure.request'])}
                         {isActive && actionBtn('Negotiated settlement', 'negotiated', ['loan.settlement.negotiate'])}
@@ -167,6 +169,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'settle' && <SettlementPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'payoff' && <PayoffLettersPanel loanId={id} can={c} onDone={done} onClose={close} />}
+                    {panel === 'remedies' && <ArrearsRemediesPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'writeoff' && <WriteOffPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'group-repay' && (
                         <div className="space-y-2">

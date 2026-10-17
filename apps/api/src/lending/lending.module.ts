@@ -16,6 +16,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
+import { CollectionsService } from './collections/collections.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
@@ -36,6 +37,7 @@ import {
   LendingApplicationsController,
   LendingIntegrationsController,
   LendingSuspenseController,
+  LendingCollectionsController,
   LendingLoansController,
   LendingOperationsController,
   LendingProductsController,
@@ -57,12 +59,14 @@ import {
     LendingLoansController,
     LendingIntegrationsController,
     LendingSuspenseController,
+    LendingCollectionsController,
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
   ],
   providers: [
     ReportingService,
+    CollectionsService,
     LendingPrisma,
     AuditEventService,
     BusinessDateService,

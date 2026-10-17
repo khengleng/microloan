@@ -385,6 +385,41 @@ export const S = {
         .optional(),
     })
     .strict(),
+  guarantorDemand: z
+    .object({
+      guaranteeId: z.string().uuid(),
+      amount: money.optional(),
+      payWithinDays: z.number().int().min(1).max(90).optional(),
+    })
+    .strict(),
+  guarantorPayment: z
+    .object({
+      amount: money,
+      externalReference: z.string().max(120).optional(),
+    })
+    .strict(),
+  setOff: z
+    .object({
+      amount: money,
+      sourceAccount: z.string().trim().min(2).max(60),
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  collectionTaskComplete: z
+    .object({
+      outcome: z.enum([
+        'CONTACTED',
+        'NO_ANSWER',
+        'PROMISE_TO_PAY',
+        'VISITED',
+        'NOT_FOUND',
+        'REFUSED',
+        'NOTICE_SENT',
+        'REFER_LEGAL',
+      ]),
+      note: z.string().max(1000).optional(),
+    })
+    .strict(),
   downPayment: z
     .object({
       amount: money,

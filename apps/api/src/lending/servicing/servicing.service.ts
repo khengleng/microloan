@@ -1150,7 +1150,8 @@ export class ServicingService {
     },
     idempotencyKey: string,
     hash: string,
-    opts: { fundingAccount?: string } = {},
+    /** `authorizedByApproval`: an approved maker-checker task (e.g. set-off, UC-61) already authorises the posting. */
+    opts: { fundingAccount?: string; authorizedByApproval?: boolean } = {},
   ) {
     const tenantId = requireTenant(actor);
     let state = await loadLoanState(tx, tenantId, id);
@@ -1179,12 +1180,13 @@ export class ServicingService {
           `The members' contributions add up to ${split.toString()} ${state.account.currency}, not the ${amount.toString()} paid.`,
         );
     }
-    await this.policy.enforce(
-      actor,
-      'loan.repayment.post',
-      resourceOf(state, [], amount.toString()),
-      tx,
-    );
+    if (!opts.authorizedByApproval)
+      await this.policy.enforce(
+        actor,
+        'loan.repayment.post',
+        resourceOf(state, [], amount.toString()),
+        tx,
+      );
     const businessDate = await this.businessDate.get(tenantId, tx);
     const valueDate = body.valueDate ?? businessDate;
     BusinessDateService.checkValueDate(

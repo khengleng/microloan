@@ -26,6 +26,7 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
 import { ReportingService } from './reporting/reporting.service';
+import { CollectionsService } from './collections/collections.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -457,7 +458,76 @@ export class LendingLoansController {
     private readonly holidays: PaymentHolidayService,
     private readonly collateral: CollateralService,
     private readonly reporting: ReportingService,
+    private readonly collections: CollectionsService,
   ) {}
+
+  /** Guarantees on the loan and the demands made under them (UC-60). */
+  @LendingAction('loan.read')
+  @Get(':id/guarantor-demands')
+  guarantorDemands(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.collections.demands(actor(req), id);
+  }
+
+  @LendingAction('loan.guarantor_demand.issue')
+  @Post(':id/guarantor-demands')
+  issueGuarantorDemand(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.guarantorDemand)) body: never,
+  ) {
+    return this.collections.issueDemand(actor(req), id, body);
+  }
+
+  @LendingAction('loan.repayment.post')
+  @Post(':id/guarantor-demands/:demandId/payments')
+  guarantorPayment(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('demandId', ID) demandId: string,
+    @Body(new ZodPipe(S.guarantorPayment)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.collections.guarantorPayment(
+      actor(req),
+      id,
+      demandId,
+      body,
+      key,
+    );
+  }
+
+  @LendingAction('loan.guarantor_demand.issue')
+  @Post(':id/guarantor-demands/:demandId/withdraw')
+  withdrawGuarantorDemand(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('demandId', ID) demandId: string,
+  ) {
+    return this.collections.withdrawDemand(actor(req), id, demandId);
+  }
+
+  /** Apply the borrower's deposit to the arrears, maker-checker (UC-61). */
+  @LendingAction('loan.set_off.propose')
+  @Post(':id/set-offs')
+  proposeSetOff(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.setOff)) body: never,
+  ) {
+    return this.collections.proposeSetOff(actor(req), id, body);
+  }
+
+  @LendingAction('loan.set_off.approve')
+  @Post(':id/set-offs/:taskId/decision')
+  decideSetOff(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.collections.decideSetOff(actor(req), id, taskId, body, key);
+  }
 
   /** Loan statement for a period (OPS-4). */
   @LendingAction('loan.read')
@@ -841,6 +911,39 @@ export class LendingLoansController {
 }
 
 /** Unidentified payments: held in suspense, matched to loans or refunded (UC-28, UC-74). */
+/** Collector work queues fed by the escalation ladder (UC-58). */
+@Controller('lending/collections')
+export class LendingCollectionsController {
+  constructor(private readonly collections: CollectionsService) {}
+
+  @LendingAction('loan.read')
+  @Get('tasks')
+  tasks(
+    @Req() req: Req_,
+    @Query('queue') queue?: string,
+    @Query('status') status?: string,
+    @Query('loanAccountId') loanAccountId?: string,
+  ) {
+    return this.collections.tasks(actor(req), { queue, status, loanAccountId });
+  }
+
+  @LendingAction('collection.task.work')
+  @Post('tasks/:taskId/claim')
+  claim(@Req() req: Req_, @Param('taskId', ID) taskId: string) {
+    return this.collections.claim(actor(req), taskId);
+  }
+
+  @LendingAction('collection.task.work')
+  @Post('tasks/:taskId/complete')
+  complete(
+    @Req() req: Req_,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.collectionTaskComplete)) body: never,
+  ) {
+    return this.collections.complete(actor(req), taskId, body);
+  }
+}
+
 @Controller('lending/suspense')
 export class LendingSuspenseController {
   constructor(private readonly suspense: SuspenseService) {}

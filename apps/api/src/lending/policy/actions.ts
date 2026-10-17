@@ -157,6 +157,19 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.payoff_quote.issue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  A('loan.guarantor_demand.issue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.set_off.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.set_off.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
+  A('collection.task.work', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
   A('loan.fee_waiver.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
