@@ -148,7 +148,14 @@ export class LoansService {
   async findAll(actor: JwtPayload, search?: string, status?: string, page = 1, limit = 50) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     const where: any = this.authz.scopeWhere(actor, {});
-    if (status && status !== 'ALL') where.status = status;
+    if (status && status !== 'ALL') {
+      // Accepts one status or a comma-separated list (e.g. "DISBURSED,DEFAULTED").
+      const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+      const valid = Object.values(LoanStatus) as string[];
+      const invalid = statuses.filter((s) => !valid.includes(s));
+      if (invalid.length) throw new BadRequestException(`Unknown loan status: ${invalid.join(', ')}`);
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
+    }
     if (search) {
       where.borrower = {
         OR: [
