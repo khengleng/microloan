@@ -155,6 +155,13 @@ export interface FacilityDetail {
     conditions: FacilityCondition[];
     statements: FacilityStatementRow[];
     limitChanges: FacilityLimitChange[];
+    /** LT-14: what the borrowing base lets the line draw today; null on a line without one. */
+    borrowingBase?: {
+        limit: string; borrowingBase: string | null; drawingCap: string; outstanding: string; available: string;
+        certificateAsOf: string | null; certificateValidThrough: string | null; stale: boolean; reason: string | null;
+    } | null;
+    /** LT-17: the project this facility finances; null on other facilities. */
+    project?: { id: string; status: string; capitalizeConstructionInterest: boolean; targetDscr: string } | null;
 }
 
 export interface DrawdownCheck {
