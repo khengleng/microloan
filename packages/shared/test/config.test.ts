@@ -27,7 +27,7 @@ describe('product catalogue', () => {
 
   test('specialized products are seeded unavailable until their capabilities exist', () => {
     for (const code of [
-      'CREDIT_CARD', 'BNPL', 'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA', 'IJARAH',
+      'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA',
       'SYNDICATED', 'PROJECT_FINANCE',
       'INVOICE_BACKED', 'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
     ]) {
@@ -44,10 +44,36 @@ describe('product catalogue', () => {
     }
   });
 
-  test('a credit card still needs its own Phase 3 capability, not just a revolving limit', () => {
-    const a = L.templateAvailability(L.TEMPLATE_BY_CODE['CREDIT_CARD']);
-    assert.equal(a.available, false);
-    assert.deepEqual(a.missing.map((m) => m.id), ['card.revolving_credit']);
+  test('the Phase 3 card, BNPL and lease templates became available with their capabilities', () => {
+    const need: Record<string, string> = { CREDIT_CARD: 'card.revolving_credit', BNPL: 'bnpl.merchant_settlement', IJARAH: 'islamic.ijarah' };
+    for (const [code, cap] of Object.entries(need)) {
+      const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
+      assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
+      assert.ok(a.requiredCapabilities.includes(cap), `${code} requires ${cap}`);
+    }
+    assert.ok(L.templateAvailability(L.TEMPLATE_BY_CODE.IJARAH).requiredCapabilities.includes('lease.true_lease'));
+  });
+
+  test('card, BNPL and lease terms are refused on the wrong product shape', () => {
+    const issues = (code: string, mutate: (c: any) => void) => {
+      const c = structuredClone(L.TEMPLATE_BY_CODE[code].defaultConfig) as any;
+      mutate(c);
+      const r = L.validateProductConfig(c);
+      return r.ok ? [] : r.issues.map((i) => i.path);
+    };
+    assert.deepEqual(issues('CREDIT_CARD', () => undefined), []);
+    assert.ok(issues('PERSONAL_INSTALMENT', (c) => { c.card = L.TEMPLATE_BY_CODE.CREDIT_CARD.defaultConfig.card; }).includes('card'));
+    assert.ok(issues('CREDIT_CARD', (c) => { c.card.cashAdvanceFeeRate = null; c.card.cashAdvanceFeeMinimum = null; }).includes('card.cashAdvanceFeeRate'));
+    assert.ok(issues('OVERDRAFT', (c) => { c.bnpl = { merchantDiscountRate: '0.03' }; }).includes('bnpl'));
+    assert.ok(issues('IJARAH', (c) => { c.lease = null; }).includes('lease'));
+    assert.ok(issues('IJARAH', (c) => { c.repayment.method = 'EQUAL_INSTALMENT'; }).includes('repayment.method'));
+  });
+
+  test('a lease posts rentals as rental income and late charges to charity, not as interest', () => {
+    const acc = L.TEMPLATE_BY_CODE.IJARAH.defaultConfig.accounting;
+    assert.equal(acc.loansReceivable, '1250');
+    assert.equal(acc.interestIncome, '4510');
+    assert.equal(acc.penaltyIncome, '2800');
   });
 
   test('Murabaha and Ijarah are distinct structures, not relabelled loans', () => {

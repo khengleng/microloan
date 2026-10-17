@@ -209,13 +209,33 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('EMERGENCY_LOAN', 'PERSONAL', 'Emergency loan', 'Small, fast-disbursed unsecured loan.', { limits: { maxAmount: '1500', maxInstalments: 12 } }),
   template('DEBT_CONSOLIDATION', 'PERSONAL', 'Debt consolidation', 'Refinances existing consumer debts into one instalment loan.', { limits: { maxInstalments: 60, maxAmount: '30000' } }),
   // A card line revolves and is repayable on demand against a minimum
-  // payment, so it carries no commitment fee and does not term out.
-  template('CREDIT_CARD', 'PERSONAL', 'Credit card', 'Revolving card credit.', {
-    pricing: { accrualBasis: 'DAILY' },
+  // payment, so it carries no commitment fee and does not term out. Its
+  // balance is split into purchases (with a grace period), cash advances
+  // (fee plus interest from day one) and instalment plans.
+  template('CREDIT_CARD', 'PERSONAL', 'Credit card', 'Revolving card credit with a purchase grace period, cash advances and instalment plans.', {
+    pricing: { accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0.15', minAnnualRate: '0.10', maxAnnualRate: '0.18' } },
     limits: { minAmount: '100', maxAmount: '20000', minInstalments: 1, maxInstalments: 12 },
     facility: { type: 'REVOLVING', availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
-  }, ['card.revolving_credit']),
-  template('BNPL', 'PERSONAL', 'Buy now, pay later', 'Purchase-linked short instalment plans.', { identity: { channels: ['API'] } }, ['bnpl.merchant_settlement']),
+    card: {
+      cashAdvanceAnnualRate: '0.18',
+      cashAdvanceFeeRate: '0.03',
+      cashAdvanceFeeMinimum: '5',
+      cashAdvanceLimitShare: '0.3',
+      minimumPaymentRate: '0.05',
+      minimumPaymentFloor: '10',
+      paymentDueDays: 21,
+      instalmentPlan: { annualRate: '0.12', minAmount: '200', allowedMonths: [3, 6, 12] },
+    },
+  }),
+  // Four interest-free fortnightly payments; the merchant pays for the credit
+  // through the discount it accepts at settlement.
+  template('BNPL', 'PERSONAL', 'Buy now, pay later', 'Purchase-linked interest-free instalments, settled to the merchant net of a discount.', {
+    identity: { channels: ['API', 'STAFF_PORTAL'] },
+    pricing: { fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' } },
+    repayment: { frequency: 'FORTNIGHTLY' },
+    limits: { minAmount: '20', maxAmount: '2000', minInstalments: 2, maxInstalments: 6 },
+    bnpl: { merchantDiscountRate: '0.04' },
+  }),
   // Property
   template('HOME_MORTGAGE', 'PROPERTY', 'Home mortgage', 'Long-tenor annuity secured on residential property.', {
     ...SECURED('0.8', ['RESIDENTIAL_PROPERTY'], { RESIDENTIAL_PROPERTY: '0.1' }),
@@ -369,7 +389,17 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('DEVELOPMENT_CONCESSIONAL', 'INSTITUTIONAL_PUBLIC', 'Development / concessional loan', 'Concessional development lending.', INSTITUTION, ['institutional.counterparty_limits']),
   // Islamic structures — separate contract behaviour, not a conventional loan with a relabelled rate.
   template('MURABAHA', 'PERSONAL', 'Murabaha financing', 'Asset purchase and resale at a disclosed profit.', { attributes: { structure: 'MURABAHA' } }, ['islamic.murabaha']),
-  template('IJARAH', 'VEHICLE_ASSET', 'Ijarah financing', 'Lease with rentals; the financier owns the asset.', { attributes: { structure: 'IJARAH', secured: true }, security: { collateralRequired: true, acceptedCollateralTypes: ['VEHICLE', 'EQUIPMENT'], maxLtv: '1' } }, ['islamic.ijarah']),
+  // A true lease: the financier buys and keeps title to the asset; rentals
+  // are rental income, not interest, and late charges go to charity. The
+  // residual is the purchase-option price, carried as the final balloon.
+  template('IJARAH', 'VEHICLE_ASSET', 'Ijarah financing', 'Lease with rentals; the financier owns the asset until the lessee buys it for the residual or returns it.', {
+    attributes: { structure: 'IJARAH', secured: true },
+    security: { collateralRequired: true, acceptedCollateralTypes: ['VEHICLE', 'EQUIPMENT'], maxLtv: '1', valuationMaxAgeDays: 365 },
+    repayment: { method: 'BALLOON', maxBalloonFraction: '0.3', prepayment: { allowedStrategies: ['RECAST'] } },
+    limits: { maxAmount: '100000', maxInstalments: 60 },
+    lease: { assetTypes: ['VEHICLE', 'EQUIPMENT'], allowReturn: true },
+    accounting: { loansReceivable: '1250', interestReceivable: '1255', interestIncome: '4510', penaltyIncome: '2800' },
+  }),
 ];
 
 export const TEMPLATE_BY_CODE: Record<string, ProductTemplateDefinition> = Object.fromEntries(PRODUCT_TEMPLATES.map((t) => [t.code, t]));

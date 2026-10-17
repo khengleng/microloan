@@ -23,3 +23,5 @@ export * from './invoice.js';
 export * from './impairment.js';
 export * from './recovery.js';
 export * from './channels.js';
+export * from './card.js';
+export * from './bnpl.js';
