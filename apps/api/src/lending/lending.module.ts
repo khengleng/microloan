@@ -16,6 +16,7 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
+import { EodSchedulerService } from './servicing/eod-scheduler.service';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
@@ -69,6 +70,7 @@ import {
     ServicingService,
     FacilitiesService,
     RateResetService,
+    EodSchedulerService,
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,
