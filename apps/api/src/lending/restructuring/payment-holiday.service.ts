@@ -293,14 +293,20 @@ export class PaymentHolidayService {
         throw new ConflictException('This loan has no remaining instalments.');
       }
       const effectiveDate = body.effectiveDate ?? remaining[0].periodStart;
-      const options = engineCall(() =>
-        lending.holidayRestructureOptions(
-          engineProgramme(programme),
-          body.instalments,
-          effectiveDate,
-          remaining.length,
+      const options = {
+        ...engineCall(() =>
+          lending.holidayRestructureOptions(
+            engineProgramme(programme),
+            body.instalments,
+            effectiveDate,
+            remaining.length,
+          ),
         ),
-      );
+        // A capitalizing holiday is grace capitalization: it follows the
+        // product's basis, so a SIMPLE product never charges interest on
+        // interest (TV-13, DECISIONS D-009).
+        capitalizationBasis: state.config.pricing.capitalization.basis,
+      };
       const snapshot = await this.snapshot(tx, state, effectiveDate);
       const calc = engineCall(() =>
         lending.calculateRestructure(state.contract, snapshot, options, {
@@ -351,6 +357,10 @@ export class PaymentHolidayService {
           openingPrincipal: l.openingPrincipal,
           principalDue: l.principal,
           interestDue: l.interest,
+          // Without it a capitalizing holiday never accrued or capitalized
+          // the deferred interest, and the schedule's principal drifted
+          // from the ledger's.
+          capitalizedInterest: l.capitalizedInterest,
           annualRate: l.annualRate,
           projected: false,
         })),
