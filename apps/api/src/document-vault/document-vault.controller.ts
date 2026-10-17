@@ -1,13 +1,13 @@
 import {
-    Controller,
-    Post,
-    Get,
-    Param,
-    UseInterceptors,
-    UploadedFile,
-    Res,
-    BadRequestException,
-    UnsupportedMediaTypeException,
+  Controller,
+  Post,
+  Get,
+  Param,
+  UseInterceptors,
+  UploadedFile,
+  Res,
+  BadRequestException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentVaultService } from './document-vault.service';
@@ -19,59 +19,72 @@ import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/m
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
 
-const MAX_UPLOAD_BYTES = Number(process.env.DOCUMENT_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
+const MAX_UPLOAD_BYTES = Number(
+  process.env.DOCUMENT_UPLOAD_MAX_BYTES || 10 * 1024 * 1024,
+);
 const ALLOWED_MIME_TYPES = new Set([
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/webp',
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
 ]);
 
 const uploadOptions: MulterOptions = {
-    // Critical: enforce hard size limit at the multipart parser boundary.
-    limits: { fileSize: MAX_UPLOAD_BYTES },
-    fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-            return cb(new UnsupportedMediaTypeException('Unsupported file type. Accepted: PDF, JPEG, PNG, WebP.'), false);
-        }
-        return cb(null, true);
-    },
+  // Critical: enforce hard size limit at the multipart parser boundary.
+  limits: { fileSize: MAX_UPLOAD_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(
+        new UnsupportedMediaTypeException(
+          'Unsupported file type. Accepted: PDF, JPEG, PNG, WebP.',
+        ),
+        false,
+      );
+    }
+    return cb(null, true);
+  },
 };
 
 @Controller('documents')
 export class DocumentVaultController {
-    constructor(private readonly documentVaultService: DocumentVaultService) { }
+  constructor(private readonly documentVaultService: DocumentVaultService) {}
 
-    @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE')
-    @RequirePermissions(Permission.DOCUMENT_UPLOAD)
-    @Post('upload/:loanId')
-    @UseInterceptors(FileInterceptor('file', uploadOptions))
-    async uploadDocument(
-        @CurrentUser() user: JwtPayload,
-        @Param('loanId') loanId: string,
-        @UploadedFile() file: Express.Multer.File,
-    ) {
-        if (!file) throw new BadRequestException('File is required');
-        return this.documentVaultService.uploadDocument(user, loanId, file);
-    }
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE')
+  @RequirePermissions(Permission.DOCUMENT_UPLOAD)
+  @Post('upload/:loanId')
+  @UseInterceptors(FileInterceptor('file', uploadOptions))
+  async uploadDocument(
+    @CurrentUser() user: JwtPayload,
+    @Param('loanId') loanId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    return this.documentVaultService.uploadDocument(user, loanId, file);
+  }
 
-    @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
-    @RequirePermissions(Permission.DOCUMENT_VIEW)
-    @Get('loan/:loanId')
-    async getDocuments(@CurrentUser() user: JwtPayload, @Param('loanId') loanId: string) {
-        return this.documentVaultService.getDocuments(user, loanId);
-    }
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
+  @RequirePermissions(Permission.DOCUMENT_VIEW)
+  @Get('loan/:loanId')
+  async getDocuments(
+    @CurrentUser() user: JwtPayload,
+    @Param('loanId') loanId: string,
+  ) {
+    return this.documentVaultService.getDocuments(user, loanId);
+  }
 
-    @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
-    @RequirePermissions(Permission.DOCUMENT_VIEW)
-    @Get('download/:documentId')
-    async downloadDocument(
-        @CurrentUser() user: JwtPayload,
-        @Param('documentId') documentId: string,
-        @Res() res: Response,
-    ) {
-        const doc = await this.documentVaultService.downloadDocument(user, documentId);
-        // Fix 6: service always returns a presigned URL now — no buffer fallback
-        return res.redirect(doc.url!);
-    }
+  @Roles('ADMIN', 'OPERATOR', 'SALES', 'FINANCE', 'CX')
+  @RequirePermissions(Permission.DOCUMENT_VIEW)
+  @Get('download/:documentId')
+  async downloadDocument(
+    @CurrentUser() user: JwtPayload,
+    @Param('documentId') documentId: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.documentVaultService.downloadDocument(
+      user,
+      documentId,
+    );
+    // Fix 6: service always returns a presigned URL now — no buffer fallback
+    return res.redirect(doc.url);
+  }
 }
