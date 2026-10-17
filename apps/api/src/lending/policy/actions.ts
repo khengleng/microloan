@@ -465,6 +465,94 @@ export const ACTIONS: ActionDefinition[] = [
   A('feature_flag.read', 'FLAG', 'ACCESS'),
   A('feature_flag.manage', 'FLAG', 'ACCESS'),
   A('feature_flag.approve', 'FLAG', 'ACCESS', { makerChecker: true }),
+  // Recovery workflows (UC-65, UC-66, UC-68, UC-71). They reuse the servicing
+  // permissions: proposing a loss is a write-off maker's job, approving one
+  // a write-off checker's (with authority); money in is a repayment poster's,
+  // money back out a reversal checker's.
+  A('recovery.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('loan.repossession.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.propose',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.repossession.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.approve',
+    workflowStates: ['ACTIVE'],
+    makerChecker: true,
+    minAssurance: 'MFA',
+  }),
+  A('loan.repossession.value', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.propose',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.repossession.sell', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.pawn.custody', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['BOOKED', 'ACTIVE'],
+  }),
+  A('loan.pawn.forfeit.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.propose',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.pawn.forfeit.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.approve',
+    workflowStates: ['ACTIVE'],
+    makerChecker: true,
+    minAssurance: 'MFA',
+  }),
+  A('loan.pawn.sell', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.pawn.return', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['CLOSED'],
+  }),
+  A('loan.insurance.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.insurance.remit.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.insurance.remit.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
+  A('loan.insurance.claim.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.insurance.claim.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.approve',
+    workflowStates: ['ACTIVE'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('loan.insurance.claim.receive', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.debt_sale.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.propose',
+    workflowStates: ['ACTIVE', 'WRITTEN_OFF'],
+  }),
+  A('loan.debt_sale.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.approve',
+    workflowStates: ['ACTIVE', 'WRITTEN_OFF'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('loan.recovery_refund.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.recovery_refund.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
 ];
 
 export const ACTION_BY_CODE: Record<string, ActionDefinition> =

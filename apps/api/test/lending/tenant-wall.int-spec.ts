@@ -91,6 +91,12 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'impairment-policy/:id': 'impairmentPolicy',
       'collateral/:collateralId': 'collateralAsset',
       'collateral-releases/:taskId': 'approvalTask',
+      'repossessions/:repossessionId': 'repossession',
+      'pawn-items/:itemId': 'pawnItem',
+      'insurance-policies/:policyId': 'insurancePolicy',
+      'insurance-claims/:claimId': 'insuranceClaim',
+      'recovery-tasks/:taskId': 'approvalTask',
+      'recovery-refunds/:refundId': 'recoveryRefund',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

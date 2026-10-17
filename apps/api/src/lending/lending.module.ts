@@ -26,6 +26,11 @@ import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
+import { RecoveryService } from './recovery/recovery.service';
+import {
+  RecoveryController,
+  RecoveryDeskController,
+} from './recovery/recovery.controller';
 import {
   RestructuringController,
   RestructuringPortalController,
@@ -59,6 +64,8 @@ import {
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
+    RecoveryController,
+    RecoveryDeskController,
   ],
   providers: [
     LendingPrisma,
@@ -85,6 +92,7 @@ import {
     CatalogueSyncService,
     RestructuringService,
     PaymentHolidayService,
+    RecoveryService,
   ],
   exports: [
     PolicyService,

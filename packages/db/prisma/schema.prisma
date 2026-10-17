@@ -1953,6 +1953,11 @@ model LoanAccount {
   classification         String?
   impairmentStage        Int?
   marginCalls            MarginCall[]
+  repossessions          Repossession[]
+  pawnItems              PawnItem[]
+  insurancePolicies      InsurancePolicy[]
+  debtSales              DebtSale[]
+  recoveryRefunds        RecoveryRefund[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2673,4 +2678,196 @@ model MarginCall {
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
+}
+
+// ── Recovery workflows (UC-65, UC-66, UC-68, UC-71, LT-09, UC-06) ─────────────
+
+/// Repossession of pledged collateral on a defaulted loan (UC-65): seizure is
+/// approved by a second user, the asset is valued, then sold; the proceeds pay
+/// the costs, then the loan. A surplus is owed to the borrower; a deficiency
+/// stays on the loan.
+model Repossession {
+  id              String      @id @default(uuid())
+  tenantId        String
+  loanAccountId   String
+  loanAccount     LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  collateralId    String
+  /// PROPOSED, SEIZED, VALUED, SOLD, REJECTED
+  status          String      @default("PROPOSED")
+  location        String
+  seizedOn        DateTime    @db.Date
+  reason          String      @default("")
+  taskId          String?
+  valuationAmount Decimal?    @db.Decimal(24, 4)
+  valuer          String?
+  valuedOn        DateTime?   @db.Date
+  salePrice       Decimal?    @db.Decimal(24, 4)
+  saleCosts       Decimal?    @db.Decimal(24, 4)
+  buyer           String?
+  soldOn          DateTime?   @db.Date
+  saleEventId     String?     @unique
+  surplus         Decimal?    @db.Decimal(24, 4)
+  deficiency      Decimal?    @db.Decimal(24, 4)
+  proposedBy      String
+  approvedBy      String?
+  createdAt       DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+/// An item held in custody against a pawn or gold loan (LT-09, UC-66): what it
+/// is, its weight and purity, where it is kept, its value, the redemption
+/// deadline, and whether it was returned, forfeited or sold at auction.
+model PawnItem {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  loanAccountId      String
+  loanAccount        LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  description        String
+  /// GOLD, JEWELLERY, OTHER
+  itemType           String
+  weightGrams        Decimal     @db.Decimal(14, 4)
+  karat              Int?
+  /// Fineness as a fraction (0.75 = 18k).
+  purity             Decimal     @db.Decimal(8, 6)
+  pricePerGram       Decimal     @db.Decimal(24, 4)
+  appraisedValue     Decimal     @db.Decimal(24, 4)
+  custodyLocation    String
+  sealNumber         String?
+  receivedOn         DateTime    @db.Date
+  redemptionDeadline DateTime    @db.Date
+  /// IN_CUSTODY, FORFEITED, SOLD, RETURNED
+  status             String      @default("IN_CUSTODY")
+  forfeitedAt        DateTime?
+  returnedOn         DateTime?   @db.Date
+  returnReference    String?
+  salePrice          Decimal?    @db.Decimal(24, 4)
+  saleCosts          Decimal?    @db.Decimal(24, 4)
+  buyer              String?
+  soldOn             DateTime?   @db.Date
+  saleEventId        String?     @unique
+  surplus            Decimal?    @db.Decimal(24, 4)
+  deficiency         Decimal?    @db.Decimal(24, 4)
+  createdBy          String
+  createdAt          DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// Credit insurance on a loan (UC-68, UC-06). A financed premium was booked in
+/// the principal at disbursement and credited to the insurer payable; a paid
+/// premium is received in cash. Either way it is remitted to the insurer.
+model InsurancePolicy {
+  id               String           @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  loanAccount      LoanAccount      @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  insurer          String
+  policyNumber     String
+  /// DEATH, DISABILITY, DEATH_AND_DISABILITY
+  coverType        String
+  premium          Decimal          @db.Decimal(24, 4)
+  /// FINANCED, PAID
+  premiumTreatment String
+  premiumRemitted  Decimal          @default(0) @db.Decimal(24, 4)
+  currency         String
+  startDate        DateTime         @db.Date
+  /// ACTIVE, CLAIMED
+  status           String           @default("ACTIVE")
+  premiumEventId   String?          @unique
+  createdBy        String
+  createdAt        DateTime         @default(now())
+  claims           InsuranceClaim[]
+
+  @@unique([tenantId, insurer, policyNumber])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A claim on a credit-insurance policy (UC-68). Approved by a second user, it
+/// settles the loan against a receivable from the insurer; any excess is owed
+/// to the estate.
+model InsuranceClaim {
+  id                String          @id @default(uuid())
+  tenantId          String
+  policyId          String
+  policy            InsurancePolicy @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId     String
+  /// DEATH, DISABILITY
+  eventType         String
+  eventDate         DateTime        @db.Date
+  evidenceReference String
+  note              String          @default("")
+  amountClaimed     Decimal         @db.Decimal(24, 4)
+  /// PENDING, SETTLED, REJECTED
+  status            String          @default("PENDING")
+  taskId            String?
+  settlementEventId String?         @unique
+  surplus           Decimal?        @db.Decimal(24, 4)
+  deficiency        Decimal?        @db.Decimal(24, 4)
+  /// What the insurer has actually paid against the claim so far.
+  received          Decimal         @default(0) @db.Decimal(24, 4)
+  createdBy         String
+  createdAt         DateTime        @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// Sale of a delinquent or written-off loan to a collection agency (UC-71),
+/// approved by a second user. The loan leaves the book (SOLD).
+model DebtSale {
+  id                String      @id @default(uuid())
+  tenantId          String
+  loanAccountId     String
+  loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  buyer             String
+  price             Decimal     @db.Decimal(24, 4)
+  saleDate          DateTime    @db.Date
+  reason            String
+  externalReference String?
+  /// PENDING, EXECUTED, REJECTED
+  status            String      @default("PENDING")
+  taskId            String?
+  grossReceivable   Decimal?    @db.Decimal(24, 4)
+  carryingAmount    Decimal?    @db.Decimal(24, 4)
+  gainLoss          Decimal?    @db.Decimal(24, 4)
+  eventId           String?     @unique
+  proposedBy        String
+  approvedBy        String?
+  createdAt         DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+/// Money a recovery left over for the borrower or the estate (UC-65, UC-66,
+/// UC-68): held as a payable until a second user approves the payout.
+model RecoveryRefund {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// REPOSSESSION, PAWN_AUCTION, INSURANCE_CLAIM
+  source        String
+  sourceId      String
+  payee         String
+  amount        Decimal     @db.Decimal(24, 4)
+  currency      String
+  /// PAYABLE, PAID
+  status        String      @default("PAYABLE")
+  sourceEventId String
+  paidEventId   String?     @unique
+  taskId        String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
 }

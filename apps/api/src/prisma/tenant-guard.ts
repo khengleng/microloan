@@ -114,6 +114,13 @@ const DIRECT_TENANT_MODELS = new Set([
   'RestructureCondition',
   'RestructureReviewTask',
   'LoanAmendment',
+  // Recovery workflows
+  'Repossession',
+  'PawnItem',
+  'InsurancePolicy',
+  'InsuranceClaim',
+  'DebtSale',
+  'RecoveryRefund',
 ]);
 
 /**

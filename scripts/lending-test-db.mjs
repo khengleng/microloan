@@ -51,6 +51,7 @@ const INVARIANT_SECTIONS = [
   ['20261018000004_lending_suspense_refunds', '-- Database-level invariants for unidentified payments and refunds.'],
   ['20261018000005_lending_impairment', '-- Database-level invariants for impairment.'],
   ['20261018000006_lending_collateral_servicing', '-- Database-level invariants for collateral servicing.'],
+  ['20261019000100_lending_recovery', '-- Database-level invariants for recovery workflows.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
