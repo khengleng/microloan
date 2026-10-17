@@ -236,6 +236,25 @@ const evidenceSchema = z
   })
   .strict();
 
+const fraction = z.string().regex(/^(0(\.\d{1,6})?|1(\.0{1,6})?)$/);
+/** Only the known affordability settings, each typed, may be proposed. */
+const affordabilityPolicySchema = z
+  .object({
+    bufferFractionOfIncome: fraction.optional(),
+    bufferMinimum: z
+      .record(z.string().regex(/^[A-Z]{3}$/), z.string().regex(/^\d+(\.\d+)?$/))
+      .optional(),
+    minDscr: z
+      .string()
+      .regex(/^\d{1,3}(\.\d{1,4})?$/)
+      .optional(),
+    seasonalBufferFraction: fraction.optional(),
+    evidenceMaxAgeDays: z.number().int().min(1).max(3650).optional(),
+    requireVerifiedEvidence: z.boolean().optional(),
+    referralDpd: z.number().int().min(1).max(3650).optional(),
+  })
+  .strict();
+
 @Controller('lending/restructures')
 export class RestructuringController {
   constructor(private readonly svc: RestructuringService) {}
@@ -423,8 +442,11 @@ export class RestructuringController {
 
   @LendingAction('access_policy.manage')
   @Post('policy')
-  proposePolicy(@Req() req: Request, @Body() b: Record<string, unknown>) {
-    return this.svc.proposePolicy(actor(req), b as never);
+  proposePolicy(
+    @Req() req: Request,
+    @Body(new ZodPipe(affordabilityPolicySchema)) b: never,
+  ) {
+    return this.svc.proposePolicy(actor(req), b);
   }
 
   @LendingAction('access_policy.approve')

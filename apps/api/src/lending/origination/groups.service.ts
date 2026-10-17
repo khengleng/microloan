@@ -116,6 +116,9 @@ export class GroupsService {
           'A group belongs to a branch; name one or sign in as a branch user.',
         );
       }
+      // A branch named in the request must be one of this tenant's.
+      if (!(await tx.branch.findFirst({ where: { id: branchId, tenantId } })))
+        throw new NotFoundException('Branch not found');
       // The group does not exist yet, so authorization runs against the group
       // it is about to become: the branch decides scope, and FORMING is the
       // state it starts in.

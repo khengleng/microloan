@@ -18,6 +18,7 @@
 import { createHmac } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ModulesContainer } from '@nestjs/core';
+import { NotificationsService } from '../../src/notifications/notifications.service';
 import {
   Fixture,
   TEST_DB,
@@ -863,6 +864,60 @@ d('Tenant wall (integration)', () => {
       .get('/v1/borrower/loans')
       .set('Authorization', `Bearer ${forged}`);
     expect([401, 403]).toContain(res.status);
+  });
+
+  it('a phone shared by two organisations signs in only where its code was issued, with guesses capped', async () => {
+    const sms: string[] = [];
+    const spy = jest
+      .spyOn(f.app.get(NotificationsService), 'sendSms')
+      .mockImplementation(async (_to: string, body: string) => {
+        sms.push(body);
+        return undefined as never;
+      });
+    try {
+      // Unique per run: issuance is capped per phone across runs too.
+      const phone = `+8551${String(Date.now()).slice(-8)}`;
+      const a = await borrower(f, f.t1, f.b1, { phone, firstName: 'Shared' });
+      const b = await borrower(f, attacker, f.b3, {
+        phone,
+        firstName: 'Shared',
+      });
+      // The attacker's record is the most recently touched one.
+      await f.system(() =>
+        f.prisma.borrower.update({
+          where: { id: b.id },
+          data: { firstName: 'Touched' },
+        }),
+      );
+      expectOk(await f.http().post('/v1/borrower/otp/request').send({ phone }));
+      expect(sms).toHaveLength(1);
+      const codes = [...sms[0].matchAll(/: (\d{6})/g)].map((m) => m[1]);
+      expect(codes).toHaveLength(2);
+      const tenantOf = async (code: string) => {
+        const r = await f
+          .http()
+          .post('/v1/borrower/otp/verify')
+          .send({ phone, code });
+        return r.status === 201 || r.status === 200
+          ? (r.body.borrower.id as string)
+          : r.status;
+      };
+      // Wrong guesses spend attempts; the victim's own code still signs in to
+      // the victim's organisation, never the attacker's.
+      expect(await tenantOf('000000')).toBe(401);
+      const signedIn = await tenantOf(codes[0]);
+      // Codes are listed oldest borrower first: the first is the victim's.
+      expect(signedIn).toBe(a.id);
+      // Codes are single-use: the other organisation's code is consumed too.
+      expect(await tenantOf(codes[1])).toBe(401);
+
+      // Re-requesting cannot reset the attempt limit indefinitely.
+      for (let i = 0; i < 5; i++)
+        await f.http().post('/v1/borrower/otp/request').send({ phone });
+      expect(sms.length).toBeLessThanOrEqual(3);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('a staff token whose tenant claim is swapped cannot reach the victim', async () => {

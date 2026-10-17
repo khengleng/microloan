@@ -897,6 +897,23 @@ export class AccessAdminService {
         tenantResource(tenantId, 'FLAG', body.flagKey),
         tx,
       );
+      // A rule may only target this tenant's own branches and products.
+      if (body.scopeType === 'BRANCH' && body.scopeValue) {
+        if (
+          !(await tx.branch.findFirst({
+            where: { id: body.scopeValue, tenantId },
+          }))
+        )
+          throw new NotFoundException('Branch not found');
+      }
+      if (body.scopeType === 'PRODUCT' && body.scopeValue) {
+        if (
+          !(await tx.lendingProduct.findFirst({
+            where: { code: body.scopeValue, tenantId },
+          }))
+        )
+          throw new NotFoundException('Product not found');
+      }
       const rule = await tx.flagRule.create({
         data: {
           tenantId,
@@ -1082,6 +1099,18 @@ export class AccessAdminService {
         tenantResource(tenantId, 'FLAG', body.cohortCode),
         tx,
       );
+      // The subject must be one of this tenant's own branches, users or borrowers.
+      const where = { id: body.subjectId, tenantId };
+      const subject =
+        body.subjectType === 'BRANCH'
+          ? await tx.branch.findFirst({ where, select: { id: true } })
+          : body.subjectType === 'USER'
+            ? await tx.user.findFirst({ where, select: { id: true } })
+            : await tx.borrower.findFirst({ where, select: { id: true } });
+      if (!subject)
+        throw new NotFoundException(
+          `${body.subjectType.toLowerCase()} not found`,
+        );
       if (body.member) {
         await tx.cohortMembership.upsert({
           where: {
