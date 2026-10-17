@@ -145,26 +145,29 @@ Day-to-day operation:
 * **Limit changes** are maker-checker and cannot cut a limit below what is
   already drawn.
 * **Suspension** blocks new drawdowns and leaves servicing untouched.
-* **Term-out** converts the drawn balance to an amortizing loan once
-  availability ends; an overdraft is repayable on demand and does not term out.
+* **Term-out** converts the drawn balance to an amortizing monthly schedule
+  on the same loan account once availability ends (state the facility up to
+  the term-out date first; stated charges fall due with the first
+  instalment); an overdraft is repayable on demand and does not term out.
+  After term-out, repay through the loan, not the facility.
+* **Minimum-payment arrears** are aged by end of day: repayments since the
+  first statement cover minimum payments oldest first, and the oldest still
+  uncovered after its due date sets days past due and the collections stage.
 
 Nothing is reversed by editing: a released drawdown is immutable at the
 database level, and a correction is a reversal of its disbursement.
 
 Not yet covered for groups:
 
-* **Contributions are recorded, not collected.** A repayment is posted against
-  the loan as a whole; who paid is captured separately and does not change
-  what the loan owes.
+* **Contributions are recorded with the repayment.** A group repayment may
+  carry `contributions` by member (they must add up to the payment); the loan
+  is still repaid as a whole, and reversed repayments drop out of members'
+  totals.
 * **Delinquency is at loan level**, not per member: the group is in arrears or
   it is not.
 
 Not yet covered for facilities:
 
-* **Delinquency is not computed.** Days past due and collections stages are
-  derived from schedule instalments, which a facility has none of, so a
-  facility whose minimum payment is unpaid still reports as current. Arrears
-  must be worked from the statement until this is added.
 * **Statements are raised on demand**, not by the end-of-day batch.
 * **Interest is not capitalized** into the drawn balance; it stays as interest
   receivable until paid.
@@ -303,14 +306,15 @@ thereafter.
 * Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
   factoring, forfaiting, supply-chain finance, income-contingent education,
   syndication, project finance, institutional lending, Murabaha, Ijarah,
-  post-write-off recoveries, refinancing, negotiated settlement, stand-alone
-  payment holidays, emergency (break-glass) access.
+  emergency (break-glass) access.
 * Reversal is latest-first and not available for repayments that triggered a
   prepayment reschedule; amendment reversal only before later activity.
-* No unapplied-cash (suspense) account: overpayments beyond the payoff are refused.
+* Money with no loan goes to the unidentified-payments suspense account
+  (Lending › Unidentified payments) and is matched or refunded; money beyond
+  what is due is held as an advance or prepaid per the product.
 * Penalty interest uses ACT/365F on overdue principal + interest.
-* Modification accounting, impairment staging and regulatory classification
-  beyond the restructure delinquency floor need integration review.
+* Impairment (regulatory class rates or ECL by stage) posts only once a
+  policy is approved; modification accounting still needs integration review.
 * The business date is per tenant (not per branch or legal entity).
 
 ## API index (`/v1/lending/...`)

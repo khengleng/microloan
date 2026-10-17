@@ -46,11 +46,11 @@ const INVARIANT_SECTIONS = [
   ['20261017_lending_rate_resets', '-- Database-level invariants for rate resets.'],
   ['20261017_lending_group_liability', '-- Database-level invariants for group lending.'],
   ['20261017_lending_relief_refinance', '-- Database-level invariants for relief and refinancing.'],
-  ['20261017_lending_policies_advance_nonaccrual', '-- Database-level invariants for loan policies, advances and non-accrual.'],
-  ['20261017_lending_rls_all_tables', '-- Database-level invariants for tenant isolation of the remaining tables.'],
-  ['20261017_lending_suspense_refunds', '-- Database-level invariants for unidentified payments and refunds.'],
-  ['20261017_lending_impairment', '-- Database-level invariants for impairment.'],
-  ['20261017_lending_collateral_servicing', '-- Database-level invariants for collateral servicing.'],
+  ['20261018000001_lending_policies_advance_nonaccrual', '-- Database-level invariants for loan policies, advances and non-accrual.'],
+  ['20261018000002_lending_rls_all_tables', '-- Database-level invariants for tenant isolation of the remaining tables.'],
+  ['20261018000004_lending_suspense_refunds', '-- Database-level invariants for unidentified payments and refunds.'],
+  ['20261018000005_lending_impairment', '-- Database-level invariants for impairment.'],
+  ['20261018000006_lending_collateral_servicing', '-- Database-level invariants for collateral servicing.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
