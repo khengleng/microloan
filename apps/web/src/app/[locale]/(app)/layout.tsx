@@ -4,19 +4,21 @@ import { useTranslations } from 'next-intl';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import {
-    LayoutDashboard, Users, FileText, CreditCard, BarChart2,
-    Settings, Building, LogOut, AlertTriangle, UserCog, Shield, QrCode,
-    Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge, Layers,
-    LibraryBig, Boxes, Calculator, Workflow, ClipboardList, Wallet, Siren, LifeBuoy, BookOpenCheck, ScrollText, KeyRound
-} from 'lucide-react';
+import { LogOut, Menu, X, ChevronRight } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
 import { clarityIdentify, claritySetTag } from '@/lib/clarity';
+import { WorkspaceProvider, useQueueCount, useWorkspace } from '@/lib/workspace';
+import { NAV, PLATFORM_NAV, visibleNav, type NavItem } from '@/lib/nav';
+import { GlobalSearch } from '@/components/workspace/GlobalSearch';
+import { ShellBanners, ShellChips } from '@/components/workspace/ShellStatus';
 
 function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
     const t = useTranslations('Nav');
+    const tw = useTranslations('Workspace');
+    const ws = useWorkspace();
+    const queueCount = useQueueCount();
     const pathname = usePathname();
     const { user } = useAuth(); // single /auth/me — no per-page duplicate calls
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,12 +32,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
         return next || `/${target}`;
     };
 
-    const role = user?.role;
-    const isSuperAdmin = role === 'SUPERADMIN';
     const isPlatform = user?.isPlatform;
-    const isAdmin = role === 'ADMIN' || isSuperAdmin;
-    const isFinance = role === 'FINANCE' || isAdmin;
-    const isSales = role === 'SALES' || isAdmin;
+    // Menus come from the lending permission engine (GET /me/access) and the
+    // legacy screens' own permissions — never from legacy role names alone.
+    const sections = visibleNav(isPlatform ? PLATFORM_NAV : NAV, ws);
 
     useEffect(() => {
         if (!user) return;
@@ -46,10 +46,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
         claritySetTag('tenant_scope', user.tenantId || 'platform');
     }, [user]);
 
-    const navItem = (href: string, label: string, Icon: any) => {
-        const active = pathname === `/${locale}${href}`;
+    const navItem = (item: NavItem) => {
+        const { href, icon: Icon } = item;
+        const label = tw(`nav.${item.key}`);
+        const active = pathname === `/${locale}${href}` || (href.startsWith('/lending/') && pathname.startsWith(`/${locale}${href}/`));
+        const count = queueCount(item.queues);
         return (
             <Link
+                key={href}
                 href={`/${locale}${href}`}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${active
@@ -58,13 +62,18 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     }`}
             >
                 <Icon size={15} className={active ? 'text-sidebar-primary' : 'text-sidebar-foreground/70'} />
-                {label}
+                <span className="flex-1 min-w-0 truncate">{label}</span>
+                {count > 0 && (
+                    <span className="text-[10.5px] font-bold rounded-full px-1.5 min-w-[18px] text-center tabular-nums bg-sidebar-primary text-white" aria-label={tw('shell.waiting', { count })}>
+                        {count > 99 ? '99+' : count}
+                    </span>
+                )}
             </Link>
         );
     };
 
     const navSection = (title: string) => (
-        <p className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/40">{title}</p>
+        <p key={`sec-${title}`} className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/40">{title}</p>
     );
 
     return (
@@ -97,67 +106,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
                 {/* Nav */}
                 <nav className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
-                    {isPlatform ? (
-                        <>
-                            {navSection(t('secPlatformOps'))}
-                            {navItem('/tenants', t('organizations'), Building)}
-                            {navItem('/platform-payments', 'Payments', QrCode)}
-                            {navItem('/plan-tiers', 'Subscription Plans', Layers)}
-
-                            {isAdmin && (
-                                <>
-                                    {navItem('/users', t('platformTeam'), UserCog)}
-                                    {navItem('/audit', t('auditLog'), Shield)}
-                                    {navSection(t('secConfiguration'))}
-                                    {navItem('/settings', t('settingsBilling'), Settings)}
-                                </>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            {navSection(t('secLendingOps'))}
-                            {navItem('/dashboard', t('dashboard'), LayoutDashboard)}
-                            {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
-                            {(isSales || isFinance) && navItem('/loans', t('loans'), FileText)}
-                            {isFinance && navItem('/repayments', t('repayments'), CreditCard)}
-                            {isFinance && navItem('/collections', t('collections'), AlertTriangle)}
-                            {isFinance && navItem('/reports', t('reports'), BarChart2)}
-                            {navItem('/products', t('products'), BarChart2)}
-
-                            {isFinance && (
-                                <>
-                                    {navSection(t('secAccounting'))}
-                                    {navItem('/kpi', t('kpi'), Gauge)}
-                                    {navItem('/accounting', t('accounting'), Landmark)}
-                                    {navItem('/provisioning', t('provisioning'), ShieldCheck)}
-                                    {navItem('/fx', t('fxRates'), Coins)}
-                                </>
-                            )}
-
-                            {/* Configurable lending platform — visible to all tenant users; the API enforces permissions. */}
-                            {navSection('Lending Platform')}
-                            {navItem('/lending/catalogue', 'Catalogue', LibraryBig)}
-                            {navItem('/lending/products', 'Products', Boxes)}
-                            {navItem('/lending/simulator', 'Simulator', Calculator)}
-                            {navItem('/lending/workflows', 'Workflows', Workflow)}
-                            {navItem('/lending/applications', 'Applications', ClipboardList)}
-                            {navItem('/lending/loans', 'Loan accounts', Wallet)}
-                            {navItem('/lending/collections', 'Collections', Siren)}
-                            {navItem('/lending/restructures', 'Restructures', LifeBuoy)}
-                            {navItem('/lending/accounting', 'Reconciliation', BookOpenCheck)}
-                            {navItem('/lending/audit', 'Audit explorer', ScrollText)}
-                            {navItem('/lending/access', 'Access & policy', KeyRound)}
-
-                            {isAdmin && (
-                                <>
-                                    {navSection(t('secBusinessSettings'))}
-                                    {navItem('/users', t('teamMembers'), UserCog)}
-                                    {navItem('/audit', t('auditLog'), Shield)}
-                                    {navItem('/settings', t('settings'), Settings)}
-                                </>
-                            )}
-                        </>
-                    )}
+                    {sections.map((sec) => (
+                        <div key={sec.key}>
+                            {navSection(tw(`sections.${sec.key}`))}
+                            {sec.items.map(navItem)}
+                        </div>
+                    ))}
                 </nav>
 
                 {/* User */}
@@ -170,7 +124,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             <p className="text-[13px] font-semibold text-white truncate capitalize leading-tight">
                                 {user?.email?.split('@')[0]}
                             </p>
-                            <p className="text-[11px] text-sidebar-foreground/60 truncate uppercase tracking-wide">{user?.role}</p>
+                            <p className="text-[11px] text-sidebar-foreground/60 truncate tracking-wide" title={ws.access?.roles.map((r) => r.name).join(', ') || user?.role}>
+                                {ws.access?.roles.length ? ws.access.roles.map((r) => r.name).join(', ') : user?.role}
+                            </p>
                         </div>
                     </div>
                     <button
@@ -189,7 +145,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
             {/* Main content */}
             <div className="flex-1 flex flex-col min-w-0 overflow-auto">
                 {/* Topbar */}
-                <header className="h-14 bg-white border-b border-border flex items-center justify-between px-5 sticky top-0 z-30 flex-shrink-0">
+                <header className="h-14 bg-white border-b border-border flex items-center justify-between gap-3 px-5 sticky top-0 z-30 flex-shrink-0">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarOpen(true)}
@@ -198,7 +154,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             <Menu size={18} />
                         </button>
                         {/* Breadcrumb */}
-                        <nav className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+                        <nav className="hidden xl:flex items-center gap-1 text-sm text-muted-foreground">
                             <span>MicroLoan</span>
                             <ChevronRight size={14} />
                             <span className="text-foreground font-medium capitalize">
@@ -206,6 +162,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             </span>
                         </nav>
                     </div>
+                    <GlobalSearch platform={!!isPlatform} />
+                    <ShellChips />
                     {/* Locale switcher */}
                     <div className="flex items-center gap-0.5 border border-border rounded p-0.5 bg-muted">
                         <Link
@@ -221,6 +179,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                 </header>
 
+                <ShellBanners />
+
                 {/* Page content */}
                 <main className="flex-1 p-6">
                     {children}
@@ -234,7 +194,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
-            <AppShell>{children}</AppShell>
+            <WorkspaceProvider>
+                <AppShell>{children}</AppShell>
+            </WorkspaceProvider>
         </AuthProvider>
     );
 }

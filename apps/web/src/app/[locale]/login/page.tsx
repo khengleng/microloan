@@ -55,7 +55,7 @@ export default function LoginPage() {
             // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me', { headers: { Authorization: `Bearer ${data.accessToken ?? ''}` } }).then(r => r.json()).catch(() => ({}));
             clarityEvent('login_submit_success');
-            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
+            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/home`);
         } catch {
             clarityEvent('login_submit_failed');
             setError(t('connectError'));
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
     const finishLogin = async () => {
         const me = await fetch('/api/proxy/auth/me').then(r => r.json()).catch(() => ({}));
-        router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
+        router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/home`);
     };
 
     const handleGoogle = async (idToken: string) => {
@@ -112,7 +112,7 @@ export default function LoginPage() {
             // Redirect Platform Staff to platform view; everyone else to dashboard
             const me = await fetch('/api/proxy/auth/me').then(r => r.json()).catch(() => ({}));
             clarityEvent('mfa_verify_success');
-            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/dashboard`);
+            router.push(me?.isPlatform ? `/${locale}/tenants` : `/${locale}/home`);
         } catch {
             clarityEvent('mfa_verify_failed');
             setError(t('mfaFailure'));

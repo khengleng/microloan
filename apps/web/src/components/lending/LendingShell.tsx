@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
+import { useWorkspace } from '@/lib/workspace';
+import { hrefVisible, navKeyFor } from '@/lib/nav';
+import { useTranslations } from 'next-intl';
 
 export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/catalogue', label: 'Catalogue' },
@@ -38,10 +41,18 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
     const { locale } = useParams();
     const pathname = usePathname() || '';
     const base = `/${locale}`;
+    const ws = useWorkspace();
+    const tw = useTranslations('Workspace.nav');
+    const label = (t: { href: string; label: string }) => {
+        const k = navKeyFor(t.href);
+        return k && tw.has(k) ? tw(k) : t.label;
+    };
+    // Tabs follow the same permission rules as the menu; until access loads, all show.
+    const tabs = ws.ready && ws.access ? LENDING_TABS.filter((t) => hrefVisible(t.href, ws)) : LENDING_TABS;
     return (
         <div className="max-w-[1280px] mx-auto space-y-5 pb-10">
             <nav className="flex gap-1 overflow-x-auto no-scrollbar border-b border-[#E3E8EE] -mt-1">
-                {LENDING_TABS.map((t) => {
+                {tabs.map((t) => {
                     const active = pathname === `${base}${t.href}` || pathname.startsWith(`${base}${t.href}/`);
                     return (
                         <Link
@@ -49,7 +60,7 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
                             href={`${base}${t.href}`}
                             className={`px-3 py-2 text-[13px] font-semibold whitespace-nowrap -mb-px border-b-2 transition-colors ${active ? 'border-[#635BFF] text-[#635BFF]' : 'border-transparent text-[#697386] hover:text-[#1A1F36]'}`}
                         >
-                            {t.label}
+                            {label(t)}
                         </Link>
                     );
                 })}
