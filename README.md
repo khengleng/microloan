@@ -315,6 +315,52 @@ group contributions and interest capitalization — are listed in
 
 ---
 
+## Scope coverage: loan servicing use cases
+
+The full servicing scope (24 loan types, 75 use cases, 8 operations areas,
+10 document-management items and 20 golden test vectors) is in
+[docs/servicing/USE_CASES.md](docs/servicing/USE_CASES.md) and
+[docs/servicing/TEST_VECTORS.md](docs/servicing/TEST_VECTORS.md). Each item is
+traced to code, tests and a status in
+[docs/servicing/TRACEABILITY.md](docs/servicing/TRACEABILITY.md).
+
+| Group | ✅ Done | 🟡 Partial | ⛔ Missing | Total |
+|---|---|---|---|---|
+| Loan types | 9 | 11 | 4 | 24 |
+| Use cases | 30 | 17 | 28 | 75 |
+| Operations | 2 | 6 | 0 | 8 |
+| Customer documents | 0 | 6 | 4 | 10 |
+| Test vectors | 12 match to the cent | 2 differ by convention | 6 not reproduced | 20 |
+
+**Strong today:** schedule methods (equal instalment, equal principal, flat,
+interest-only, balloon, seasonal, grace with capitalization, irregular first
+period), configurable allocation, both prepayment options, restructuring,
+payment holidays, refinance, negotiated settlement, write-off and recovery,
+floating-rate resets, staged and revolving facilities, maker-checker, and an
+automatic end-of-day run.
+
+**Largest gaps, by risk to money owed:**
+
+1. An instalment paid before its due date is treated as a principal
+   prepayment (or refused), so the instalment stays due (UC-27).
+2. No non-accrual: interest is recognised at any days past due (UC-62).
+3. No impairment for lending-platform loans; provisioning is legacy-only and
+   tier-based, with no ECL (OPS-5).
+4. Revolving term-out books no schedule, and facility arrears are not aged
+   (UC-43, UC-38).
+5. No suspense, advance balance or refund for overpaid or unidentified money
+   (UC-26, UC-28, UC-74).
+6. Customer documents live in three unrelated stores, two of them as base64 in
+   the database, with no versions, expiry or retention (DOC-1..10).
+
+Not started: credit cards, BNPL merchant settlement, invoice finance, letters
+of credit, syndication, repossession, pawn forfeiture, credit insurance, debt
+sale, payment channels beyond manual and service-account posting (auto-debit,
+payroll, wallet settlement files, cross-currency), and closure letters and
+bureau reporting.
+
+---
+
 ## Local development
 
 ### Prerequisites
@@ -351,7 +397,7 @@ Walkthrough and credentials: [OPERATIONS.md](docs/lending/OPERATIONS.md#demo-dat
 
 ```bash
 pnpm test                 # lint + typecheck + prisma validate (turbo)
-pnpm test:engine          # lending engine: decimal reference cases, restructuring, configuration
+pnpm test:engine          # lending engine: decimal reference cases, golden test vectors TV-01..TV-20, restructuring, configuration
 pnpm test:api             # API unit tests (incl. decision-engine security tests)
 
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
@@ -385,6 +431,7 @@ packages/
   shared/              shared domain logic and the lending engine (+ engine tests)
 docs/lending/          lending platform documentation
 docs/ui/               web workspace design and interactive prototype
+docs/servicing/        servicing scope, golden test vectors and traceability
 scripts/               security scans, production config check, lending test-DB and capability-matrix tools
 ```
 
