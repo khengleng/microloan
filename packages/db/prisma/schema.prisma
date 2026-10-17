@@ -1969,6 +1969,7 @@ model LoanAccount {
   debtSales              DebtSale[]
   recoveryRefunds        RecoveryRefund[]
   directDebitMandates    DirectDebitMandate[]
+  covenants              LoanCovenant[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -3243,4 +3244,51 @@ model DocumentRetentionRule {
 
   @@unique([tenantId, scope, code])
   @@unique([tenantId, id])
+}
+
+/// A covenant the borrower must keep (LT-16): a minimum debt-service
+/// coverage, a maximum loan-to-value, or delivery of financial statements,
+/// tested on a schedule.
+model LoanCovenant {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// MIN_DSCR, MAX_LTV, FINANCIAL_STATEMENTS
+  type           String
+  threshold      Decimal?    @db.Decimal(12, 6)
+  frequencyMonths Int
+  nextTestOn     DateTime    @db.Date
+  /// ACTIVE, BREACHED, WAIVED, RELEASED
+  status         String      @default("ACTIVE")
+  description    String      @default("")
+  createdBy      String
+  createdAt      DateTime    @default(now())
+  tests          CovenantTest[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, nextTestOn])
+  @@index([tenantId, loanAccountId])
+}
+
+/// One test of a covenant: the figures given, the value worked out, the result.
+model CovenantTest {
+  id            String       @id @default(uuid())
+  tenantId      String
+  covenantId    String
+  covenant      LoanCovenant @relation(fields: [tenantId, covenantId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId String
+  testedOn      DateTime     @db.Date
+  periodEnd     DateTime     @db.Date
+  value         Decimal?     @db.Decimal(14, 6)
+  passed        Boolean
+  inputs        Json
+  evidence      String       @default("")
+  /// TEST, WAIVER
+  kind          String       @default("TEST")
+  createdBy     String
+  createdAt     DateTime     @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, covenantId])
 }

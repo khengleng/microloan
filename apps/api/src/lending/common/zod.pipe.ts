@@ -49,6 +49,13 @@ export const termsSchema = z
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
     downPayment: money.optional(),
     promotionCode: z.string().trim().min(1).max(40).optional(),
+    financials: z
+      .object({
+        annualNetOperatingIncome: money,
+        otherAnnualDebtService: money.optional(),
+      })
+      .strict()
+      .optional(),
     riskCategory: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     policies: z
       .record(
@@ -397,6 +404,30 @@ export const S = {
       amount: money,
       externalReference: z.string().max(120).optional(),
     })
+    .strict(),
+  covenant: z
+    .object({
+      type: z.enum(['MIN_DSCR', 'MAX_LTV', 'FINANCIAL_STATEMENTS']),
+      threshold: z
+        .string()
+        .regex(/^\d+(\.\d{1,6})?$/)
+        .optional(),
+      frequencyMonths: z.number().int().min(1).max(24),
+      firstTestOn: date.optional(),
+      description: z.string().max(500).optional(),
+    })
+    .strict(),
+  covenantTest: z
+    .object({
+      periodEnd: date,
+      annualNetOperatingIncome: money.optional(),
+      annualDebtService: money.optional(),
+      statementsReceived: z.boolean().optional(),
+      evidence: z.string().max(500).optional(),
+    })
+    .strict(),
+  covenantWaiver: z
+    .object({ reason: z.string().trim().min(3).max(500) })
     .strict(),
   setOff: z
     .object({

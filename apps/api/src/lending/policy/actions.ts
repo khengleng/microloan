@@ -175,6 +175,12 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.guarantor_demand.issue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  A('loan.covenant.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.covenant.waive', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+  }),
   A('loan.set_off.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),

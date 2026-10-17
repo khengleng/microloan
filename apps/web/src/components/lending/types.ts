@@ -171,6 +171,8 @@ export interface Terms {
     downPayment?: Money;
     /** Campaign code of the product's promotional rate (UC-46). */
     promotionCode?: string;
+    /** Business financials for debt-service coverage (LT-16). */
+    financials?: { annualNetOperatingIncome: Money; otherAnnualDebtService?: Money };
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */

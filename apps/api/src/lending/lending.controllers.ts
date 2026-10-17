@@ -27,6 +27,7 @@ import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
 import { ReportingService } from './reporting/reporting.service';
 import { CollectionsService } from './collections/collections.service';
+import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -469,7 +470,47 @@ export class LendingLoansController {
     private readonly reporting: ReportingService,
     private readonly collections: CollectionsService,
     private readonly generated: GeneratedDocumentsService,
+    private readonly covenants: CovenantsService,
   ) {}
+
+  /** Covenants on the loan and their tests (LT-16). */
+  @LendingAction('loan.read')
+  @Get(':id/covenants')
+  covenantList(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.covenants.list(actor(req), id);
+  }
+
+  @LendingAction('loan.covenant.manage')
+  @Post(':id/covenants')
+  addCovenant(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.covenant)) body: never,
+  ) {
+    return this.covenants.add(actor(req), id, body);
+  }
+
+  @LendingAction('loan.covenant.manage')
+  @Post(':id/covenants/:covenantId/tests')
+  testCovenant(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('covenantId', ID) covenantId: string,
+    @Body(new ZodPipe(S.covenantTest)) body: never,
+  ) {
+    return this.covenants.test(actor(req), id, covenantId, body);
+  }
+
+  @LendingAction('loan.covenant.waive')
+  @Post(':id/covenants/:covenantId/waive')
+  waiveCovenant(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('covenantId', ID) covenantId: string,
+    @Body(new ZodPipe(S.covenantWaiver)) body: never,
+  ) {
+    return this.covenants.waive(actor(req), id, covenantId, body);
+  }
 
   /** Guarantees on the loan and the demands made under them (UC-60). */
   @LendingAction('loan.read')

@@ -1706,6 +1706,83 @@ export class ApplicationsService {
           });
       }
     }
+
+    // LT-16: debt-service coverage from the business's annual financials.
+    const fin = terms.financials;
+    if (fin?.annualNetOperatingIncome) {
+      const annualDebtService = monthlyPayment
+        .times(12)
+        .plus(D(fin.otherAnnualDebtService ?? '0'));
+      const dscr = lending.debtServiceCoverage(
+        fin.annualNetOperatingIncome,
+        annualDebtService.toString(),
+      );
+      if (dscr) {
+        metrics.debtServiceCoverage = dscr.toDecimalPlaces(4).toString();
+        if (
+          stage === 'APPROVAL' &&
+          config.eligibility.minDscr &&
+          dscr.lt(config.eligibility.minDscr)
+        )
+          blocking.push({
+            code: 'DSCR',
+            message: `Debt-service coverage ${dscr.toDecimalPlaces(2)} is below the minimum ${config.eligibility.minDscr}.`,
+          });
+      }
+    } else if (stage === 'APPROVAL' && config.eligibility.minDscr) {
+      blocking.push({
+        code: 'DSCR',
+        message:
+          'Annual net operating income is needed to assess debt-service coverage.',
+      });
+    }
+
+    // OPS-2: an explainable origination score from what the lender knows.
+    const history = await tx.loanAccount.findMany({
+      where: { tenantId: app.tenantId, borrowerId: app.borrowerId },
+      select: { status: true, daysPastDue: true },
+    });
+    const guaranteeCount = await tx.guarantee.count({
+      where: { tenantId: app.tenantId, applicationId: app.id },
+    });
+    const score = lending.creditScore({
+      debtServiceRatio:
+        typeof metrics.debtServiceRatio === 'string'
+          ? metrics.debtServiceRatio
+          : null,
+      ageYears: typeof metrics.ageYears === 'number' ? metrics.ageYears : null,
+      closedLoans: history.filter((h) => h.status === 'CLOSED').length,
+      worstCurrentDpd: Math.max(
+        0,
+        ...history
+          .filter((h) => h.status === 'ACTIVE')
+          .map((h) => h.daysPastDue),
+      ),
+      writtenOff: history.some((h) =>
+        ['WRITTEN_OFF', 'SOLD'].includes(h.status),
+      ),
+      loanToValue:
+        typeof metrics.loanToValue === 'string' ? metrics.loanToValue : null,
+      guarantees: guaranteeCount,
+      bureauScore: null,
+    });
+    metrics.creditScore = score.score;
+    metrics.creditGrade = score.grade;
+    metrics.creditScoreFactors = score.factors
+      .map(
+        (f) =>
+          `${f.factor} ${f.points >= 0 ? '+' : ''}${f.points}: ${f.reason}`,
+      )
+      .join(' | ');
+    if (
+      stage === 'APPROVAL' &&
+      config.eligibility.minCreditScore !== null &&
+      score.score < config.eligibility.minCreditScore
+    )
+      blocking.push({
+        code: 'CREDIT_SCORE',
+        message: `Credit score ${score.score} (grade ${score.grade}) is below the minimum ${config.eligibility.minCreditScore}.`,
+      });
     return { stage, blocking, metrics };
   }
 
@@ -1730,6 +1807,7 @@ export class ApplicationsService {
       waivedFeeCodes: t.waivedFeeCodes,
       downPayment: t.downPayment,
       promotionCode: t.promotionCode,
+      financials: t.financials,
       policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)

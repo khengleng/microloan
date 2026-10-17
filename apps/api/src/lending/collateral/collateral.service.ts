@@ -421,7 +421,7 @@ export class CollateralService {
   }
 
   /** What the loan owes against what its active collateral will lend. */
-  private async position(tx: Tx, state: LoanState): Promise<Position> {
+  async position(tx: Tx, state: LoanState): Promise<Position> {
     const a = state.account;
     const pledges = await tx.collateralPledge.findMany({
       where: { tenantId: a.tenantId, applicationId: a.applicationId },

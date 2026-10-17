@@ -94,6 +94,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'payoff-quotes/:quoteId': 'payoffQuote',
       'tasks/:taskId': 'collectionTask',
       'guarantor-demands/:demandId': 'guarantorDemand',
+      'covenants/:covenantId': 'loanCovenant',
       'set-offs/:taskId': 'approvalTask',
       'repossessions/:repossessionId': 'repossession',
       'pawn-items/:itemId': 'pawnItem',

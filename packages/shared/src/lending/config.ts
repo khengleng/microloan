@@ -137,6 +137,10 @@ export const productConfigSchema = z
         employmentTypes: z.array(z.enum(['SALARIED', 'SELF_EMPLOYED', 'BUSINESS_OWNER', 'FARMER', 'STUDENT', 'OTHER'])).default([]),
         minBusinessAgeMonths: z.number().int().min(0).nullable().default(null),
         maxDebtServiceRatio: rateFraction.nullable().default(null),
+        /** Lowest origination credit score approved (OPS-2), on the 300–850 scale; null: not gated. */
+        minCreditScore: z.number().int().min(300).max(850).nullable().default(null),
+        /** Lowest debt-service coverage (NOI ÷ annual debt service) approved (LT-16); null: not gated. */
+        minDscr: decimalString.nullable().default(null),
       })
       .strict(),
     pricing: z
@@ -857,6 +861,8 @@ export interface NegotiatedTerms {
   downPayment?: string;
   /** The campaign code of the product's promotional rate (UC-46). */
   promotionCode?: string;
+  /** Business financials for debt-service coverage (LT-16), annual amounts. */
+  financials?: { annualNetOperatingIncome: string; otherAnnualDebtService?: string };
   /**
    * The contract's choice from the product's policy menus (POLICY_MODEL.md).
    * A kind left out uses the product's default policy.

@@ -13,10 +13,11 @@ export interface TermsDraft {
     firstDueDate: string;
     downPayment: string;
     promotionCode: string;
+    annualNetOperatingIncome: string;
 }
 
 export function emptyTermsDraft(disbursementDate: string): TermsDraft {
-    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '', promotionCode: '' };
+    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '', promotionCode: '', annualNetOperatingIncome: '' };
 }
 
 export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft {
@@ -28,6 +29,7 @@ export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft
         firstDueDate: t?.firstDueDate ?? '',
         downPayment: t?.downPayment ?? '',
         promotionCode: t?.promotionCode ?? '',
+        annualNetOperatingIncome: t?.financials?.annualNetOperatingIncome ?? '',
     };
 }
 
@@ -53,6 +55,9 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
         firstDueDate: d.firstDueDate || undefined,
         downPayment: d.downPayment.trim() || undefined,
         promotionCode: d.promotionCode.trim() || undefined,
+        financials: d.annualNetOperatingIncome.trim()
+            ? { ...(base?.financials ?? {}), annualNetOperatingIncome: d.annualNetOperatingIncome.trim() }
+            : base?.financials,
     } as Terms;
 }
 
@@ -80,6 +85,9 @@ export function TermsFields({ value, onChange, currency }: { value: TermsDraft; 
             </Field>
             <Field label="Promotion code" hint="Optional — the product's campaign code for its promotional rate">
                 <TextInput value={value.promotionCode} onChange={set('promotionCode')} maxLength={40} />
+            </Field>
+            <Field label="Annual net operating income" hint="Optional — business loans: for debt-service coverage (DSCR)">
+                <TextInput value={value.annualNetOperatingIncome} onChange={set('annualNetOperatingIncome')} inputMode="decimal" />
             </Field>
         </div>
     );

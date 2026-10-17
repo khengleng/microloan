@@ -17,6 +17,7 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
 import { CollectionsService } from './collections/collections.service';
+import { CovenantsService } from './covenants/covenants.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
 import { PaymentChannelsService } from './payments/payment-channels.service';
@@ -94,6 +95,7 @@ import {
   providers: [
     ReportingService,
     CollectionsService,
+    CovenantsService,
     LendingPrisma,
     AuditEventService,
     BusinessDateService,

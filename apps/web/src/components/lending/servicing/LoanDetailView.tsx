@@ -32,6 +32,7 @@ import { RateResetsPanel } from '../relief/RateResetsPanel';
 import { FeeWaiverPanel } from './FeeWaiverPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
 import { LoanDocumentsCard } from './LoanDocumentsCard';
+import { CovenantsCard } from './CovenantsCard';
 import { LoanRecoveryCard } from '../recovery/LoanRecoveryCard';
 import { LoanMandatesCard } from '../channels/LoanMandatesCard';
 
@@ -196,6 +197,7 @@ export function LoanDetailView({ id }: { id: string }) {
             </Card>
 
             {acc.status !== 'BOOKED' && <LoanDocumentsCard loanId={id} closed={acc.status === 'CLOSED'} />}
+            {['BOOKED', 'ACTIVE'].includes(acc.status) && <CovenantsCard loanId={id} can={c} />}
 
             {isActive && (
                 <Card>

@@ -111,6 +111,8 @@ export const STEPS: StepSpec[] = [
             { path: 'eligibility.minMonthlyIncome', label: 'Minimum monthly income', kind: 'ndecimal' },
             { path: 'eligibility.minBusinessAgeMonths', label: 'Minimum business age (months)', kind: 'nint' },
             { path: 'eligibility.maxDebtServiceRatio', label: 'Max debt-service ratio', kind: 'nrate' },
+            { path: 'eligibility.minCreditScore', label: 'Minimum credit score', kind: 'nint', hint: '300–850; blank: not gated' },
+            { path: 'eligibility.minDscr', label: 'Minimum DSCR', kind: 'ndecimal', hint: 'Net operating income ÷ annual debt service, e.g. 1.25' },
             { path: 'eligibility.employmentTypes', label: 'Employment types (none = any)', kind: 'multi', options: EMPLOYMENT },
         ],
     },
