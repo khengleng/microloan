@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BotService } from '../bot/bot.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SystemContext } from '../prisma/tenant-context';
+import { SystemContext, runAsTenant } from '../prisma/tenant-context';
 
 @Injectable()
 export class PenaltyCronService {
@@ -55,6 +55,9 @@ export class PenaltyCronService {
         let count = 0;
         for (const schedule of overdueSchedules) {
             if (schedule.loan.status === 'CLOSED') continue;
+            // The list is read across tenants; each loan's writes and alerts
+            // run inside its own tenant's wall.
+            await runAsTenant(schedule.loan.tenantId, async () => {
 
             // Fix 5: resolve penalty rate from product override → tenant default → hard fallback
             const penaltyAmount = Number(
@@ -101,6 +104,7 @@ export class PenaltyCronService {
                 void this.notifications.sendSms(borrower.phone, `Overdue: your payment of $${schedule.totalAmount} (due ${dueDateStr}) is outstanding. Please pay soon.`);
             }
 
+            });
             count++;
         }
 

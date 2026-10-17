@@ -106,7 +106,10 @@ export function runAsTenant<T>(
 ): Promise<T> {
   // Awaited inside the scope for the same reason as `runAsSystem` — see the
   // lazy-PrismaPromise note there.
-  return overrideStore.run({ mode: 'tenant', tenantId }, async () => await fn());
+  return overrideStore.run(
+    { mode: 'tenant', tenantId },
+    async () => await fn(),
+  );
 }
 
 /** Resolve the effective context: an explicit override wins over the request. */
@@ -149,7 +152,11 @@ export function TenantScopedByArg(index = 0): MethodDecorator {
     descriptor.value = function (this: unknown, ...args: unknown[]) {
       const tenantId = args[index];
       if (typeof tenantId !== 'string' || !tenantId) {
-        return original.apply(this, args);
+        // Fail closed: running the handler without a tenant would run it
+        // with whatever wider context the caller had (a cron runs as system).
+        throw new Error(
+          `${String(_propertyKey)} needs a tenant id (argument ${index}).`,
+        );
       }
       return runAsTenant(tenantId, () => original.apply(this, args));
     };

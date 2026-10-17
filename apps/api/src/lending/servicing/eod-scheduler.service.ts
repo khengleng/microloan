@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { lending } from '@microloan/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-import { runAsSystem } from '../../prisma/tenant-context';
+import { runAsSystem, runAsTenant } from '../../prisma/tenant-context';
 import { BusinessDateService } from '../common/business-date.service';
 import { LendingActor } from '../common/util';
 import { ServicingService } from './servicing.service';
@@ -111,7 +111,9 @@ export class EodSchedulerService {
   }
 
   async runTenant(tenantId: string, today: string, maxDays = 31) {
-    return runAsSystem(`lending end-of-day ${tenantId}`, async () => {
+    // Each tenant's batch runs inside that tenant's wall, so a helper that
+    // forgets its tenant filter still cannot reach another tenant's rows.
+    return runAsTenant(tenantId, async () => {
       const actor = eodActor(tenantId);
       const current = await this.businessDate.get(tenantId);
       const days = daysToRun(current, today).slice(0, maxDays);

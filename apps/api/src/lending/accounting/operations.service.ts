@@ -540,7 +540,9 @@ export class LendingOperationsService {
       tenantResource(actor.tenantId, 'TENANT'),
     );
     // Tenants see their own trail; the platform sees only platform-level events.
-    const where: Prisma.AuditEventWhereInput = { tenantId: actor.tenantId };
+    const where: Prisma.AuditEventWhereInput = {
+      tenantId: actor.tenantId ?? null,
+    };
     if (q.resourceType) where.resourceType = q.resourceType;
     if (q.resourceId) where.resourceId = q.resourceId;
     if (q.action) where.action = { contains: q.action };

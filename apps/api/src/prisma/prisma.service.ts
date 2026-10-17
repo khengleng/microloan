@@ -54,12 +54,18 @@ export class PrismaService
     // production should run the default `enforce`.
     const guardMode: TenantGuardMode =
       process.env.TENANT_GUARD_MODE === 'warn' ? 'warn' : 'enforce';
+    if (guardMode === 'warn' && process.env.NODE_ENV === 'production') {
+      // The escape hatch is for rollout, never for production: one setting
+      // must not be able to switch the tenant wall off.
+      throw new Error('TENANT_GUARD_MODE=warn is not allowed in production.');
+    }
     if (guardMode === 'warn') {
       this.logger.warn(
         'TENANT_GUARD_MODE=warn — cross-tenant isolation is NOT enforced at the database layer.',
       );
     }
     this.$use(createTenantGuardMiddleware(this, { mode: guardMode, logger: this.logger }));
+    await this.checkRowLevelSecurityRole();
 
     this.$use(async (params, next) => {
       // ── Write: encrypt configured fields + populate blind-index hashes ──────
@@ -95,6 +101,29 @@ export class PrismaService
     });
 
     await this.$connect();
+  }
+
+  /**
+   * Row-level security is the second tenant wall, and PostgreSQL skips it
+   * entirely for a superuser or a BYPASSRLS role. Say so loudly at startup;
+   * with DB_ROLE_MUST_RESPECT_RLS=true, refuse to start.
+   */
+  private async checkRowLevelSecurityRole() {
+    try {
+      const [role] = await this.$queryRaw<
+        { rolsuper: boolean; rolbypassrls: boolean; rolname: string }[]
+      >`SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`;
+      if (role && (role.rolsuper || role.rolbypassrls)) {
+        const message =
+          `Database role "${role.rolname}" bypasses row-level security ` +
+          `(superuser=${role.rolsuper}, bypassrls=${role.rolbypassrls}); ` +
+          'the database tenant wall is inactive. Connect as a NOSUPERUSER NOBYPASSRLS role that does not own the tables.';
+        if (process.env.DB_ROLE_MUST_RESPECT_RLS === 'true') throw new Error(message);
+        this.logger.error(message);
+      }
+    } catch (e) {
+      if (process.env.DB_ROLE_MUST_RESPECT_RLS === 'true') throw e;
+    }
   }
 
   async onModuleDestroy() {
