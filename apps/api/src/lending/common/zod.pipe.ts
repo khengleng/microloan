@@ -110,7 +110,7 @@ export const S = {
     .object({
       kind: z.enum(['EARLY_SETTLEMENT', 'PARTIAL_PREPAYMENT']),
       reason: z.string().min(3).max(500),
-      validUntil: date.optional(),
+      expiresOn: date.optional(),
     })
     .strict(),
   impairmentPolicy: z

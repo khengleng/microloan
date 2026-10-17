@@ -21,7 +21,7 @@ export function FeeWaiverPanel({ loanId, tasks, can, onDone, onClose }: {
 }) {
     const [kind, setKind] = useState('EARLY_SETTLEMENT');
     const [reason, setReason] = useState('');
-    const [validUntil, setValidUntil] = useState('');
+    const [expiresOn, setExpiresOn] = useState('');
     const { busy, error, run, clearError } = useAction();
     const waivers = tasks.filter((t) => t.action === 'FEE_WAIVER' && (t.status === 'PENDING' || t.status === 'APPROVED'));
     const propose = can('loan.fee_waiver.propose');
@@ -29,7 +29,7 @@ export function FeeWaiverPanel({ loanId, tasks, can, onDone, onClose }: {
     const kindOf = (t: ApprovalTask) => (t.payload as { kind?: string } | undefined)?.kind ?? '';
 
     const submit = async () => {
-        const res = await run('propose', () => api.post(`/lending/loans/${loanId}/fee-waivers`, clean({ kind, reason: reason.trim(), validUntil })));
+        const res = await run('propose', () => api.post(`/lending/loans/${loanId}/fee-waivers`, clean({ kind, reason: reason.trim(), expiresOn })));
         if (res) onDone('Waiver proposed — a different user must approve it');
     };
     const decide = async (taskId: string, ok: boolean) => {
@@ -52,7 +52,7 @@ export function FeeWaiverPanel({ loanId, tasks, can, onDone, onClose }: {
             ))}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Fee"><SelectInput value={kind} onChange={setKind} options={KINDS} /></Field>
-                <Field label="Valid until" hint="Optional"><TextInput type="date" value={validUntil} onChange={setValidUntil} /></Field>
+                <Field label="Expires on" hint="Optional"><TextInput type="date" value={expiresOn} onChange={setExpiresOn} /></Field>
                 <Field label="Reason"><TextArea value={reason} onChange={setReason} rows={2} maxLength={500} /></Field>
             </div>
             <ErrorBox error={error} onDismiss={clearError} />

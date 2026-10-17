@@ -86,13 +86,17 @@ d('Collateral servicing (integration)', () => {
       );
       expectOk(await f.as('ro').post(`/lending/applications/${app.id}/submit`));
       expectOk(
-        await f.as('analyst').post(`/lending/applications/${app.id}/recommend`, {
-          recommendation: 'APPROVE',
-          rationale: 'Within policy',
-        }),
+        await f
+          .as('analyst')
+          .post(`/lending/applications/${app.id}/recommend`, {
+            recommendation: 'APPROVE',
+            rationale: 'Within policy',
+          }),
       );
       // Security (LTV) is assessed at approval.
-      return f.as('approver').post(`/lending/applications/${app.id}/approve`, { rationale: 'Approved' });
+      return f.as('approver').post(`/lending/applications/${app.id}/approve`, {
+        rationale: 'Approved',
+      });
     };
     const over = await apply('40001');
     expect(over.status).toBe(400);

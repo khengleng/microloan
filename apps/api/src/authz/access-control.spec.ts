@@ -363,11 +363,15 @@ describe('User management — admins cannot take over fellow admins', () => {
   const officer = { id: 'officer-1', role: 'LOAN_OFFICER', tenantId: 't1' };
 
   it('refuses a tenant admin managing another tenant admin', () => {
-    expect(() => authz.assertCanManageUser(admin, peer)).toThrow(ForbiddenException);
+    expect(() => authz.assertCanManageUser(admin, peer)).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('lets a tenant admin manage themselves and non-admin staff', () => {
-    expect(() => authz.assertCanManageUser(admin, { ...peer, id: 'admin-1' })).not.toThrow();
+    expect(() =>
+      authz.assertCanManageUser(admin, { ...peer, id: 'admin-1' }),
+    ).not.toThrow();
     expect(() => authz.assertCanManageUser(admin, officer)).not.toThrow();
   });
 

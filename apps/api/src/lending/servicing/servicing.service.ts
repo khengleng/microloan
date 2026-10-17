@@ -668,7 +668,7 @@ export class ServicingService {
    * Apply money held on advance to whatever has fallen due by `asOf` (UC-27,
    * DECISIONS D-001), in the product's allocation order. Runs before
    * penalties and days past due are assessed, so a borrower who paid early is
-   * never late. Changes `state.account` in memory; the caller writes it.
+   * never late. Changes `state.account` only; the caller writes it.
    */
   async applyAdvance(
     tx: Tx,
@@ -765,7 +765,7 @@ export class ServicingService {
   /**
    * OPS-5: classify the loan and post the change in its loss allowance —
    * an expense when more is needed, a release when less is. Changes
-   * `state.account` in memory; the caller writes it.
+   * `state.account` only; the caller writes it.
    */
   private async provision(
     tx: Tx,
@@ -844,7 +844,7 @@ export class ServicingService {
   /**
    * UC-62: move a loan onto non-accrual when it reaches the product's
    * days-past-due threshold, and back when it cures (DECISIONS D-002, D-006).
-   * Changes `state.account` in memory; the caller writes it.
+   * Changes `state.account` only; the caller writes it.
    */
   private async nonAccrualTransition(
     tx: Tx,
@@ -2534,7 +2534,7 @@ export class ServicingService {
     body: {
       kind: 'EARLY_SETTLEMENT' | 'PARTIAL_PREPAYMENT';
       reason: string;
-      validUntil?: string;
+      expiresOn?: string;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -2552,8 +2552,8 @@ export class ServicingService {
         throw new BadRequestException('A waiver needs a reason.');
       const businessDate = await this.businessDate.get(tenantId, tx);
       if (
-        body.validUntil &&
-        lending.compareDates(body.validUntil, businessDate) < 0
+        body.expiresOn &&
+        lending.compareDates(body.expiresOn, businessDate) < 0
       )
         throw new BadRequestException('A waiver cannot expire before today.');
       const open = await tx.approvalTask.findMany({
@@ -2579,7 +2579,7 @@ export class ServicingService {
           payload: {
             kind: body.kind,
             reason: body.reason.slice(0, 500),
-            validUntil: body.validUntil ?? null,
+            expiresOn: body.expiresOn ?? null,
           },
           makerId: actor.id,
         },
@@ -2664,10 +2664,10 @@ export class ServicingService {
     });
     return (
       tasks.find((t) => {
-        const p = t.payload as { kind?: string; validUntil?: string | null };
+        const p = t.payload as { kind?: string; expiresOn?: string | null };
         return (
           p.kind === kind &&
-          (!p.validUntil || lending.compareDates(asOf, p.validUntil) <= 0)
+          (!p.expiresOn || lending.compareDates(asOf, p.expiresOn) <= 0)
         );
       }) ?? null
     );
@@ -3038,7 +3038,7 @@ export class ServicingService {
   ) => Promise<void>)[] = [];
   /**
    * Lets other modules add work to the end-of-day batch without a circular
-   * dependency. Hooks share the batch's in-memory state, which the batch writes
+   * dependency. Hooks share the batch's loaded loan state, which the batch writes
    * once at the end with a compare-and-set: a hook may change fields on it for
    * that write (restructure monitoring does), and a hook that writes the
    * account itself must keep `state.account.version` in step.
