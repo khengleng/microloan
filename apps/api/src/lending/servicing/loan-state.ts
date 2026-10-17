@@ -24,6 +24,12 @@ export interface LoanState {
   productVersionStatus: string;
   /** Interest earned on lines closed by a restructure, frozen at the effective date. */
   closedAccrual: InstanceType<typeof lending.D>;
+  /**
+   * Days past due established outside the schedule — a facility's unpaid
+   * minimum payment (UC-38). Set by a batch hook; the larger of this and the
+   * schedule's figure applies.
+   */
+  externalDpd?: number;
 }
 
 export const LIVE_STATUSES = ['DUE', 'PAID'];

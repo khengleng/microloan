@@ -3514,9 +3514,12 @@ export function delinquency(
   const oldest = overdue.sort(
     (a, b) => a.dueDate.getTime() - b.dueDate.getTime(),
   )[0];
-  const dpd = oldest
-    ? lending.daysBetween(toLocalDate(oldest.dueDate)!, businessDate)
-    : 0;
+  const dpd = Math.max(
+    oldest
+      ? lending.daysBetween(toLocalDate(oldest.dueDate)!, businessDate)
+      : 0,
+    state.externalDpd ?? 0,
+  );
   const buckets = [...state.config.operations.delinquencyBuckets].sort(
     (a, b) => a.minDpd - b.minDpd,
   );

@@ -763,4 +763,193 @@ d('Lending facilities (integration)', () => {
       expect(actions).toContain('facility.drawdown.approve');
     });
   });
+
+  // ── Term-out (UC-43) ──────────────────────────────────────────────────────
+
+  describe('revolving facility terming out into an instalment loan (UC-43)', () => {
+    let facilityId: string;
+    let loanId: string;
+
+    beforeAll(async () => {
+      const today = expectOk(
+        await f.as('finance').get('/lending/ops/business-date'),
+      ).businessDate as string;
+      const { productId } = await activeProduct(
+        f,
+        'REVOLVING_CREDIT',
+        'RC-TERMOUT',
+        (c) => {
+          c.facility.availabilityMonths = 1;
+          c.facility.termOutOnExpiry = true;
+        },
+      );
+      ({ facilityId, loanId } = await bookFacility(productId, {
+        principal: '20000',
+        numberOfInstalments: 12,
+        disbursementDate: today,
+        annualRate: '0.12',
+      }));
+      await drawdown(facilityId, { amount: '12000' }, 'to1');
+    }, 60_000);
+
+    it('refuses to term out before availability ends, or before charges are stated', async () => {
+      const early = await f
+        .as('opsChecker')
+        .post(`/lending/facilities/${facilityId}/term-out`);
+      expect(early.status).toBe(409);
+      const v = expectOk(await facility(facilityId));
+      await setBusinessDate(v.facility.availabilityTo.slice(0, 10));
+      const unstated = await f
+        .as('opsChecker')
+        .post(`/lending/facilities/${facilityId}/term-out`);
+      expect(unstated.status).toBe(409);
+      expect(unstated.body.code).toBe('STATEMENT_REQUIRED');
+    });
+
+    it('books an amortizing schedule on the same loan, with stated charges due first', async () => {
+      const v = expectOk(await facility(facilityId));
+      const end = v.facility.availabilityTo.slice(0, 10);
+      expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/statements`,
+            { periodEnd: end },
+            'fac-to-stmt',
+          ),
+      );
+      const before = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      const plan = expectOk(
+        await f
+          .as('opsChecker')
+          .post(`/lending/facilities/${facilityId}/term-out`),
+      );
+      expect(plan.principal).toBe('12000');
+      expect(plan.months).toBeGreaterThanOrEqual(1);
+      const loan = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      const lines = loan.schedule.filter((l: any) => l.status === 'DUE');
+      expect(lines).toHaveLength(plan.months);
+      const principal = lines.reduce(
+        (t: number, l: any) => t + Number(l.principalDue),
+        0,
+      );
+      expect(principal).toBeCloseTo(12000, 2);
+      // Interest charged by the statement falls due with instalment 1.
+      expect(Number(lines[0].deferredInterestDue)).toBeCloseTo(
+        Number(before.account.interestReceivable),
+        2,
+      );
+      expect(loan.agreementVersions.at(-1).reason).toBe('TERM_OUT');
+      expect((await facility(facilityId)).body.facility.status).toBe(
+        'TERMED_OUT',
+      );
+    });
+
+    it('is repaid as a loan from then on, and an unpaid instalment goes past due', async () => {
+      const facilityRepay = await f
+        .as('opsMaker')
+        .post(
+          `/lending/facilities/${facilityId}/repayments`,
+          { amount: '100.00' },
+          'fac-to-repay',
+        );
+      expect(facilityRepay.status).toBe(400);
+      expect(facilityRepay.body.code).toBe('FACILITY_TERMED_OUT');
+
+      const loan = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      const first = loan.schedule.find(
+        (l: any) => l.status === 'DUE' && l.number === 1,
+      );
+      await setBusinessDate(lending.addDays(first.dueDate, 10));
+      expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+      const late = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      expect(late.account.daysPastDue).toBe(10);
+      expect(Number(late.account.interestReceivable)).toBeGreaterThan(0);
+      const rec = expectOk(
+        await f.as('finance').get('/lending/ops/reconciliation'),
+      );
+      expect(rec.breaks).toEqual([]);
+    });
+  });
+
+  // ── Minimum-payment arrears (UC-38) ───────────────────────────────────────
+
+  describe('overdraft minimum payment arrears (UC-38)', () => {
+    let facilityId: string;
+    let loanId: string;
+    let minimum: { amount: string; due: string };
+
+    beforeAll(async () => {
+      const today = expectOk(
+        await f.as('finance').get('/lending/ops/business-date'),
+      ).businessDate as string;
+      const { productId } = await activeProduct(f, 'OVERDRAFT', 'OD-ARREARS');
+      ({ facilityId, loanId } = await bookFacility(productId, {
+        principal: '20000',
+        numberOfInstalments: 12,
+        disbursementDate: today,
+        annualRate: '0.18',
+      }));
+      await drawdown(facilityId, { amount: '6000' }, 'oda1');
+      const periodEnd = lending.addDays(today, 30);
+      await setBusinessDate(periodEnd);
+      const r = expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/statements`,
+            { periodEnd },
+            'fac-oda-stmt',
+          ),
+      );
+      minimum = {
+        amount: r.statement.minimumPayment,
+        due: r.statement.minimumPaymentDue,
+      };
+    }, 60_000);
+
+    const dpd = async () =>
+      expectOk(await f.as('opsMaker').get(`/lending/loans/${loanId}`)).account
+        .daysPastDue as number;
+
+    it('an unpaid minimum payment goes past due after its due date', async () => {
+      await setBusinessDate(lending.addDays(minimum.due, 7));
+      expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+      expect(await dpd()).toBe(7);
+    });
+
+    it('a part payment does not cure it; paying the minimum does', async () => {
+      const part = (Number(minimum.amount) / 2).toFixed(2);
+      expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/repayments`,
+            { amount: part },
+            'fac-oda-part',
+          ),
+      );
+      expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+      expect(await dpd()).toBe(7);
+      expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/repayments`,
+            { amount: (Number(minimum.amount) - Number(part)).toFixed(2) },
+            'fac-oda-rest',
+          ),
+      );
+      expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+      expect(await dpd()).toBe(0);
+    });
+  });
 });
