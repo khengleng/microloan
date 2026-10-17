@@ -48,7 +48,7 @@ holds any permission for one of its pages.
 
 | Area | Page | Shown with any of | Status today |
 |---|---|---|---|
-| Work | Home (my queue) | everyone signed in | ⛔ `/dashboard` shows the same KPI tiles to everyone |
+| Work | Home (my queue) | everyone signed in | ✅ `/home` from `GET /me/work`; the KPI `/dashboard` stays in the menu for `CUSTOMER_VIEW` holders and is the landing page for people without lending permissions |
 | Customers | Borrowers | `loan_application.read`, `loan.read` | ✅ `/borrowers` (legacy permissions) |
 | | Groups | `borrower_group.read` | ⛔ API only (`/lending/applications/groups`) |
 | Origination | Applications | `loan_application.read` | ✅ `/lending/applications` · legacy approval on `/loans/[id]` |
@@ -78,14 +78,14 @@ holds any permission for one of its pages.
 
 | Element | Design | Status today |
 |---|---|---|
-| Sidebar from permissions | Sections and items computed from effective lending permissions | ⛔ gated by legacy role names; lending section ungated |
-| Queue badges in the sidebar | Count of items waiting for this person | ⛔ |
-| Global search | Borrower, phone, loan, application, case, any stack | ⛔ |
-| Business-date chip | Tenant business date always visible | ⛔ shown only on `/lending/collections` |
-| Scope chip | "Branch · Toul Kork" / "All branches" / "Platform" | ⛔ |
-| Authority chip | Approval limit per currency | ⛔ limits exist in the API (`ApprovalAuthority`) |
-| MFA state + step-up | "Password only" chip and "Verify now" banner when the role has MFA-gated actions | ⛔ MFA is enrolled in Settings; nothing prompts at the point of need |
-| Delegation banner | "Acting with authority delegated by … until …" | ⛔ delegations exist in the API and admin tab |
+| Sidebar from permissions | Sections and items computed from effective lending permissions | ✅ `apps/web/src/lib/nav.ts` from `GET /me/access` plus legacy permissions (D-042); lending sub-tabs follow the same rules |
+| Queue badges in the sidebar | Count of items waiting for this person | ✅ from `GET /me/work`, refreshed every minute |
+| Global search | Borrower, phone, loan, application, case, any stack | ✅ `GET /search`; `/` or Ctrl/⌘-K; grouped by type (D-041) |
+| Business-date chip | Tenant business date always visible | ✅ |
+| Scope chip | "Branch · Toul Kork" / "All branches" / "Platform" | ✅ |
+| Authority chip | Approval limit per currency | ✅ largest limit per currency |
+| MFA state + step-up | "Password only" chip and "Verify now" banner when the role has MFA-gated actions | 🟡 chip and banner; the banner sends the person to sign in again with their code (no inline step-up) |
+| Delegation banner | "Acting with authority delegated by … until …" | ✅ |
 | EN / KM switch | Language switch in the top bar | ✅ |
 
 ## Home queues
@@ -96,21 +96,29 @@ ones are locked until the person verifies.
 
 | Queue | Permission | Status today |
 |---|---|---|
-| Applications in progress | `loan_application.create` | ⛔ |
-| Applications to assess | `credit_decision.recommend` | ⛔ |
-| Waiting for your credit decision | `credit_decision.approve` | ⛔ |
-| Disbursements to prepare / approve | `loan.disbursement.prepare` / `.approve` | ⛔ |
-| Write-offs to approve | `loan.writeoff.approve` | ⛔ |
-| Drawdowns to approve | `facility.drawdown.approve` | ⛔ |
-| Past due in your scope | `loan.repayment.post` | 🟡 lists exist on the collections pages |
-| Restructured loans to watch | `restructure.monitor` | 🟡 "open monitoring tasks" on `/lending/restructures` |
-| Hardship cases to assess / proposals to decide | `restructure.assess` / `.approve` | 🟡 case list exists, not filtered to "waiting for me" |
-| Holiday programmes to publish | `payment_holiday.approve` | ⛔ |
-| Product versions to review / drafts | `loan_product.approve` / `.create` | 🟡 version list exists, no queue |
-| End of day, reconciliation breaks | `servicing.batch.run`, `accounting.read` | 🟡 reconciliation tiles on `/lending/accounting` |
+| Applications in progress | `loan_application.create` | ✅ |
+| Applications to assess | `credit_decision.recommend` | ✅ |
+| Waiting for your credit decision | `credit_decision.approve` | ✅ |
+| Disbursements to prepare / approve | `loan.disbursement.prepare` / `.approve` | ✅ (and approved ones to pay out, `.execute`) |
+| Write-offs to approve | `loan.writeoff.approve` | ✅ |
+| Drawdowns to approve | `facility.drawdown.approve` | ✅ (and approved ones to release) |
+| Past due in your scope | `loan.repayment.post` | ✅ with collection tasks in the person's queues |
+| Restructured loans to watch | `restructure.monitor` | ✅ open review tasks |
+| Hardship cases to assess / proposals to decide | `restructure.assess` / `.approve` | ✅ plus cases to propose for, acceptances to record and restructures to execute |
+| Holiday programmes to publish | `payment_holiday.approve` | ✅ |
+| Product versions to review / drafts | `loan_product.approve` / `.create` | ✅ including policy-library versions and approved versions to activate |
+| End of day, reconciliation breaks | `servicing.batch.run`, `accounting.read` | 🟡 end-of-day failures queued; reconciliation breaks still on `/lending/accounting` |
 | Benchmark rates due | `rate_observation.manage` | ⛔ |
-| Access and flag changes to approve | `access_policy.approve`, `feature_flag.approve` | ✅ pending counts on `/lending/access` tabs |
-| Sensitive actions this week | `audit.read` | ⛔ |
+| Access and flag changes to approve | `access_policy.approve`, `feature_flag.approve` | ✅ also on Home |
+| Sensitive actions this week | `audit.read` | 🟡 refused actions this week |
+
+Also queued (`GET /me/work`): fee waivers, refunds, set-offs, collateral
+releases, recovery steps and payouts to approve (every pending maker-checker
+task, any other action under "Other approvals"); approved applications to
+book; documents to review; unidentified payments; month-end and year-end
+closes and reopenings to approve; overdue covenant tests; outstanding payoff
+letters; impairment policies; invoices, letters of credit and syndicates to
+approve.
 
 ## Button states
 
@@ -174,14 +182,15 @@ Legacy roles map once onto access-role assignments.
 |---|---|
 | Organisations, plan payments, subscription plans, platform team, audit | ✅ `/tenants`, `/platform-payments`, `/plan-tiers`, `/users`, `/audit` |
 | Platform feature-flag rules | ⛔ API only |
-| Platform home queue (payments to confirm, pending activations) | ⛔ |
+| Platform home queue (payments to confirm, pending activations) | ✅ `/home` for the platform operator; search finds organisations and plan payments |
 
 ## API additions
 
 | Endpoint | Purpose | Status |
 |---|---|---|
-| `GET /me/access` | Effective permissions, scope, authorities, delegations, MFA assurance, enabled flags | ⛔ `/auth/me` returns only the legacy role |
-| `GET /me/work` | Counts and top items per queue, scope-filtered | ⛔ |
+| `GET /me/access` | Effective permissions, scope, authorities, delegations, MFA assurance, enabled flags | ✅ from `PolicyService.subject()`; platform variant; borrower variant at `GET /lending/portal/me/access` |
+| `GET /me/work` | Counts and top items per queue, scope-filtered | ✅ maker-checker aware (D-040); platform variant (plan payments, organisations) |
+| `GET /search?q=` | Global search, tenant- and scope-filtered | ✅ |
 | Capabilities for `RESTRUCTURE_CASE`, `FACILITY`, `BORROWER_GROUP`, `TENANT` | Button states on every record page | ⛔ only `APPLICATION`, `LOAN_ACCOUNT`, `PRODUCT_VERSION` |
 | Fail-closed client | Unknown action = not allowed | ⛔ |
 
