@@ -106,6 +106,28 @@ d('Legacy payoff and settlement (integration)', () => {
     expect(again.id).toBe(r.repayment.id);
   });
 
+  it('a loan created through POST /loans is created with its schedule', async () => {
+    // Regression: the tenant guard looked up the schedule's parent loan
+    // outside the creating transaction, could not see it, and refused every
+    // new legacy loan with a 403 "belongs to another tenant".
+    const b = await borrower(f, f.t1, f.b1);
+    const res = await f.as('admin1').post('/loans', {
+      borrowerId: b.id,
+      principal: 3000,
+      annualInterestRate: 12,
+      termMonths: 3,
+      startDate: '2026-01-05',
+      interestMethod: 'FLAT',
+    });
+    expect(res.status).toBe(201);
+    const loan = expectOk(await f.as('admin1').get(`/loans/${res.body.id}`));
+    expect(loan.status).toBe('PENDING');
+    expect(loan.schedules).toHaveLength(3);
+    expect(loan.schedules.map((s: any) => Number(s.totalAmount))).toEqual([
+      1030, 1030, 1030,
+    ]);
+  });
+
   it('refuses an amount other than the quote', async () => {
     const id = await legacyLoan();
     const res = await f

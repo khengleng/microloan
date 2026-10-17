@@ -113,22 +113,27 @@ export class LoansService {
                 })),
               }
             : undefined,
+          // Written nested under the loan, not as a separate createMany: the
+          // tenant guard checks a child's parent outside this transaction, so
+          // it cannot see a loan created inside it and refused every new
+          // loan's schedule as cross-tenant.
+          schedules:
+            scheduleItems.length > 0
+              ? {
+                  createMany: {
+                    data: scheduleItems.map((item) => ({
+                      installmentNumber: item.installmentNumber,
+                      dueDate: item.dueDate,
+                      principalAmount: item.principalAmount,
+                      interestAmount: item.interestAmount,
+                      totalAmount: item.totalAmount,
+                      outstandingPrincipal: item.outstandingPrincipal,
+                    })),
+                  },
+                }
+              : undefined,
         },
       });
-
-      if (scheduleItems.length > 0) {
-        await tx.repaymentSchedule.createMany({
-          data: scheduleItems.map((item) => ({
-            loanId: createdLoan.id,
-            installmentNumber: item.installmentNumber,
-            dueDate: item.dueDate,
-            principalAmount: item.principalAmount,
-            interestAmount: item.interestAmount,
-            totalAmount: item.totalAmount,
-            outstandingPrincipal: item.outstandingPrincipal,
-          })),
-        });
-      }
 
       return createdLoan;
     });
