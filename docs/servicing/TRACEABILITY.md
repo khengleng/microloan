@@ -25,6 +25,9 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 | Documents (DOC) | 10 | 0 | 0 | 10 |
 | Test vectors (TV) | 20 match | 0 engine only | 0 not reproduced | 20 |
 
+End-to-end journeys (onboarding to closure, every available loan type) and
+the use-case coverage matrix they give: [SCENARIOS.md](SCENARIOS.md).
+
 ## Closed in this build-out
 
 Every item of the original risk ranking, including the customer document library (DOC-1..10):
@@ -172,9 +175,9 @@ LT-19, LT-24).
 | UC-46 | ✅ | L | `pricing.promotion` campaign rate for the first instalments when the contract quotes its code; instalment re-solved at the contract rate after; int/promotion-steps.int-spec.ts | — |
 | UC-47 | ✅ | L | Restructure option `DUE_DATE_CHANGE` | Only through the hardship workflow |
 | UC-48 | ✅ | L | Restructure option `TERM_EXTENSION`; int/relief.int-spec.ts | — |
-| UC-49 | ✅ | L | Payment-holiday programmes api/restructuring/payment-holiday.service.ts; int/relief.int-spec.ts | Capitalize path engine-tested only; TV-13 not driven through it |
+| UC-49 | ✅ | L | Payment-holiday programmes api/restructuring/payment-holiday.service.ts; int/relief.int-spec.ts; capitalize path end to end incl. TV-13 (int/e2e/servicing-events S27) | A deferral without capitalization drops the deferred interest ([SCENARIOS.md](SCENARIOS.md) D-QA-05) |
 | UC-50 | ✅ | L | Refinance top-up eng/refinance.ts:125 | Only via refinance |
-| UC-51 | ✅ | L | Revaluation → margin call with deadline, cure/expiry by end of day; api/collateral/collateral.service.ts; int/collateral.int-spec.ts (TV-18) | — |
+| UC-51 | ✅ | L | Revaluation → margin call with deadline, cure/expiry by end of day; api/collateral/collateral.service.ts; int/collateral.int-spec.ts (TV-18); int/e2e/vehicle-asset S13 | Paying the required repayment does not cure the call ([SCENARIOS.md](SCENARIOS.md) D-QA-04) |
 | UC-52 | ⛔ | — | BNPL blocked | — |
 | UC-53 | ✅ | L | Drawing request → approve → pay books the importer's loan under the configured conversion product (schedule, account, DISBURSEMENT to the beneficiary) and releases the memo: `LettersOfCreditService.payDrawing`; int/trade.int-spec.ts "UC-53" | Conversion loans carry no upfront fee (D-027) |
 
@@ -256,9 +259,9 @@ Automated in `packages/shared/test/test-vectors.test.ts` (every vector is a pass
 | TV-08 | ✅ | Nominal APR 391.07% |
 | TV-09 | ✅ | — |
 | TV-10 | ✅ | Both options |
-| TV-11 | ✅ | Accrued interest via engine; penalty base read from the settlement quote code |
+| TV-11 | ✅ | Accrued interest via engine; penalty base read from the settlement quote code. Live flow: penalty matches, accrued interest 40.72 not 41.50 ([SCENARIOS.md](SCENARIOS.md) D-QA-06) |
 | TV-12 | ✅ | Engine and live flow |
-| TV-13 | ✅ | Simple capitalization in the schedule engine |
+| TV-13 | ✅ | Simple capitalization in the schedule engine; live flow through a capitalizing payment holiday (int/relief, int/e2e S27) |
 | TV-14 | ✅ | — |
 | TV-15 | ✅ | — |
 | TV-16 | ✅ | Simple capitalization |

@@ -21,6 +21,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { AdapterRegistry } from '../integrations/adapters';
+import { principalRepaid } from '../facilities/facility-state';
 
 /** Account codes whose GL balance must equal a loan-account balance field. */
 const SUBLEDGER_FIELDS: {
@@ -465,8 +466,7 @@ export class LendingOperationsService {
       if (facility) {
         // Drawn − repaid must be the principal balance. Capitalized charges
         // raise principal too, so they count as advances here.
-        const movements = await this.prisma.financialEvent.groupBy({
-          by: ['type'],
+        const events = await this.prisma.financialEvent.findMany({
           where: {
             tenantId,
             loanAccountId: a.id,
@@ -475,10 +475,22 @@ export class LendingOperationsService {
               in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
             },
           },
-          _sum: { amount: true },
+          include: { journal: { include: { lines: true } } },
         });
+        // A repayment moves the drawn balance only by the principal it
+        // repaid; the rest settled stated interest, fees or penalties.
         const movedBy = (t: string) =>
-          D(movements.find((m) => m.type === t)?._sum.amount ?? '0');
+          events
+            .filter((e) => e.type === t)
+            .reduce(
+              (s, e) =>
+                s.plus(
+                  t === 'REPAYMENT' || t === 'SETTLEMENT'
+                    ? principalRepaid(e, mapping.loansReceivable ?? '1200')
+                    : D(e.amount),
+                ),
+              new lending.D(0),
+            );
         const expected = movedBy('DISBURSEMENT')
           .plus(movedBy('CAPITALIZATION'))
           .minus(movedBy('REPAYMENT'))

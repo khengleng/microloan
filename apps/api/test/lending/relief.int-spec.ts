@@ -439,4 +439,128 @@ d('Relief and refinancing (integration)', () => {
       expect(details.evergreening).toBe(false);
     });
   });
+  // ── A capitalizing holiday (regression) ───────────────────────────────────
+
+  describe('a holiday that capitalizes the deferred interest (UC-49, TV-13)', () => {
+    let loanId: string;
+    let programmeId: string;
+
+    beforeAll(async () => {
+      const { productId } = await activeProduct(
+        f,
+        'PERSONAL_INSTALMENT',
+        'PH-CAP',
+        (c: any) => {
+          c.pricing.fees = [];
+          c.pricing.capitalization.basis = 'SIMPLE';
+          c.restructuring.allowInterestCapitalization = true;
+          c.restructuring.allowedDeferredInterestTreatments = [
+            'PAY_SEPARATELY',
+            'DEFER_NO_CAPITALIZATION',
+            'CAPITALIZE',
+            'WAIVE',
+          ];
+        },
+      );
+      const start = expectOk(
+        await f.as('finance').get('/lending/ops/business-date'),
+      ).businessDate as string;
+      loanId = (
+        await originateAndDisburse(f, productId, {
+          principal: '10000',
+          numberOfInstalments: 12,
+          annualRate: '0.12',
+          disbursementDate: start,
+        })
+      ).loanId;
+      const programme = expectOk(
+        await f
+          .as('approver2')
+          .post('/lending/ops/payment-holiday-programmes', {
+            code: 'CAPITALIZE_3',
+            name: 'Three months, capitalized',
+            maxInstalments: 3,
+            interestTreatment: 'CAPITALIZE',
+            termTreatment: 'EXTEND_TERM',
+            opensOn: '2026-01-01',
+            closesOn: '2027-12-31',
+          }),
+      );
+      programmeId = programme.id;
+      expectOk(
+        await f
+          .as('approver')
+          .post(
+            `/lending/ops/payment-holiday-programmes/${programmeId}/status`,
+            {
+              status: 'OPEN',
+            },
+          ),
+      );
+      // Two instalments paid on time: the TV-01 balance 8,415.14 remains.
+      for (const n of [1, 2]) {
+        const l = expectOk(await loan(loanId));
+        const line = l.schedule.find((x: any) => x.number === n);
+        await setBusinessDate(line.dueDate);
+        expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+        expectOk(
+          await f.as('opsMaker').post(
+            `/lending/loans/${loanId}/repayments`,
+            {
+              amount: (
+                Number(line.principalDue) + Number(line.interestDue)
+              ).toFixed(2),
+            },
+            `ph-cap-${n}`,
+          ),
+        );
+      }
+    }, 90_000);
+
+    it('reports the interest it capitalizes, simple on the balance: 3 × 84.15', async () => {
+      const r = expectOk(
+        await f
+          .as('opsMaker')
+          .post(`/lending/loans/${loanId}/payment-holidays/${programmeId}`, {
+            instalments: 3,
+          }),
+      );
+      expect(r.enrolment.deferredInterest).toBe('252.45');
+      const l = expectOk(await loan(loanId));
+      const due = l.schedule.filter(
+        (x: any) =>
+          x.status === 'DUE' && x.agreementVersion === l.agreementVersion,
+      );
+      expect(due.slice(0, 3).map((x: any) => x.capitalizedInterest)).toEqual([
+        '84.15',
+        '84.15',
+        '84.15',
+      ]);
+      const rec = expectOk(
+        await f.as('finance').get('/lending/ops/reconciliation'),
+      );
+      expect(rec.breaks).toEqual([]);
+    });
+
+    it('capitalizes it as each deferred period ends: new principal 8,667.59', async () => {
+      const l0 = expectOk(await loan(loanId));
+      const third = l0.schedule.filter(
+        (x: any) =>
+          x.status === 'DUE' && x.agreementVersion === l0.agreementVersion,
+      )[2];
+      await setBusinessDate(third.dueDate);
+      expectOk(await f.as('finance').post('/lending/loans/batch/run'));
+      const l = expectOk(await loan(loanId));
+      expect(l.account.principalOutstanding).toBe('8667.59');
+      expect(l.account.daysPastDue).toBe(0);
+      expect(
+        l.events.filter((e: any) => e.type === 'CAPITALIZATION'),
+      ).toHaveLength(3);
+      const rec = expectOk(
+        await f.as('finance').get('/lending/ops/reconciliation'),
+      );
+      expect(rec.breaks).toEqual([]);
+      expect(rec.trialBalanceBalanced).toBe(true);
+    });
+  });
 });
