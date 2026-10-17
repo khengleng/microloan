@@ -129,13 +129,20 @@ export default function BorrowerProfilePage() {
                         <p className="text-slate-500 font-medium">Enterprise profile for credit verification and history</p>
                     </div>
                 </div>
+                <div className="flex gap-3">
+                    <Link href={`/${locale}/lending/customers/${id}/documents`}>
+                        <Button variant="secondary" className="rounded-2xl font-bold px-6 h-12 shadow-sm">
+                            Documents
+                        </Button>
+                    </Link>
                 <Button
-                    onClick={() => setIsEditOpen(true)}
-                    variant="secondary"
-                    className="rounded-2xl font-bold px-8 h-12 shadow-sm"
-                >
-                    Modify Profile
-                </Button>
+                        onClick={() => setIsEditOpen(true)}
+                        variant="secondary"
+                        className="rounded-2xl font-bold px-8 h-12 shadow-sm"
+                    >
+                        Modify Profile
+                    </Button>
+                </div>
             </div>
 
             {/* Profile Overview Card */}
