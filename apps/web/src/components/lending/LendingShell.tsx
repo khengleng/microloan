@@ -26,6 +26,8 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/documents', label: 'Documents' },
     { href: '/lending/accounting', label: 'Accounting' },
     { href: '/lending/close', label: 'Period close' },
+    { href: '/lending/regulatory', label: 'Regulatory returns' },
+    { href: '/lending/combined-ledger', label: 'Combined ledger' },
     { href: '/lending/migration', label: 'Migration' },
     { href: '/lending/operations', label: 'Operations' },
     { href: '/lending/audit', label: 'Audit' },

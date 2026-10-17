@@ -8,7 +8,8 @@ import {
     LayoutDashboard, Users, FileText, CreditCard, BarChart2,
     Settings, Building, LogOut, AlertTriangle, UserCog, Shield, QrCode,
     Menu, X, ChevronRight, Globe, Landmark, ShieldCheck, Coins, Gauge, Layers,
-    LibraryBig, Boxes, Calculator, Workflow, ClipboardList, Wallet, Siren, LifeBuoy, BookOpenCheck, ScrollText, KeyRound
+    LibraryBig, Boxes, Calculator, Workflow, ClipboardList, Wallet, Siren, LifeBuoy, BookOpenCheck, ScrollText, KeyRound,
+    CalendarCheck2, FileCheck2, Scale
 } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
@@ -115,24 +116,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         </>
                     ) : (
                         <>
-                            {navSection(t('secLendingOps'))}
                             {navItem('/dashboard', t('dashboard'), LayoutDashboard)}
-                            {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
-                            {(isSales || isFinance) && navItem('/loans', t('loans'), FileText)}
-                            {isFinance && navItem('/repayments', t('repayments'), CreditCard)}
-                            {isFinance && navItem('/collections', t('collections'), AlertTriangle)}
-                            {isFinance && navItem('/reports', t('reports'), BarChart2)}
-                            {navItem('/products', t('products'), BarChart2)}
-
-                            {isFinance && (
-                                <>
-                                    {navSection(t('secAccounting'))}
-                                    {navItem('/kpi', t('kpi'), Gauge)}
-                                    {navItem('/accounting', t('accounting'), Landmark)}
-                                    {navItem('/provisioning', t('provisioning'), ShieldCheck)}
-                                    {navItem('/fx', t('fxRates'), Coins)}
-                                </>
-                            )}
 
                             {/* Configurable lending platform — visible to all tenant users; the API enforces permissions. */}
                             {navSection('Lending Platform')}
@@ -145,8 +129,30 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             {navItem('/lending/collections', 'Collections', Siren)}
                             {navItem('/lending/restructures', 'Restructures', LifeBuoy)}
                             {navItem('/lending/accounting', 'Reconciliation', BookOpenCheck)}
+                            {navItem('/lending/close', 'Period close', CalendarCheck2)}
+                            {navItem('/lending/regulatory', 'Regulatory returns', FileCheck2)}
+                            {navItem('/lending/combined-ledger', 'Combined ledger', Scale)}
                             {navItem('/lending/audit', 'Audit explorer', ScrollText)}
                             {navItem('/lending/access', 'Access & policy', KeyRound)}
+
+                            {/* The original loan module, kept for existing loans; new lending goes through the platform. */}
+                            {navSection('Legacy loans')}
+                            {(isSales || isFinance) && navItem('/borrowers', t('borrowers'), Users)}
+                            {(isSales || isFinance) && navItem('/loans', `${t('loans')} · Legacy`, FileText)}
+                            {isFinance && navItem('/repayments', `${t('repayments')} · Legacy`, CreditCard)}
+                            {isFinance && navItem('/collections', `${t('collections')} · Legacy`, AlertTriangle)}
+                            {isFinance && navItem('/reports', `${t('reports')} · Legacy`, BarChart2)}
+                            {navItem('/products', `${t('products')} · Legacy`, BarChart2)}
+
+                            {isFinance && (
+                                <>
+                                    {navSection(`${t('secAccounting')} · Legacy`)}
+                                    {navItem('/kpi', t('kpi'), Gauge)}
+                                    {navItem('/accounting', `${t('accounting')} · Legacy`, Landmark)}
+                                    {navItem('/provisioning', `${t('provisioning')} · Legacy`, ShieldCheck)}
+                                    {navItem('/fx', t('fxRates'), Coins)}
+                                </>
+                            )}
 
                             {isAdmin && (
                                 <>

@@ -16,6 +16,7 @@ import { EarlySettlementPanel } from '@/components/EarlySettlementPanel';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { RiskDecisionPanel } from '@/components/RiskDecisionPanel';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
+import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -64,6 +65,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function LoanDetailsPage() {
     const { id, locale } = useParams();
+    const legacy = useLegacyStatus();
     const router = useRouter();
     const { showToast } = useToast();
     const confirm = useConfirm();
@@ -198,6 +200,7 @@ export default function LoanDetailsPage() {
 
     return (
         <div className="max-w-6xl space-y-5">
+            {loan.status === 'APPROVED' && <LegacyReadonlyBanner status={legacy} />}
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
@@ -209,6 +212,7 @@ export default function LoanDetailsPage() {
                     <div>
                         <div className="flex items-center gap-2.5">
                             <h1 className="text-xl font-bold text-foreground">Loan #{loan.id.slice(-6).toUpperCase()}</h1>
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Legacy</span>
                             <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>{loan.status}</span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
@@ -248,7 +252,7 @@ export default function LoanDetailsPage() {
                             </button>
                         </>
                     )}
-                    {loan.status === 'APPROVED' && (
+                    {loan.status === 'APPROVED' && !legacy?.readonly && (
                         <button onClick={handleDisburse} className="btn-primary bg-[#006644] hover:bg-[#004d33]">
                             <Wallet size={14} /> Disburse Funds
                         </button>
