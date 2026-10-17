@@ -662,11 +662,9 @@ d(
       await j.checkpoint(deferLoan, { principal: '8415.14' });
     });
 
-    // DEFECT D-QA-05 (docs/servicing/SCENARIOS.md): the holiday's rewritten
-    // schedule drops the deferred interest (deferredInterestDue is not
-    // persisted), so the interest the enrolment says is "payable later" is
-    // never collected — a silent waiver with no concession posted.
-    it.failing(
+    // D-QA-05 (fixed): the holiday's interest is earned over the holiday
+    // (deferredAccrual) and collected on the later instalments.
+    it(
       'UC-49: the deferred interest is payable later on the schedule (D-QA-05)',
       async () => {
         const holidays = expectOk(

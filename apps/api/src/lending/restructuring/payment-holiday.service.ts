@@ -361,6 +361,14 @@ export class PaymentHolidayService {
           // the deferred interest, and the schedule's principal drifted
           // from the ledger's.
           capitalizedInterest: l.capitalizedInterest,
+          // A deferral without capitalization: the holiday's interest is
+          // earned over the holiday and collected on the later instalments
+          // (D-QA-05) — never silently dropped.
+          deferredAccrual: l.deferredAccrual,
+          deferredInterestDue: l.deferred.interest,
+          feeDue: l.deferred.fees,
+          penaltyDue: l.deferred.penalties,
+          taxDue: l.deferred.taxes,
           annualRate: l.annualRate,
           projected: false,
         })),

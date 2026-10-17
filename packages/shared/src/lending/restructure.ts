@@ -106,6 +106,11 @@ export interface ProposedLine {
   annualRate: string;
   /** Pre-existing arrears repaid in this line (no interest accrues on them). */
   deferred: ExtraDue;
+  /**
+   * Interest earned over this line's period but payable on later lines (a
+   * deferral that does not capitalize): it accrues here, is collected there.
+   */
+  deferredAccrual: string;
   total: string;
 }
 
@@ -343,6 +348,7 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     capitalizedInterest: l.capitalizedInterest,
     annualRate: l.annualRate,
     deferred: zeroExtra(),
+    deferredAccrual: '0',
     total: l.total,
   }));
   let futureInterestWaived = ZERO;
@@ -352,7 +358,10 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     // carried interest-free into the repayment instalments. Never silently dropped.
     for (const l of lines.slice(0, deferral)) {
       if (treatment === 'WAIVE') futureInterestWaived = futureInterestWaived.plus(l.interest);
-      else movedDeferralInterest = movedDeferralInterest.plus(l.interest);
+      else {
+        movedDeferralInterest = movedDeferralInterest.plus(l.interest);
+        l.deferredAccrual = l.interest;
+      }
       l.interest = '0';
       l.total = l.principal;
     }

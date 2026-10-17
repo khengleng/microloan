@@ -300,11 +300,9 @@ d(
       );
     });
 
-    // DEFECT D-QA-04 (docs/servicing/SCENARIOS.md): the cure test counts the
-    // interest accrued since the call, so paying exactly the required
-    // repayment leaves the LTV a few cents above the maximum at the next end
-    // of day and the call stays open until it expires.
-    it.failing(
+    // D-QA-04 (fixed): paying what the call asked for cures it, although
+    // interest has accrued since the call was made.
+    it(
       'UC-51: paying the required repayment cures the call at end of day (D-QA-04)',
       async () => {
         await j.moveTo('2026-01-06');

@@ -558,7 +558,22 @@ export class CollateralService {
       pos.outstanding.lte(0) ||
       (pos.lendingValue.gt(0) &&
         pos.outstanding.div(pos.lendingValue).lte(D(open.maxLtv)));
-    if (within) {
+    // Paying what the call asked for cures it, even though interest has
+    // accrued since the call was made (D-QA-04).
+    const paid = await tx.financialEvent.aggregate({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        type: { in: ['REPAYMENT', 'PREPAYMENT'] },
+        status: 'POSTED',
+        createdAt: { gte: open.createdAt },
+      },
+      _sum: { amount: true },
+    });
+    const paidAsAsked =
+      D(open.requiredRepayment).gt(0) &&
+      D(paid._sum.amount ?? 0).gte(D(open.requiredRepayment));
+    if (within || paidAsAsked) {
       await tx.marginCall.updateMany({
         where: {
           id: open.id,
@@ -568,7 +583,9 @@ export class CollateralService {
         data: {
           status: 'CURED',
           resolvedAt: new Date(),
-          resolution: 'Back within maximum LTV',
+          resolution: within
+            ? 'Back within maximum LTV'
+            : 'Required repayment received',
         },
       });
       return;

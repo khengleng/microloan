@@ -1244,12 +1244,19 @@ export class RestructuringService implements OnModuleInit {
     // 1. Close the live schedule without erasing it: unpaid lines keep their arrears and the interest they had earned.
     const closedLineIds: string[] = [];
     for (const l of state.lines.filter((x) => x.status === 'DUE')) {
-      const e = engineLine(l);
+      const e = {
+        ...engineLine(l),
+        capitalizedInterest: D(l.capitalizedInterest)
+          .plus(D(l.deferredAccrual))
+          .toString(),
+      };
       const earned =
         l.number === 0
           ? new lending.D(0)
           : lending.compareDates(e.dueDate, snapshot.asOf) <= 0
-            ? D(l.interestDue).plus(D(l.capitalizedInterest))
+            ? D(l.interestDue)
+                .plus(D(l.capitalizedInterest))
+                .plus(D(l.deferredAccrual))
             : lending.accruedOnLine(e, snapshot.asOf, state.contract);
       await tx.scheduleInstalment.update({
         where: { id: l.id },
@@ -1328,6 +1335,7 @@ export class RestructuringService implements OnModuleInit {
       principalDue: l.principal,
       interestDue: l.interest,
       capitalizedInterest: l.capitalizedInterest,
+      deferredAccrual: l.deferredAccrual,
       deferredInterestDue: l.deferred.interest,
       feeDue: l.deferred.fees,
       penaltyDue: l.deferred.penalties,

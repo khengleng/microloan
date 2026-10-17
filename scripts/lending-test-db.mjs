@@ -56,6 +56,7 @@ const INVARIANT_SECTIONS = [
   ['20261019000700_lending_collections_work', '-- Database-level invariants for collections work, guarantor demands and set-off.'],
   ['20261019000800_lending_facility_renewal', '-- Database-level invariants for facility renewal.'],
   ['20261019000900_lending_covenants', '-- Database-level invariants for covenants.'],
+  ['20261019001100_lending_deferred_accrual', '-- Database-level invariants for deferred accrual.'],
   ['20261019000100_lending_recovery', '-- Database-level invariants for recovery workflows.'],
   ['20261019000300_lending_payment_channels', '-- Database-level invariants for payment channels.'],
   ['20261019000400_customer_documents', '-- Database-level invariants for customer documents.'],

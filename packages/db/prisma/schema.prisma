@@ -2175,6 +2175,8 @@ model ScheduleInstalment {
   penaltyPaid            Decimal     @default(0) @db.Decimal(24, 4)
   /// Pre-existing arrears carried into this line by a restructure: repaid as INTEREST, never accrued again.
   deferredInterestDue    Decimal     @default(0) @db.Decimal(24, 4)
+  /// Interest earned over this period but payable on later instalments (deferral without capitalization).
+  deferredAccrual        Decimal     @default(0) @db.Decimal(24, 4)
   /// Interest earned on this line up to the restructure that closed it (status RESTRUCTURED).
   accruedAtClose         Decimal?    @db.Decimal(24, 4)
   annualRate             Decimal     @db.Decimal(18, 10)

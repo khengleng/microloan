@@ -155,10 +155,18 @@ export function contractualAccrual(state: LoanState, asOf: string) {
   let total = state.closedAccrual;
   for (const l of state.lines) {
     if (l.number === 0) continue;
-    const e = engineLine(l);
+    // Interest deferred to later instalments is still earned over this period.
+    const e = {
+      ...engineLine(l),
+      capitalizedInterest: D(l.capitalizedInterest)
+        .plus(D(l.deferredAccrual))
+        .toString(),
+    };
     total = total.plus(
       lending.compareDates(e.dueDate, asOf) <= 0
-        ? D(l.interestDue).plus(D(l.capitalizedInterest))
+        ? D(l.interestDue)
+            .plus(D(l.capitalizedInterest))
+            .plus(D(l.deferredAccrual))
         : lending.accruedOnLine(e, asOf, state.contract),
     );
   }
