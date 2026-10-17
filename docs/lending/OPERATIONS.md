@@ -198,6 +198,9 @@ the cut-over date.
 Loans still in the legacy module are exported as a migration file at the
 business date (`GET /v1/lending/migrations/legacy-export.csv?productCode=…`,
 also on the Migration page): review it, then load it like any other file.
+When such a loan is posted it is closed in the legacy module and its legacy
+principal (account 1200) is cleared against migration clearing (3900) in the
+legacy ledger, so the combined books hold it once.
 
 Out of scope for files: facilities, cards, group loans, floating-rate,
 balloon and explicitly dated schedules (book them in the platform or migrate

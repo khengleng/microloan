@@ -27,6 +27,7 @@ import { LendingPoliciesService } from '../products/lending-policies.service';
 import { ServicingService } from '../servicing/servicing.service';
 import { loadLoanState } from '../servicing/loan-state';
 import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { LedgerService } from '../../ledger/ledger.service';
 import { blindIndex } from '../../common/field-crypto';
 
 type Json = Prisma.InputJsonValue;
@@ -88,6 +89,7 @@ export class LoanMigrationService {
     private readonly products: ProductsService,
     private readonly policies: LendingPoliciesService,
     private readonly servicing: ServicingService,
+    private readonly ledger: LedgerService,
   ) {}
 
   template() {
@@ -1273,5 +1275,62 @@ export class LoanMigrationService {
         issues: [] as unknown as Json,
       },
     });
+
+    // A loan moved from the legacy module leaves that book: it is closed there
+    // and its principal cleared against migration clearing, so the two ledgers
+    // together hold it once.
+    const legacyId = v.external_loan_id?.startsWith('LEGACY-')
+      ? v.external_loan_id.slice('LEGACY-'.length)
+      : null;
+    if (legacyId) {
+      const legacy = await tx.loan.findFirst({
+        where: {
+          id: legacyId,
+          tenantId,
+          status: { in: ['DISBURSED', 'DEFAULTED'] },
+        },
+        select: { id: true, currency: true },
+      });
+      if (legacy) {
+        const lines = await tx.journalLine.findMany({
+          where: {
+            entry: { tenantId, loanId: legacy.id },
+            account: { code: ACCOUNT_CODES.LOANS_RECEIVABLE },
+          },
+          select: { debit: true, credit: true },
+        });
+        const balance = lines.reduce(
+          (t, l) => t.plus(D(l.debit)).minus(D(l.credit)),
+          D(0),
+        );
+        if (balance.gt(0))
+          await this.ledger.postEntry(
+            {
+              tenantId,
+              source: 'MANUAL',
+              currency: legacy.currency,
+              description: `Loan moved to the lending platform as ${account.reference} (migration ${batchId.slice(0, 8)})`,
+              loanId: legacy.id,
+              referenceId: account.id,
+              createdByUserId: actor.type === 'USER' ? actor.id : null,
+              lines: [
+                {
+                  accountCode: ACCOUNT_CODES.MIGRATION_CLEARING,
+                  debit: balance.toNumber(),
+                },
+                {
+                  accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE,
+                  credit: balance.toNumber(),
+                },
+              ],
+            },
+            tx,
+          );
+        await tx.loan.update({
+          where: { id: legacy.id },
+          data: { status: 'CLOSED' },
+        });
+      }
+    }
   }
 }

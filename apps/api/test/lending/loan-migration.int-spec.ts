@@ -52,6 +52,7 @@ d('Loan-book migration (integration)', () => {
     expect(rec.trialBalanceBalanced).toBe(true);
   };
   let posted: any;
+  let legacyLoanId: string;
 
   it('the template downloads with every column', async () => {
     const res = await f.as('finance').get('/lending/migrations/template.csv');
@@ -189,6 +190,19 @@ d('Loan-book migration (integration)', () => {
           startDate: new Date(Date.UTC(2025, 9, 5)),
         },
       });
+      // The legacy book carries the 1,000 still owed.
+      const { LedgerService } = require('../../src/ledger/ledger.service');
+      await f.app.get(LedgerService).postEntry({
+        tenantId: f.t1,
+        source: 'DISBURSEMENT',
+        description: 'Legacy disbursement net of repayments',
+        loanId: loanRow.id,
+        lines: [
+          { accountCode: '1200', debit: 1000 },
+          { accountCode: '1000', credit: 1000 },
+        ],
+      });
+      legacyLoanId = loanRow.id;
       for (let k = 1; k <= 12; k++) {
         const paid = k <= 2;
         await f.prisma.repaymentSchedule.create({
@@ -225,7 +239,30 @@ d('Loan-book migration (integration)', () => {
     const row = b.rows[0];
     expect(row.values.overdue_principal).toBe('100');
     expect(row.values.next_due_date).toBe('2026-02-05');
-    expectOk(await f.as('finance').post(`/lending/migrations/${b.id}/cancel`));
+    const done = expectOk(
+      await f
+        .as('nobody')
+        .post(`/lending/migrations/${b.id}/decision`, { approve: true }),
+    );
+    expect(done.postedCount).toBe(1);
+    // The loan has left the legacy book: closed there, its principal cleared against migration clearing.
+    const after = await f.system(() =>
+      f.prisma.loan.findFirst({
+        where: { id: legacyLoanId },
+        include: {
+          journalEntries: {
+            include: { lines: { include: { account: true } } },
+          },
+        },
+      }),
+    );
+    expect(after.status).toBe('CLOSED');
+    const receivable = after.journalEntries
+      .flatMap((e: any) => e.lines)
+      .filter((l: any) => l.account.code === '1200')
+      .reduce((t: number, l: any) => t + Number(l.debit) - Number(l.credit), 0);
+    expect(receivable).toBe(0);
+    await reconcile();
   });
 
   it('servicing continues from cut-over: the next instalments are paid and the arrears cured', async () => {
