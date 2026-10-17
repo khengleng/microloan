@@ -19,6 +19,13 @@ export function configFlags(config: ProductConfig | null): string[] {
   if (config.trade?.invoice) flags.push('lending.trade.invoice_finance');
   if (config.trade?.letterOfCredit)
     flags.push('lending.trade.letters_of_credit');
+  if (
+    config.trade?.factoring ||
+    config.trade?.supplyChain ||
+    config.trade?.forfaiting
+  )
+    flags.push('lending.trade.receivables_purchase');
+  if (config.trade?.documentary) flags.push('lending.trade.documentary');
   if (config.syndication) flags.push('lending.syndication');
   if (config.projectFinance) flags.push('lending.project_finance');
   if (config.borrowingBase) flags.push('lending.collateral.borrowing_base');

@@ -34,7 +34,7 @@ interface LeaseView {
 
 type Props = { loanId: string; detail: LoanDetail; onDone: (msg: string) => void };
 
-/** Card, BNPL or lease behaviour of a loan (LT-07, LT-11, LT-15). */
+/** Card, BNPL, lease or documentary-trade behaviour of a loan (LT-07, LT-11, LT-15). */
 export function PurchaseLinkedCard({ loanId, detail, onDone }: Props) {
     const href = useLendingHref();
     const s = detail.specialised;
@@ -44,6 +44,13 @@ export function PurchaseLinkedCard({ loanId, detail, onDone }: Props) {
             <Notice title="Credit card">
                 This account carries a credit card&apos;s balance. Purchases, cash advances, statements and payments are handled on the card.{' '}
                 {s.cardId && <Link href={href(`/lending/cards/${s.cardId}`)} className="font-semibold text-[#635BFF] hover:underline">Open the card →</Link>}
+            </Notice>
+        );
+    if (s.kind === 'TRADE')
+        return (
+            <Notice title={s.direction === 'IMPORT' ? 'Import loan' : 'Export working capital'}>
+                This loan finances one trade: it is paid out once the trade&apos;s documents are verified, and the trade&apos;s proceeds repay it.{' '}
+                <Link href={href(`/lending/trade/transactions/${loanId}`)} className="font-semibold text-[#635BFF] hover:underline">Open the trade →</Link>
             </Notice>
         );
     if (s.kind === 'BNPL') return <BnplCard loanId={loanId} detail={detail} onDone={onDone} />;

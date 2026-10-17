@@ -1746,6 +1746,7 @@ model Facility {
   statements  FacilityStatement[]
   limitEvents FacilityLimitChange[]
   tradeInvoices TradeInvoice[]
+  tradeSuppliers TradeSupplier[]
   card        CardAccount?
   borrowingBaseCertificates BorrowingBaseCertificate[]
 
@@ -2013,6 +2014,7 @@ model LoanAccount {
   instalments      ScheduleInstalment[]
   events           FinancialEvent[]
   restructureCases RestructureCase[]
+  tradeTransaction       TradeTransaction?
   syndicate        Syndicate?
 
   @@unique([tenantId, reference])
@@ -3373,6 +3375,7 @@ model TradeInvoice {
   updatedAt             DateTime  @updatedAt
 
   collections TradeInvoiceCollection[]
+  receivable  TradeReceivable?
 
   @@unique([tenantId, id])
   @@unique([tenantId, reference])
@@ -4082,4 +4085,177 @@ model BorrowingBaseCertificate {
   @@unique([tenantId, id])
   @@unique([tenantId, facilityId, sequence])
   @@index([tenantId, facilityId, status])
+}
+
+/// What a bought receivable carries beyond the invoice register — factoring,
+/// supply-chain finance and forfaiting: its recourse, fee or discount, the
+/// acknowledgement that must precede the purchase, and any loss written off.
+/// One per TradeInvoice; the invoice row keeps the advance and collections.
+model TradeReceivable {
+  id                       String         @id @default(uuid())
+  tenantId                 String
+  invoiceId                String
+  invoice                  TradeInvoice   @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
+  facilityId               String
+  /// FACTORING, SUPPLY_CHAIN, FORFAITING
+  kind                     String
+  /// FULL, LIMITED, NONE — what the facility holder answers for once the obligor defaults.
+  recourse                 String
+  /// LIMITED: the most the seller answers for on this receivable.
+  recourseCap              Decimal?       @db.Decimal(24, 4)
+  serviceFeeRate           Decimal        @default(0) @db.Decimal(12, 8)
+  serviceFee               Decimal        @default(0) @db.Decimal(24, 4)
+  /// Discounting (supply chain, forfaiting): the annual rate and how it is applied.
+  discountRate             Decimal        @default(0) @db.Decimal(12, 8)
+  dayCountBasis            Int            @default(360)
+  discountMethod           String         @default("STRAIGHT")
+  discountGraceDays        Int            @default(0)
+  discountDays             Int            @default(0)
+  discountAmount           Decimal        @default(0) @db.Decimal(24, 4)
+  discountEarned           Decimal        @default(0) @db.Decimal(24, 4)
+  /// What the seller or supplier was paid at purchase.
+  purchasePrice            Decimal        @default(0) @db.Decimal(24, 4)
+  supplierId               String?
+  supplier                 TradeSupplier? @relation(fields: [tenantId, supplierId], references: [tenantId, id], onDelete: NoAction)
+  /// Forfaiting: BILL_OF_EXCHANGE or PROMISSORY_NOTE, and the bank whose aval guarantees it.
+  instrumentType           String?
+  guarantorName            String?
+  /// DEBTOR_NOTICE (factoring), BUYER_APPROVAL (supply chain), AVAL (forfaiting)
+  acknowledgementType      String
+  acknowledgementMethod    String?
+  acknowledgementReference String?
+  acknowledgedBy           String?
+  acknowledgedAt           DateTime?
+  /// Set when the obligor is past maturity + grace and the lender bears the rest.
+  defaultedAt              DateTime?
+  writtenOff               Decimal        @default(0) @db.Decimal(24, 4)
+  writeOffEventId          String?        @unique
+  version                  Int            @default(0)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, invoiceId])
+  @@index([tenantId, facilityId, kind])
+  @@index([tenantId, supplierId])
+}
+
+/// A supplier onboarded to an anchor buyer's supply-chain finance
+/// programme (the buyer's facility). Approved by a second person before any
+/// of its invoices can be paid.
+model TradeSupplier {
+  id            String            @id @default(uuid())
+  tenantId      String
+  facilityId    String
+  facility      Facility          @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  reference     String
+  name          String
+  /// Upper-cased, whitespace-collapsed name: one supplier per programme.
+  nameKey       String
+  taxId         String?
+  bankName      String?
+  accountNumber String?
+  /// Optional cap on what may be outstanding on this supplier's invoices.
+  sublimit      Decimal?          @db.Decimal(24, 4)
+  /// PENDING, ACTIVE, REJECTED, SUSPENDED
+  status        String            @default("PENDING")
+  createdBy     String
+  approvedBy    String?
+  approvedAt    DateTime?
+  statusReason  String?
+  version       Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  receivables   TradeReceivable[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, facilityId, nameKey])
+  @@index([tenantId, facilityId, status])
+}
+
+/// The trade a documentary (import / export) loan finances: one per loan.
+/// Its documents gate the disbursement; its proceeds repay the loan.
+model TradeTransaction {
+  id                   String          @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount     @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId           String
+  branchId             String
+  reference            String
+  /// IMPORT, EXPORT
+  direction            String
+  counterpartyName     String
+  counterpartyCountry  String?
+  goodsDescription     String
+  currency             String
+  transactionValue     Decimal         @db.Decimal(24, 4)
+  /// Shipment date (import) or contract date (export): the trade cycle starts here.
+  cycleStartDate       DateTime        @db.Date
+  expectedProceedsDate DateTime        @db.Date
+  /// OPEN, FINANCED, SETTLED, CANCELLED
+  status               String          @default("OPEN")
+  proceedsReceived     Decimal         @default(0) @db.Decimal(24, 4)
+  proceedsApplied      Decimal         @default(0) @db.Decimal(24, 4)
+  proceedsRemitted     Decimal         @default(0) @db.Decimal(24, 4)
+  createdBy            String
+  version              Int             @default(0)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  documents            TradeDocument[]
+  proceeds             TradeProceeds[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+}
+
+/// One document on a trade transaction's checklist: received by one person,
+/// verified (or rejected) by another.
+model TradeDocument {
+  id              String           @id @default(uuid())
+  tenantId        String
+  transactionId   String
+  transaction     TradeTransaction @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Cascade)
+  code            String
+  /// PENDING, RECEIVED, VERIFIED, REJECTED
+  status          String           @default("PENDING")
+  reference       String?
+  description     String?
+  receivedBy      String?
+  receivedAt      DateTime?
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  version         Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, transactionId, code])
+}
+
+/// Trade proceeds received for a documentary loan: the part applied to the
+/// loan (a repayment or its settlement) and the part passed to the customer.
+model TradeProceeds {
+  id                String           @id @default(uuid())
+  tenantId          String
+  transactionId     String
+  transaction       TradeTransaction @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Cascade)
+  eventId           String           @unique
+  amount            Decimal          @db.Decimal(24, 4)
+  applied           Decimal          @db.Decimal(24, 4)
+  remitted          Decimal          @db.Decimal(24, 4)
+  settled           Boolean          @default(false)
+  payerName         String
+  externalReference String?
+  remitReference    String?
+  valueDate         DateTime         @db.Date
+  createdBy         String
+  createdAt         DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, transactionId])
 }

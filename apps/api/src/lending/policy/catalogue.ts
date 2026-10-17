@@ -925,6 +925,22 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     defaultEnabled: false,
   },
   {
+    key: 'lending.trade.receivables_purchase',
+    description:
+      'Bought receivables: factoring, supply-chain finance and forfaiting',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.documentary',
+    description:
+      'Import and export loans against trade documents, repaid from the proceeds',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
     key: 'lending.syndication',
     description: 'Syndicated loans with participants',
     category: 'Capabilities',

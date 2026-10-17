@@ -68,6 +68,11 @@ export const ACCOUNT_CODES = {
   PROJECT_DSRA_HELD: '2410',
   PROJECT_LOCK_UP_HELD: '2420',
   PROJECT_PROCEEDS_CLEARING: '2430',
+  // Bought receivables: factoring, supply-chain finance, forfaiting
+  UNEARNED_TRADE_DISCOUNT: '2340',
+  TRADE_DISCOUNT_INCOME: '4530',
+  FACTORING_SERVICE_FEE_INCOME: '4540',
+  TRADE_RECEIVABLES_CREDIT_LOSS: '5500',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -317,5 +322,27 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     code: ACCOUNT_CODES.PROJECT_PROCEEDS_CLEARING,
     name: 'Project Receipts Clearing (waterfall)',
     type: LedgerAccountType.LIABILITY,
+  },
+  // A bought receivable is carried at its face value; the discount withheld
+  // at purchase is a liability until earned over the days to maturity.
+  {
+    code: ACCOUNT_CODES.UNEARNED_TRADE_DISCOUNT,
+    name: 'Unearned Discount on Bought Receivables',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.TRADE_DISCOUNT_INCOME,
+    name: 'Discount Income on Bought Receivables',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.FACTORING_SERVICE_FEE_INCOME,
+    name: 'Factoring Service Fees',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.TRADE_RECEIVABLES_CREDIT_LOSS,
+    name: 'Credit Losses on Bought Receivables (without recourse)',
+    type: LedgerAccountType.EXPENSE,
   },
 ];

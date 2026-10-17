@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 53 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 9
+✅ Fully implemented: 57 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 5
 
 ## Capabilities
 
@@ -129,12 +129,12 @@ A product version can be activated only when every capability it requires is **F
 |---|---|---|---|---|
 | `card.revolving_credit` | ✅ Fully implemented | 3 | Credit cards: purchases, cash advances and instalment plans as separate balances; monthly statements with a due date and minimum payment; purchase interest waived when the previous statement is paid in full by its due date; cash-advance fee plus interest from day one | Tests: `packages/shared/test/card.test.ts, apps/api/test/lending/cards.int-spec.ts` |
 | `bnpl.merchant_settlement` | ✅ Fully implemented | 3 | BNPL: the merchant is paid the purchase price net of its discount at disbursement; a merchant refund reduces the remaining instalments latest first, refunds what the customer already paid, and claws the money back from the merchant | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts` |
-| `trade.documentary` | ⛔ Not implemented | 3 | Import / export finance against trade documents |  |
-| `trade.invoice_finance` | ✅ Fully implemented | 3 | Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>Recourse only (no factoring or non-recourse purchase); no late penalty on recourse arrears (DECISIONS D-012). |
+| `trade.documentary` | ✅ Fully implemented | 3 | Import and export loans against trade documents: one trade transaction per loan, a document checklist received and verified by different people that gates disbursement, amount within the financing ratio, tenor ending by the expected proceeds plus grace, and repayment from the proceeds (settling the loan, the rest passed to the customer) | Tests: `packages/shared/test/receivables.test.ts, apps/api/test/lending/import-export-loans.int-spec.ts`<br>No document examination against an LC or SWIFT messaging; the remitted surplus is recorded, not paid, by the lending ledger (DECISIONS D-059). |
+| `trade.invoice_finance` | ✅ Fully implemented | 3 | Invoice financing on a revolving limit: invoice register, maker-checker advances at the product advance rate, fee per period, debtor settlement with the balance paid to the borrower, and full recourse aged as arrears | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>Full recourse only (limited and non-recourse purchase is trade.factoring); no late penalty on recourse arrears (DECISIONS D-025). |
 | `trade.letter_of_credit` | ✅ Fully implemented | 3 | Import letters of credit: maker-checker issuance with a fee and an off-balance-sheet contingent memo; a payment by the bank converts into a term loan for the importer | Tests: `packages/shared/test/trade.test.ts, apps/api/test/lending/trade.int-spec.ts`<br>No SWIFT messaging, document examination or confirmation; payment is recorded, not sent. |
-| `trade.factoring` | ⛔ Not implemented | 3 | Factoring with debtor collections and recourse |  |
-| `trade.supply_chain` | ⛔ Not implemented | 3 | Supply-chain (reverse factoring) programmes |  |
-| `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
+| `trade.factoring` | ✅ Fully implemented | 3 | Factoring: invoices bought on a revolving limit at the advance rate net of a service fee, debtor notification before the advance, debtor concentration limit, collections clearing fee then advance with the balance paid to the seller, and FULL, LIMITED or NO recourse when the debtor defaults, the lender’s share written off under maker-checker | Tests: `packages/shared/test/receivables.test.ts, apps/api/test/lending/factoring.int-spec.ts`<br>No late charge on defaulted debtors; no credit insurance (DECISIONS D-055, D-056). |
+| `trade.supply_chain` | ✅ Fully implemented | 3 | Supply-chain (payables) finance: the anchor buyer’s programme limit, suppliers onboarded under maker-checker, buyer-approved invoices paid to the supplier early at a discount, the discount earned daily, and the buyer paying the face at maturity or ageing as arrears | Tests: `packages/shared/test/receivables.test.ts, apps/api/test/lending/supply-chain-finance.int-spec.ts`<br>No supplier self-service portal; the buyer’s approval is recorded by staff (DECISIONS D-057). |
+| `trade.forfaiting` | ✅ Fully implemented | 3 | Forfaiting: bills of exchange and promissory notes bought without recourse at a discount rate for the days to maturity plus grace, the aval recorded before purchase, the discount earned daily, collection of the face at maturity, and a defaulted instrument written off as the lender’s loss | Tests: `packages/shared/test/receivables.test.ts, apps/api/test/lending/forfaiting.int-spec.ts`<br>No secondary-market sale of bought paper (DECISIONS D-058). |
 | `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
 | `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-015). |
 | `project_finance.waterfall` | ✅ Fully implemented | 3 | Project finance: staged construction drawdowns with capitalized interest, term-out on a repayment profile sculpted to projected CFADS at a target DSCR, a debt service reserve, and a cash waterfall (debt service, reserve top-up, cash sweep, distributions) with lock-up below a DSCR threshold | Tests: `packages/shared/test/project-finance.test.ts, apps/api/test/lending/project-finance.int-spec.ts`<br>One senior tranche; CFADS and receipts are entered by operations; no hedging, subordinated debt or multi-account cash management (DECISIONS D-061). |
@@ -204,13 +204,13 @@ A product version can be activated only when every capability it requires is **F
 | Corporate / project | Project finance (`PROJECT_FINANCE`) |  | ✅ |  |
 | Corporate / project | Infrastructure finance (`INFRASTRUCTURE`) |  | ✅ |  |
 | Corporate / project | Acquisition finance (`ACQUISITION_FINANCE`) |  | ✅ |  |
-| Trade / receivables | Import loan (`IMPORT_LOAN`) |  | ⛔ | `trade.documentary` (not implemented) |
-| Trade / receivables | Export working capital (`EXPORT_WORKING_CAPITAL`) |  | ⛔ | `trade.documentary` (not implemented) |
+| Trade / receivables | Import loan (`IMPORT_LOAN`) |  | ✅ |  |
+| Trade / receivables | Export working capital (`EXPORT_WORKING_CAPITAL`) |  | ✅ |  |
 | Trade / receivables | Invoice-backed loan (`INVOICE_BACKED`) |  | ✅ |  |
 | Trade / receivables | Import letter of credit (`LETTER_OF_CREDIT`) |  | ✅ |  |
-| Trade / receivables | Factoring (`FACTORING`) |  | ⛔ | `trade.factoring` (not implemented) |
-| Trade / receivables | Supply-chain finance (`SUPPLY_CHAIN_FINANCE`) |  | ⛔ | `trade.supply_chain` (not implemented) |
-| Trade / receivables | Forfaiting (`FORFAITING`) |  | ⛔ | `trade.forfaiting` (not implemented) |
+| Trade / receivables | Factoring (`FACTORING`) |  | ✅ |  |
+| Trade / receivables | Supply-chain finance (`SUPPLY_CHAIN_FINANCE`) |  | ✅ |  |
+| Trade / receivables | Forfaiting (`FORFAITING`) |  | ✅ |  |
 | Institutional / public | Interbank loan (`INTERBANK`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
 | Institutional / public | Municipal loan (`MUNICIPAL`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |
 | Institutional / public | Sovereign loan (`SOVEREIGN`) |  | ⛔ | `institutional.counterparty_limits` (not implemented) |

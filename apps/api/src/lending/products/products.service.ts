@@ -700,7 +700,10 @@ export class ProductsService {
     tenantId: string,
     config: lending.ProductConfig,
   ) {
-    const codes = Object.values(config.accounting);
+    const codes = [
+      ...Object.values(config.accounting),
+      ...Object.values(config.trade?.accounts ?? {}),
+    ];
     const LedgerAccounts = await tx.ledgerAccount.findMany({
       where: { tenantId, code: { in: codes } },
       select: { code: true },

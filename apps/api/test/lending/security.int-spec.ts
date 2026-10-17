@@ -610,14 +610,20 @@ d('Lending security and lifecycle (integration)', () => {
         .post(`/lending/product-versions/${created.version.id}/activate`);
       expect(act.status).toBe(400);
       expect(act.body.code).toBe('MISSING_CAPABILITIES');
-      // Cards became available in Phase 3; factoring still is not.
-      const factoring = await f.as('maker').post('/lending/products', {
-        templateCode: 'FACTORING',
-        code: 'FCT-1',
-        name: 'Factoring',
-      });
-      expect(factoring.status).toBe(400);
-      expect(factoring.body.code).toBe('TEMPLATE_UNAVAILABLE');
+      // Any template whose capabilities are still missing cannot be used.
+      const { lending } = require('@microloan/shared');
+      const blocked = lending.PRODUCT_TEMPLATES.find(
+        (t: any) => !lending.templateAvailability(t).available,
+      );
+      if (blocked) {
+        const res = await f.as('maker').post('/lending/products', {
+          templateCode: blocked.code,
+          code: 'BLOCKED-1',
+          name: 'Not yet available',
+        });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('TEMPLATE_UNAVAILABLE');
+      }
     });
 
     it('approved versions are immutable, and product edits do not alter existing agreements', async () => {

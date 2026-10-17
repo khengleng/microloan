@@ -220,7 +220,12 @@ export class ServicingService {
               ? { kind: 'LEASE', structure: state.config.attributes.structure }
               : state.config.projectFinance
                 ? { kind: 'PROJECT_FINANCE' }
-                : null,
+                : state.config.trade?.documentary
+                  ? {
+                      kind: 'TRADE',
+                      direction: state.config.trade.documentary.direction,
+                    }
+                  : null,
       };
     });
   }
@@ -1654,7 +1659,8 @@ export class ServicingService {
     });
   }
 
-  private async quote(tx: Tx, state: LoanState, asOf: string) {
+  /** The payoff of an active loan as of a date, inside the caller's transaction. */
+  async quote(tx: Tx, state: LoanState, asOf: string) {
     if (state.account.status !== 'ACTIVE')
       throw new ConflictException(`Loan is ${state.account.status}.`);
     if (!state.config.repayment.earlySettlement.allowed)
@@ -2336,6 +2342,7 @@ export class ServicingService {
         const restoredVersion = undo.version + 1;
         await tx.scheduleInstalment.createMany({
           data: originals.map(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the copied lines drop their identity and status
             ({ id: _id, createdAt: _c, status: _s, ...l }) => ({
               ...l,
               agreementVersion: restoredVersion,

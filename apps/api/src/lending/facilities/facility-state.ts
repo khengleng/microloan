@@ -38,6 +38,9 @@ const MOVEMENT_OF: Record<string, lending.FacilityMovementType> = {
   REPAYMENT: 'REPAYMENT',
   SETTLEMENT: 'REPAYMENT',
   CAPITALIZATION: 'CAPITALIZATION',
+  // Writing off a bought receivable takes it off the drawn balance and so
+  // frees the limit, as a repayment of it would.
+  TRADE_WRITE_OFF: 'REPAYMENT',
 };
 
 /**
@@ -95,10 +98,8 @@ export function principalMoved(e: {
   amount: unknown;
   components: unknown;
 }): string {
-  const principal = (e.components as { PRINCIPAL?: string } | null)
-    ?.PRINCIPAL;
-  if (e.type === 'REPAYMENT' && principal != null)
-    return decStr(principal);
+  const principal = (e.components as { PRINCIPAL?: string } | null)?.PRINCIPAL;
+  if (e.type === 'REPAYMENT' && principal != null) return decStr(principal);
   return decStr(e.amount as string);
 }
 

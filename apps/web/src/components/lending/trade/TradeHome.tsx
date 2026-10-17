@@ -10,21 +10,29 @@ import { clean, qs, useAction, useApi } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
 import type { Paged, Product } from '../types';
-import type { FacilitySummary } from '../facilities/types';
-import { LC_STATUSES, type LetterOfCredit } from './types';
+import { KIND_COPY, LC_STATUSES, type LetterOfCredit, type ReceivablesProgramme, type TradeLoanList } from './types';
 
-type Tab = 'lc' | 'invoices';
+type Tab = 'lc' | 'receivables' | 'loans';
 
 /**
- * Trade finance: letters of credit (LT-19, UC-53) and invoice-finance
- * registers (LT-18, UC-67).
+ * Trade finance: letters of credit (LT-19, UC-53); receivables programmes —
+ * invoice finance (LT-18, UC-67), factoring, supply-chain finance and
+ * forfaiting; and import / export loans against trade documents.
  */
 export function TradeHome() {
     const [tab, setTab] = useState<Tab>('lc');
     return (
-        <LendingShell title="Trade finance" subtitle="Letters of credit for importers and advances against invoices.">
-            <Tabs<Tab> tabs={[{ value: 'lc', label: 'Letters of credit' }, { value: 'invoices', label: 'Invoice finance' }]} value={tab} onChange={setTab} />
-            {tab === 'lc' ? <LettersOfCredit /> : <InvoiceFacilities />}
+        <LendingShell title="Trade finance" subtitle="Letters of credit, receivables programmes and import / export loans.">
+            <Tabs<Tab>
+                tabs={[
+                    { value: 'lc', label: 'Letters of credit' },
+                    { value: 'receivables', label: 'Receivables' },
+                    { value: 'loans', label: 'Import & export loans' },
+                ]}
+                value={tab}
+                onChange={setTab}
+            />
+            {tab === 'lc' ? <LettersOfCredit /> : tab === 'receivables' ? <ReceivablesProgrammes /> : <TradeLoans />}
         </LendingShell>
     );
 }
@@ -110,29 +118,102 @@ function NewLetterOfCredit({ onDone, onClose }: { onDone: () => void; onClose: (
     );
 }
 
-/** Revolving facilities; the register opens for those under an invoice-finance product. */
-function InvoiceFacilities() {
+/** Receivables programmes: invoice finance, factoring, supply-chain finance and forfaiting. */
+function ReceivablesProgrammes() {
     const href = useLendingHref();
-    const list = useApi<Paged<FacilitySummary>>(`/lending/facilities${qs({ type: 'REVOLVING' })}`);
+    const [kind, setKind] = useState('');
+    const list = useApi<Paged<ReceivablesProgramme>>('/lending/trade/receivables');
+    const rows = (list.data?.data ?? []).filter((x) => !kind || x.kind === kind);
     return (
-        <Card title="Invoice-finance facilities" subtitle="Open a facility's invoice register. Facilities under other revolving products refuse invoices." bodyClass="p-0">
-            <div className="p-4"><Notice>An invoice-finance facility is booked like any facility (an application under an invoice-backed product). It is drawn only by advances against approved invoices.</Notice></div>
+        <Card
+            title="Receivables programmes"
+            subtitle="Each is a revolving limit drawn only by the receivables it finances or buys."
+            bodyClass="p-0"
+            actions={<SelectInput value={kind} onChange={setKind} options={Object.entries(KIND_COPY).map(([value, c]) => ({ value, label: c.name }))} placeholder="All kinds" className="w-48" />}
+        >
+            <div className="p-4"><Notice>A programme is booked like any facility: an application under an invoice-finance, factoring, supply-chain-finance or forfaiting product. For supply-chain finance the borrower is the anchor buyer.</Notice></div>
             {list.error && <div className="p-4"><ErrorBox error={list.error} /></div>}
-            {list.loading && !list.data ? <Spinner /> : (list.data?.data.length ?? 0) === 0 ? <Empty>No revolving facilities.</Empty> : (
+            {list.loading && !list.data ? <Spinner /> : rows.length === 0 ? <Empty>No receivables programmes.</Empty> : (
                 <Table>
-                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Facility</th><th className={th}>Status</th><th className={thR}>Limit</th><th className={th}></th></tr></thead>
+                    <thead>
+                        <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                            <th className={th}>Programme</th><th className={th}>Kind</th><th className={th}>Holder</th><th className={th}>Status</th>
+                            <th className={thR}>Limit</th><th className={thR}>Outstanding</th><th className={thR}>Open</th><th className={thR}>Awaiting</th><th className={thR}>In default</th><th className={th}></th>
+                        </tr>
+                    </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
-                        {list.data!.data.map((x) => (
-                            <tr key={x.id}>
+                        {rows.map((x) => (
+                            <tr key={x.id} className={x.inDefault ? 'bg-amber-50' : ''}>
                                 <td className={td}>{x.reference}</td>
-                                <td className={td}><StatusBadge status={x.status} /></td>
+                                <td className={td}>{KIND_COPY[x.kind].name}</td>
+                                <td className={td}>{x.borrowerName ?? '—'}</td>
+                                <td className={td}><StatusBadge status={x.status} />{x.daysPastDue > 0 && <div className="text-[11px] text-amber-700">{x.daysPastDue} days past due</div>}</td>
                                 <td className={tdR}><MoneyCell value={x.limitAmount} currency={x.currency} /></td>
-                                <td className={td}><Link className="text-[12px] font-semibold text-[#635BFF] hover:underline" href={href(`/lending/trade/invoices/${x.id}`)}>Invoice register →</Link></td>
+                                <td className={tdR}><MoneyCell value={x.outstanding} currency={x.currency} /></td>
+                                <td className={tdR}>{x.live}</td>
+                                <td className={tdR}>{x.pending || '—'}</td>
+                                <td className={tdR}>{x.inDefault || '—'}</td>
+                                <td className={td}><Link className="text-[12px] font-semibold text-[#635BFF] hover:underline" href={href(`/lending/trade/invoices/${x.id}`)}>{KIND_COPY[x.kind].register} →</Link></td>
                             </tr>
                         ))}
                     </tbody>
                 </Table>
             )}
         </Card>
+    );
+}
+
+/** Import loans and export working capital: their trade, documents and proceeds. */
+function TradeLoans() {
+    const href = useLendingHref();
+    const list = useApi<TradeLoanList>('/lending/trade/transactions');
+    const d = list.data;
+    return (
+        <>
+            {list.error && <ErrorBox error={list.error} />}
+            {d && d.awaitingTrade.length > 0 && (
+                <Card title="Booked, awaiting the trade" subtitle="Record the trade and its documents; the loan cannot be paid out before every required document is verified." bodyClass="p-0">
+                    <Table>
+                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Loan</th><th className={thR}>Amount</th><th className={th}></th></tr></thead>
+                        <tbody className="divide-y divide-[#F0F2F5]">
+                            {d.awaitingTrade.map((a) => (
+                                <tr key={a.loanAccountId}>
+                                    <td className={td}>{a.reference}</td>
+                                    <td className={tdR}><MoneyCell value={a.bookedPrincipal} currency={a.currency} /></td>
+                                    <td className={td}><Link className="text-[12px] font-semibold text-[#635BFF] hover:underline" href={href(`/lending/trade/transactions/${a.loanAccountId}`)}>Record the trade →</Link></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                </Card>
+            )}
+            <Card title="Import & export loans" subtitle="Each finances one trade: paid out against verified documents, repaid from the proceeds." bodyClass="p-0">
+                {list.loading && !d ? <Spinner /> : (d?.data.length ?? 0) === 0 ? <Empty>No trade transactions recorded.</Empty> : (
+                    <Table>
+                        <thead>
+                            <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                                <th className={th}>Trade</th><th className={th}>Direction</th><th className={th}>Counterparty</th><th className={thR}>Value</th>
+                                <th className={th}>Documents</th><th className={th}>Proceeds expected</th><th className={th}>Status</th><th className={thR}>Loan outstanding</th><th className={th}></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#F0F2F5]">
+                            {d!.data.map((t) => (
+                                <tr key={t.id}>
+                                    <td className={td}>{t.reference}<div className="text-[11px] text-[#697386]">{t.loan.reference}</div></td>
+                                    <td className={td}>{t.direction === 'IMPORT' ? 'Import' : 'Export'}</td>
+                                    <td className={td}>{t.counterpartyName}{t.counterpartyCountry ? ` (${t.counterpartyCountry})` : ''}</td>
+                                    <td className={tdR}><MoneyCell value={t.transactionValue} currency={t.currency} /></td>
+                                    <td className={td}>{t.documentsVerified} of {t.documents} verified</td>
+                                    <td className={`${td} whitespace-nowrap`}>{t.expectedProceedsDate}</td>
+                                    <td className={td}><StatusBadge status={t.status} /></td>
+                                    <td className={tdR}><MoneyCell value={t.loan.principalOutstanding} currency={t.currency} /></td>
+                                    <td className={td}><Link className="text-[12px] font-semibold text-[#635BFF] hover:underline" href={href(`/lending/trade/transactions/${t.loanAccountId}`)}>Open →</Link></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                )}
+            </Card>
+        </>
     );
 }
