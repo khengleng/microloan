@@ -78,6 +78,9 @@ const DIRECT_TENANT_MODELS = new Set([
   'MigrationRow',
   'PeriodCloseLog',
   'RegulatoryReturn',
+  'ProjectFinance',
+  'ProjectWaterfallRun',
+  'BorrowingBaseCertificate',
   'CovenantTest',
   // Payment channels (UC-16, UC-18, UC-19, UC-21)
   'PaymentChannelSettings',

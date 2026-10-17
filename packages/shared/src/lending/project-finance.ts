@@ -236,6 +236,7 @@ export type WaterfallStepCode =
   | 'SENIOR_DEBT_SERVICE'
   | 'DSRA_DRAW'
   | 'DSRA_TOP_UP'
+  | 'DSRA_RELEASE'
   | 'CASH_SWEEP'
   | 'LOCK_UP'
   | 'LOCK_UP_RELEASE'
@@ -284,6 +285,8 @@ export interface WaterfallResult {
   /** Debt service still unpaid after the reserve. */
   shortfall: string;
   dsraTopUp: string;
+  /** Reserve above its (falling) target, released back into the waterfall. */
+  dsraRelease: string;
   cashSweep: string;
   lockUpRetained: string;
   lockUpReleased: string;
@@ -300,7 +303,8 @@ export interface WaterfallResult {
  *        what reaches the lender is CFADS = revenue − costs − taxes);
  *   3.   senior debt service — everything due on the loan — from CFADS, and
  *        from the reserve for any shortfall;
- *   4.   the reserve topped up to its target;
+ *   4.   the reserve topped up to its target (or, as the target falls,
+ *        what it holds above the target released back into the flow);
  *   5.   a share of what is left swept to prepay principal;
  *   6.   the rest distributed to the sponsor — or held in lock-up when the
  *        period's DSCR is below the lock-up ratio, the reserve is short or
@@ -333,8 +337,11 @@ export function applyWaterfall(input: WaterfallInput): WaterfallResult {
   const shortfall = due.minus(fromCash).minus(draw);
   const dsraAfterDraw = dsra.minus(draw);
   const topUp = D.min(left, D.max(target.minus(dsraAfterDraw), ZERO));
-  left = left.minus(topUp);
-  const dsraAfter = dsraAfterDraw.plus(topUp);
+  // As the loan amortizes the target falls; what the reserve holds above it
+  // flows on down the waterfall.
+  const release = D.max(dsraAfterDraw.minus(target), ZERO);
+  left = left.minus(topUp).plus(release);
+  const dsraAfter = dsraAfterDraw.plus(topUp).minus(release);
 
   const dscr = periodDs.gt(0) ? cfads.div(periodDs).toDecimalPlaces(DSCR_DP) : null;
   const reasons: string[] = [];
@@ -368,6 +375,7 @@ export function applyWaterfall(input: WaterfallInput): WaterfallResult {
     step('SENIOR_DEBT_SERVICE', 'Senior debt service', fromCash),
     step('DSRA_DRAW', 'Debt service paid from the reserve', draw),
     step('DSRA_TOP_UP', 'Reserve top-up', topUp, false, `Target ${target.toString()}`),
+    step('DSRA_RELEASE', 'Reserve released above target', release),
     step('CASH_SWEEP', 'Cash sweep (prepayment)', sweep),
     step('LOCK_UP', 'Held in lock-up', retained, false, lockedUp ? reasons.join('; ') : undefined),
     step('LOCK_UP_RELEASE', 'Released from lock-up', released),
@@ -382,6 +390,7 @@ export function applyWaterfall(input: WaterfallInput): WaterfallResult {
     dsraDraw: draw.toString(),
     shortfall: shortfall.toString(),
     dsraTopUp: topUp.toString(),
+    dsraRelease: release.toString(),
     cashSweep: sweep.toString(),
     lockUpRetained: retained.toString(),
     lockUpReleased: released.toString(),

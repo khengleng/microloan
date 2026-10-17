@@ -103,7 +103,7 @@ describe('debt service reserve and cash waterfall (LT-17)', () => {
     assert.equal(r.distribution, '100');
     assert.equal(r.lockedUp, false);
     assert.equal(r.dscr, '1.5714');
-    assert.deepEqual(r.steps.map((s) => s.code), ['OPERATING_COSTS', 'TAXES', 'SENIOR_DEBT_SERVICE', 'DSRA_DRAW', 'DSRA_TOP_UP', 'CASH_SWEEP', 'LOCK_UP', 'LOCK_UP_RELEASE', 'DISTRIBUTION']);
+    assert.deepEqual(r.steps.map((s) => s.code), ['OPERATING_COSTS', 'TAXES', 'SENIOR_DEBT_SERVICE', 'DSRA_DRAW', 'DSRA_TOP_UP', 'DSRA_RELEASE', 'CASH_SWEEP', 'LOCK_UP', 'LOCK_UP_RELEASE', 'DISTRIBUTION']);
     assert.ok(r.steps[0].informational && r.steps[1].informational);
     // Every unit of CFADS is accounted for.
     const out = ['seniorFromCash', 'dsraTopUp', 'cashSweep', 'lockUpRetained', 'distribution'].reduce((t, k) => t.plus((r as any)[k]), D('0'));
@@ -122,6 +122,16 @@ describe('debt service reserve and cash waterfall (LT-17)', () => {
     assert.equal(back.lockUpReleased, '25');
     assert.equal(back.lockUpBalanceAfter, '0');
     assert.equal(back.distribution, D(back.cfads).minus(700).minus(back.cashSweep).plus(25).toString());
+  });
+
+  test('a reserve above its falling target is released into the flow', () => {
+    const r = wf({ dsraBalance: '500', dsraTarget: '200', sweepRate: null });
+    assert.equal(r.dsraRelease, '300');
+    assert.equal(r.dsraBalanceAfter, '200');
+    assert.equal(r.distribution, '700');
+    const end = wf({ dsraBalance: '500', dsraTarget: '0', sweepRate: null, periodDebtService: '700' });
+    assert.equal(end.dsraBalanceAfter, '0');
+    assert.equal(end.distribution, '900');
   });
 
   test('a shortfall is met from the reserve, and the period is locked up', () => {
