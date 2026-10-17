@@ -82,6 +82,8 @@ export class Journey {
       'loan.settlement.negotiate_principal',
     ])
       await authority(f, t, 'approver2', p, 'USD', '1000000');
+    await authority(f, t, 'approver', 'restructure.approve', 'USD', '100000');
+    await authority(f, t, 'approver', 'restructure.waive_charges', 'USD', '5000');
     await authority(f, t, 'opsChecker', 'facility.drawdown.approve', 'USD', '1000000');
     await authority(f, t, 'approver', 'facility.limit.approve', 'USD', '1000000');
     const j = new Journey(f);
