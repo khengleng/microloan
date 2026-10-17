@@ -11,7 +11,6 @@
  * itself, with a ledger that balances and reconciles exactly as its
  * template's does. Rows are streamed with COPY.
  */
-import { createHash } from 'node:crypto';
 import type { PrismaClient } from '@microloan/db';
 import { copyIn } from './common';
 import type { TemplateUnit } from './templates';
@@ -60,11 +59,21 @@ const SHARED = new Set([
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 
-/** Deterministic, well-formed v4-style id for copy `k` of `old`. */
+/**
+ * Deterministic id for copy `k` of `old`: its last 48 bits XORed with an
+ * injective function of k. Version and variant bits are untouched, so the
+ * result is a well-formed v4 UUID, distinct per copy and (with random
+ * template ids) from every other id.
+ */
 export function cloneId(old: string, k: number): string {
-  const h = createHash('sha1').update(`${old}#${k}`).digest('hex');
-  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+  const f = (k * 2654435761) % 281474976710656; // odd multiplier mod 2^48
+  const hi = parseInt(old.slice(24, 30), 16) ^ Math.floor(f / 16777216);
+  const lo = parseInt(old.slice(30, 36), 16) ^ (f % 16777216);
+  return (
+    old.slice(0, 24) +
+    hi.toString(16).padStart(6, '0') +
+    lo.toString(16).padStart(6, '0')
+  );
 }
 
 interface Column {
@@ -205,8 +214,11 @@ export async function cloneBook(
   );
 
   // ── Stream the copies ─────────────────────────────────────────────────────
+  // Each template row is compiled once into fixed text and the owned ids in
+  // it; a copy is then plain string concatenation. A few tables are written
+  // at once, each through its own COPY.
   let rowsWritten = 0;
-  for (const [table, idSet] of ownedRows) {
+  const copyTable = async (table: string, idSet: Set<string>) => {
     const cs = tables.get(table)!;
     const ids = [...idSet];
     const select = cs.map((c) => `"${c.name}"::text`).join(', ');
@@ -229,7 +241,8 @@ export async function cloneBook(
     );
     const suffixCols = uniques
       .filter((u) => u.table === table)
-      .map((u) => u.cols.map((n) => cs.findIndex((c) => c.name === n)));
+      .map((u) => u.cols.map((n) => cs.findIndex((c) => c.name === n)))
+      .filter((idx) => idx.every((i) => i >= 0));
     const out = copyIn(
       ownerUrl,
       table,
@@ -237,34 +250,29 @@ export async function cloneBook(
     );
     let buf = '';
     for (const row of rows) {
-      const unitRoot = find(owner.get(row[idIdx]!)!);
-      const n = unitCopies.get(unitRoot) ?? 0;
+      const n = unitCopies.get(find(owner.get(row[idIdx]!)!)) ?? 0;
+      if (!n) continue;
+      const plan = compileRow(row, textual, owner, suffixCols, cs);
       for (let k = 1; k <= n; k++) {
-        const next = row.map((v, i) =>
-          v === null || !textual[i]
-            ? v
-            : v.replace(UUID_RE, (m) => (owner.has(m) ? cloneId(m, k) : m)),
-        );
-        for (const idx of suffixCols) {
-          if (idx.some((i) => i < 0)) continue;
-          if (idx.some((i) => next[i] !== row[i])) continue;
-          const at = idx.find(
-            (i) => textual[i] && cs[i].name !== 'tenantId' && next[i] !== null,
-          );
-          if (at !== undefined) next[at] = `${next[at]}-C${k}`;
-        }
-        buf += next.map(copyField).join('\t') + '\n';
+        buf += renderRow(plan, k);
         if (buf.length > 1 << 20) {
           await out.write(buf);
           buf = '';
         }
-        rowsWritten++;
       }
+      rowsWritten += n;
     }
     if (buf) await out.write(buf);
     await out.end();
     log(`  ${table}: ${rows.length} template rows copied`);
-  }
+  };
+  const queue = [...ownedRows.entries()];
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      for (let job = queue.shift(); job; job = queue.shift())
+        await copyTable(job[0], job[1]);
+    }),
+  );
   return {
     templates: units.length,
     copies,
@@ -283,4 +291,58 @@ function copyField(v: string | null): string {
     .replace(/\t/g, '\\t')
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r');
+}
+
+/**
+ * A template row ready to copy: per column, fixed text (already escaped for
+ * COPY) alternating with owned ids to remap, and a suffix marker for the
+ * column that keeps a unique index unique.
+ */
+type Part = string | { id: string } | { suffix: true };
+type RowPlan = Part[][];
+
+function compileRow(
+  row: (string | null)[],
+  textual: boolean[],
+  owner: Map<string, number>,
+  suffixCols: number[][],
+  cs: Column[],
+): RowPlan {
+  const plan: RowPlan = row.map((v, i) => {
+    if (v === null) return ['\\N'];
+    if (!textual[i]) return [copyField(v)];
+    const parts: Part[] = [];
+    let last = 0;
+    for (const m of v.matchAll(UUID_RE)) {
+      if (!owner.has(m[0])) continue;
+      parts.push(copyField(v.slice(last, m.index)), { id: m[0] });
+      last = m.index + m[0].length;
+    }
+    parts.push(copyField(v.slice(last)));
+    return parts;
+  });
+  const remapped = (i: number) => plan[i].some((p) => typeof p !== 'string');
+  for (const idx of suffixCols) {
+    if (idx.some(remapped)) continue;
+    const at = idx.find(
+      (i) => textual[i] && cs[i].name !== 'tenantId' && row[i] !== null,
+    );
+    if (
+      at !== undefined &&
+      !plan[at].some((p) => typeof p === 'object' && 'suffix' in p)
+    )
+      plan[at].push({ suffix: true });
+  }
+  return plan;
+}
+
+function renderRow(plan: RowPlan, k: number): string {
+  let line = '';
+  for (let c = 0; c < plan.length; c++) {
+    if (c) line += '\t';
+    for (const p of plan[c])
+      line +=
+        typeof p === 'string' ? p : 'id' in p ? cloneId(p.id, k) : `-C${k}`;
+  }
+  return line + '\n';
 }

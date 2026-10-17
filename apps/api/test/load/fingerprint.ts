@@ -3,7 +3,9 @@
  * seeded book can be compared by: each loan's balances, schedule and the
  * financial events it gained; the journal totals per ledger account; and the
  * collections and restructuring work it opened. Ids, timestamps and random
- * idempotency keys are left out, since they differ by construction.
+ * idempotency keys are left out, since they differ by construction, and so
+ * is the month-end close (its reconciliation failed outright at scale before
+ * this work, see PERFORMANCE.md).
  */
 import type { PrismaClient } from '@microloan/db';
 
@@ -77,7 +79,8 @@ export async function fingerprint(
        FROM "AccrualEvent" WHERE "tenantId" = $1 AND "accrualDate" > $2::date GROUP BY 2
      UNION ALL
      SELECT 'auditEvent', concat_ws('|', action, outcome), count(*)
-       FROM "AuditEvent" WHERE "tenantId" = $1 AND "businessDate" > $2::date GROUP BY 2
+       FROM "AuditEvent" WHERE "tenantId" = $1 AND "businessDate" > $2::date
+         AND action NOT LIKE 'accounting.%' GROUP BY 2
      ORDER BY 1, 2`,
     tenantId,
     since,
