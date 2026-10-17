@@ -524,6 +524,42 @@ describe('Google sign-in', () => {
   });
 });
 
+describe('Google sign-in hardening', () => {
+  it('never links the platform operator account automatically', async () => {
+    const { service, prisma } = buildService({
+      existingUser: {
+        id: 'root',
+        email: 'founder@acme.com',
+        role: 'SUPERADMIN',
+        tenantId: null,
+        isActive: true,
+        tenant: null,
+      },
+    });
+    await expect(service.loginWithGoogle('tok')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(prisma.federatedIdentity.create).not.toHaveBeenCalled();
+  });
+
+  it('respects the password lockout', async () => {
+    const { service } = buildService({
+      existingUser: {
+        id: 'u1',
+        email: 'founder@acme.com',
+        role: 'TENANT_ADMIN',
+        tenantId: 't1',
+        isActive: true,
+        lockedUntil: new Date(Date.now() + 60_000),
+        tenant: { status: 'ACTIVE', name: 'Acme' },
+      },
+    });
+    await expect(service.loginWithGoogle('tok')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});
+
 describe('GoogleIdentityService', () => {
   const original = { ...process.env };
   afterEach(() => {

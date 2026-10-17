@@ -388,6 +388,13 @@ export class AuthService {
         );
       }
 
+      // The platform operator's account is never linked automatically: a
+      // re-provisioned mailbox at the same address must not inherit it.
+      if (byEmail.role === Role.SUPERADMIN) {
+        await this.auditSecurityEvent(null, profile.email, 'GOOGLE_LINK_REFUSED_PRIVILEGED', ip, byEmail.id);
+        throw new UnauthorizedException('Sign in with your password; this account cannot be linked to Google automatically.');
+      }
+
       await this.prisma.federatedIdentity.create({
         data: {
           userId: byEmail.id,
@@ -409,7 +416,12 @@ export class AuthService {
       user = byEmail;
     }
 
-    // Same gates as password login, in the same order.
+    // Same gates as password login, in the same order — including the
+    // lockout, which federated sign-in must not get around.
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      await this.auditSecurityEvent(user.tenantId, profile.email, 'LOGIN_ACCOUNT_LOCKED', ip, user.id);
+      throw new ForbiddenException('This account is temporarily locked. Try again later.');
+    }
     if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
       throw new ForbiddenException(this.inactiveTenantMessage(user.tenant?.status, user.tenant?.name));
     }

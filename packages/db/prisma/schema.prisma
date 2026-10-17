@@ -11,6 +11,8 @@ model Tenant {
   id                            String    @id @default(uuid())
   name                          String
   telegramBotToken              String?   @unique // Per-tenant bot token
+  /// Keyed hash of the bot token: one bot can serve only one organisation (the token itself is stored encrypted, so it cannot be compared).
+  telegramBotTokenHash          String?   @unique
   plan                          String    @default("FREE") // Basic subscription visibility
   // ACTIVE, SUSPENDED, PENDING_PAYMENT.
   // PENDING_PAYMENT is the self-serve signup gate: the organization exists but
