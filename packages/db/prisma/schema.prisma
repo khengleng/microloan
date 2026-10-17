@@ -638,8 +638,8 @@ model Repayment {
 
 model AuditLog {
   id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId  String? // Null for platform events (SUPERADMIN actions, unknown-account logins)
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId    String? // Nullable  — allows anonymous security events (e.g. unknown email login)
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String // CREATE, UPDATE, DELETE, LOGIN

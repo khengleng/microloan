@@ -7,9 +7,15 @@ export class AuditService {
   private readonly logger = new Logger(AuditService.name);
   constructor(private prisma: PrismaService) { }
 
+  /**
+   * `tenantId` is null for platform events (SUPERADMIN actions, logins that
+   * match no account) and `userId` is null when no user is known. Writing
+   * placeholder ids instead violated the foreign keys, and the swallowed
+   * error meant those security events were never stored.
+   */
   async logAction(
-    tenantId: string,
-    userId: string,
+    tenantId: string | null,
+    userId: string | null,
     action: string,
     entity: string,
     entityId: string,
@@ -64,10 +70,9 @@ export class AuditService {
     result: 'SUCCESS' | 'FAILURE';
     timestamp?: string;
   }) {
-    const tenantId = event.actorTenantId || 'system';
     return this.logAction(
-      tenantId,
-      event.actorUserId || 'anonymous',
+      event.actorTenantId || null,
+      event.actorUserId || null,
       event.action,
       event.targetType,
       event.targetId,
