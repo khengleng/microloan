@@ -265,6 +265,10 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Collections** — an escalation ladder per product (SMS, call, visit,
   notice, legal review) feeding collector work queues; guarantor demands and
   payments; set-off of the borrower's deposit under maker-checker.
+* **Loan-book migration** — take over running loans from another system:
+  a CSV checked row by row (products, branches, customers, schedules) and
+  against control totals, approved by a second person, posted with opening
+  balances that reconcile; Lending › Migration.
 * **Month-end and year-end close** — month end is a stage of end of day:
   checks, a frozen snapshot of the books and the portfolio, a lock approved
   by a second person (enforced in the posting service and the database),

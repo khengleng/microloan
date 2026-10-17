@@ -115,6 +115,37 @@ snapshot) and waits for a person to approve it.
 
 The close covers the lending ledger. The legacy ledger is closed separately.
 
+## Taking over a loan book (migration)
+
+Lending › Migration. Running loans from another system are loaded as a CSV
+(template: `GET /v1/lending/migrations/template.csv`), one row per loan, as at
+the cut-over date.
+
+1. **Load and check** (finance, `loan.migration.manage`). Every row is checked:
+   fields and dates, an active fixed-rate term product, the branch, the
+   customer (matched on national ID through the blind index, else created —
+   one customer per `customer_id` in the file), loans already migrated, and
+   the remaining schedule rebuilt by the engine from the current period. The
+   old system's control totals (loans and principal per currency) must
+   agree. The interest accrued by the old system is compared with the
+   contract's accrual and any difference shown. Nothing is posted.
+2. **Approve** (another person, `loan.migration.approve`), on the cut-over
+   business date. Each loan is posted in its own transaction: customer,
+   application and agreement (reason MIGRATION), account, remaining schedule
+   plus one arrears line due on the oldest overdue date (so days past due
+   carry on), and an opening journal — principal, interest (contract accrual
+   plus overdue interest), fees, penalties, allowance — against migration
+   clearing **3900**; non-accrual loans put their interest in suspense. The
+   accrual already earned is recorded, so end of day accrues only what follows.
+   A row that fails is marked and can be posted by approving again.
+3. **Verify**: Accounting › Reconciliation shows no breaks; the 3900 balance
+   equals the old system's net loan balances and is cleared against the
+   balances transferred in the general ledger.
+
+Out of scope for files: facilities, cards, group loans, floating-rate,
+balloon and explicitly dated schedules (book them in the platform or migrate
+them as instalment loans).
+
 ## Migrations and deployment
 
 * `packages/db/prisma/migrations/20261016_lending_platform_phase1/migration.sql`

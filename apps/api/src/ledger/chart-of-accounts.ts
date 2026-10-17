@@ -28,6 +28,8 @@ export const ACCOUNT_CODES = {
   DOWN_PAYMENTS_HELD: '2600',
   // Year-end close: the year's income and expense are carried here (OPS-6)
   RETAINED_EARNINGS: '3100',
+  // Opening balances of loans taken over from another system
+  MIGRATION_CLEARING: '3900',
   SET_OFF_CLEARING: '2700',
   RECOVERY_INCOME: '4300',
   ROUNDING_DIFFERENCES: '4900',
@@ -145,6 +147,11 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.RETAINED_EARNINGS,
     name: 'Retained Earnings',
+    type: LedgerAccountType.EQUITY,
+  },
+  {
+    code: ACCOUNT_CODES.MIGRATION_CLEARING,
+    name: 'Loan Migration Clearing (opening balances)',
     type: LedgerAccountType.EQUITY,
   },
   {

@@ -1,3 +1,4 @@
+import { AnyAuthenticated } from '../auth/auth-scope.decorator';
 import {
   Body,
   Controller,
@@ -27,6 +28,7 @@ import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
 import { ReportingService } from './reporting/reporting.service';
 import { PeriodCloseService } from './accounting/period-close.service';
+import { LoanMigrationService } from './migration/loan-migration.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
@@ -966,6 +968,82 @@ export class LendingLoansController {
 }
 
 /** Unidentified payments: held in suspense, matched to loans or refunded (UC-28, UC-74). */
+/** Taking over a loan book from another system. */
+@Controller('lending/migrations')
+export class LendingMigrationController {
+  constructor(private readonly migration: LoanMigrationService) {}
+
+  @LendingAction('loan.migration.manage')
+  @Get('template.csv')
+  template(@Res() res: Response) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="loan-migration-template.csv"',
+    );
+    res.send(this.migration.template());
+  }
+
+  // Read by the maker or the approver; the service checks which.
+  @AnyAuthenticated()
+  @Get()
+  list(@Req() req: Req_) {
+    return this.migration.list(actor(req));
+  }
+
+  @LendingAction('loan.migration.manage')
+  @Post()
+  upload(@Req() req: Req_, @Body(new ZodPipe(S.migrationUpload)) body: never) {
+    return this.migration.upload(actor(req), body);
+  }
+
+  @AnyAuthenticated()
+  @Get(':batchId')
+  get(
+    @Req() req: Req_,
+    @Param('batchId', ID) batchId: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.migration.get(actor(req), batchId, {
+      status,
+      page: page ? Number(page) : undefined,
+    });
+  }
+
+  @LendingAction('loan.migration.manage')
+  @Get(':batchId/issues.csv')
+  async issues(
+    @Req() req: Req_,
+    @Param('batchId', ID) batchId: string,
+    @Res() res: Response,
+  ) {
+    const csv = await this.migration.issuesCsv(actor(req), batchId);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="migration-issues.csv"',
+    );
+    res.send(csv);
+  }
+
+  @LendingAction('loan.migration.approve')
+  @Post(':batchId/decision')
+  decide(
+    @Req() req: Req_,
+    @Param('batchId', ID) batchId: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.migration.decide(actor(req), batchId, body);
+  }
+
+  @LendingAction('loan.migration.manage')
+  @Post(':batchId/cancel')
+  cancel(@Req() req: Req_, @Param('batchId', ID) batchId: string) {
+    return this.migration.cancel(actor(req), batchId);
+  }
+}
+
 /** Collector work queues fed by the escalation ladder (UC-58). */
 @Controller('lending/collections')
 export class LendingCollectionsController {

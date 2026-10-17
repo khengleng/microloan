@@ -230,6 +230,25 @@ export const S = {
   approve: z
     .object({ approve: z.boolean(), comment: z.string().max(500).optional() })
     .strict(),
+  migrationUpload: z
+    .object({
+      fileName: z.string().trim().min(1).max(200),
+      content: z.string().min(1).max(5_000_000),
+      cutOverDate: date,
+      controlTotals: z
+        .array(
+          z
+            .object({
+              currency: z.string().regex(/^[A-Z]{3}$/),
+              loans: z.number().int().min(0),
+              principal: money,
+            })
+            .strict(),
+        )
+        .max(20)
+        .optional(),
+    })
+    .strict(),
   periodComment: z.object({ comment: z.string().max(500).optional() }).strict(),
   periodReopen: z
     .object({ reason: z.string().trim().min(10).max(500) })

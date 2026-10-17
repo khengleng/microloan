@@ -213,6 +213,10 @@ export const ACTIONS: ActionDefinition[] = [
   A('impairment.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Month-end and year-end close (OPS-6): finance prepares, someone else locks.
   A('accounting.period.close', 'TENANT', 'CONFIG'),
+  // Loan-book migration: one person loads and checks the file,
+  // another approves posting it.
+  A('loan.migration.manage', 'TENANT', 'CONFIG'),
+  A('loan.migration.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('accounting.period.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {

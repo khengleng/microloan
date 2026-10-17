@@ -202,6 +202,19 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Operations',
   },
   {
+    code: 'loan.migration.manage',
+    description:
+      'Load and check a loan book taken over from another system (migration file)',
+    category: 'Operations',
+  },
+  {
+    code: 'loan.migration.approve',
+    description:
+      'Approve posting a migration file loaded by someone else (opening balances)',
+    category: 'Operations',
+    financial: true,
+  },
+  {
     code: 'accounting.period.close',
     description:
       'Prepare month-end and year-end close, and request a period be reopened',
@@ -750,6 +763,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'servicing.batch.run',
       'loan_data.export',
       'accounting.period.close',
+      'loan.migration.manage',
     ],
   },
   {
@@ -763,6 +777,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'accounting.read',
       'impairment.approve',
       'accounting.period.approve',
+      'loan.migration.approve',
       'feature_flag.read',
       'access_policy.read',
       'policy.simulate',

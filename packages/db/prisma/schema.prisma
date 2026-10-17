@@ -3813,3 +3813,60 @@ model PeriodCloseLog {
   @@unique([tenantId, id])
   @@index([tenantId, periodId])
 }
+
+/// A loan book taken over from another system: a validated file of
+/// running loans, approved by a second person, then posted loan by loan with
+/// opening balances against migration clearing.
+model MigrationBatch {
+  id            String         @id @default(uuid())
+  tenantId      String
+  reference     String
+  fileName      String
+  cutOverDate   DateTime       @db.Date
+  /// VALIDATED, POSTING, POSTED, PARTIALLY_POSTED, REJECTED, CANCELLED
+  status        String         @default("VALIDATED")
+  rowCount      Int
+  validCount    Int
+  errorCount    Int
+  warningCount  Int            @default(0)
+  postedCount   Int            @default(0)
+  failedCount   Int            @default(0)
+  totals        Json
+  controlTotals Json           @default("[]")
+  fileIssues    Json           @default("[]")
+  createdBy     String
+  approvedBy    String?
+  decidedAt     DateTime?
+  comment       String         @default("")
+  postedAt      DateTime?
+  createdAt     DateTime       @default(now())
+  rows          MigrationRow[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+}
+
+/// One loan of a migration file: what was given, what was found, and the loan it became.
+model MigrationRow {
+  id             String         @id @default(uuid())
+  tenantId       String
+  batchId        String
+  batch          MigrationBatch @relation(fields: [tenantId, batchId], references: [tenantId, id], onDelete: Cascade)
+  lineNo         Int
+  externalLoanId String
+  customerId     String
+  values         Json
+  /// VALID, WARNING, ERROR, POSTED, FAILED
+  status         String
+  issues         Json           @default("[]")
+  warnings       Json           @default("[]")
+  preview        Json           @default("{}")
+  borrowerId     String?
+  loanAccountId  String?
+  postedAt       DateTime?
+
+  @@unique([tenantId, id])
+  @@index([tenantId, batchId, status])
+  @@index([tenantId, externalLoanId])
+}

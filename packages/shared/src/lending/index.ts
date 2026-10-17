@@ -28,3 +28,4 @@ export * from './channels.js';
 export * from './scorecard.js';
 export * from './card.js';
 export * from './bnpl.js';
+export * from './migration.js';
