@@ -68,6 +68,7 @@ const INVARIANT_SECTIONS = [
   ['20261019001700_tenant_webhooks', '-- Database-level invariants for tenant webhooks.'],
   ['20261019001900_trade_receivables_documentary', '-- Database-level invariants for bought receivables and documentary trade loans.'],
   ['20261019002000_lending_project_finance_borrowing_base', '-- Database-level invariants for project finance and borrowing bases.'],
+  ['20261019002100_lending_institutional_icl_murabaha', '-- Database-level invariants for institutional lending, income-contingent repayment and Murabaha.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {

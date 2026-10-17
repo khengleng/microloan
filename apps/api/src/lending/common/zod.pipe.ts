@@ -49,6 +49,8 @@ export const termsSchema = z
       .optional(),
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
     downPayment: money.optional(),
+    /** Income-contingent products: the income declared at origination. */
+    declaredAnnualIncome: money.optional(),
     promotionCode: z.string().trim().min(1).max(40).optional(),
     financials: z
       .object({
@@ -697,6 +699,91 @@ export const S = {
       observationDate: date,
       rate: z.string().regex(/^-?\d+(\.\d+)?$/),
       source: z.string().min(2).max(120),
+    })
+    .strict(),
+  // Institutional lending: counterparties and exposure limits.
+  counterpartyCreate: z
+    .object({
+      name: z.string().trim().min(2).max(160),
+      type: z.enum(lending.COUNTERPARTY_TYPES),
+      countryCode: z.string().regex(/^[A-Z]{2}$/),
+      /** The borrower record the counterparty's applications are made under. */
+      borrowerId: uuid,
+      legalIdentifier: z.string().trim().max(60).optional(),
+      rating: z.enum(lending.RATING_SCALE).optional(),
+      ratingAgency: z.string().trim().max(60).optional(),
+      ratedOn: date.optional(),
+    })
+    .strict(),
+  counterpartyRating: z
+    .object({
+      rating: z.enum(lending.RATING_SCALE).nullable(),
+      ratingAgency: z.string().trim().max(60).optional(),
+      ratedOn: date,
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  counterpartyStatus: z
+    .object({
+      status: z.enum(['ACTIVE', 'SUSPENDED']),
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  exposureLimitPropose: z
+    .object({
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      reviewOn: date,
+      note: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  countryLimitPropose: z
+    .object({
+      countryCode: z.string().regex(/^[A-Z]{2}$/),
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      reviewOn: date,
+      note: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  limitDecision: z
+    .object({
+      approve: z.boolean(),
+      comment: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  // Income-contingent repayment.
+  incomeAssessment: z
+    .object({
+      declaredAnnualIncome: money,
+      reason: z.enum(['ANNUAL', 'CHANGE_OF_CIRCUMSTANCES']),
+      incomePeriod: z.string().trim().max(40).optional(),
+      evidenceType: z.enum([
+        'PAYSLIP',
+        'TAX_RETURN',
+        'EMPLOYER_LETTER',
+        'BENEFITS_STATEMENT',
+        'NO_INCOME_DECLARATION',
+        'OTHER',
+      ]),
+      evidenceReference: z.string().trim().min(2).max(200),
+      documentId: uuid.optional(),
+    })
+    .strict(),
+  assessmentDecision: z
+    .object({
+      approve: z.boolean(),
+      comment: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  // Murabaha: the asset the financier buys and resells.
+  murabahaAsset: z
+    .object({
+      assetType: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/),
+      description: z.string().trim().min(2).max(200),
+      serialNumber: z.string().trim().max(80).optional(),
+      supplierName: z.string().trim().min(2).max(120),
+      cost: money,
     })
     .strict(),
 };

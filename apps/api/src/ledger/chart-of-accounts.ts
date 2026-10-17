@@ -73,6 +73,15 @@ export const ACCOUNT_CODES = {
   TRADE_DISCOUNT_INCOME: '4530',
   FACTORING_SERVICE_FEE_INCOME: '4540',
   TRADE_RECEIVABLES_CREDIT_LOSS: '5500',
+  // Murabaha: the sale price receivable (cost and profit parts), the memo
+  // pair carrying profit not yet earned, and the profit as its own income
+  MURABAHA_RECEIVABLE: '1350',
+  MURABAHA_PROFIT_RECEIVABLE: '1355',
+  MURABAHA_UNEARNED_PROFIT: '1360',
+  MURABAHA_DEFERRED_PROFIT: '2510',
+  MURABAHA_PROFIT_INCOME: '4700',
+  // Income-contingent education loans: the balance forgiven at the end of the term
+  INCOME_CONTINGENT_FORGIVENESS: '5700',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -343,6 +352,39 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.TRADE_RECEIVABLES_CREDIT_LOSS,
     name: 'Credit Losses on Bought Receivables (without recourse)',
+    type: LedgerAccountType.EXPENSE,
+  },
+  // A Murabaha is a sale, not a loan: the receivable is the sale price, and
+  // its profit is deferred and recognised as earned, never as interest.
+  {
+    code: ACCOUNT_CODES.MURABAHA_RECEIVABLE,
+    name: 'Murabaha Receivable (Cost)',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.MURABAHA_PROFIT_RECEIVABLE,
+    name: 'Murabaha Profit Receivable (Earned)',
+    type: LedgerAccountType.ASSET,
+  },
+  // Memo pair: always moved together, so they net to zero.
+  {
+    code: ACCOUNT_CODES.MURABAHA_UNEARNED_PROFIT,
+    name: 'Murabaha Receivable (Unearned Profit)',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.MURABAHA_DEFERRED_PROFIT,
+    name: 'Deferred Murabaha Profit',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.MURABAHA_PROFIT_INCOME,
+    name: 'Murabaha Profit Income',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.INCOME_CONTINGENT_FORGIVENESS,
+    name: 'Education Loans Forgiven (Income-Contingent)',
     type: LedgerAccountType.EXPENSE,
   },
 ];

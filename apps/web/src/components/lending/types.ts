@@ -173,6 +173,8 @@ export interface Terms {
     promotionCode?: string;
     /** Business financials for debt-service coverage (LT-16). */
     financials?: { annualNetOperatingIncome: Money; otherAnnualDebtService?: Money };
+    /** Income-contingent loans: the income declared at origination. */
+    declaredAnnualIncome?: Money;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */
@@ -318,7 +320,7 @@ export interface LoanDetail {
     events: FinancialEvent[];
     tasks: ApprovalTask[];
     /** Card, BNPL or lease behaviour on this loan (LT-07, LT-11, LT-15). */
-    specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | { kind: 'PROJECT_FINANCE' } | { kind: 'TRADE'; direction: 'IMPORT' | 'EXPORT' } | null;
+    specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | { kind: 'PROJECT_FINANCE' } | { kind: 'TRADE'; direction: 'IMPORT' | 'EXPORT' } | { kind: 'MURABAHA' } | { kind: 'INCOME_CONTINGENT' } | { kind: 'INSTITUTIONAL' } | null;
 }
 
 export interface SettlementQuote {
@@ -330,6 +332,8 @@ export interface SettlementQuote {
     advanceApplied?: Money;
     /** Rule of 78 / actuarial rebate on precomputed interest (UC-33). */
     interestRebate?: { method: string; rebate: Money; explanation: string };
+    /** Murabaha: profit owed on settlement after any ibra'. */
+    murabaha?: { unearnedProfit: Money; ibra: Money; profitOwed: Money; explanation: string };
 }
 
 /* ── Ops ──────────────────────────────────────────────────────────────────── */

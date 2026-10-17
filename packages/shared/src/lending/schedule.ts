@@ -13,6 +13,7 @@ import {
   parseDate,
   yearFraction,
 } from './dates.js';
+import { incomeContingentSchedule, type IncomeContingentContract } from './income-contingent.js';
 
 /** Bumped whenever a change could alter any computed schedule. Recorded on every calculation. */
 export const LENDING_ENGINE_VERSION = '1.0.0';
@@ -90,6 +91,11 @@ export interface ScheduleInput {
    * Instalments after the listed runs pay the base (multiplier 1).
    */
   instalmentSteps?: InstalmentStep[];
+  /**
+   * Income-contingent repayment: the instalment is a share of the declared
+   * income above a threshold, not an annuity (income-contingent.ts).
+   */
+  incomeContingent?: IncomeContingentContract;
 }
 
 export interface InstalmentStep {
@@ -569,6 +575,7 @@ export function contractContext(input: ScheduleInput): { ctx: RateContext; rates
 export type { RateContext };
 
 export function generateSchedule(input: ScheduleInput): ScheduleResult {
+  if (input.incomeContingent) return incomeContingentSchedule(input);
   const currency = getCurrency(input.currency).code;
   const rounding = input.rounding ?? defaultRounding(currency);
   validateRoundingRule(currency, rounding);

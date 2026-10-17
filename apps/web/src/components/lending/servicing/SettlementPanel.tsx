@@ -67,6 +67,9 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
                     {quote.interestRebate && (
                         <p className="text-[12px] text-[#3C4257]"><b>Interest rebate ({quote.interestRebate.method.replace(/_/g, ' ').toLowerCase()}):</b> {quote.interestRebate.explanation}</p>
                     )}
+                    {quote.murabaha && (
+                        <p className="text-[12px] text-[#3C4257]"><b>Murabaha profit (ibra&apos;):</b> {quote.murabaha.explanation}</p>
+                    )}
                     {quote.settlementFeeExplanation && <p className="text-[12px] text-[#3C4257]"><b>Settlement fee:</b> {quote.settlementFeeExplanation}</p>}
                     <Table className="max-w-md">
                         <tbody className="divide-y divide-[#F0F2F5]">

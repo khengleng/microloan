@@ -10,6 +10,9 @@ import { fmtRate, isPositive } from '../format';
 import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
 import type { LoanDetail } from '../types';
+import { MurabahaCard } from './MurabahaCard';
+import { IncomeContingentCard } from './IncomeContingentCard';
+import { InstitutionalLoanCard } from '../institutional/CounterpartyViews';
 
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 
@@ -34,7 +37,7 @@ interface LeaseView {
 
 type Props = { loanId: string; detail: LoanDetail; onDone: (msg: string) => void };
 
-/** Card, BNPL, lease or documentary-trade behaviour of a loan (LT-07, LT-11, LT-15). */
+/** Card, BNPL, lease, documentary-trade, Murabaha, income-contingent or institutional behaviour of a loan. */
 export function PurchaseLinkedCard({ loanId, detail, onDone }: Props) {
     const href = useLendingHref();
     const s = detail.specialised;
@@ -55,6 +58,9 @@ export function PurchaseLinkedCard({ loanId, detail, onDone }: Props) {
         );
     if (s.kind === 'BNPL') return <BnplCard loanId={loanId} detail={detail} onDone={onDone} />;
     if (s.kind === 'PROJECT_FINANCE') return null;
+    if (s.kind === 'MURABAHA') return <MurabahaCard loanId={loanId} detail={detail} onDone={onDone} />;
+    if (s.kind === 'INCOME_CONTINGENT') return detail.account.status === 'BOOKED' ? null : <IncomeContingentCard loanId={loanId} detail={detail} onDone={onDone} />;
+    if (s.kind === 'INSTITUTIONAL') return <InstitutionalLoanCard detail={detail} />;
     return <LeaseCard loanId={loanId} detail={detail} onDone={onDone} />;
 }
 

@@ -2,6 +2,7 @@
 /**
  * Mandatory security and lifecycle tests, over the real HTTP API and database.
  */
+import { lending } from '@microloan/shared';
 import {
   Fixture,
   TEST_DB,
@@ -582,11 +583,12 @@ d('Lending security and lifecycle (integration)', () => {
       const tpl = expectOk(
         await f.as('maker').get('/lending/templates/PERSONAL_INSTALMENT'),
       );
-      // Murabaha needs islamic.murabaha, which is not implemented. (This
-      // used to be the floating-rate example; floating ships in Phase 2 and
-      // activates, so it no longer demonstrates a blocked capability.)
+      // Automated payout needs a real payment-rail adapter, which the
+      // platform does not ship (disbursement.payment_rail is
+      // REQUIRES_INTEGRATION). Earlier examples — floating rates, then
+      // Murabaha — shipped and now activate, so they no longer block.
       const cfg = structuredClone(tpl.defaultConfig);
-      cfg.attributes.structure = 'MURABAHA';
+      cfg.operations.integrations.payments = 'ADAPTER';
       const created = expectOk(
         await f.as('maker').post('/lending/products', {
           templateCode: 'PERSONAL_INSTALMENT',

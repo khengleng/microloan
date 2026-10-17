@@ -225,7 +225,13 @@ export class ServicingService {
                       kind: 'TRADE',
                       direction: state.config.trade.documentary.direction,
                     }
-                  : null,
+                  : state.config.murabaha
+                    ? { kind: 'MURABAHA' }
+                    : state.config.incomeContingent
+                      ? { kind: 'INCOME_CONTINGENT' }
+                      : state.config.institutional
+                        ? { kind: 'INSTITUTIONAL' }
+                        : null,
       };
     });
   }
@@ -1682,9 +1688,17 @@ export class ServicingService {
     // UC-33: precomputed (flat) interest may be rebated by Rule of 78 or the
     // actuarial method instead of charging what has accrued by day count.
     const rebate = precomputedRebate(state, asOf);
+    // A Murabaha owes its sale price: the profit not yet earned is payable
+    // too, less the ibra' the contract promises.
+    const murabaha = murabahaSettlement(
+      state,
+      D(state.account.interestReceivable).plus(pendingAccrual),
+    );
     const interest = rebate
       ? D(rebate.interestOwed)
-      : D(state.account.interestReceivable).plus(pendingAccrual);
+      : murabaha
+        ? D(murabaha.profitOwed)
+        : D(state.account.interestReceivable).plus(pendingAccrual);
     const due = state.lines.filter(
       (l) =>
         l.status === 'DUE' &&
@@ -1747,6 +1761,7 @@ export class ServicingService {
             explanation: rebate.explanation,
           }
         : undefined,
+      murabaha: murabaha ?? undefined,
       advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),
@@ -2171,6 +2186,8 @@ export class ServicingService {
       collectionStage: null,
       lastAccrualDate: state.account.lastAccrualDate,
     });
+    for (const hook of this.closureHooks)
+      await hook(tx, state, businessDate, actor);
     if (q.feeWaiverTaskId)
       await this.consumeWaiver(tx, tenantId, q.feeWaiverTaskId, event.id);
     if (letter) {
@@ -3732,6 +3749,30 @@ export class ServicingService {
     this.disbursementHooks.push(hook);
   }
 
+  private closureHooks: ((
+    tx: Tx,
+    state: LoanState,
+    businessDate: string,
+    actor: LendingActor,
+  ) => Promise<void>)[] = [];
+  /**
+   * Lets a product module clear what it carries for a loan when the loan
+   * closes (a Murabaha's deferred-profit memo). Runs inside the closing
+   * transaction — on repayment in full, at end of day, and on early
+   * settlement — before the account is written; it must not write the
+   * account itself.
+   */
+  registerClosureHook(
+    hook: (
+      tx: Tx,
+      state: LoanState,
+      businessDate: string,
+      actor: LendingActor,
+    ) => Promise<void>,
+  ) {
+    this.closureHooks.push(hook);
+  }
+
   private tenantBatchHooks: ((
     tenantId: string,
     businessDate: string,
@@ -4301,6 +4342,8 @@ export class ServicingService {
         });
         data.allowance = '0';
       }
+      for (const hook of this.closureHooks)
+        await hook(tx, state, businessDate, actor);
       Object.assign(data, {
         status: 'CLOSED',
         closedAt: new Date(),
@@ -4391,6 +4434,29 @@ function precomputedRebate(state: LoanState, asOf: string) {
     totalInterest.minus(D(r.rebate)).minus(interestPaid),
   );
   return { ...r, interestOwed: owed.toString() };
+}
+
+/**
+ * Profit owed when a Murabaha is settled early: everything earned, plus the
+ * profit not yet earned less the contract's ibra' (DECISIONS D-067).
+ */
+function murabahaSettlement(state: LoanState, earnedUnpaid: Dec) {
+  const m = state.config.murabaha;
+  if (!m) return null;
+  const remaining = state.lines
+    .filter((l) => l.number > 0)
+    .reduce(
+      (s, l) => s.plus(D(l.interestDue)).minus(D(l.interestPaid)),
+      ZERO(),
+    );
+  return engineCall(() =>
+    lending.murabahaEarlySettlement({
+      remainingProfit: lending.D.max(0, remaining).toString(),
+      earnedUnpaid: earnedUnpaid.toString(),
+      ibraShare: m.ibraShare,
+      rounding: state.config.pricing.rounding,
+    }),
+  );
 }
 
 function interestAdjustment(account: string, delta: Dec) {

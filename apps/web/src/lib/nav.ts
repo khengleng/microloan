@@ -4,6 +4,7 @@ import {
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
     Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
+    Globe2, GraduationCap,
 } from 'lucide-react';
 
 /**
@@ -80,6 +81,8 @@ export const NAV: NavSection[] = [
                 queues: ['TRADE_INVOICES_TO_APPROVE', 'LETTERS_OF_CREDIT_TO_ISSUE', 'PAYOUTS_TO_APPROVE'],
             },
             { key: 'syndication', href: '/lending/syndication', icon: Network, lending: ['syndication.manage', 'syndication.approve'], queues: ['SYNDICATES_TO_APPROVE'] },
+            { key: 'counterparties', href: '/lending/counterparties', icon: Globe2, lending: ['credit_decision.recommend', 'credit_decision.approve'] },
+            { key: 'incomeAssessments', href: '/lending/income-contingent', icon: GraduationCap, lending: ['loan.rate_reset.apply', 'loan.repayment.reverse'] },
             { key: 'repayments', href: '/repayments', icon: Receipt, legacy: ['LOAN_REPAYMENT_POST'], legacyRoles: LEGACY_FINANCE },
         ],
     },

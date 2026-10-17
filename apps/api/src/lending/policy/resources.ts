@@ -29,6 +29,10 @@ export function configFlags(config: ProductConfig | null): string[] {
   if (config.syndication) flags.push('lending.syndication');
   if (config.projectFinance) flags.push('lending.project_finance');
   if (config.borrowingBase) flags.push('lending.collateral.borrowing_base');
+  if (config.institutional) flags.push('lending.institutional');
+  if (config.incomeContingent)
+    flags.push('lending.education.income_contingent');
+  if (config.murabaha) flags.push('lending.islamic.murabaha');
   return flags;
 }
 

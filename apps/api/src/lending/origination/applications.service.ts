@@ -50,6 +50,28 @@ export interface CreateApplicationBody {
   segmentCode?: string;
 }
 
+/** An application as an assessment check sees it. */
+export interface AssessedApplication {
+  id: string;
+  tenantId: string;
+  borrowerId: string;
+  groupId?: string | null;
+  requestedAmount: unknown;
+  currency: string;
+  terms: unknown;
+}
+
+export type AssessmentCheck = (
+  tx: Tx,
+  app: AssessedApplication,
+  config: lending.ProductConfig,
+  stage: 'APPLICATION' | 'APPROVAL',
+  indicative: lending.ScheduleResult,
+) => Promise<{
+  blocking: { code: string; message: string }[];
+  metrics?: Record<string, string | number | null>;
+}>;
+
 /**
  * Origination: applications, documents, security, assessment, credit
  * decisions and booking. Every state change re-reads the application inside a
@@ -72,6 +94,17 @@ export class ApplicationsService {
     private readonly policies: LendingPoliciesService,
     private readonly library: CustomerDocumentsService,
   ) {}
+
+  private assessmentChecks: AssessmentCheck[] = [];
+  /**
+   * Lets another module add blocking issues and metrics to the assessment
+   * that gates submission and approval, without a circular dependency
+   * (institutional counterparty and country limits). A check runs inside the
+   * caller's transaction on committed state.
+   */
+  registerAssessmentCheck(check: AssessmentCheck) {
+    this.assessmentChecks.push(check);
+  }
 
   // ── Reads (scope-filtered) ────────────────────────────────────────────────
 
@@ -1821,6 +1854,12 @@ export class ApplicationsService {
       guarantees: guaranteeCount,
       bureauScore: null,
     });
+    // Checks other modules own (institutional counterparty limits, …).
+    for (const check of this.assessmentChecks) {
+      const r = await check(tx, app, config, stage, sim);
+      blocking.push(...r.blocking);
+      Object.assign(metrics, r.metrics ?? {});
+    }
     metrics.creditScore = score.score;
     metrics.creditGrade = score.grade;
     metrics.creditScoreFactors = score.factors

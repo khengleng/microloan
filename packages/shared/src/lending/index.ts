@@ -33,3 +33,6 @@ export * from './migration.js';
 export * from './project-finance.js';
 export * from './borrowing-base.js';
 export * from './covenants.js';
+export * from './institutional.js';
+export * from './income-contingent.js';
+export * from './murabaha.js';

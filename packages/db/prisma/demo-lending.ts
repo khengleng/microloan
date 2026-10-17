@@ -49,9 +49,11 @@ const USERS: { key: string; role: string; legacyRole: string; branch: 'HQ' | 'PN
 
 const AUTHORITIES: [string, string, string, string][] = [
   ['approver', 'credit_decision.approve', 'USD', '100000'],
-  ['approver2', 'credit_decision.approve', 'USD', '500000'],
+  // The second approver and the ops checker also cover institutional
+  // (interbank, sovereign, development) amounts.
+  ['approver2', 'credit_decision.approve', 'USD', '100000000'],
   ['approver', 'credit_decision.approve', 'KHR', '400000000'],
-  ['ops.checker', 'loan.disbursement.approve', 'USD', '500000'],
+  ['ops.checker', 'loan.disbursement.approve', 'USD', '100000000'],
   ['ops.checker', 'loan.writeoff.approve', 'USD', '50000'],
   ['approver', 'restructure.approve', 'USD', '100000'],
   ['committee', 'restructure.approve', 'USD', '500000'],
@@ -162,7 +164,8 @@ async function main() {
   // Demo only: switch on the loan types that ship off by default (credit
   // lines, overdrafts, staged drawdowns, invoice finance, letters of credit,
   // factoring, supply-chain finance, forfaiting, import / export loans,
-  // syndication, group lending, floating rates). In a real organisation each
+  // syndication, group lending, floating rates, institutional lending,
+  // income-contingent education loans, Murabaha). In a real organisation each
   // is a two-administrator change under Access & policy.
   for (const flagKey of [
     'lending.revolving.drawdown',
@@ -177,6 +180,9 @@ async function main() {
     'lending.collateral.borrowing_base',
     'lending.group.joint_liability',
     'lending.pricing.floating_rate',
+    'lending.institutional',
+    'lending.education.income_contingent',
+    'lending.islamic.murabaha',
   ]) {
     if (!(await prisma.featureFlag.findUnique({ where: { key: flagKey } }))) continue;
     if (await prisma.flagRule.findFirst({ where: { tenantId: t, flagKey, scopeType: 'TENANT', status: 'ACTIVE' } })) continue;
@@ -194,6 +200,35 @@ async function main() {
     if (await prisma.borrower.findFirst({ where: { tenantId: t, firstName: b.firstName, lastName: b.lastName } })) continue;
     await prisma.borrower.create({ data: { tenantId: t, branchId: branches[b.branch].id, firstName: b.firstName, lastName: b.lastName, monthlyIncome: b.monthlyIncome, dateOfBirth: new Date(`${b.dob}T00:00:00Z`), occupation: b.occupation, kycStatus: 'VERIFIED' } });
   }
+
+  // Institutional counterparties, so the interbank, municipal, sovereign and
+  // development loan types can be originated: each borrows through its own
+  // borrower record, carries a rating and has an approved limit (proposed by
+  // the analyst, approved by the second approver), inside a country limit.
+  const reviewOn = new Date(`${new Date().getUTCFullYear() + 1}-12-31T00:00:00Z`);
+  const COUNTERPARTIES = [
+    { ref: 'CP-DEMO-BANK-A', name: 'Bank of Angkor', type: 'BANK', rating: 'A-', agency: 'S&P', limit: '5000000' },
+    { ref: 'CP-DEMO-BANK-B', name: 'Mekong Commercial Bank', type: 'BANK', rating: 'BBB', agency: 'Fitch', limit: '3000000' },
+    { ref: 'CP-DEMO-MUNI', name: 'Phnom Penh Capital Administration', type: 'MUNICIPALITY', rating: null, agency: '', limit: '2000000' },
+    { ref: 'CP-DEMO-SOV', name: 'Ministry of Economy and Finance', type: 'SOVEREIGN', rating: 'B+', agency: "Moody's (B2)", limit: '50000000' },
+    { ref: 'CP-DEMO-DEV', name: 'Rural Development Bank', type: 'DEVELOPMENT_INSTITUTION', rating: null, agency: '', limit: '10000000' },
+  ] as const;
+  for (const c of COUNTERPARTIES) {
+    if (await prisma.counterparty.findFirst({ where: { tenantId: t, reference: c.ref } })) continue;
+    const b =
+      (await prisma.borrower.findFirst({ where: { tenantId: t, firstName: c.name, lastName: 'Institution' } })) ??
+      (await prisma.borrower.create({ data: { tenantId: t, branchId: branches.PNH.id, firstName: c.name, lastName: 'Institution', occupation: 'Institution', kycStatus: 'VERIFIED' } }));
+    const cp = await prisma.counterparty.create({
+      data: { tenantId: t, reference: c.ref, name: c.name, type: c.type, countryCode: 'KH', borrowerId: b.id, rating: c.rating, ratingAgency: c.agency, ratedOn: c.rating ? new Date(`${new Date().getUTCFullYear()}-01-01T00:00:00Z`) : null, createdBy: users.analyst },
+    });
+    await prisma.exposureLimit.create({
+      data: { tenantId: t, scope: 'COUNTERPARTY', counterpartyId: cp.id, currency: 'USD', amount: c.limit, reviewOn, status: 'ACTIVE', note: 'Demo limit', proposedBy: users.analyst, decidedBy: users.approver2, decidedAt: new Date() },
+    });
+  }
+  if (!(await prisma.exposureLimit.findFirst({ where: { tenantId: t, scope: 'COUNTRY', countryCode: 'KH', status: 'ACTIVE' } })))
+    await prisma.exposureLimit.create({
+      data: { tenantId: t, scope: 'COUNTRY', countryCode: 'KH', currency: 'USD', amount: '80000000', reviewOn, status: 'ACTIVE', note: 'Demo country limit', proposedBy: users.analyst, decidedBy: users.approver2, decidedAt: new Date() },
+    });
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
   console.log(`Demo tenant "${TENANT}" ready. Users (password ${process.env.DEMO_PASSWORD ? '$DEMO_PASSWORD' : PASSWORD}):`);
