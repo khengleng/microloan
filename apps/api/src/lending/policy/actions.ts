@@ -183,6 +183,12 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.covenant.waive', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.reverse',
   }),
+  // Project finance (LT-17): applying a period's receipts through the cash
+  // waterfall posts debt service, reserve and lock-up movements — money on a
+  // booked loan, authorised like a repayment.
+  A('project.waterfall.apply', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
   A('loan.set_off.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
@@ -507,6 +513,19 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('facility.manage', 'FACILITY', 'SERVICING_MONEY', {
     workflowStates: ['PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  // Borrowing base (LT-14): a certificate decides how much new money can be
+  // drawn, so it is gated like origination and accepted by a second person.
+  // The resource state is the facility's status for submission and the
+  // certificate's own status for the decision.
+  A('facility.borrowing_base.submit', 'FACILITY', 'ORIGINATION', {
+    permission: 'facility.drawdown.request',
+    workflowStates: ['PENDING', 'ACTIVE', 'SUSPENDED'],
+  }),
+  A('facility.borrowing_base.decide', 'FACILITY', 'ORIGINATION', {
+    permission: 'facility.drawdown.approve',
+    workflowStates: ['SUBMITTED'],
+    makerChecker: true,
   }),
   A('facility.statement.generate', 'FACILITY', 'SERVICING_MONEY', {
     workflowStates: ['ACTIVE', 'SUSPENDED', 'EXPIRED'],

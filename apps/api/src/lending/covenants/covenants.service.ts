@@ -25,13 +25,14 @@ type Json = Prisma.InputJsonValue;
 const D = (v: Prisma.Decimal | string | number | null | undefined) =>
   new lending.D(v === null || v === undefined ? 0 : v.toString());
 
-export type CovenantType = 'MIN_DSCR' | 'MAX_LTV' | 'FINANCIAL_STATEMENTS';
+export type CovenantType = lending.CovenantType;
 
 /**
  * Covenants on commercial loans (LT-16): a minimum debt-service coverage, a
- * maximum loan-to-value, or delivery of financial statements, each tested on
- * a schedule. A failed test puts the covenant in breach and raises a notice;
- * a breach is cured by a later passing test or waived by a second person.
+ * maximum loan-to-value, a maximum net leverage, a minimum interest cover, or
+ * delivery of financial statements, each tested on a schedule. A failed test
+ * puts the covenant in breach and raises a notice; a breach is cured by a
+ * later passing test or waived by a second person.
  */
 @Injectable()
 export class CovenantsService {
@@ -162,6 +163,25 @@ export class CovenantsService {
     );
   }
 
+  /** Scheduled interest in the twelve months to `periodEnd` (or the next twelve, early in the loan). */
+  private annualInterest(state: LoanState, periodEnd: string) {
+    const lines = state.lines.filter((l) => l.number > 0);
+    const inWindow = (from: string, to: string) =>
+      lines.filter((l) => {
+        const due = toLocalDate(l.dueDate)!;
+        return (
+          lending.compareDates(due, from) > 0 &&
+          lending.compareDates(due, to) <= 0
+        );
+      });
+    const sum = (pick: typeof lines) =>
+      pick.reduce((s, l) => s.plus(D(l.interestDue)), D(0));
+    const past = inWindow(lending.addMonths(periodEnd, -12), periodEnd);
+    return past.length
+      ? sum(past)
+      : sum(inWindow(periodEnd, lending.addMonths(periodEnd, 12)));
+  }
+
   async test(
     actor: LendingActor,
     id: string,
@@ -171,6 +191,14 @@ export class CovenantsService {
       annualNetOperatingIncome?: string;
       annualDebtService?: string;
       statementsReceived?: boolean;
+      /** MAX_LEVERAGE / MIN_INTEREST_COVER: the borrower's EBITDA for the twelve months. */
+      ebitda?: string;
+      /** MAX_LEVERAGE: total borrowings; default this loan's principal outstanding. */
+      totalDebt?: string;
+      /** MAX_LEVERAGE: cash netted off debt; default 0. */
+      cash?: string;
+      /** MIN_INTEREST_COVER: interest expense; default this loan's scheduled interest for the twelve months. */
+      interestExpense?: string;
       evidence?: string;
     },
   ) {
@@ -225,6 +253,32 @@ export class CovenantsService {
         inputs.outstanding = pos.outstanding.toString();
         inputs.lendingValue = pos.lendingValue.toString();
         passed = value.lte(D(c.threshold));
+      } else if (c.type === 'MAX_LEVERAGE' || c.type === 'MIN_INTEREST_COVER') {
+        if (!body.ebitda)
+          throw new BadRequestException('Give the EBITDA for the period.');
+        inputs.ebitda = body.ebitda;
+        if (c.type === 'MAX_LEVERAGE') {
+          const debt =
+            body.totalDebt ?? D(state.account.principalOutstanding).toString();
+          const cash = body.cash ?? '0';
+          inputs.totalDebt = debt;
+          inputs.cash = cash;
+          value = lending.netLeverage(debt, cash, body.ebitda);
+          inputs.unbounded = value === null;
+        } else {
+          const interest =
+            body.interestExpense ??
+            this.annualInterest(state, body.periodEnd).toString();
+          inputs.interestExpense = interest;
+          value = lending.interestCover(body.ebitda, interest);
+          if (!value)
+            throw new BadRequestException('There is no interest to cover.');
+        }
+        passed = lending.covenantPasses(
+          c.type,
+          value,
+          D(c.threshold).toString(),
+        );
       } else {
         passed = body.statementsReceived === true;
         inputs.statementsReceived = passed;

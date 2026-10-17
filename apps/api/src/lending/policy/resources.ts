@@ -20,6 +20,8 @@ export function configFlags(config: ProductConfig | null): string[] {
   if (config.trade?.letterOfCredit)
     flags.push('lending.trade.letters_of_credit');
   if (config.syndication) flags.push('lending.syndication');
+  if (config.projectFinance) flags.push('lending.project_finance');
+  if (config.borrowingBase) flags.push('lending.collateral.borrowing_base');
   return flags;
 }
 

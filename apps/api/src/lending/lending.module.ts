@@ -33,6 +33,9 @@ import {
 } from './payments/payment-channels.controller';
 import { ImpairmentService } from './accounting/impairment.service';
 import { FacilitiesService } from './facilities/facilities.service';
+import { BorrowingBaseService } from './facilities/borrowing-base.service';
+import { ProjectFinanceService } from './project-finance/project-finance.service';
+import { ProjectFinanceController } from './project-finance/project-finance.controller';
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
@@ -126,6 +129,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     InvoiceFinanceController,
     LettersOfCreditController,
     SyndicationController,
+    ProjectFinanceController,
     WorkspaceMeController,
     WorkspaceSearchController,
     WorkspacePortalController,
@@ -158,6 +162,8 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     ChannelFilesService,
     ImpairmentService,
     FacilitiesService,
+    BorrowingBaseService,
+    ProjectFinanceService,
     CardsService,
     BnplLeaseService,
     RateResetService,

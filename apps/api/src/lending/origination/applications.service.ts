@@ -31,6 +31,7 @@ import { AdapterRegistry } from '../integrations/adapters';
 import { LendingPoliciesService } from '../products/lending-policies.service';
 import { GroupsService } from './groups.service';
 import { CustomerDocumentsService } from '../documents/customer-documents.service';
+import { createConfiguredCovenants } from '../covenants/covenant-setup';
 
 type Json = Prisma.InputJsonValue;
 
@@ -1117,6 +1118,14 @@ export class ApplicationsService {
           roles,
         );
       }
+      // LT-16: the product's covenants are part of the contract from booking.
+      await createConfiguredCovenants(tx, {
+        tenantId,
+        loanAccountId: account.id,
+        covenants: contractConfig.covenants,
+        startDate: planned,
+        actorId: actor.id,
+      });
       await this.cas(tx, app, 'APPROVED', 'BOOKED');
       await this.audit.write(
         {
@@ -1327,6 +1336,29 @@ export class ApplicationsService {
           },
         })
       : null;
+    await createConfiguredCovenants(tx, {
+      tenantId,
+      loanAccountId: account.id,
+      covenants: config.covenants,
+      startDate: effectiveDate,
+      actorId: actor.id,
+    });
+    // LT-17: a project loan carries its reserve, lock-up and sculpting terms.
+    const pf = config.projectFinance;
+    if (pf) {
+      await tx.projectFinance.create({
+        data: {
+          tenantId,
+          loanAccountId: account.id,
+          facilityId: facility.id,
+          targetDscr: pf.targetDscr,
+          lockUpDscr: pf.lockUpDscr,
+          dsraMonths: pf.dsraMonths,
+          cashSweepRate: pf.cashSweepRate,
+          createdBy: actor.id,
+        },
+      });
+    }
     await this.cas(tx, app as never, 'APPROVED', 'BOOKED');
     await this.audit.write(
       {

@@ -206,7 +206,9 @@ export class ServicingService {
             ? { kind: 'BNPL' }
             : state.config.lease
               ? { kind: 'LEASE', structure: state.config.attributes.structure }
-              : null,
+              : state.config.projectFinance
+                ? { kind: 'PROJECT_FINANCE' }
+                : null,
       };
     });
   }
@@ -2212,6 +2214,17 @@ export class ServicingService {
         );
       if (original.status !== 'POSTED')
         throw new ConflictException('This repayment is already reversed.');
+      // LT-17: a waterfall's repayments move with its reserve and lock-up
+      // postings; undoing one alone would leave the project's accounts out.
+      if (
+        (original.components as { projectWaterfall?: boolean } | null)
+          ?.projectWaterfall
+      )
+        throw new ConflictException({
+          message:
+            'This repayment was applied by the project cash waterfall and cannot be reversed on its own.',
+          code: 'PROJECT_WATERFALL_REPAYMENT',
+        });
       const components = original.components as {
         penalty: string;
         fee: string;

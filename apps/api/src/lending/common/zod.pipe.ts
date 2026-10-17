@@ -1,5 +1,6 @@
 import { BadRequestException, PipeTransform } from '@nestjs/common';
 import { z, ZodTypeAny } from 'zod';
+import { lending } from '@microloan/shared';
 
 /** Strict request-body validation: unknown keys are rejected, never silently dropped. */
 export class ZodPipe<T extends ZodTypeAny> implements PipeTransform<
@@ -458,7 +459,7 @@ export const S = {
     .strict(),
   covenant: z
     .object({
-      type: z.enum(['MIN_DSCR', 'MAX_LTV', 'FINANCIAL_STATEMENTS']),
+      type: z.enum(lending.COVENANT_TYPES),
       threshold: z
         .string()
         .regex(/^\d+(\.\d{1,6})?$/)
@@ -474,6 +475,10 @@ export const S = {
       annualNetOperatingIncome: money.optional(),
       annualDebtService: money.optional(),
       statementsReceived: z.boolean().optional(),
+      ebitda: money.optional(),
+      totalDebt: money.optional(),
+      cash: money.optional(),
+      interestExpense: money.optional(),
       evidence: z.string().max(500).optional(),
     })
     .strict(),

@@ -563,6 +563,43 @@ export class LendingOperationsService {
           });
       }
     }
+    // LT-17: a project's reserve and lock-up equal their ledger accounts,
+    // and the waterfall's receipts clearing account is always emptied.
+    const projects = await this.prisma.projectFinance.findMany({
+      where: { tenantId },
+    });
+    for (const p of projects) {
+      const loan = accounts.find((a) => a.id === p.loanAccountId);
+      if (!loan) continue;
+      const version = await this.prisma.agreementVersion.findFirst({
+        where: { tenantId, agreementId: loan.agreementId },
+        orderBy: { version: 'desc' },
+        select: { productConfig: true },
+      });
+      const acc = (
+        version?.productConfig as
+          | { projectFinance?: { accounts?: Record<string, string> } }
+          | undefined
+      )?.projectFinance?.accounts;
+      const held = (code: string) =>
+        (gl.get(`${p.loanAccountId}:${code}`) ?? new lending.D(0)).negated();
+      const checks: [string, string, InstanceType<typeof lending.D>][] = [
+        ['projectDsra', acc?.dsra ?? '2410', D(p.dsraBalance)],
+        ['projectLockUp', acc?.lockUp ?? '2420', D(p.lockUpBalance)],
+        ['projectProceeds', acc?.proceeds ?? '2430', new lending.D(0)],
+      ];
+      for (const [check, code, expected] of checks) {
+        const ledger = held(code);
+        if (!ledger.eq(expected))
+          breaks.push({
+            loanAccountId: p.loanAccountId,
+            check,
+            subledger: expected.toString(),
+            ledger: ledger.toString(),
+            difference: expected.minus(ledger).toString(),
+          });
+      }
+    }
     const tb = await this.trialBalance(actor);
     const result = {
       accountsChecked: accounts.length,

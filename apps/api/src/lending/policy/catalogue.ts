@@ -932,6 +932,22 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     defaultEnabled: false,
   },
   {
+    key: 'lending.project_finance',
+    description:
+      'Project and infrastructure finance: sculpted term-out, reserve and cash waterfall',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.collateral.borrowing_base',
+    description:
+      'Borrowing-base lines: certificates of inventory and receivables limit drawings',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
     key: 'lending.group.joint_liability',
     description: 'Group / joint-liability lending',
     category: 'Capabilities',
