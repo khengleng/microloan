@@ -120,7 +120,7 @@ d('Relief and refinancing (integration)', () => {
     it('opens when a second person publishes it', async () => {
       expectOk(
         await f
-          .as('admin1')
+          .as('approver')
           .post(
             `/lending/ops/payment-holiday-programmes/${programmeId}/status`,
             {
