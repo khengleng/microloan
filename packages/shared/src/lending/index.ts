@@ -29,3 +29,6 @@ export * from './scorecard.js';
 export * from './card.js';
 export * from './bnpl.js';
 export * from './migration.js';
+export * from './project-finance.js';
+export * from './borrowing-base.js';
+export * from './covenants.js';

@@ -50,6 +50,10 @@ export const RESTRUCTURE_OPTIONS = [
 ] as const;
 export type RestructureOption = (typeof RESTRUCTURE_OPTIONS)[number];
 
+/** Financial covenants a loan can carry (LT-16). */
+export const COVENANT_TYPES = ['MIN_DSCR', 'MAX_LTV', 'FINANCIAL_STATEMENTS', 'MAX_LEVERAGE', 'MIN_INTEREST_COVER'] as const;
+export type CovenantType = (typeof COVENANT_TYPES)[number];
+
 export const CHANNELS = ['BRANCH', 'STAFF_PORTAL', 'BORROWER_PORTAL', 'AGENT', 'API'] as const;
 
 const feeSchema = z
@@ -618,6 +622,86 @@ export const productConfigSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * Financial covenants set up on every loan booked under the product
+     * (LT-16). Optional, like `trade`: a configuration without the section
+     * parses exactly as before. Covenants can still be added per loan.
+     */
+    covenants: z
+      .array(
+        z
+          .object({
+            type: z.enum(COVENANT_TYPES),
+            /** Null only for FINANCIAL_STATEMENTS, which has no figure to test. */
+            threshold: decimalString.nullable().default(null),
+            frequencyMonths: z.number().int().min(1).max(24),
+            description: text(500).default(''),
+          })
+          .strict(),
+      )
+      .max(12)
+      .optional(),
+    /**
+     * Project finance (LT-17): a staged construction facility whose interest
+     * is capitalized while the project is built, termed out on a repayment
+     * profile sculpted to the projected cash flow, then serviced through a
+     * cash waterfall with a debt service reserve and a distribution lock-up.
+     */
+    projectFinance: z
+      .object({
+        /** Debt service is sized so CFADS ÷ debt service is at least this in every period. */
+        targetDscr: decimalString,
+        /** Below this period DSCR, cash that would be distributed is held in lock-up. Null: no lock-up test. */
+        lockUpDscr: decimalString.nullable().default(null),
+        /** The reserve holds the scheduled debt service of this many months ahead. 0: no reserve. */
+        dsraMonths: z.number().int().min(0).max(24).default(6),
+        /** Share of the cash left after the reserve that prepays principal (latest instalments first). */
+        cashSweepRate: rateFraction.nullable().default(null),
+        /** Construction-period interest is added to principal when each statement is raised. */
+        capitalizeConstructionInterest: z.boolean().default(true),
+        accounts: z
+          .object({
+            /** Debt service reserve held for the project (liability). */
+            dsra: code.default('2410'),
+            /** Cash held back from distribution while the project is in lock-up (liability). */
+            lockUp: code.default('2420'),
+            /** Project receipts in transit through the waterfall; nets to zero after each run. */
+            proceeds: code.default('2430'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
+    /**
+     * Asset-based lending (LT-14): a revolving line drawn against a borrowing
+     * base certified periodically by the borrower — inventory and receivables
+     * by class, less ineligibles, at an advance rate per class.
+     */
+    borrowingBase: z
+      .object({
+        /** A certificate older than this cannot support a drawdown. */
+        certificateMaxAgeDays: z.number().int().min(1).max(120).default(31),
+        classes: z
+          .array(
+            z
+              .object({
+                code,
+                label: text(80),
+                kind: z.enum(['INVENTORY', 'RECEIVABLES']),
+                advanceRate: rateFraction,
+                /** Lines older than this (days since invoice or receipt into stock) are ineligible. */
+                maxAgeDays: z.number().int().min(1).max(3650).nullable().default(null),
+                /** Largest share of the class's eligible value one counterparty may make up; the excess is ineligible. */
+                concentrationLimit: rateFraction.nullable().default(null),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(20),
+      })
+      .strict()
+      .optional(),
     /** Syndicated lending (LT-24). Optional, like `trade`. */
     syndication: z
       .object({
@@ -804,6 +888,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   validateFacilityBlock(c, add);
   validateTradeBlock(c, add);
   validateSpecialisedBlocks(c, add);
+  validateCommercialBlocks(c, add);
 
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
   if (buckets[0].minDpd !== 0) add('operations.delinquencyBuckets', 'buckets must start at 0 DPD');
@@ -989,6 +1074,38 @@ function validateSpecialisedBlocks(c: ProductConfig, add: (path: string, message
   if (c.attributes.structure === 'IJARAH' && !c.lease) add('lease', 'an Ijarah product is a lease and needs lease terms');
 }
 
+/**
+ * Covenants, project finance and borrowing bases each ride on one shape: a
+ * project is built on a staged facility that terms out, and a borrowing base
+ * limits drawings on a revolving line.
+ */
+function validateCommercialBlocks(c: ProductConfig, add: (path: string, message: string) => void): void {
+  (c.covenants ?? []).forEach((cv, i) => {
+    if ((cv.type === 'FINANCIAL_STATEMENTS') !== (cv.threshold === null))
+      add(`covenants.${i}.threshold`, cv.type === 'FINANCIAL_STATEMENTS' ? 'a financial-statements covenant has no threshold' : 'give the covenant threshold');
+    if (cv.threshold !== null && dec(cv.threshold).lte(0)) add(`covenants.${i}.threshold`, 'must be above 0');
+  });
+  const pf = c.projectFinance;
+  if (pf) {
+    if (c.facility.type !== 'STAGED_DRAWDOWN') add('projectFinance', 'a project is financed on a staged construction facility; set facility.type to STAGED_DRAWDOWN');
+    if (dec(pf.targetDscr).lt(1)) add('projectFinance.targetDscr', 'a target DSCR below 1 sizes debt service above the cash available to pay it');
+    if (pf.lockUpDscr !== null && dec(pf.lockUpDscr).gt(dec(pf.targetDscr))) add('projectFinance.lockUpDscr', 'the lock-up DSCR cannot exceed the target DSCR the repayments are sculpted to');
+    if (c.syndication || c.trade || c.card || c.borrowingBase) add('projectFinance', 'project finance cannot be combined with syndication, trade, card or borrowing-base terms');
+  }
+  const bb = c.borrowingBase;
+  if (bb) {
+    if (c.facility.type !== 'REVOLVING') add('borrowingBase', 'a borrowing base limits drawings on a revolving line; set facility.type to REVOLVING');
+    if (c.card || c.trade?.invoice) add('borrowingBase', 'a card or invoice-finance line has its own drawing rules; it cannot also carry a borrowing base');
+    const codes = new Set<string>();
+    bb.classes.forEach((cl, i) => {
+      if (codes.has(cl.code)) add(`borrowingBase.classes.${i}.code`, `duplicate class code ${cl.code}`);
+      codes.add(cl.code);
+      if (dec(cl.advanceRate).lte(0)) add(`borrowingBase.classes.${i}.advanceRate`, 'must be above 0');
+      if (cl.concentrationLimit !== null && dec(cl.concentrationLimit).lte(0)) add(`borrowingBase.classes.${i}.concentrationLimit`, 'must be above 0');
+    });
+  }
+}
+
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
 export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   const req = new Set<string>(['accounting.double_entry', 'servicing.repayment', 'servicing.accrual', 'servicing.closure', 'servicing.delinquency', 'credit.decision', 'origination.individual']);
@@ -1033,6 +1150,9 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.card) req.add('card.revolving_credit');
   if (c.bnpl) req.add('bnpl.merchant_settlement');
   if (c.lease) req.add('lease.true_lease');
+  if (c.covenants?.length) req.add('covenants.monitoring');
+  if (c.projectFinance) req.add('project_finance.waterfall');
+  if (c.borrowingBase) req.add('collateral.borrowing_base');
   return [...req].sort();
 }
 

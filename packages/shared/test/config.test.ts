@@ -28,7 +28,6 @@ describe('product catalogue', () => {
   test('specialized products are seeded unavailable until their capabilities exist', () => {
     for (const code of [
       'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA',
-      'PROJECT_FINANCE',
       'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
     ]) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
@@ -42,6 +41,37 @@ describe('product catalogue', () => {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
       assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
     }
+  });
+
+  test('project, infrastructure, acquisition and inventory-backed templates became available with their capabilities', () => {
+    const need: Record<string, string[]> = {
+      PROJECT_FINANCE: ['project_finance.waterfall', 'covenants.monitoring', 'facility.staged_drawdown'],
+      INFRASTRUCTURE: ['project_finance.waterfall', 'covenants.monitoring', 'facility.staged_drawdown'],
+      ACQUISITION_FINANCE: ['covenants.monitoring'],
+      INVENTORY_BACKED: ['collateral.borrowing_base', 'facility.revolving', 'collateral.ltv'],
+    };
+    for (const [code, caps] of Object.entries(need)) {
+      const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
+      assert.ok(a.available, `${code} missing ${JSON.stringify(a.missing)}`);
+      for (const cap of caps) assert.ok(a.requiredCapabilities.includes(cap), `${code} requires ${cap}`);
+    }
+  });
+
+  test('project finance, borrowing base and covenant terms are refused on the wrong product shape', () => {
+    const issues = (code: string, mutate: (c: any) => void) => {
+      const c = structuredClone(L.TEMPLATE_BY_CODE[code].defaultConfig) as any;
+      mutate(c);
+      const r = L.validateProductConfig(c);
+      return r.ok ? [] : r.issues.map((i) => i.path);
+    };
+    assert.ok(issues('CORPORATE_TERM', (c) => { c.projectFinance = L.TEMPLATE_BY_CODE.PROJECT_FINANCE.defaultConfig.projectFinance; }).includes('projectFinance'));
+    assert.ok(issues('PROJECT_FINANCE', (c) => { c.projectFinance.targetDscr = '0.9'; }).includes('projectFinance.targetDscr'));
+    assert.ok(issues('PROJECT_FINANCE', (c) => { c.projectFinance.lockUpDscr = '1.5'; }).includes('projectFinance.lockUpDscr'));
+    assert.ok(issues('CORPORATE_TERM', (c) => { c.borrowingBase = L.TEMPLATE_BY_CODE.INVENTORY_BACKED.defaultConfig.borrowingBase; }).includes('borrowingBase'));
+    assert.ok(issues('INVENTORY_BACKED', (c) => { c.borrowingBase.classes[1].code = 'RAW_MATERIALS'; }).includes('borrowingBase.classes.1.code'));
+    assert.ok(issues('ACQUISITION_FINANCE', (c) => { c.covenants[0].threshold = null; }).includes('covenants.0.threshold'));
+    assert.ok(issues('ACQUISITION_FINANCE', (c) => { c.covenants[3].threshold = '1'; }).includes('covenants.3.threshold'));
+    assert.deepEqual(issues('ACQUISITION_FINANCE', () => undefined), []);
   });
 
   test('the Phase 3 card, BNPL and lease templates became available with their capabilities', () => {
