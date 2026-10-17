@@ -1551,9 +1551,9 @@ function view(f: {
  * register and the balance telling different stories.
  */
 function assertNotInvoiceFacility(state: FacilityState, verb: string) {
-  if (state.config.trade?.invoice)
+  if (lending.receivablesKind(state.config))
     throw new BadRequestException({
-      message: `This is an invoice-finance facility; it is ${verb} through its invoices.`,
+      message: `This is a receivables facility (invoice finance, factoring, supply-chain finance or forfaiting); it is ${verb} through its receivables register.`,
       code: 'INVOICE_FACILITY',
     });
 }

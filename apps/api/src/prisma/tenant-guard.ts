@@ -97,6 +97,12 @@ const DIRECT_TENANT_MODELS = new Set([
   'Syndicate',
   'SyndicateParticipant',
   'ParticipationEntry',
+  // Bought receivables and documentary trade loans
+  'TradeReceivable',
+  'TradeSupplier',
+  'TradeTransaction',
+  'TradeDocument',
+  'TradeProceeds',
   // Specialised products: cards (LT-07), BNPL (LT-11), leases (LT-15)
   'CardAccount',
   'CardTransaction',

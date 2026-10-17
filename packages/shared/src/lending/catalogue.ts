@@ -164,6 +164,23 @@ const SECURED = (maxLtv: string, types: string[], haircuts: Record<string, strin
 const BUSINESS = { identity: { customerTypes: ['SOLE_PROPRIETOR', 'SME'] as ('SOLE_PROPRIETOR' | 'SME')[] }, eligibility: { minBusinessAgeMonths: 12, maxAgeAtMaturityYears: null } };
 const CORPORATE = { identity: { customerTypes: ['CORPORATE'] as 'CORPORATE'[] }, eligibility: { minAgeYears: null, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null } };
 const INSTITUTION = { identity: { customerTypes: ['INSTITUTION', 'PUBLIC_BODY'] as ('INSTITUTION' | 'PUBLIC_BODY')[] }, eligibility: { minAgeYears: null, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null }, pricing: { dayCount: 'ACT_360' as const } };
+/**
+ * A documentary trade loan is repaid from the trade's proceeds, not from
+ * income: a bullet after interest-only instalments, with no debt-service
+ * ratio on monthly income (the financing ratio and the trade cycle bound it).
+ */
+const DOCUMENTARY = {
+  eligibility: { ...BUSINESS.eligibility, maxDebtServiceRatio: null },
+  repayment: { method: 'INTEREST_ONLY' as const },
+  limits: { minAmount: '1000', maxAmount: '2000000', minInstalments: 1, maxInstalments: 6 },
+};
+/** A revolving programme limit drawn only by bought receivables, priced by fee or discount. */
+const RECEIVABLES = {
+  ...BUSINESS,
+  limits: { minAmount: '1000', maxAmount: '1000000', minInstalments: 1, maxInstalments: 12 },
+  pricing: { accrualBasis: 'DAILY' as const, fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' }, penalty: { type: 'NONE' as const, annualRate: null } },
+  facility: { type: 'REVOLVING' as const, availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
+};
 
 /**
  * Facility presets. Every facility prices a fluctuating drawn balance, so they
@@ -384,8 +401,20 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', CORPORATE, ['project_finance.waterfall', 'covenants.monitoring']),
   template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', CORPORATE, ['covenants.monitoring']),
   // Trade / receivables
-  template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents.', BUSINESS, ['trade.documentary']),
-  template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance.', BUSINESS, ['trade.documentary']),
+  // Documentary trade loans: one trade transaction per loan, its documents
+  // verified before payout, the amount within the financing ratio and the
+  // tenor ending by the expected proceeds (plus grace), which repay it. A
+  // bullet: interest-only instalments, principal at maturity.
+  template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents, repaid from the sale of the goods.', {
+    ...BUSINESS,
+    ...DOCUMENTARY,
+    trade: { documentary: { direction: 'IMPORT', requiredDocuments: ['COMMERCIAL_INVOICE', 'BILL_OF_LADING', 'PACKING_LIST', 'INSURANCE_CERTIFICATE'], maxTradeCycleDays: 180, proceedsGraceDays: 30, maxFinancingRatio: '0.9' } },
+  }),
+  template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance, repaid from the export proceeds.', {
+    ...BUSINESS,
+    ...DOCUMENTARY,
+    trade: { documentary: { direction: 'EXPORT', requiredDocuments: ['EXPORT_CONTRACT', 'PROFORMA_INVOICE', 'EXPORT_LICENCE'], maxTradeCycleDays: 180, proceedsGraceDays: 30, maxFinancingRatio: '0.8' } },
+  }),
   // A revolving limit drawn only by advances against approved invoices. The
   // price is the invoice fee per period (TV-20), so the drawn balance itself
   // carries no interest. The register's advance rate is this product's
@@ -407,9 +436,26 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     limits: { minAmount: '1000', maxAmount: '2000000', minInstalments: 1, maxInstalments: 12 },
     trade: { letterOfCredit: { feeRatePerPeriod: '0.005', feePeriodDays: 90, minimumFee: '50', maxTenorDays: 365, conversionProductCode: null } },
   }, ['trade.letter_of_credit']),
-  template('FACTORING', 'TRADE_RECEIVABLES', 'Factoring', 'Purchase of receivables with debtor collection.', { ...BUSINESS, attributes: { recourse: 'FULL' } }, ['trade.factoring']),
-  template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance.', BUSINESS, ['trade.supply_chain']),
-  template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of trade receivables.', { ...BUSINESS, attributes: { recourse: 'NON_RECOURSE' } }, ['trade.forfaiting']),
+  // Bought receivables share the invoice register and a revolving programme
+  // limit with invoice finance; the price is a fee or discount, never
+  // interest on the drawn balance.
+  template('FACTORING', 'TRADE_RECEIVABLES', 'Factoring', 'Purchase of receivables with debtor notification and collection.', {
+    ...RECEIVABLES,
+    attributes: { recourse: 'FULL' },
+    trade: { factoring: { advanceRate: '0.85', feeRatePerPeriod: '0.015', feePeriodDays: 30, feeBasis: 'WHOLE_PERIODS', serviceFeeRate: '0.005', recourse: 'FULL', limitedRecourseRate: null, recourseGraceDays: 60, maxInvoiceTenorDays: 120, notificationRequired: true, maxDebtorConcentration: '0.5' } },
+  }),
+  template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance: approved supplier invoices paid early at a discount.', {
+    ...RECEIVABLES,
+    identity: { customerTypes: ['SME', 'CORPORATE'] },
+    limits: { minAmount: '10000', maxAmount: '5000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { supplyChain: { discountRate: '0.08', dayCountBasis: 360, discountMethod: 'STRAIGHT', maxInvoiceTenorDays: 180, buyerGraceDays: 5, supplierApprovalRequired: true } },
+  }),
+  template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of avalised bills and notes at a discount.', {
+    ...RECEIVABLES,
+    attributes: { recourse: 'NON_RECOURSE' },
+    limits: { minAmount: '10000', maxAmount: '5000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { forfaiting: { discountRate: '0.07', dayCountBasis: 360, discountMethod: 'STRAIGHT', graceDays: 3, maxTenorDays: 720, instrumentTypes: ['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE'], avalRequired: true, collectionGraceDays: 10 } },
+  }),
   // Institutional / public
   template('INTERBANK', 'INSTITUTIONAL_PUBLIC', 'Interbank loan', 'Short-term interbank placement.', INSTITUTION, ['institutional.counterparty_limits']),
   template('MUNICIPAL', 'INSTITUTIONAL_PUBLIC', 'Municipal loan', 'Lending to local government.', INSTITUTION, ['institutional.counterparty_limits']),

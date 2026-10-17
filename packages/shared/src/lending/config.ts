@@ -604,6 +604,80 @@ export const productConfigSchema = z
           })
           .strict()
           .optional(),
+        /**
+         * Factoring: the lender buys the seller's invoices, notifies the
+         * debtor and collects. Serviced on a revolving limit, like invoices.
+         */
+        factoring: z
+          .object({
+            advanceRate: rateFraction,
+            /** Discount charge as a fraction of the invoice per fee period, raised on collection. */
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365).default(30),
+            feeBasis: z.enum(['WHOLE_PERIODS', 'PRO_RATA']).default('WHOLE_PERIODS'),
+            /** Service fee (commission) as a fraction of the invoice, deducted from the advance. */
+            serviceFeeRate: rateFraction.default('0'),
+            /** What the seller still answers for once the debtor defaults. */
+            recourse: z.enum(['FULL', 'LIMITED', 'NONE']),
+            /** LIMITED: the seller's liability as a fraction of the invoice. */
+            limitedRecourseRate: rateFraction.nullable().default(null),
+            /** Days after the due date before the debtor is in default. */
+            recourseGraceDays: z.number().int().min(0).max(365).default(60),
+            maxInvoiceTenorDays: z.number().int().min(1).max(730).default(120),
+            /** Disclosed factoring: the debtor must be notified before the advance. */
+            notificationRequired: z.boolean().default(true),
+            /** Largest share of the limit outstanding on one debtor; null = no limit. */
+            maxDebtorConcentration: rateFraction.nullable().default(null),
+          })
+          .strict()
+          .optional(),
+        /**
+         * Supply-chain (payables) finance: the facility is the anchor buyer's
+         * programme limit; suppliers' invoices the buyer has approved are
+         * paid early at a discount and the buyer pays the face at maturity.
+         */
+        supplyChain: z
+          .object({
+            discountRate: rateFraction,
+            dayCountBasis: z.union([z.literal(360), z.literal(365)]).default(360),
+            discountMethod: z.enum(['STRAIGHT', 'YIELD']).default('STRAIGHT'),
+            maxInvoiceTenorDays: z.number().int().min(1).max(365).default(180),
+            /** Days after maturity before the buyer's unpaid invoice ages as arrears. */
+            buyerGraceDays: z.number().int().min(0).max(90).default(5),
+            /** Suppliers must be onboarded and approved before their invoices are paid. */
+            supplierApprovalRequired: z.boolean().default(true),
+          })
+          .strict()
+          .optional(),
+        /** Forfaiting: bills or notes bought without recourse at a discount. */
+        forfaiting: z
+          .object({
+            discountRate: rateFraction,
+            dayCountBasis: z.union([z.literal(360), z.literal(365)]).default(360),
+            discountMethod: z.enum(['STRAIGHT', 'YIELD']).default('STRAIGHT'),
+            /** Days of grace added to the discount period for collection (market practice). */
+            graceDays: z.number().int().min(0).max(30).default(3),
+            maxTenorDays: z.number().int().min(1).max(1825).default(720),
+            instrumentTypes: z.array(z.enum(['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE'])).min(1).default(['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE']),
+            /** Each instrument must carry a bank's aval (guarantee) before it is bought. */
+            avalRequired: z.boolean().default(true),
+            /** Days after maturity before an unpaid instrument is in default. */
+            collectionGraceDays: z.number().int().min(0).max(90).default(10),
+          })
+          .strict()
+          .optional(),
+        /** Import / export loans against trade documents. */
+        documentary: z
+          .object({
+            direction: z.enum(['IMPORT', 'EXPORT']),
+            /** Documents that must be verified before the loan is paid out. */
+            requiredDocuments: z.array(code).min(1),
+            maxTradeCycleDays: z.number().int().min(1).max(720).default(180),
+            proceedsGraceDays: z.number().int().min(0).max(180).default(30),
+            maxFinancingRatio: rateFraction.default('0.9'),
+          })
+          .strict()
+          .optional(),
         /** Ledger accounts specific to trade finance. */
         accounts: z
           .object({
@@ -612,6 +686,14 @@ export const productConfigSchema = z
             /** Off-balance-sheet memo pair for issued letters of credit. */
             lcContingentAsset: code.default('9100'),
             lcContingentLiability: code.default('9200'),
+            /** Discount withheld on bought receivables, not yet earned (liability). */
+            unearnedDiscount: code.default('2340'),
+            /** Discount earned on bought receivables (forfaiting, supply-chain finance). */
+            discountIncome: code.default('4530'),
+            /** Factoring service fees (commission). */
+            serviceFeeIncome: code.default('4540'),
+            /** Bought receivables lost without recourse to the seller. */
+            creditLoss: code.default('5500'),
           })
           .strict()
           .default({}),
@@ -946,15 +1028,41 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
 function validateTradeBlock(c: ProductConfig, add: (path: string, message: string) => void): void {
   const inv = c.trade?.invoice;
   const lc = c.trade?.letterOfCredit;
+  const fac = c.trade?.factoring;
+  const scf = c.trade?.supplyChain;
+  const forf = c.trade?.forfaiting;
+  const docs = c.trade?.documentary;
+  const receivables = [inv, fac, scf, forf].filter(Boolean).length;
+  if (receivables > 1) add('trade', 'a product finances one kind of receivable: invoices, factoring, supply-chain finance or forfaiting');
+  if ((fac || scf || forf) && c.facility.type !== 'REVOLVING')
+    add('facility.type', 'bought receivables are funded against a revolving programme limit; set facility.type to REVOLVING');
+  if (fac) {
+    const expected = { FULL: 'FULL', LIMITED: 'LIMITED', NONE: 'NON_RECOURSE' }[fac.recourse];
+    if (c.attributes.recourse !== expected) add('attributes.recourse', `factoring with ${fac.recourse} recourse is described as ${expected}`);
+    if (fac.recourse === 'LIMITED') {
+      if (fac.limitedRecourseRate === null || dec(fac.limitedRecourseRate).lte(0))
+        add('trade.factoring.limitedRecourseRate', 'limited recourse needs the seller’s liability as a fraction of the invoice, above 0');
+    } else if (fac.limitedRecourseRate !== null) add('trade.factoring.limitedRecourseRate', 'applies only to LIMITED recourse');
+    if (dec(fac.advanceRate).lte(0)) add('trade.factoring.advanceRate', 'must be above 0');
+    if (dec(fac.serviceFeeRate).gte(dec(fac.advanceRate))) add('trade.factoring.serviceFeeRate', 'the service fee must be less than the advance');
+  }
+  if (forf && c.attributes.recourse !== 'NON_RECOURSE') add('attributes.recourse', 'forfaiting is without recourse to the seller: NON_RECOURSE');
+  if (docs) {
+    if (c.facility.type !== 'TERM') add('trade.documentary', 'a documentary trade loan is a term loan; facility.type must be TERM');
+    if (receivables || lc) add('trade', 'a documentary trade loan cannot also buy receivables or issue letters of credit');
+    if (!c.repayment.earlySettlement.allowed) add('repayment.earlySettlement.allowed', 'trade proceeds settle the loan when they arrive; allow early settlement');
+    if (dec(docs.maxFinancingRatio).lte(0)) add('trade.documentary.maxFinancingRatio', 'must be above 0');
+    if (new Set(docs.requiredDocuments).size !== docs.requiredDocuments.length) add('trade.documentary.requiredDocuments', 'list each document once');
+  }
   if (inv) {
     if (c.facility.type !== 'REVOLVING') add('trade.invoice', 'invoices are advanced against a revolving limit; set facility.type to REVOLVING');
     if (c.attributes.recourse !== 'FULL')
-      add('attributes.recourse', 'invoice financing here is with full recourse to the borrower (UC-67); non-recourse purchase is factoring or forfaiting, which is not offered');
+      add('attributes.recourse', 'invoice financing here is with full recourse to the borrower (UC-67); limited or non-recourse purchase is configured as factoring or forfaiting');
     if (dec(inv.advanceRate).lte(0)) add('trade.invoice.advanceRate', 'must be above 0');
   }
   if (lc) {
     if (c.facility.type !== 'TERM') add('trade.letterOfCredit', 'a letter of credit is issued, not drawn; facility.type must be TERM');
-    if (inv) add('trade', 'a product finances invoices or issues letters of credit, not both');
+    if (receivables) add('trade', 'a product finances receivables or issues letters of credit, not both');
     if (c.syndication) add('trade.letterOfCredit', 'a letter of credit product cannot also be syndicated');
   }
   if (c.syndication) {
@@ -1027,6 +1135,10 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (facilityCap[c.facility.type]) req.add(facilityCap[c.facility.type]!);
   if (c.trade?.invoice) req.add('trade.invoice_finance');
   if (c.trade?.letterOfCredit) req.add('trade.letter_of_credit');
+  if (c.trade?.factoring) req.add('trade.factoring');
+  if (c.trade?.supplyChain) req.add('trade.supply_chain');
+  if (c.trade?.forfaiting) req.add('trade.forfaiting');
+  if (c.trade?.documentary) req.add('trade.documentary');
   if (c.syndication) req.add('syndication.participations');
   if (c.attributes.structure === 'MURABAHA') req.add('islamic.murabaha');
   if (c.attributes.structure === 'IJARAH') req.add('islamic.ijarah');

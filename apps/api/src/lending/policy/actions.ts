@@ -549,16 +549,74 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('trade.invoice.collect', 'FACILITY', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
-    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+    workflowStates: ['FUNDED', 'RECOURSE', 'DEFAULTED', 'SETTLED'],
   }),
   A('trade.invoice.reserve.propose', 'FACILITY', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
-    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+    workflowStates: ['FUNDED', 'RECOURSE', 'DEFAULTED', 'SETTLED'],
   }),
   A('trade.invoice.reserve.approve', 'FACILITY', 'SERVICING_MONEY', {
     permission: 'loan.repayment.reverse',
-    workflowStates: ['FUNDED', 'RECOURSE', 'SETTLED'],
+    workflowStates: ['FUNDED', 'RECOURSE', 'DEFAULTED', 'SETTLED'],
     makerChecker: true,
+  }),
+  // Bought receivables — factoring, supply-chain finance, forfaiting — reuse
+  // the register's permissions. Recording the debtor's notice, the buyer's
+  // approval or the aval is the register maker's; onboarding a supplier is
+  // maker-checker like an invoice; writing off the lender's share of a
+  // defaulted receivable is a write-off, with the write-off authorities.
+  A('trade.receivable.acknowledge', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.manage',
+    workflowStates: ['SUBMITTED', 'APPROVED'],
+  }),
+  A('trade.receivable.write_off.propose', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.propose',
+    workflowStates: ['RECOURSE', 'DEFAULTED'],
+  }),
+  A('trade.receivable.write_off.approve', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'loan.writeoff.approve',
+    workflowStates: ['RECOURSE', 'DEFAULTED'],
+    makerChecker: true,
+    approvalAuthority: true,
+    minAssurance: 'MFA',
+  }),
+  A('trade.supplier.manage', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.manage',
+    workflowStates: ['PENDING', 'ACTIVE'],
+  }),
+  A('trade.supplier.approve', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.approve',
+    workflowStates: ['PENDING'],
+    makerChecker: true,
+  }),
+  A('trade.supplier.reject', 'FACILITY', 'ORIGINATION', {
+    permission: 'trade.invoice.approve',
+    workflowStates: ['PENDING', 'ACTIVE'],
+    makerChecker: true,
+  }),
+  A('trade.programme.close', 'FACILITY', 'SERVICING_MONEY', {
+    permission: 'facility.manage',
+    workflowStates: ['PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED'],
+  }),
+  // Documentary (import / export) trade loans. The resource is the loan
+  // account: recording the trade and receiving documents is the
+  // disbursement maker's; verifying them, a disbursement checker's (never
+  // the receiver); the proceeds are a repayment.
+  A('trade.documentary.read', 'LOAN_ACCOUNT', 'READ', {
+    permission: 'loan.read',
+  }),
+  A('trade.documentary.manage', 'LOAN_ACCOUNT', 'ORIGINATION', {
+    permission: 'loan.disbursement.prepare',
+    workflowStates: ['BOOKED', 'ACTIVE'],
+  }),
+  A('trade.documentary.verify', 'LOAN_ACCOUNT', 'ORIGINATION', {
+    permission: 'loan.disbursement.approve',
+    workflowStates: ['BOOKED', 'ACTIVE'],
+    makerChecker: true,
+  }),
+  A('trade.documentary.proceeds', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
   }),
   // Letters of credit (LT-19, UC-53). Issuing commits the bank, so it is a
   // credit decision within authority; paying under the credit lends money

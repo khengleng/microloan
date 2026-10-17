@@ -1640,7 +1640,8 @@ export class ServicingService {
     });
   }
 
-  private async quote(tx: Tx, state: LoanState, asOf: string) {
+  /** The payoff of an active loan as of a date, inside the caller's transaction. */
+  async quote(tx: Tx, state: LoanState, asOf: string) {
     if (state.account.status !== 'ACTIVE')
       throw new ConflictException(`Loan is ${state.account.status}.`);
     if (!state.config.repayment.earlySettlement.allowed)

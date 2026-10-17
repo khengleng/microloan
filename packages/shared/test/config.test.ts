@@ -27,9 +27,9 @@ describe('product catalogue', () => {
 
   test('specialized products are seeded unavailable until their capabilities exist', () => {
     for (const code of [
-      'FACTORING', 'FORFAITING', 'INCOME_CONTINGENT_EDUCATION', 'MURABAHA',
-      'PROJECT_FINANCE',
-      'SUPPLY_CHAIN_FINANCE', 'INTERBANK', 'SOVEREIGN',
+      'INCOME_CONTINGENT_EDUCATION', 'MURABAHA',
+      'PROJECT_FINANCE', 'INFRASTRUCTURE', 'ACQUISITION_FINANCE',
+      'INTERBANK', 'SOVEREIGN',
     ]) {
       const a = L.templateAvailability(L.TEMPLATE_BY_CODE[code]);
       assert.equal(a.available, false, `${code} must be unavailable`);

@@ -64,6 +64,11 @@ export const ACCOUNT_CODES = {
   RETURNED_LEASE_ASSETS: '1260',
   IJARAH_RENTAL_INCOME: '4510',
   LATE_PAYMENT_CHARITY_PAYABLE: '2800',
+  // Bought receivables: factoring, supply-chain finance, forfaiting
+  UNEARNED_TRADE_DISCOUNT: '2340',
+  TRADE_DISCOUNT_INCOME: '4530',
+  FACTORING_SERVICE_FEE_INCOME: '4540',
+  TRADE_RECEIVABLES_CREDIT_LOSS: '5500',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -298,5 +303,27 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     code: ACCOUNT_CODES.LATE_PAYMENT_CHARITY_PAYABLE,
     name: 'Late Payment Charges Payable to Charity',
     type: LedgerAccountType.LIABILITY,
+  },
+  // A bought receivable is carried at its face value; the discount withheld
+  // at purchase is a liability until earned over the days to maturity.
+  {
+    code: ACCOUNT_CODES.UNEARNED_TRADE_DISCOUNT,
+    name: 'Unearned Discount on Bought Receivables',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.TRADE_DISCOUNT_INCOME,
+    name: 'Discount Income on Bought Receivables',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.FACTORING_SERVICE_FEE_INCOME,
+    name: 'Factoring Service Fees',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.TRADE_RECEIVABLES_CREDIT_LOSS,
+    name: 'Credit Losses on Bought Receivables (without recourse)',
+    type: LedgerAccountType.EXPENSE,
   },
 ];

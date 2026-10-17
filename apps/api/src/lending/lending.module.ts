@@ -38,7 +38,9 @@ import { EodSchedulerService } from './servicing/eod-scheduler.service';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { InvoiceFinanceService } from './trade/invoice-finance.service';
 import { LettersOfCreditService } from './trade/letters-of-credit.service';
+import { DocumentaryTradeService } from './trade/documentary.service';
 import {
+  DocumentaryTradeController,
   InvoiceFinanceController,
   LettersOfCreditController,
 } from './trade/trade.controller';
@@ -125,6 +127,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     DocumentLinksController,
     InvoiceFinanceController,
     LettersOfCreditController,
+    DocumentaryTradeController,
     SyndicationController,
     WorkspaceMeController,
     WorkspaceSearchController,
@@ -173,6 +176,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     DocumentExpiryScheduler,
     InvoiceFinanceService,
     LettersOfCreditService,
+    DocumentaryTradeService,
     SyndicationService,
     WorkspaceAccessService,
     WorkspaceWorkService,

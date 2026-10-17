@@ -488,7 +488,14 @@ export class LendingOperationsService {
             loanAccountId: a.id,
             status: 'POSTED',
             type: {
-              in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
+              in: [
+                'DISBURSEMENT',
+                'REPAYMENT',
+                'SETTLEMENT',
+                'CAPITALIZATION',
+                // A bought receivable lost without recourse (factoring, forfaiting).
+                'TRADE_WRITE_OFF',
+              ],
             },
           },
           include: { journal: { include: { lines: true } } },
@@ -501,7 +508,9 @@ export class LendingOperationsService {
             .reduce(
               (s, e) =>
                 s.plus(
-                  t === 'REPAYMENT' || t === 'SETTLEMENT'
+                  t === 'REPAYMENT' ||
+                    t === 'SETTLEMENT' ||
+                    t === 'TRADE_WRITE_OFF'
                     ? principalRepaid(e, mapping.loansReceivable ?? '1200')
                     : D(e.amount),
                 ),
@@ -510,7 +519,8 @@ export class LendingOperationsService {
         const expected = movedBy('DISBURSEMENT')
           .plus(movedBy('CAPITALIZATION'))
           .minus(movedBy('REPAYMENT'))
-          .minus(movedBy('SETTLEMENT'));
+          .minus(movedBy('SETTLEMENT'))
+          .minus(movedBy('TRADE_WRITE_OFF'));
         // A card's balances (purchases, cash advances, plans) are the principal, split.
         const card = cardByFacility.get(facility.id);
         if (card) {

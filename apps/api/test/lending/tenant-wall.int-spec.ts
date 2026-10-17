@@ -115,6 +115,11 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'reserve-payouts/:taskId': 'approvalTask',
       'letters-of-credit/:id': 'letterOfCredit',
       'drawings/:drawingId': 'lcDrawing',
+      // Bought receivables and documentary trade loans (factoring,
+      // supply-chain-finance and import-export-loans int-specs create the victims).
+      'suppliers/:supplierId': 'tradeSupplier',
+      'trade-transactions/:transactionId': 'tradeTransaction',
+      'trade-documents/:tradeDocumentId': 'tradeDocument',
       'participants/:participantId': 'syndicateParticipant',
       'payouts/:taskId': 'approvalTask',
       'cards/:cardId': 'cardAccount',
