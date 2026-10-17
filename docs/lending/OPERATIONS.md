@@ -448,6 +448,83 @@ thereafter.
   `evergreening` verdict. Review those: a refinance that replaces a
   delinquent loan and funds its arrears has moved a problem, not solved it.
 
+## Project, infrastructure and acquisition finance; borrowing bases
+
+Three corporate product types ship with their own servicing, each behind a
+flag that is **off by default** (two administrators switch it on):
+
+| Template | Flag(s) | What it is |
+|---|---|---|
+| `PROJECT_FINANCE`, `INFRASTRUCTURE` | `lending.facility.staged_drawdown`, `lending.project_finance` | Staged construction facility → sculpted term loan → cash waterfall |
+| `ACQUISITION_FINANCE` | — | Quarterly amortizing term loan with maintenance covenants |
+| `INVENTORY_BACKED` | `lending.revolving.drawdown`, `lending.collateral.borrowing_base` | Revolving line drawn against a certified borrowing base |
+
+### Covenants (all corporate products)
+
+* Covenants listed in the product's `covenants` section are **set up on the
+  loan at booking**, first tested one period after the booking date; more can
+  be added per loan (Loan › Covenants).
+* Types: `MIN_DSCR`, `MAX_LTV`, `MAX_LEVERAGE` (net debt ÷ EBITDA; debt
+  defaults to the loan's principal outstanding, cash to 0), `MIN_INTEREST_COVER`
+  (EBITDA ÷ interest; interest defaults to the loan's scheduled interest for
+  the twelve months) and `FINANCIAL_STATEMENTS`.
+* A failed test is a breach and raises `lending.covenant.breached`; a later
+  passing test cures it; a **different person** from whoever recorded the
+  failing test can waive it.
+
+### Project finance
+
+1. **Construction.** Book as any facility; the project record starts in
+   `CONSTRUCTION`. Satisfy each tranche's conditions (e.g. `EQUITY_CONTRIBUTED`,
+   `ENGINEER_CERTIFICATE`), then request → approve (second person) → release
+   drawdowns. Raise statements as usual: with
+   `capitalizeConstructionInterest` the period's interest is **added to
+   principal** (`CAPITALIZATION` event, Dr 1200 / Cr 1210) instead of billed.
+   A balance above the limit made of capitalized interest is not over-limit.
+2. **Sculpting.** `POST /lending/facilities/:id/sculpting-preview` with
+   `{ cfads: [{dueDate, cfads}], balloonAmount?, principal? }` shows the
+   profile: debt service in each period = CFADS ÷ k, where k = PV(CFADS) ÷
+   principal ≥ the product's `targetDscr`; principal = debt service − interest;
+   the last period closes to zero. A projection that cannot carry the debt is
+   refused with the maximum it supports.
+3. **Term-out.** When availability ends, state the facility to that date and
+   `POST /lending/facilities/:id/term-out` with the same `cfads`. The loan
+   gets an explicitly dated schedule; the project moves to `OPERATIONS`.
+4. **Waterfall.** For each period, `POST /lending/loans/:id/project/waterfall`
+   (Idempotency-Key) with `{ revenue, operatingCosts, taxes, externalReference }`
+   — preview first with `.../project/waterfall-preview`. In one transaction:
+   CFADS received into receipts clearing (Dr 1000 / Cr 2430) → senior debt
+   service as an ordinary repayment funded from 2430 (topped up from the
+   reserve, Dr 2410 / Cr 2430, if cash is short) → reserve topped up to the
+   next `dsraMonths` of debt service (Dr 2430 / Cr 2410), or what it holds
+   above a falling target released → `cashSweepRate` of the rest prepays
+   principal, shortening the loan from the end → the rest is distributed
+   (Dr 2430 / Cr 1000), or **held in lock-up** (Dr 2430 / Cr 2420) when the
+   period DSCR is below `lockUpDscr`, the reserve is short or debt service
+   went unpaid. Locked-up cash is released with the first distribution after
+   the project passes again. When the loan is repaid, anything still held is
+   released and the project closes.
+5. **Controls.** 2430 is zero after every run; reconciliation checks the
+   project's reserve and lock-up against 2410 and 2420. Runs are immutable
+   (database trigger) and a waterfall's repayment cannot be reversed on its own.
+
+### Borrowing base
+
+* Operations enter the borrower's certificate (Facility › Borrowing base ›
+  New certificate): lines by class with gross value, stated ineligibles and
+  age. "Work out the base" previews eligibility; submit sends it for
+  acceptance. One certificate awaits a decision at a time.
+* A **different person** accepts or rejects it (reject needs a reason).
+  Accepting supersedes the previous certificate. If the line is already drawn
+  beyond the new base, `lending.borrowing_base.shortfall` is raised.
+* Eligible = gross − stated ineligibles − lines older than the class's
+  `maxAgeDays` − any one counterparty's value above the class's
+  `concentrationLimit` share; the base is Σ eligible × advance rate by class.
+* Drawings are limited to **min(limit, base) − drawn**, re-checked at request,
+  approval and release. With no accepted certificate, or one older than
+  `certificateMaxAgeDays`, nothing can be drawn (`BORROWING_BASE_STALE`).
+* Figures of a submitted certificate cannot be edited (database trigger).
+
 ## Payment channels
 
 Lending › Payment channels; decisions D-017..D-019 in
@@ -537,10 +614,13 @@ without S3; a temporary directory is used in development).
 
 ## Known limitations
 
-* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
+* Not implemented (templates seeded unavailable): connected-party exposure, documentary trade finance,
   factoring, forfaiting, supply-chain finance, income-contingent education,
-  syndication, project finance, institutional lending, Murabaha, Ijarah,
-  emergency (break-glass) access.
+  institutional lending, Murabaha, emergency (break-glass) access.
+* Project finance: one senior tranche; CFADS and receipts are entered by
+  operations; no hedging, subordinated debt or multi-account cash management.
+* Borrowing bases: certificates are keyed from the borrower's report; no
+  stock-system or ledger feed.
 * Reversal is latest-first and not available for repayments that triggered a
   prepayment reschedule; amendment reversal only before later activity.
 * Money with no loan goes to the unidentified-payments suspense account
@@ -566,6 +646,9 @@ without S3; a temporary directory is used in development).
 | Payment channels | `GET/PUT payment-channels/settings`, `POST payment-channels/{settlement-files,payroll-files}`, `GET payment-channels/files`, `GET payment-channels/files/:fileId`, `GET payment-channels/reconciliation?date=&channel=`, `GET payment-channels/payroll-summary`, `GET payment-channels/auto-debit/attempts`; loans: `GET/POST :id/mandates`, `POST :id/mandates/:mandateId/revoke`, `GET :id/fx-quote`, `POST :id/fx-repayments`; service key: `POST integrations/{settlement-files,payroll-files}` |
 | Access | `GET access`, `POST access/{roles,assignments,delegations,authorities,policies,cohorts,simulate,service-accounts}`, decisions and revocations, `GET access/flags`, `POST access/flags/rules`, `GET access/capabilities/:type/:id` |
 | Integrations | `POST integrations/loans/:id/repayments` (service-account key) |
+| Project finance | `GET loans/:id/project`, `POST loans/:id/project/waterfall-preview`, `POST loans/:id/project/waterfall`; `POST facilities/:id/sculpting-preview`, `POST facilities/:id/term-out` (with `cfads`) |
+| Borrowing base | `GET facilities/:id/borrowing-base`, `POST facilities/:id/borrowing-base/preview`, `POST facilities/:id/borrowing-base/certificates`, `POST facilities/:id/borrowing-base/certificates/:certificateId/decision` |
+| Covenants | `GET/POST loans/:id/covenants`, `POST loans/:id/covenants/:covenantId/{tests,waive}` |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
 Money endpoints require an `Idempotency-Key` header.

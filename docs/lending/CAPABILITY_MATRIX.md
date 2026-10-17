@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 50 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 12
+✅ Fully implemented: 53 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 9
 
 ## Capabilities
 
@@ -52,7 +52,7 @@ A product version can be activated only when every capability it requires is **F
 |---|---|---|---|---|
 | `collateral.ltv` | ✅ Fully implemented | 1 | Collateral pledges, valuations, haircuts and LTV threshold at approval | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `guarantee.basic` | ✅ Fully implemented | 1 | Personal / corporate guarantee capture and minimum-count requirement | Tests: `apps/api/test/lending/*.int-spec.ts` |
-| `collateral.borrowing_base` | ⛔ Not implemented | 2 | Borrowing-base eligibility and advance rates |  |
+| `collateral.borrowing_base` | ✅ Fully implemented | 2 | Borrowing base on a revolving line: certificates of inventory and receivables by class, stated and age ineligibles, concentration limits and advance rates; maker-checker acceptance; drawdowns limited to the lower of the limit and the base, and refused on a stale certificate | Tests: `packages/shared/test/borrowing-base.test.ts, apps/api/test/lending/inventory-borrowing-base.int-spec.ts`<br>Certificates are entered by operations from the borrower’s report; there is no stock-system or ledger feed, and field exams are recorded as evidence only (DECISIONS D-062). |
 
 ### Liability
 
@@ -137,8 +137,8 @@ A product version can be activated only when every capability it requires is **F
 | `trade.forfaiting` | ⛔ Not implemented | 3 | Forfaiting of receivables without recourse |  |
 | `education.income_contingent` | ⛔ Not implemented | 3 | Income-contingent repayment |  |
 | `syndication.participations` | ✅ Fully implemented | 3 | Syndicated loans: the tenant as agent, participants by share or amount (summing to 100%), funding by participant, every collection split by share into a participant sub-ledger, and maker-checker payouts | Tests: `packages/shared/test/syndication.test.ts, apps/api/test/lending/syndication.int-spec.ts`<br>Losses on write-off or negotiated settlement are not shared automatically (DECISIONS D-015). |
-| `project_finance.waterfall` | ⛔ Not implemented | 3 | Project finance: cash waterfall, DSCR covenants, sculpted repayment |  |
-| `covenants.monitoring` | ⛔ Not implemented | 3 | Financial covenant monitoring |  |
+| `project_finance.waterfall` | ✅ Fully implemented | 3 | Project finance: staged construction drawdowns with capitalized interest, term-out on a repayment profile sculpted to projected CFADS at a target DSCR, a debt service reserve, and a cash waterfall (debt service, reserve top-up, cash sweep, distributions) with lock-up below a DSCR threshold | Tests: `packages/shared/test/project-finance.test.ts, apps/api/test/lending/project-finance.int-spec.ts`<br>One senior tranche; CFADS and receipts are entered by operations; no hedging, subordinated debt or multi-account cash management (DECISIONS D-061). |
+| `covenants.monitoring` | ✅ Fully implemented | 3 | Financial covenants (minimum DSCR, maximum LTV, maximum net leverage, minimum interest cover, financial statements) set up from the product at booking or per loan, tested on schedule, with breach notices, cure by a later test and maker-checker waiver | Tests: `packages/shared/test/covenants.test.ts, apps/api/test/lending/commercial-covenants.int-spec.ts, apps/api/test/lending/acquisition-finance.int-spec.ts`<br>Figures are entered from the borrower’s accounts; a breach raises a notice and the work queue, it does not reprice or accelerate the loan automatically (DECISIONS D-060). |
 | `institutional.counterparty_limits` | ⛔ Not implemented | 3 | Interbank / sovereign / municipal counterparty limits and conventions |  |
 | `lease.true_lease` | ✅ Fully implemented | 3 | True lease: the lender buys and owns the asset (paid to the supplier), rentals to a residual purchase-option price, and at the end title transfer on purchase or return of the asset | Tests: `packages/shared/test/bnpl.test.ts, apps/api/test/lending/bnpl-lease.int-spec.ts` |
 
@@ -192,7 +192,7 @@ A product version can be activated only when every capability it requires is **F
 | SME / commercial | Working capital loan (`WORKING_CAPITAL`) |  | ✅ |  |
 | SME / commercial | Overdraft (`OVERDRAFT`) |  | ✅ |  |
 | SME / commercial | Revolving credit facility (`REVOLVING_CREDIT`) |  | ✅ |  |
-| SME / commercial | Inventory-backed loan (`INVENTORY_BACKED`) |  | ⛔ | `collateral.borrowing_base` (not implemented) |
+| SME / commercial | Inventory-backed loan (`INVENTORY_BACKED`) |  | ✅ |  |
 | SME / commercial | Commercial property loan (`COMMERCIAL_PROPERTY`) |  | ✅ |  |
 | Agriculture | Seasonal crop loan (`AGRI_CROP_SEASONAL`) | Yes | ✅ |  |
 | Agriculture | Livestock loan (`AGRI_LIVESTOCK`) |  | ✅ |  |
@@ -201,9 +201,9 @@ A product version can be activated only when every capability it requires is **F
 | Agriculture | Plantation development loan (`AGRI_PLANTATION`) |  | ✅ |  |
 | Corporate / project | Corporate term loan (`CORPORATE_TERM`) |  | ✅ |  |
 | Corporate / project | Syndicated loan (`SYNDICATED`) |  | ✅ |  |
-| Corporate / project | Project finance (`PROJECT_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
-| Corporate / project | Infrastructure finance (`INFRASTRUCTURE`) |  | ⛔ | `covenants.monitoring` (not implemented), `project_finance.waterfall` (not implemented) |
-| Corporate / project | Acquisition finance (`ACQUISITION_FINANCE`) |  | ⛔ | `covenants.monitoring` (not implemented) |
+| Corporate / project | Project finance (`PROJECT_FINANCE`) |  | ✅ |  |
+| Corporate / project | Infrastructure finance (`INFRASTRUCTURE`) |  | ✅ |  |
+| Corporate / project | Acquisition finance (`ACQUISITION_FINANCE`) |  | ✅ |  |
 | Trade / receivables | Import loan (`IMPORT_LOAN`) |  | ⛔ | `trade.documentary` (not implemented) |
 | Trade / receivables | Export working capital (`EXPORT_WORKING_CAPITAL`) |  | ⛔ | `trade.documentary` (not implemented) |
 | Trade / receivables | Invoice-backed loan (`INVOICE_BACKED`) |  | ✅ |  |
