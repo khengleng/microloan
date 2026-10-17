@@ -19,10 +19,10 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 
 | Group | ✅ | 🟡 | ⛔ | Total |
 |---|---|---|---|---|
-| Loan types (LT) | 12 | 8 | 4 | 24 |
-| Use cases (UC) | 49 | 8 | 18 | 75 |
-| Operations (OPS) | 3 | 5 | 0 | 8 |
-| Documents (DOC) | 0 | 6 | 4 | 10 |
+| Loan types (LT) | 21 | 2 | 1 | 24 |
+| Use cases (UC) | 70 | 1 | 4 | 75 |
+| Operations (OPS) | 7 | 1 | 0 | 8 |
+| Documents (DOC) | 10 | 0 | 0 | 10 |
 | Test vectors (TV) | 20 match | 0 engine only | 0 not reproduced | 20 |
 
 ## Closed in this build-out
@@ -47,17 +47,24 @@ financed premium owed to the insurer (UC-06, UC-68) and debt sale (UC-71),
 in `api/recovery/` with the web recovery card and desk. Assumptions are
 DECISIONS D-011 to D-016.
 
+Then: down payments and third-party payees with consolidation (UC-02, UC-05,
+UC-35, LT-10), stepped instalments and promotional rates (UC-15, UC-46),
+payoff and takeover letters (UC-31, UC-34), reversal of rescheduling
+prepayments (UC-23), the collections ladder with work queues, guarantor
+demands and set-off (UC-58, UC-60, UC-61), over-limit fee and facility
+renewal (UC-41, UC-42), statements, notices, closure letters, bureau file
+and GL export (OPS-4/6/7, UC-75), origination credit score and DSCR with
+covenant monitoring (OPS-2, LT-16), the customer document library
+(DOC-1..10), invoice finance, letters of credit and syndication (LT-18,
+LT-19, LT-24).
+
 ## Remaining gaps ranked by risk to money owed
 
 | # | Gap | Items | Why it matters |
 |---|---|---|---|
-| 1 | Customer documents live in three unrelated stores, two of them as base64 in the database | DOC-1..10 | No single record of what a customer gave the bank; no retention or expiry |
-| 2 | No collection escalation engine or collector work queues in the lending stack; guarantor demand and set-off missing | UC-58, UC-60, UC-61 | Arrears follow-up relies on people remembering |
-| 3 | Auto-debit has no real bank integration (mandates, collection, retries and reconciliation are built on a mock bank) | UC-16 | Production cannot collect by direct debit until a bank adapter exists |
-| 4 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
-| 5 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
-| 6 | Specialised products: cards, BNPL | LT-07, LT-11 and their UCs | Not offered (capability-gated). Invoice finance, letters of credit and syndication were added on 17 Oct 2026 (below). |
-| 7 | Closure letter and credit bureau update; promotional rates; payoff letter | UC-75, UC-46, UC-34 | Customer and bureau communication off-system |
+| 1 | Auto-debit has no real bank integration (mandates, collection, retries and reconciliation are built on a mock bank) | UC-16 | Production cannot collect by direct debit until a bank adapter exists |
+| 2 | Specialised products: cards and BNPL merchant settlement; true lease (Ijarah) | LT-07, LT-11, LT-15, UC-39, UC-40, UC-44, UC-52 | Not offered (capability-gated) |
+| 3 | Borrower notices are listed on demand, not sent by the end-of-day batch; SMS, KYC and bureau adapters are mocks | OPS-4, UC-58, UC-75 | Communication depends on a person exporting and sending |
 
 ## Loan types
 
@@ -65,20 +72,20 @@ DECISIONS D-011 to D-016.
 |---|---|---|---|---|
 | LT-01 Personal | ✅ | L, G | `PERSONAL_INSTALMENT` eng/catalogue.ts:200; legacy formulas.ts; int/phase1-slice.int-spec.ts:31 | Flat-rate loans cannot take partial prepayments |
 | LT-02 Mortgage | ✅ | L | `HOME_MORTGAGE` catalogue.ts:220; floating pricing; int/floating.int-spec.ts | LTV ignores financed fees |
-| LT-03 Home equity | 🟡 | L | `HOME_EQUITY_TERM` catalogue.ts:241; LTV gate api/origination/applications.service.ts:1617 | No combined LTV with senior liens |
+| LT-03 Home equity | ✅ | L | `HOME_EQUITY_TERM` catalogue.ts:241; combined LTV with prior liens (applications.service assess); int/collateral.int-spec.ts, int/commercial-covenants.int-spec.ts | — |
 | LT-04 HELOC | ✅ | L | `HOME_EQUITY_LINE`; combined LTV with prior liens (applications.service assess); term-out books a schedule (facilities.service termOut); int/collateral.int-spec.ts (TV-17), int/facilities.int-spec.ts | — |
-| LT-05 Auto / motorbike | 🟡 | L | `CAR_LOAN`, `MOTORCYCLE_LOAN`, `BALLOON_VEHICLE` catalogue.ts:246-250 | No down payment (UC-02), no dealer payout (UC-05) |
+| LT-05 Auto / motorbike | ✅ | L | `CAR_LOAN`, `MOTORCYCLE_LOAN`, `BALLOON_VEHICLE`; minimum down payment (UC-02) and dealer payout (UC-05); repossession (UC-65); int/disbursement-payees.int-spec.ts, int/recovery.int-spec.ts | — |
 | LT-06 Student | ✅ | L | `STUDENT_LOAN`; grace + capitalization, `pricing.capitalization.basis` SIMPLE (TV-16) | Template still COMPOUND by default (D-009) |
 | LT-07 Credit card | ⛔ | — | `CREDIT_CARD` blocked by `card.revolving_credit` | No purchase grace, statement cycle or card minimum payment |
 | LT-08 Payday | ✅ | L | `SALARY_ADVANCE` catalogue.ts:204 (interest-only, one instalment) | Needs reconfiguring for a fee; no nominal APR (TV-08) |
 | LT-09 Pawn / gold | ✅ | L | Custody record, valuation by weight × purity × price per gram (eng/recovery.ts `pawnValuation`), forfeiture after the redemption deadline under maker-checker, auction, return on redemption: api/recovery/recovery.service.ts; et/recovery.test.ts; int/recovery.int-spec.ts | Gold price entered per item (no price feed) |
-| LT-10 Debt consolidation | 🟡 | L | `DEBT_CONSOLIDATION` catalogue.ts:210 | Cannot pay off several or external debts (UC-35) |
+| LT-10 Debt consolidation | ✅ | L | `DEBT_CONSOLIDATION`; disbursement payees settle several internal loans (`INTERNAL_LOAN`) and pay outside lenders (`PREVIOUS_LENDER`) from the proceeds (servicing.service executeDisbursement); int/disbursement-payees.int-spec.ts | — |
 | LT-11 BNPL | 🟡 | L | `BNPL` blocked by `bnpl.merchant_settlement`; a 4×fortnightly 0% plan can be configured | No merchant settlement or refund handling (UC-52) |
 | LT-12 Term loan | ✅ | L | `SME_TERM` catalogue.ts:301; `CORPORATE_TERM` :353 (quarterly) | Quarterly untested end to end |
-| LT-13 Overdraft | 🟡 | L | `OVERDRAFT`; minimum-payment arrears aged (int/facilities.int-spec.ts UC-38) | No annual renewal (UC-42) |
+| LT-13 Overdraft | ✅ | L | `OVERDRAFT`; minimum-payment arrears aged (UC-38); renewal (UC-42) and over-limit allowance/fee (UC-41): int/facilities.int-spec.ts | — |
 | LT-14 Business line of credit | ✅ | L | `REVOLVING_CREDIT`; term-out books an amortizing schedule (int/facilities.int-spec.ts UC-43) | — |
 | LT-15 Equipment lease | 🟡 | L | `EQUIPMENT_LOAN` catalogue.ts:249 with balloon; TV-19 passes | True lease (`IJARAH`) blocked |
-| LT-16 Commercial real estate | 🟡 | L | `COMMERCIAL_PROPERTY` catalogue.ts:325; LTV gate | No origination DSCR; covenant monitoring not implemented |
+| LT-16 Commercial real estate | ✅ | L | `COMMERCIAL_PROPERTY`; origination DSCR gate `eligibility.minDscr` from `terms.financials` (eng/scorecard.ts `debtServiceCoverage`); covenants MIN_DSCR / MAX_LTV / FINANCIAL_STATEMENTS tested on schedule, breach → notice, cure or waiver by a second person (api/covenants/covenants.service.ts); int/commercial-covenants.int-spec.ts | — |
 | LT-17 Construction | ✅ | L | `CONSTRUCTION` staged facility; term-out schedule | — |
 | LT-18 Invoice financing | ✅ | L | `INVOICE_BACKED` (revolving, `trade.invoice`); register, maker-checker advance, debtor settlement and borrower payout: api/trade/invoice-finance.service.ts; eng/invoice.ts `allocateInvoiceCollection`; et/trade.test.ts; int/trade.int-spec.ts "LT-18", "TV-20" | No factoring / non-recourse purchase; collections cannot be reversed through the API (D-024) |
 | LT-19 Letter of credit | ✅ | L | `LETTER_OF_CREDIT` (`trade.letterOfCredit`); maker-checker issue with fee and off-balance-sheet memo (9100/9200), expiry/cancel: api/trade/letters-of-credit.service.ts; eng/letter-of-credit.ts; int/trade.int-spec.ts "LT-19" | No SWIFT messaging or document examination; fee collected at issue only (D-026) |
@@ -94,10 +101,10 @@ DECISIONS D-011 to D-016.
 | ID | Status | Stack | Evidence | Gap |
 |---|---|---|---|---|
 | UC-01 | ✅ | L, G | eng/fees.ts:49 `netDisbursement`; `svc` disbursement; et/servicing.test.ts:136 | — |
-| UC-02 | ⛔ | — | none | No down-payment field or collection before disbursement |
+| UC-02 | ✅ | L | `terms.downPayment` checked against `operations.downPayment.minFraction`; recorded before disbursement (POST /loans/:id/down-payments, LENDER-held → 2600 or paid to seller); disbursement refused until received, held amount paid out with the proceeds; int/disbursement-payees.int-spec.ts | — |
 | UC-03 | ✅ | L, G | `svc` prepare/approve/execute (maker-checker); int/security.int-spec.ts:118 | — |
 | UC-04 | ✅ | L | `CONSTRUCTION` staged facility; int/facilities.int-spec.ts:559 | Interest posted at statement, not daily |
-| UC-05 | ⛔ | — | Disbursement takes only an external reference | No payee split (seller, dealer, school, other lender) |
+| UC-05 | ✅ | L | Disbursement `payees` (seller, dealer, school, previous lender, borrower, other) must add up to the payout; recorded on the event; int/disbursement-payees.int-spec.ts | — |
 | UC-06 | ✅ | L | Fee `FINANCED` with `payee: INSURER` credits the insurer payable (2600) at disbursement, not fee income (`svc` executeDisbursement); policy record and remittance under maker-checker api/recovery/recovery.service.ts; int/recovery.int-spec.ts (UC-06) | — |
 | UC-07 | ✅ | L | Irregular first period eng/schedule.ts:212; et/schedule.test.ts:146; TV-09 | No template enables it |
 
@@ -111,7 +118,7 @@ DECISIONS D-011 to D-016.
 | UC-12 | ✅ | L | Balloon / interest-only eng/schedule.ts:425-456; TV-05, TV-06 | — |
 | UC-13 | ✅ | L | `EXPLICIT` method; int/phase1-slice.int-spec.ts:224 | — |
 | UC-14 | ✅ | L | Interest grace with capitalization eng/schedule.ts:411 | Always capitalizes (no "accrue and pay later") |
-| UC-15 | 🟡 | L | Only via `EXPLICIT` dated amounts | No step-up/step-down method |
+| UC-15 | ✅ | L | `repayment.instalmentSteps` (graduated / step-down multipliers, solved so the loan closes) eng/schedule.ts `stepWeights`; eng/steps-promotion.test.ts; int/promotion-steps.int-spec.ts (serviced to closure) | Prepayment recast returns to level instalments |
 
 ### C. Payment channels
 | ID | Status | Stack | Evidence | Gap |
@@ -123,7 +130,7 @@ DECISIONS D-011 to D-016.
 | UC-20 | ✅ | L | Repayment `payer` (name, relationship, reference); int/late-charges.int-spec.ts | — |
 | UC-21 | ✅ | L | Payment in another currency converted at mid less a configurable spread from the tenant rate table, rate stored on the event, FX gain/loss (4410) via FX position (1050), refused without a rate for the value date (api/payments/payment-channels.service.ts `fxRepayment`; eng/channels.ts `convertPayment`; D-019); int/payment-channels.int-spec.ts; et/channels.test.ts | Reversal returns the loan-currency leg only; the foreign cash stays in the FX position |
 | UC-22 | ✅ | L | Repayment `contributions` split by member, recorded with the repayment; reversed ones excluded; int/groups.int-spec.ts | — |
-| UC-23 | 🟡 | L, G | Reversal with `returned` charges `pricing.returnedPaymentFee`; int/late-charges.int-spec.ts | Repayments that triggered a reschedule still cannot be reversed |
+| UC-23 | ✅ | L, G | Reversal with `returned` charges `pricing.returnedPaymentFee`; a prepayment that rescheduled the loan is reversed by a new agreement version restoring the replaced instalments, instalment and maturity; int/late-charges.int-spec.ts, int/prepayment-reversal.int-spec.ts | — |
 
 ### D. Payment allocation
 | ID | Status | Stack | Evidence | Gap |
@@ -139,11 +146,11 @@ DECISIONS D-011 to D-016.
 |---|---|---|---|---|
 | UC-29 | ✅ | L | `SHORTEN` eng/servicing.ts:183; TV-10 option B | Not on flat-rate loans |
 | UC-30 | ✅ | L | `RECAST` eng/servicing.ts:130; TV-10 option A; int/phase1-slice.int-spec.ts:344 | Not on flat-rate loans |
-| UC-31 | 🟡 | L, G | L: settlement quote (advance, lock-in, rebate); G: POST /repayments/settlements closes at the quote (int/legacy-payoff.int-spec.ts) | Quote not stored with a validity date; no payoff letter |
+| UC-31 | ✅ | L, G | Payoff letters good through a date (daily payoff table, per diem), settled against with `payoffQuoteId`; stale or expired letters refused (api/servicing payoff-quotes); int/payoff-letters.int-spec.ts | — |
 | UC-32 | ✅ | L | Lock-in tiers (policies); maker-checker fee waiver; int/policies.int-spec.ts, int/fee-waivers.int-spec.ts | — |
 | UC-33 | ✅ | L | `earlySettlement.rebateMethod` RULE_OF_78 / ACTUARIAL (eng/rebate.ts); TV-12 via live flow (int/rebates.int-spec.ts) | — |
-| UC-34 | 🟡 | L | Internal refinance `svc`; int/relief.int-spec.ts:372 | No payoff letter; no takeover from another lender |
-| UC-35 | ⛔ | — | `refinancesLoanId` is one internal loan | Cannot pay off several or external debts |
+| UC-34 | ✅ | L | Internal refinance; TAKEOVER payoff letter addressed to the acquiring lender and settled with its funds; int/payoff-letters.int-spec.ts | — |
+| UC-35 | ✅ | L | `INTERNAL_LOAN` payees settle the borrower's other loans from the proceeds, `PREVIOUS_LENDER` pays outside debts; another borrower's loan refused; int/disbursement-payees.int-spec.ts | — |
 
 ### F. Revolving credit
 | ID | Status | Stack | Evidence | Gap |
@@ -153,8 +160,8 @@ DECISIONS D-011 to D-016.
 | UC-38 | ✅ | L | Overdraft minimum payment; unpaid minimum aged by end of day (facilities batch hook) | — |
 | UC-39 | ⛔ | — | `card.revolving_credit` not implemented | No purchase grace |
 | UC-40 | ⛔ | — | none | No cash-advance type or fee |
-| UC-41 | 🟡 | L | Over-limit rate; limit change maker-checker (int/facilities.int-spec.ts:394) | No flat over-limit fee |
-| UC-42 | ⛔ | L | Manual expiry only | No renewal or review workflow |
+| UC-41 | ✅ | L | Over-limit rate plus `facility.overlimitTolerance` allowance on drawdowns and a flat `facility.overlimitFee` per statement period over the limit; limit change maker-checker; int/facilities.int-spec.ts | — |
+| UC-42 | ✅ | L | RENEWAL limit change (maker-checker) extends availability and maturity by `renewalMonths`, reactivating an expired line; int/facilities.int-spec.ts | — |
 | UC-43 | ✅ | L | Term-out books an amortizing schedule; int/facilities.int-spec.ts | — |
 | UC-44 | ⛔ | — | none | — |
 
@@ -162,7 +169,7 @@ DECISIONS D-011 to D-016.
 | ID | Status | Stack | Evidence | Gap |
 |---|---|---|---|---|
 | UC-45 | ✅ | L | api/servicing/rate-reset.service.ts; int/floating.int-spec.ts (incl. end-of-day batch) | Recalculates instalment only, not term |
-| UC-46 | ⛔ | — | Only hardship rate cuts | No promotional rate with expiry |
+| UC-46 | ✅ | L | `pricing.promotion` campaign rate for the first instalments when the contract quotes its code; instalment re-solved at the contract rate after; int/promotion-steps.int-spec.ts | — |
 | UC-47 | ✅ | L | Restructure option `DUE_DATE_CHANGE` | Only through the hardship workflow |
 | UC-48 | ✅ | L | Restructure option `TERM_EXTENSION`; int/relief.int-spec.ts | — |
 | UC-49 | ✅ | L | Payment-holiday programmes api/restructuring/payment-holiday.service.ts; int/relief.int-spec.ts | Capitalize path engine-tested only; TV-13 not driven through it |
@@ -178,10 +185,10 @@ DECISIONS D-011 to D-016.
 | UC-55 | ✅ | L | FLAT / PERCENT_PER_INSTALMENT, caps per instalment and per loan; int/late-charges.int-spec.ts | Legacy uncapped |
 | UC-56 | ✅ | L | `svc` penalty assessment; TV-14; int/phase1-slice.int-spec.ts:339 | Day count fixed at ACT/365F |
 | UC-57 | ✅ | L, G | `delinquency()` in `svc`; int/phase1-slice.int-spec.ts:257 | Facilities excluded |
-| UC-58 | 🟡 | L, G | Collection stages config; legacy queue + reminder crons | No escalation engine or collector work queues; lending notifications are mocks |
+| UC-58 | ✅ | L, G | Collection ladder `operations.collectionStages` (SMS, call, visit, notice, legal review): end of day raises one task per stage per arrears episode; SMS/notices sent via outbox, calls/visits in collector queues (claim, outcome); cured loans close tasks (api/collections/collections.service.ts); int/collections-work.int-spec.ts | SMS delivery adapter is a mock |
 | UC-59 | ✅ | G | Daily review marks promises KEPT/BROKEN and flags broken ones (collections.service reviewPromises); int/promises.int-spec.ts | Lending stack has no promise-to-pay of its own |
-| UC-60 | ⛔ | — | Guarantees captured only | No demand or guarantor payment |
-| UC-61 | ⛔ | — | none | — |
+| UC-60 | ✅ | L | Demand on a guarantor up to the guarantee and the debt, letter, guarantor payments posted as repayments with the guarantor as payer; int/collections-work.int-spec.ts | — |
+| UC-61 | ✅ | L | Set-off of the borrower's deposit up to the overdue amount, maker-checker, posted through set-off clearing (2700); int/collections-work.int-spec.ts | Core-banking deposit debit is outside this system |
 | UC-62 | ✅ | L | Non-accrual with interest in suspense, release on collection / cure; int/advances.int-spec.ts | — |
 
 ### I. Restructuring and recovery
@@ -203,19 +210,19 @@ DECISIONS D-011 to D-016.
 | UC-72 | ✅ | L, G | `closeIfRepaid` in `svc`; int/security.int-spec.ts:852 | — |
 | UC-73 | ✅ | L | Release after closure, signed off by a second user; int/collateral.int-spec.ts | — |
 | UC-74 | ✅ | L | Advance refunds and suspense refunds under maker-checker; int/suspense.int-spec.ts | — |
-| UC-75 | ⛔ | L, G | Only a `lending.settled` outbox event | No closure letter or bureau reporting |
+| UC-75 | ✅ | L, G | Closure letter for closed loans (api/reporting closure-letter; also filed in the customer library), credit bureau file `/lending/ops/bureau-export.csv`; int/reporting.int-spec.ts | Bureau submission adapter not connected |
 
 ## Operations
 
 | ID | Status | Stack | Evidence | Gap |
 |---|---|---|---|---|
 | OPS-1 | ✅ | L | api/products/products.service.ts (versions, diff, maker-checker, capability gate); et/config.test.ts | — |
-| OPS-2 | 🟡 | L, G | Eligibility, DSR, LTV, guarantors in applications.service.ts:1425+; legacy scorecard + credit bureau | No credit score or origination DSCR in lending; KYC and bureau are mocks |
-| OPS-3 | 🟡 | L | Collateral, haircuts, guarantees in applications.service.ts:525 | No revaluation, release, enforcement or guarantor calls |
-| OPS-4 | 🟡 | L | Automatic end of day: auto-debit collection (UC-16), accrual, advances, penalties, DPD, non-accrual, classification and provisioning, facility arrears, margin calls, rate resets (eod-scheduler.service.ts) | No billing notices or statements in the batch |
+| OPS-2 | ✅ | L, G | Eligibility, DSR, LTV, guarantors; explainable origination credit score with `eligibility.minCreditScore` (eng/scorecard.ts) and DSCR gate; legacy scorecard + credit bureau | KYC and bureau adapters are mocks |
+| OPS-3 | ✅ | L | Collateral, haircuts, guarantees; revaluation and margin calls (UC-51), release (UC-73), repossession (UC-65), guarantor demands (UC-60), covenants (LT-16) | — |
+| OPS-4 | 🟡 | L | Automatic end of day: auto-debit collection (UC-16), accrual, advances, penalties, DPD, non-accrual, classification and provisioning, facility arrears, margin calls, rate resets (eod-scheduler.service.ts) | Notices are listed on demand, not sent by the batch |
 | OPS-5 | ✅ | L, G | Lending: tenant impairment policy (REGULATORY or ECL by stage), allowance posted by end of day (api/accounting/impairment.service.ts; int/impairment.int-spec.ts); legacy NBC runs | — |
-| OPS-6 | 🟡 | L, G | Balanced double-entry + reconciliation (api/accounting/operations.service.ts); legacy ledger | External GL export is a mock; two ledgers not consolidated |
-| OPS-7 | 🟡 | L, G | Facility statements; legacy NBC report, receipts, key facts | No term-loan statements or notices; lending missing from regulatory reports |
+| OPS-6 | ✅ | L, G | Balanced double-entry + reconciliation (api/accounting/operations.service.ts); GL export of journal lines for a period `/lending/ops/gl-export.csv` with debit/credit totals; int/reporting.int-spec.ts | Lending and legacy ledgers not consolidated |
+| OPS-7 | ✅ | L, G | Loan statements for any period (`/loans/:id/statement`), due-soon and overdue notices with message text (`/ops/notices`), facility statements, closure letters; int/reporting.int-spec.ts | Lending missing from the legacy NBC regulatory report |
 | OPS-8 | ✅ | L | RBAC + ABAC + MFA + authority (api/policy); audit events; int/security.int-spec.ts | Break-glass not implemented; legacy approvals partly without maker-checker |
 
 ## Customer document management
