@@ -1,19 +1,19 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Telegraf } from 'telegraf';
+import { Markup, Telegraf } from 'telegraf';
 import OpenAI from 'openai';
 import { PrismaService } from '../prisma/prisma.service';
-import { BorrowersService } from '../borrowers/borrowers.service';
 import { LoansService } from '../loans/loans.service';
 import { InterestMethod } from '@microloan/shared';
 import { decryptField, blindIndex } from '../common/field-crypto';
 import { SystemContext, TenantScopedByArg } from '../prisma/tenant-context';
+import { phoneCandidates, verifiedOwnPhone } from './telegram-link';
 
 const SYSTEM_PROMPT = `You are a highly efficient and friendly loan AI assistant for Magic Money. 
 Your goals:
 1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
 2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
-3. Collect info to originate loans: First Name, Last Name, Phone Number, Principal ($), Term (months), and the chosen productId.
+3. Collect info to originate loans: Principal ($), Term (months), and the chosen productId. Never ask for or accept a phone number in chat — the customer's identity comes only from the phone number they share with the "Share my phone number" button.
 4. Help users check their pending loan balance and next due dates using \`check_loan_balance\`.
 
 Have a natural conversation. You can ask for info or answer questions about their account.
@@ -29,7 +29,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly borrowersService: BorrowersService,
         @Inject(forwardRef(() => LoansService))
         private readonly loansService: LoansService,
     ) { }
@@ -79,8 +78,31 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
         const bot = new Telegraf(token);
 
+        const shareContact = Markup.keyboard([
+            Markup.button.contactRequest('Share my phone number'),
+        ]).oneTime().resize();
+
         bot.start((ctx) => {
-            ctx.reply('Welcome to Magic Money! Need a loan? Just tell me how much you need or ask me for help applying!');
+            ctx.reply(
+                'Welcome to Magic Money! To see your loans or apply, first tap "Share my phone number" below so we can confirm who you are.',
+                shareContact,
+            );
+        });
+
+        // The only way a chat becomes linked to a borrower: a contact the user
+        // shared from their own Telegram account (see telegram-link.ts).
+        bot.on('contact', async (ctx) => {
+            try {
+                const phone = verifiedOwnPhone(ctx.message.contact, ctx.from?.id);
+                if (!phone) {
+                    await ctx.reply('Please share your own number using the "Share my phone number" button.', shareContact);
+                    return;
+                }
+                await ctx.reply(await this.linkVerifiedPhone(tenantId, ctx.chat.id, phone), Markup.removeKeyboard());
+            } catch (err) {
+                this.logger.error(`Error linking telegram contact for tenant ${tenantId}`, err);
+                await ctx.reply('Sorry, I could not verify your number right now.');
+            }
         });
 
         bot.on('text', async (ctx) => {
@@ -104,14 +126,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                                 parameters: {
                                     type: 'object',
                                     properties: {
-                                        firstName: { type: 'string' },
-                                        lastName: { type: 'string' },
-                                        phone: { type: 'string' },
                                         principal: { type: 'number' },
                                         termMonths: { type: 'number' },
                                         productId: { type: 'string' },
                                     },
-                                    required: ['firstName', 'lastName', 'phone', 'principal', 'termMonths', 'productId']
+                                    required: ['principal', 'termMonths', 'productId']
                                 }
                             }
                         },
@@ -142,8 +161,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                     let resultContent = '';
                     const functionName = toolCall.function?.name;
                     if (functionName === 'originate_loan') {
-                        await this.handleOriginateLoan(tenantId, chatId, args);
-                        resultContent = 'Successfully originated loan';
+                        resultContent = await this.handleOriginateLoan(tenantId, chatId, args);
                     } else if (functionName === 'check_loan_balance') {
                         resultContent = await this.checkLoanBalance(tenantId, chatId);
                     } else if (functionName === 'get_loan_products') {
@@ -180,37 +198,20 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     @TenantScopedByArg(0)
-    async handleOriginateLoan(tenantId: string, chatId: number, args: any) {
+    async handleOriginateLoan(tenantId: string, chatId: number, args: any): Promise<string> {
         // Find a valid user in this tenant for audit log
         const user = await this.prisma.user.findFirst({ where: { tenantId } });
         if (!user) throw new Error('No valid user found in tenant');
         const userId = user.id;
 
-        // 1. Check or Create Borrower
-        let borrower = await this.prisma.borrower.findFirst({
-            where: { phoneHash: blindIndex(args.phone, 'phone'), tenantId }
+        // The applicant is the borrower this chat was linked to by a verified
+        // contact share — never whoever the conversation claims to be.
+        const borrower = await this.prisma.borrower.findFirst({
+            where: { telegramChatId: chatId.toString(), tenantId },
         });
-
         if (!borrower) {
-            borrower = await this.borrowersService.create({
-                sub: userId,
-                id: userId,
-                role: 'TENANT_ADMIN',
-                tenantId,
-                branchId: null,
-                permissions: [],
-            } as any, {
-                firstName: args.firstName,
-                lastName: args.lastName,
-                idNumber: 'BOT-' + Date.now().toString(),
-                phone: args.phone,
-                address: 'Telegram Client',
-                telegramChatId: chatId.toString(),
-            });
-        } else if (!borrower.telegramChatId) {
-            borrower = await this.prisma.borrower.update({
-                where: { id: borrower.id },
-                data: { telegramChatId: chatId.toString() }
+            return JSON.stringify({
+                error: 'This chat is not linked to a customer yet. Ask the user to tap "Share my phone number" (send /start to show the button). New customers must register with a loan officer first.',
             });
         }
 
@@ -243,6 +244,34 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             productId: product.id,
             creditRatingApplied: policy.creditRating,
         });
+        return JSON.stringify({ ok: true, message: 'Application submitted for review.' });
+    }
+
+    /**
+     * Link this chat to the borrower whose stored phone matches a number the
+     * user verified by sharing their own contact. A borrower already linked to
+     * a different chat is left alone — relinking goes through staff.
+     */
+    @TenantScopedByArg(0)
+    async linkVerifiedPhone(tenantId: string, chatId: number, phoneDigits: string): Promise<string> {
+        const hashes = phoneCandidates(phoneDigits).map((p) => blindIndex(p, 'phone') as string);
+        const borrower = await this.prisma.borrower.findFirst({
+            where: { tenantId, phoneHash: { in: hashes } },
+        });
+        if (!borrower) {
+            return 'Thanks! We could not find a customer with this number. Please visit a loan officer to register.';
+        }
+        const chat = chatId.toString();
+        if (borrower.telegramChatId && borrower.telegramChatId !== chat) {
+            return 'This number is already linked to another Telegram account. Please contact your loan officer.';
+        }
+        if (borrower.telegramChatId !== chat) {
+            await this.prisma.borrower.update({
+                where: { id: borrower.id },
+                data: { telegramChatId: chat },
+            });
+        }
+        return `Thanks ${borrower.firstName}, your number is verified. You can now ask about your loans or apply.`;
     }
 
     @TenantScopedByArg(0)
