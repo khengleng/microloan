@@ -21,7 +21,8 @@ export class KpiService {
   async overview(actor: JwtPayload) {
     this.authz.assertPermission(actor as any, Permission.LEDGER_VIEW);
     const now = Date.now();
-    const loanScope = this.authz.scopeWhere(actor as any, { status: 'DISBURSED' } as any);
+    // Outstanding book = performing + defaulted; leaving DEFAULTED out understated PAR.
+    const loanScope = this.authz.scopeWhere(actor as any, { status: { in: ['DISBURSED', 'DEFAULTED'] } } as any);
 
     // ── Portfolio + PAR aging (from live schedules of disbursed loans) ────────
     const scheds = await this.prisma.repaymentSchedule.findMany({
@@ -103,7 +104,7 @@ export class KpiService {
     const [disbursedAgg, collectedAgg, activeLoans, borrowers, latestProvision, onTimeAgg, lateAgg] = await Promise.all([
       this.prisma.loan.aggregate({ _sum: { principal: true }, where: { ...(scope as any), status: { in: ['DISBURSED', 'CLOSED', 'DEFAULTED', 'WRITTEN_OFF'] } } }),
       this.prisma.repayment.aggregate({ _sum: { amount: true }, where: { ...(scope as any), reversedAt: null } }),
-      this.prisma.loan.count({ where: { ...(scope as any), status: 'DISBURSED' } }),
+      this.prisma.loan.count({ where: { ...(scope as any), status: { in: ['DISBURSED', 'DEFAULTED'] } } }),
       this.prisma.borrower.count({ where: scope as any }),
       this.prisma.provisionRun.findFirst({ where: scope as any, orderBy: { runDate: 'desc' }, select: { totalProvision: true, runDate: true } }),
       this.prisma.repaymentSchedule.count({ where: { loan: scope as any, isPaid: true, penaltyAmount: 0 } }),

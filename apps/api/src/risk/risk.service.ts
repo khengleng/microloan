@@ -157,8 +157,8 @@ export class RiskService {
     });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor as any, loan.branchId);
-    if (loan.status !== 'DISBURSED') {
-      throw new BadRequestException('Only disbursed loans can be restructured.');
+    if (loan.status !== 'DISBURSED' && loan.status !== 'DEFAULTED') {
+      throw new BadRequestException('Only disbursed or defaulted loans can be restructured.');
     }
 
     const paid = loan.schedules.filter((s) => s.isPaid);

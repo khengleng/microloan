@@ -208,6 +208,20 @@ export class LoansService {
     }
     if (currentStatus === targetStatus) return loan;
 
+    // Approval and rejection decide a loan that has not been paid out yet. Allowing
+    // them from later states let a DISBURSED / WRITTEN_OFF loan be sent back to
+    // APPROVED and disbursed a second time (a second GL disbursement).
+    if (
+      (targetStatus === LoanStatus.APPROVED && currentStatus !== LoanStatus.PENDING) ||
+      (targetStatus === LoanStatus.REJECTED &&
+        currentStatus !== LoanStatus.PENDING &&
+        currentStatus !== LoanStatus.APPROVED)
+    ) {
+      throw new BadRequestException(
+        `Cannot move a ${currentStatus} loan to ${targetStatus}.`,
+      );
+    }
+
     const data: any = { status: targetStatus };
     if (targetStatus === LoanStatus.APPROVED) {
       this.authz.assertPermission(actor, Permission.LOAN_APPROVE);
@@ -329,7 +343,8 @@ export class LoansService {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     const today = new Date();
     const where: any = this.authz.scopeWhere(actor, {
-      status: LoanStatus.DISBURSED,
+      // DEFAULTED loans are the most overdue of all; they belong in the queue.
+      status: { in: [LoanStatus.DISBURSED, LoanStatus.DEFAULTED] },
       schedules: {
         some: {
           dueDate: { lt: today },

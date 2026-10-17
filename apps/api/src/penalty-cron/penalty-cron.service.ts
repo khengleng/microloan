@@ -30,6 +30,9 @@ export class PenaltyCronService {
             where: {
                 isPaid: false,
                 dueDate: { lt: now },
+                // Penalties accrue only on money actually lent and still owed —
+                // not on PENDING / APPROVED / REJECTED / WRITTEN_OFF / CLOSED loans.
+                loan: { status: { in: ['DISBURSED', 'DEFAULTED'] } },
                 // Only grab schedules that have NOT yet been penalized today
                 OR: [
                     { penaltyLastAppliedAt: null },

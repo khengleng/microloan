@@ -41,9 +41,10 @@ export class RepaymentsService {
 
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
-    if (loan.status !== LoanStatus.DISBURSED) {
+    // A DEFAULTED loan is still owed and must be able to receive collections.
+    if (loan.status !== LoanStatus.DISBURSED && loan.status !== LoanStatus.DEFAULTED) {
       throw new BadRequestException(
-        'Can only post repayments for disbursed loans',
+        'Can only post repayments for disbursed or defaulted loans',
       );
     }
 
