@@ -474,23 +474,28 @@ d('Relief and refinancing (integration)', () => {
         })
       ).loanId;
       const programme = expectOk(
-        await f.as('approver2').post('/lending/ops/payment-holiday-programmes', {
-          code: 'CAPITALIZE_3',
-          name: 'Three months, capitalized',
-          maxInstalments: 3,
-          interestTreatment: 'CAPITALIZE',
-          termTreatment: 'EXTEND_TERM',
-          opensOn: '2026-01-01',
-          closesOn: '2027-12-31',
-        }),
+        await f
+          .as('approver2')
+          .post('/lending/ops/payment-holiday-programmes', {
+            code: 'CAPITALIZE_3',
+            name: 'Three months, capitalized',
+            maxInstalments: 3,
+            interestTreatment: 'CAPITALIZE',
+            termTreatment: 'EXTEND_TERM',
+            opensOn: '2026-01-01',
+            closesOn: '2027-12-31',
+          }),
       );
       programmeId = programme.id;
       expectOk(
         await f
           .as('approver')
-          .post(`/lending/ops/payment-holiday-programmes/${programmeId}/status`, {
-            status: 'OPEN',
-          }),
+          .post(
+            `/lending/ops/payment-holiday-programmes/${programmeId}/status`,
+            {
+              status: 'OPEN',
+            },
+          ),
       );
       // Two instalments paid on time: the TV-01 balance 8,415.14 remains.
       for (const n of [1, 2]) {
@@ -523,7 +528,8 @@ d('Relief and refinancing (integration)', () => {
       expect(r.enrolment.deferredInterest).toBe('252.45');
       const l = expectOk(await loan(loanId));
       const due = l.schedule.filter(
-        (x: any) => x.status === 'DUE' && x.agreementVersion === l.agreementVersion,
+        (x: any) =>
+          x.status === 'DUE' && x.agreementVersion === l.agreementVersion,
       );
       expect(due.slice(0, 3).map((x: any) => x.capitalizedInterest)).toEqual([
         '84.15',
@@ -539,7 +545,8 @@ d('Relief and refinancing (integration)', () => {
     it('capitalizes it as each deferred period ends: new principal 8,667.59', async () => {
       const l0 = expectOk(await loan(loanId));
       const third = l0.schedule.filter(
-        (x: any) => x.status === 'DUE' && x.agreementVersion === l0.agreementVersion,
+        (x: any) =>
+          x.status === 'DUE' && x.agreementVersion === l0.agreementVersion,
       )[2];
       await setBusinessDate(third.dueDate);
       expectOk(await f.as('finance').post('/lending/loans/batch/run'));

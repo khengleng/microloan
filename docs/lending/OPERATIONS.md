@@ -68,6 +68,11 @@ pnpm test:lending:db      # resets that database: schema push + migration invari
 pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating, groups, settlement, relief
 ```
 
+The integration suite includes end-to-end journeys (`apps/api/test/lending/e2e/`)
+that take a customer from onboarding to closure for every available loan
+type; see [docs/servicing/SCENARIOS.md](../servicing/SCENARIOS.md) for the
+scenarios, the use-case coverage matrix and the defects they found.
+
 CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`.
 
 ## End-of-day routine

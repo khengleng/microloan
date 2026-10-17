@@ -32,7 +32,10 @@ d('S32 legacy loan: borrower creation to POST /repayments/settlements', () => {
     expectOk(await j.as('admin1').get(`/loans/${loanId}`));
   const journalsBalance = async () => {
     const entries = await j.f.system(() =>
-      j.f.prisma.journalEntry.findMany({ where: { loanId }, include: { lines: true } }),
+      j.f.prisma.journalEntry.findMany({
+        where: { loanId },
+        include: { lines: true },
+      }),
     );
     for (const e of entries) {
       const dr = e.lines.reduce((t: number, l: any) => t + Number(l.debit), 0);
@@ -56,21 +59,48 @@ d('S32 legacy loan: borrower creation to POST /repayments/settlements', () => {
       termMonths: 3,
       startDate: isoDay(Date.now() - 40 * DAY),
       interestMethod: 'FLAT',
-      collaterals: [{ type: 'MOTORBIKE', description: 'Honda Dream 2022', value: 1200 }],
-      guarantors: [{ name: 'Chea Sophal', phone: '+85512000111', relation: 'Brother' }],
+      collaterals: [
+        { type: 'MOTORBIKE', description: 'Honda Dream 2022', value: 1200 },
+      ],
+      guarantors: [
+        { name: 'Chea Sophal', phone: '+85512000111', relation: 'Brother' },
+      ],
     });
     expect(res.status).toBe(201);
     loanId = res.body.id;
     expect(res.body.status).toBe('PENDING');
     // The officer who created it holds no approval permission (and could
     // not approve their own loan anyway).
-    expect((await j.as('ro').put(`/loans/${loanId}/status`, { status: 'APPROVED' })).status).toBe(403);
-    expect(expectOk(await j.as('admin1').put(`/loans/${loanId}/status`, { status: 'APPROVED' })).status).toBe('APPROVED');
+    expect(
+      (await j.as('ro').put(`/loans/${loanId}/status`, { status: 'APPROVED' }))
+        .status,
+    ).toBe(403);
+    expect(
+      expectOk(
+        await j
+          .as('admin1')
+          .put(`/loans/${loanId}/status`, { status: 'APPROVED' }),
+      ).status,
+    ).toBe('APPROVED');
     // The approver cannot also disburse it.
-    expect((await j.as('admin1').put(`/loans/${loanId}/status`, { status: 'DISBURSED' })).status).toBe(400);
-    expect(expectOk(await j.as('admin2').put(`/loans/${loanId}/status`, { status: 'DISBURSED' })).status).toBe('DISBURSED');
+    expect(
+      (
+        await j
+          .as('admin1')
+          .put(`/loans/${loanId}/status`, { status: 'DISBURSED' })
+      ).status,
+    ).toBe(400);
+    expect(
+      expectOk(
+        await j
+          .as('admin2')
+          .put(`/loans/${loanId}/status`, { status: 'DISBURSED' }),
+      ).status,
+    ).toBe('DISBURSED');
     const l = await legacy();
-    expect(l.schedules.map((s: any) => Number(s.totalAmount))).toEqual([1030, 1030, 1030]);
+    expect(l.schedules.map((s: any) => Number(s.totalAmount))).toEqual([
+      1030, 1030, 1030,
+    ]);
     expect(l.collaterals).toHaveLength(1);
     expect(l.guarantors).toHaveLength(1);
     const entries = await journalsBalance();
@@ -97,36 +127,65 @@ d('S32 legacy loan: borrower creation to POST /repayments/settlements', () => {
     expect(Number(r.principalPaid)).toBe(1000);
     expect(Number(r.interestPaid)).toBe(30);
     const l = await legacy();
-    expect(l.schedules.find((s: any) => s.installmentNumber === 1).isPaid).toBe(true);
-    await j.f.system(() => j.f.app.get(CollectionsService).reviewPromises(new Date(Date.now() + DAY)));
-    const promises = expectOk(await j.as('admin1').get(`/collections/loans/${loanId}/promises`));
+    expect(l.schedules.find((s: any) => s.installmentNumber === 1).isPaid).toBe(
+      true,
+    );
+    await j.f.system(() =>
+      j.f.app
+        .get(CollectionsService)
+        .reviewPromises(new Date(Date.now() + DAY)),
+    );
+    const promises = expectOk(
+      await j.as('admin1').get(`/collections/loans/${loanId}/promises`),
+    );
     expect(promises.find((p: any) => p.id === ptp.id).status).toBe('KEPT');
     await journalsBalance();
   });
 
   it('UC-31: the payoff quote charges only interest that is due and waives the future interest', async () => {
-    const q = expectOk(await j.as('admin1').get(`/loans/${loanId}/payoff-quote`));
+    const q = expectOk(
+      await j.as('admin1').get(`/loans/${loanId}/payoff-quote`),
+    );
     expect(q.outstandingPrincipal).toBe(2000);
     expect(q.futureInterestWaived).toBe(60);
-    expect(q.payoffAmount).toBe(2000 + q.accruedInterestDue + q.outstandingPenalty);
+    expect(q.payoffAmount).toBe(
+      2000 + q.accruedInterestDue + q.outstandingPenalty,
+    );
     // Anything but the quote is refused.
     expect(
-      (await j.as('admin1').post('/repayments/settlements', { loanId, amount: q.payoffAmount - 1 })).status,
+      (
+        await j.as('admin1').post('/repayments/settlements', {
+          loanId,
+          amount: q.payoffAmount - 1,
+        })
+      ).status,
     ).toBe(400);
   });
 
   it('UC-72: paying the quote through POST /repayments/settlements closes the loan, once', async () => {
-    const q = expectOk(await j.as('admin1').get(`/loans/${loanId}/payoff-quote`));
-    const body = { loanId, amount: q.payoffAmount, idempotencyKey: `legacy-settle-${loanId}` };
-    const r = expectOk(await j.as('admin1').post('/repayments/settlements', body));
+    const q = expectOk(
+      await j.as('admin1').get(`/loans/${loanId}/payoff-quote`),
+    );
+    const body = {
+      loanId,
+      amount: q.payoffAmount,
+      idempotencyKey: `legacy-settle-${loanId}`,
+    };
+    const r = expectOk(
+      await j.as('admin1').post('/repayments/settlements', body),
+    );
     expect(r.status).toBe('CLOSED');
-    const again = expectOk(await j.as('admin1').post('/repayments/settlements', body));
+    const again = expectOk(
+      await j.as('admin1').post('/repayments/settlements', body),
+    );
     expect(again.id).toBe(r.repayment.id);
     const l = await legacy();
     expect(l.status).toBe('CLOSED');
     expect(l.schedules.every((s: any) => s.isPaid)).toBe(true);
     await journalsBalance();
-    const logs = expectOk(await j.as('admin1').get('/audit-logs?entity=Loan&limit=100'));
+    const logs = expectOk(
+      await j.as('admin1').get('/audit-logs?entity=Loan&limit=100'),
+    );
     expect(logs.data.some((x: any) => x.entityId === loanId)).toBe(true);
   });
 });

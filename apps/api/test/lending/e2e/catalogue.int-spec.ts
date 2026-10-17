@@ -55,7 +55,9 @@ d('S33 loan-type coverage and pending modules', () => {
   it('a product cannot even be drafted from a template whose capability is not built', async () => {
     const pending = [...templates.values()].find((t) => !t.available);
     expect(pending).toBeDefined();
-    const tpl = expectOk(await j.as('maker').get(`/lending/templates/${pending.code}`));
+    const tpl = expectOk(
+      await j.as('maker').get(`/lending/templates/${pending.code}`),
+    );
     const res = await j.as('maker').post('/lending/products', {
       templateCode: pending.code,
       code: 'PENDING-1',
@@ -68,9 +70,19 @@ d('S33 loan-type coverage and pending modules', () => {
   });
 
   // Pending modules, being built separately: no journey until they land.
-  it.todo('LT-07 credit card (CREDIT_CARD) — pending module card.revolving_credit');
-  it.todo('LT-11 buy now, pay later (BNPL) — pending module bnpl.merchant_settlement');
-  it.todo('LT-18 invoice financing (INVOICE_BACKED, TV-20) — pending module trade.invoice_finance');
-  it.todo('LT-19 letter of credit — pending module (no template; trade.documentary)');
-  it.todo('LT-24 syndicated loan (SYNDICATED) — pending module syndication.participations');
+  it.todo(
+    'LT-07 credit card (CREDIT_CARD) — pending module card.revolving_credit',
+  );
+  it.todo(
+    'LT-11 buy now, pay later (BNPL) — pending module bnpl.merchant_settlement',
+  );
+  it.todo(
+    'LT-18 invoice financing (INVOICE_BACKED, TV-20) — pending module trade.invoice_finance',
+  );
+  it.todo(
+    'LT-19 letter of credit — pending module (no template; trade.documentary)',
+  );
+  it.todo(
+    'LT-24 syndicated loan (SYNDICATED) — pending module syndication.participations',
+  );
 });

@@ -33,7 +33,11 @@ d('S14 LT-20 SME loan, equal principal (TV-03)', () => {
           disbursementDate: '2026-01-05',
         },
         {
-          docs: ['BUSINESS_REGISTRATION', 'FINANCIAL_STATEMENTS', 'COLLATERAL_TITLE'],
+          docs: [
+            'BUSINESS_REGISTRATION',
+            'FINANCIAL_STATEMENTS',
+            'COLLATERAL_TITLE',
+          ],
           collateral: [collateral.commercial('30000')],
           borrower: { occupation: 'Restaurant owner', monthlyIncome: 5000 },
         },
@@ -43,7 +47,11 @@ d('S14 LT-20 SME loan, equal principal (TV-03)', () => {
   afterAll(async () => j?.close());
 
   it('UC-01: the 1% arrangement fee and 10% VAT on it are deducted from the payout', async () => {
-    const l = await j.checkpoint(loanId, { status: 'ACTIVE', principal: 10000, fees: 0 });
+    const l = await j.checkpoint(loanId, {
+      status: 'ACTIVE',
+      principal: 10000,
+      fees: 0,
+    });
     const disb = l.events.find((e: any) => e.type === 'DISBURSEMENT');
     expect(Journey.journal(l, disb.id)).toEqual([
       '1000:0.00:9890.00',
@@ -55,10 +63,17 @@ d('S14 LT-20 SME loan, equal principal (TV-03)', () => {
 
   it('TV-03: 833.33 of principal a month (833.37 last); 933.33, 925.00 … 841.70; interest 650.00', async () => {
     const lines = Journey.due(await j.loan(loanId));
-    expect(lines.slice(0, 11).every((x: any) => c2(x.principalDue) === '833.33')).toBe(true);
+    expect(
+      lines.slice(0, 11).every((x: any) => c2(x.principalDue) === '833.33'),
+    ).toBe(true);
     expect(c2(lines[11].principalDue)).toBe('833.37');
-    const total = (x: any) => c2(Number(x.principalDue) + Number(x.interestDue));
-    expect([total(lines[0]), total(lines[1]), total(lines[11])]).toEqual(['933.33', '925.00', '841.70']);
+    const total = (x: any) =>
+      c2(Number(x.principalDue) + Number(x.interestDue));
+    expect([total(lines[0]), total(lines[1]), total(lines[11])]).toEqual([
+      '933.33',
+      '925.00',
+      '841.70',
+    ]);
     expect(c2(sum(lines.map((x: any) => x.interestDue)))).toBe('650.00');
   });
 
@@ -106,7 +121,12 @@ d('S15 LT-12 corporate term loan, quarterly equal principal', () => {
         {
           // 400,000 is above the first approver's 200,000 authority.
           approvers: ['approver2'],
-          borrower: { firstName: 'Mekong', lastName: 'Agro Co Ltd', occupation: 'Company', monthlyIncome: 200000 },
+          borrower: {
+            firstName: 'Mekong',
+            lastName: 'Agro Co Ltd',
+            occupation: 'Company',
+            monthlyIncome: 200000,
+          },
         },
       )
     ).loanId;
@@ -135,20 +155,39 @@ d('S15 LT-12 corporate term loan, quarterly equal principal', () => {
         rationale: 'Second facility request',
       }),
     );
-    const denied = await j.as('approver').post(`/lending/applications/${app.id}/approve`, {
-      rationale: 'Approve',
-    });
+    const denied = await j
+      .as('approver')
+      .post(`/lending/applications/${app.id}/approve`, {
+        rationale: 'Approve',
+      });
     expect(denied.status).toBe(403);
-    expect(denied.body.blockedBy[0].message).toMatch(/exceeds your approval authority/);
+    expect(denied.body.blockedBy[0].message).toMatch(
+      /exceeds your approval authority/,
+    );
   });
 
   it('the booked schedule: four quarters of 100,000 principal, interest at 10% ÷ 4', async () => {
-    const l = await j.checkpoint(loanId, { status: 'ACTIVE', principal: 400000 });
+    const l = await j.checkpoint(loanId, {
+      status: 'ACTIVE',
+      principal: 400000,
+    });
     const lines = Journey.due(l);
-    expect(lines.map((x: any) => x.dueDate)).toEqual(['2026-04-05', '2026-07-05', '2026-10-05', '2027-01-05']);
-    expect(lines.map((x: any) => c2(x.principalDue))).toEqual(Array(4).fill('100000.00'));
+    expect(lines.map((x: any) => x.dueDate)).toEqual([
+      '2026-04-05',
+      '2026-07-05',
+      '2026-10-05',
+      '2027-01-05',
+    ]);
+    expect(lines.map((x: any) => c2(x.principalDue))).toEqual(
+      Array(4).fill('100000.00'),
+    );
     // Periodic rate = 10% ÷ 4 on the declining balance.
-    expect(lines.map((x: any) => c2(x.interestDue))).toEqual(['10000.00', '7500.00', '5000.00', '2500.00']);
+    expect(lines.map((x: any) => c2(x.interestDue))).toEqual([
+      '10000.00',
+      '7500.00',
+      '5000.00',
+      '2500.00',
+    ]);
   });
 
   it('four quarterly instalments are paid on their dates and the loan closes', async () => {
@@ -191,7 +230,10 @@ d('S16 LT-13 overdraft: minimum payment, arrears ageing, cure (UC-38)', () => {
     expect(st.detail.minimumPayment.basis).toBe('RATE');
     expect(c2(st.statement.minimumPayment)).toBe('518.36');
     expect(st.statement.minimumPaymentDue).toBe('2026-02-25');
-    minimum = { amount: Number(st.statement.minimumPayment), due: st.statement.minimumPaymentDue };
+    minimum = {
+      amount: Number(st.statement.minimumPayment),
+      due: st.statement.minimumPaymentDue,
+    };
     await j.checkpoint(loanId, { principal: 8000, interest: '118.36', dpd: 0 });
   });
 
@@ -208,7 +250,11 @@ d('S16 LT-13 overdraft: minimum payment, arrears ageing, cure (UC-38)', () => {
     await j.repayFacility(facilityId, minimum.amount / 2);
     await j.eod();
     // The interest was paid first; the rest of the minimum reduced the balance.
-    await j.checkpoint(loanId, { dpd: 0, interest: 0, principal: 8000 - (minimum.amount - 118.36) });
+    await j.checkpoint(loanId, {
+      dpd: 0,
+      interest: 0,
+      principal: 8000 - (minimum.amount - 118.36),
+    });
   });
 
   it('the balance is repaid in full and the facility is closed at its review', async () => {
@@ -218,10 +264,12 @@ d('S16 LT-13 overdraft: minimum payment, arrears ageing, cure (UC-38)', () => {
     expect(v.position.outstanding).toBe('0');
     expect(v.position.available).toBe('20000');
     expectOk(
-      await j.as('opsChecker').post(`/lending/facilities/${facilityId}/status`, {
-        action: 'EXPIRE',
-        reason: 'Annual review: customer no longer needs the line',
-      }),
+      await j
+        .as('opsChecker')
+        .post(`/lending/facilities/${facilityId}/status`, {
+          action: 'EXPIRE',
+          reason: 'Annual review: customer no longer needs the line',
+        }),
     );
     expect((await j.facility(facilityId)).facility.status).toBe('EXPIRED');
     await j.checkpoint(loanId, { principal: 0, interest: 0 });
@@ -229,84 +277,114 @@ d('S16 LT-13 overdraft: minimum payment, arrears ageing, cure (UC-38)', () => {
   });
 });
 
-d('S17 LT-14 revolving credit: draws, charges, limit increase, term-out', () => {
-  let j: Journey;
-  let facilityId: string;
-  let loanId: string;
+d(
+  'S17 LT-14 revolving credit: draws, charges, limit increase, term-out',
+  () => {
+    let j: Journey;
+    let facilityId: string;
+    let loanId: string;
 
-  beforeAll(async () => {
-    j = await Journey.start({ flags: ['lending.revolving.drawdown'] });
-    const productId = await j.product('REVOLVING_CREDIT', 'RCF', (c) => {
-      c.facility.availabilityMonths = 2;
+    beforeAll(async () => {
+      j = await Journey.start({ flags: ['lending.revolving.drawdown'] });
+      const productId = await j.product('REVOLVING_CREDIT', 'RCF', (c) => {
+        c.facility.availabilityMonths = 2;
+      });
+      const r = await j.originate(
+        productId,
+        {
+          principal: '100000',
+          numberOfInstalments: 12,
+          annualRate: '0.12',
+          disbursementDate: '2026-01-05',
+        },
+        { borrower: { occupation: 'Distributor', monthlyIncome: 40000 } },
+      );
+      facilityId = r.facilityId!;
+      loanId = r.loanId;
+    }, 120_000);
+    afterAll(async () => j?.close());
+
+    it('UC-36 / UC-37: draws 40,000; a month later interest on the drawn and the commitment fee on the undrawn', async () => {
+      await j.draw(facilityId, { amount: '40000' });
+      await j.moveTo('2026-02-05');
+      const st = await j.statement(facilityId, '2026-02-05');
+      // 40,000 × 12% × 31/365 and 60,000 × 0.5% × 31/365.
+      expect(st.statement.interest).toBe('407.67');
+      expect(st.statement.commitmentFee).toBe('25.48');
+      await j.checkpoint(loanId, {
+        principal: 40000,
+        interest: '407.67',
+        fees: '25.48',
+      });
     });
-    const r = await j.originate(
-      productId,
-      {
-        principal: '100000',
-        numberOfInstalments: 12,
-        annualRate: '0.12',
-        disbursementDate: '2026-01-05',
-      },
-      { borrower: { occupation: 'Distributor', monthlyIncome: 40000 } },
-    );
-    facilityId = r.facilityId!;
-    loanId = r.loanId;
-  }, 120_000);
-  afterAll(async () => j?.close());
 
-  it('UC-36 / UC-37: draws 40,000; a month later interest on the drawn and the commitment fee on the undrawn', async () => {
-    await j.draw(facilityId, { amount: '40000' });
-    await j.moveTo('2026-02-05');
-    const st = await j.statement(facilityId, '2026-02-05');
-    // 40,000 × 12% × 31/365 and 60,000 × 0.5% × 31/365.
-    expect(st.statement.interest).toBe('407.67');
-    expect(st.statement.commitmentFee).toBe('25.48');
-    await j.checkpoint(loanId, { principal: 40000, interest: '407.67', fees: '25.48' });
-  });
-
-  it('a 10,433.15 repayment clears the charges and 10,000 of principal; the limit reinstates', async () => {
-    await j.repayFacility(facilityId, '10433.15');
-    const v = await j.facility(facilityId);
-    expect(v.position).toMatchObject({ outstanding: '30000', available: '70000' });
-    await j.checkpoint(loanId, { principal: 30000, interest: 0, fees: 0 });
-  });
-
-  it('UC-41: a limit increase is requested and approved by a second person; a cut below the drawn balance is refused', async () => {
-    const tooLow = await j.as('opsMaker').post(`/lending/facilities/${facilityId}/limit-changes`, {
-      newLimit: '20000',
-      changeType: 'DECREASE',
-      reason: 'Risk appetite',
+    it('a 10,433.15 repayment clears the charges and 10,000 of principal; the limit reinstates', async () => {
+      await j.repayFacility(facilityId, '10433.15');
+      const v = await j.facility(facilityId);
+      expect(v.position).toMatchObject({
+        outstanding: '30000',
+        available: '70000',
+      });
+      await j.checkpoint(loanId, { principal: 30000, interest: 0, fees: 0 });
     });
-    expect(tooLow.status).toBe(400);
-    const change = expectOk(
-      await j.as('opsMaker').post(`/lending/facilities/${facilityId}/limit-changes`, {
-        newLimit: '150000',
-        changeType: 'INCREASE',
-        reason: 'Turnover grew 50%',
-      }),
-    );
-    expectOk(
-      await j.as('approver').post(`/lending/facilities/${facilityId}/limit-changes/${change.id}/decide`, {
-        outcome: 'APPROVE',
-      }),
-    );
-    const v = await j.facility(facilityId);
-    expect(v.facility.limitAmount).toBe('150000');
-    expect(v.position.available).toBe('120000');
-  });
 
-  it('UC-43: at the end of availability the 30,000 drawn terms out; two instalments, then early settlement', async () => {
-    const v = await j.facility(facilityId);
-    const end = v.facility.availabilityTo.slice(0, 10);
-    await j.moveTo(end);
-    await j.statement(facilityId, end);
-    const plan = expectOk(await j.as('opsChecker').post(`/lending/facilities/${facilityId}/term-out`));
-    expect(plan.principal).toBe('30000');
-    const l = await j.checkpoint(loanId, { principal: 30000 });
-    expect(c2(sum(Journey.due(l).map((x: any) => x.principalDue)))).toBe('30000.00');
-    await j.payOnTime(loanId, 1, 2);
-    await j.moveTo(lending.addDays(await j.today(), 9));
-    await j.settle(loanId);
-    await j.checkpoint(loanId, { status: 'CLOSED', principal: 0, interest: 0, fees: 0 });
-  });
-});
+    it('UC-41: a limit increase is requested and approved by a second person; a cut below the drawn balance is refused', async () => {
+      const tooLow = await j
+        .as('opsMaker')
+        .post(`/lending/facilities/${facilityId}/limit-changes`, {
+          newLimit: '20000',
+          changeType: 'DECREASE',
+          reason: 'Risk appetite',
+        });
+      expect(tooLow.status).toBe(400);
+      const change = expectOk(
+        await j
+          .as('opsMaker')
+          .post(`/lending/facilities/${facilityId}/limit-changes`, {
+            newLimit: '150000',
+            changeType: 'INCREASE',
+            reason: 'Turnover grew 50%',
+          }),
+      );
+      expectOk(
+        await j
+          .as('approver')
+          .post(
+            `/lending/facilities/${facilityId}/limit-changes/${change.id}/decide`,
+            {
+              outcome: 'APPROVE',
+            },
+          ),
+      );
+      const v = await j.facility(facilityId);
+      expect(v.facility.limitAmount).toBe('150000');
+      expect(v.position.available).toBe('120000');
+    });
+
+    it('UC-43: at the end of availability the 30,000 drawn terms out; two instalments, then early settlement', async () => {
+      const v = await j.facility(facilityId);
+      const end = v.facility.availabilityTo.slice(0, 10);
+      await j.moveTo(end);
+      await j.statement(facilityId, end);
+      const plan = expectOk(
+        await j
+          .as('opsChecker')
+          .post(`/lending/facilities/${facilityId}/term-out`),
+      );
+      expect(plan.principal).toBe('30000');
+      const l = await j.checkpoint(loanId, { principal: 30000 });
+      expect(c2(sum(Journey.due(l).map((x: any) => x.principalDue)))).toBe(
+        '30000.00',
+      );
+      await j.payOnTime(loanId, 1, 2);
+      await j.moveTo(lending.addDays(await j.today(), 9));
+      await j.settle(loanId);
+      await j.checkpoint(loanId, {
+        status: 'CLOSED',
+        principal: 0,
+        interest: 0,
+        fees: 0,
+      });
+    });
+  },
+);

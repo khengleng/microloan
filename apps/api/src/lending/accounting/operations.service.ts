@@ -479,10 +479,7 @@ export class LendingOperationsService {
               (s, e) =>
                 s.plus(
                   t === 'REPAYMENT' || t === 'SETTLEMENT'
-                    ? principalRepaid(
-                        e,
-                        mapping.loansReceivable ?? '1200',
-                      )
+                    ? principalRepaid(e, mapping.loansReceivable ?? '1200')
                     : D(e.amount),
                 ),
               new lending.D(0),

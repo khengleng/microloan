@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- end-to-end fixtures: API responses and fixture rows are untyped. */
+/* eslint-disable @typescript-eslint/no-unsafe-call -- end-to-end fixtures: API responses and fixture rows are untyped. */
 /**
  * End-to-end journey harness (docs/servicing/SCENARIOS.md).
  *
@@ -29,8 +29,8 @@ export { expectOk, key, lending };
 
 /** Cents, as a string with two decimals: compares API decimals exactly. */
 export const c2 = (x: unknown) => Number(x ?? 0).toFixed(2);
-export const sum = (xs: unknown[]) =>
-  xs.reduce((t: number, x) => t + Number(x ?? 0), 0);
+export const sum = (xs: unknown[]): number =>
+  xs.reduce<number>((t, x) => t + Number(x ?? 0), 0);
 
 export interface Balances {
   status?: string;
@@ -83,9 +83,30 @@ export class Journey {
     ])
       await authority(f, t, 'approver2', p, 'USD', '1000000');
     await authority(f, t, 'approver', 'restructure.approve', 'USD', '100000');
-    await authority(f, t, 'approver', 'restructure.waive_charges', 'USD', '5000');
-    await authority(f, t, 'opsChecker', 'facility.drawdown.approve', 'USD', '1000000');
-    await authority(f, t, 'approver', 'facility.limit.approve', 'USD', '1000000');
+    await authority(
+      f,
+      t,
+      'approver',
+      'restructure.waive_charges',
+      'USD',
+      '5000',
+    );
+    await authority(
+      f,
+      t,
+      'opsChecker',
+      'facility.drawdown.approve',
+      'USD',
+      '1000000',
+    );
+    await authority(
+      f,
+      t,
+      'approver',
+      'facility.limit.approve',
+      'USD',
+      '1000000',
+    );
     const j = new Journey(f);
     for (const flag of opts.flags ?? []) await j.enableFlag(flag);
     if (opts.businessDate) await j.moveTo(opts.businessDate, { batch: false });
@@ -140,14 +161,22 @@ export class Journey {
       }),
     );
     const vid = created.version.id;
-    expectOk(await this.as('maker').post(`/lending/product-versions/${vid}/submit`));
+    expectOk(
+      await this.as('maker').post(`/lending/product-versions/${vid}/submit`),
+    );
     // Maker-checker: the maker cannot approve their own product.
     expect(
       (await this.as('maker').post(`/lending/product-versions/${vid}/approve`))
         .status,
     ).toBe(403);
-    expectOk(await this.as('checker').post(`/lending/product-versions/${vid}/approve`));
-    expectOk(await this.as('checker').post(`/lending/product-versions/${vid}/activate`));
+    expectOk(
+      await this.as('checker').post(`/lending/product-versions/${vid}/approve`),
+    );
+    expectOk(
+      await this.as('checker').post(
+        `/lending/product-versions/${vid}/activate`,
+      ),
+    );
     return created.product.id as string;
   }
 
@@ -182,7 +211,9 @@ export class Journey {
 
   /** Run the end-of-day batch; nothing may fail. */
   async eod() {
-    const run = expectOk(await this.as('finance').post('/lending/loans/batch/run'));
+    const run = expectOk(
+      await this.as('finance').post('/lending/loans/batch/run'),
+    );
     expect(run.failed).toEqual([]);
     return run;
   }
@@ -227,7 +258,9 @@ export class Journey {
     );
     expect(v.kycStatus).toBe('VERIFIED');
     const logs = expectOk(
-      await this.as('admin1').get('/audit-logs?entity=Borrower&action=KYC_VERIFIED&limit=100'),
+      await this.as('admin1').get(
+        '/audit-logs?entity=Borrower&action=KYC_VERIFIED&limit=100',
+      ),
     );
     const rows = logs.data ?? logs.items ?? logs;
     expect(
@@ -250,7 +283,9 @@ export class Journey {
   }
 
   async application(id: string) {
-    return expectOk(await this.as('opsMaker').get(`/lending/applications/${id}`));
+    return expectOk(
+      await this.as('opsMaker').get(`/lending/applications/${id}`),
+    );
   }
 
   /**
@@ -280,7 +315,10 @@ export class Journey {
     await this.uploadDocs(app.id, opts.docs ?? ['ID_DOCUMENT']);
     for (const c of opts.collateral ?? [])
       expectOk(
-        await this.as('ro').post(`/lending/applications/${app.id}/collateral`, c),
+        await this.as('ro').post(
+          `/lending/applications/${app.id}/collateral`,
+          c,
+        ),
       );
     for (let i = 0; i < (opts.guarantors ?? 0); i++)
       expectOk(
@@ -296,10 +334,13 @@ export class Journey {
     expect(submitted.status).toBe('SUBMITTED');
     expect(submitted.assessment.blocking).toEqual([]);
     const rec = expectOk(
-      await this.as('analyst').post(`/lending/applications/${app.id}/recommend`, {
-        recommendation: 'APPROVE',
-        rationale: 'Affordable and within policy',
-      }),
+      await this.as('analyst').post(
+        `/lending/applications/${app.id}/recommend`,
+        {
+          recommendation: 'APPROVE',
+          rationale: 'Affordable and within policy',
+        },
+      ),
     );
     expect((rec.application ?? rec).status).toBe('RECOMMENDED');
     // Approve within authority; a second, independent approver where the
@@ -307,15 +348,21 @@ export class Journey {
     let approved: any;
     for (const approver of opts.approvers ?? ['approver', 'approver2']) {
       approved = expectOk(
-        await this.as(approver).post(`/lending/applications/${app.id}/approve`, {
-          rationale: 'Approved within authority',
-        }),
+        await this.as(approver).post(
+          `/lending/applications/${app.id}/approve`,
+          {
+            rationale: 'Approved within authority',
+          },
+        ),
       );
       if ((approved.application ?? approved).status === 'APPROVED') break;
     }
     expect((approved.application ?? approved).status).toBe('APPROVED');
     const booked = expectOk(
-      await this.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
+      await this.as('opsMaker').post(
+        `/lending/applications/${app.id}/book`,
+        {},
+      ),
     );
     const loanId = booked.account.id as string;
     const facilityId = booked.facility?.id as string | undefined;
@@ -344,7 +391,10 @@ export class Journey {
   /** Prepare (maker) → approve (checker) → execute with an idempotency key. */
   async disburse(loanId: string, reference?: string): Promise<any> {
     const task = expectOk(
-      await this.as('opsMaker').post(`/lending/loans/${loanId}/disbursements`, {}),
+      await this.as('opsMaker').post(
+        `/lending/loans/${loanId}/disbursements`,
+        {},
+      ),
     );
     // The maker cannot approve their own disbursement.
     expect(
@@ -387,7 +437,10 @@ export class Journey {
           x.status !== 'SUPERSEDED' &&
           x.status !== 'RESTRUCTURED',
       )
-      .sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate) || a.number - b.number);
+      .sort(
+        (a: any, b: any) =>
+          a.dueDate.localeCompare(b.dueDate) || a.number - b.number,
+      );
   }
 
   /** What is still owed on an instalment line, all components. */
@@ -415,16 +468,27 @@ export class Journey {
       .reduce((t: number, x: any) => t + Journey.owed(x), 0);
   }
 
-  pay(loanId: string, amount: string | number, extra: Record<string, unknown> = {}): any {
+  pay(
+    loanId: string,
+    amount: string | number,
+    extra: Record<string, unknown> = {},
+  ): any {
     return this.as('opsMaker').post(
       `/lending/loans/${loanId}/repayments`,
-      { amount: typeof amount === 'number' ? amount.toFixed(2) : amount, ...extra },
+      {
+        amount: typeof amount === 'number' ? amount.toFixed(2) : amount,
+        ...extra,
+      },
       key('e2e-pay'),
     );
   }
 
   /** Pay what is owed on instalment `n` (all components). */
-  async payInstalment(loanId: string, n: number, extra: Record<string, unknown> = {}) {
+  async payInstalment(
+    loanId: string,
+    n: number,
+    extra: Record<string, unknown> = {},
+  ) {
     const l = await this.loan(loanId);
     const line = Journey.due(l).find((x: any) => x.number === n);
     return expectOk(await this.pay(loanId, Journey.owed(line), extra));
@@ -442,25 +506,32 @@ export class Journey {
       const line = Journey.due(l).find((x: any) => x.number === n);
       await this.moveTo(line.dueDate);
       const before = await this.checkpoint(loanId, { dpd: 0, penalty: 0 });
-      const owed = Journey.owed(Journey.due(before).find((x: any) => x.number === n));
+      const owed = Journey.owed(
+        Journey.due(before).find((x: any) => x.number === n),
+      );
       expectOk(await this.pay(loanId, owed));
       l = await this.checkpoint(
         loanId,
         {
           principal:
-            Number(before.account.principalOutstanding) - Number(line.principalDue),
+            Number(before.account.principalOutstanding) -
+            Number(line.principalDue),
           dpd: 0,
         },
         'loan.repayment.post',
       );
-      expect(Journey.due(l).find((x: any) => x.number === n).status).toBe('PAID');
+      expect(Journey.due(l).find((x: any) => x.number === n).status).toBe(
+        'PAID',
+      );
     }
     return l;
   }
 
   async quote(loanId: string) {
     return expectOk(
-      await this.as('opsMaker').get(`/lending/loans/${loanId}/settlement-quote`),
+      await this.as('opsMaker').get(
+        `/lending/loans/${loanId}/settlement-quote`,
+      ),
     );
   }
 
@@ -507,7 +578,10 @@ export class Journey {
   /** Request (maker) → approve (checker) → release with an idempotency key. */
   async draw(facilityId: string, body: Record<string, unknown>) {
     const dd = expectOk(
-      await this.as('opsMaker').post(`/lending/facilities/${facilityId}/drawdowns`, body),
+      await this.as('opsMaker').post(
+        `/lending/facilities/${facilityId}/drawdowns`,
+        body,
+      ),
     );
     expect(
       (
@@ -553,7 +627,9 @@ export class Journey {
   // ── Collateral ──────────────────────────────────────────────────────────
 
   async collateralView(loanId: string) {
-    return expectOk(await this.as('opsMaker').get(`/lending/loans/${loanId}/collateral`));
+    return expectOk(
+      await this.as('opsMaker').get(`/lending/loans/${loanId}/collateral`),
+    );
   }
 
   /** Release every pledge after closure: officer requests, a second person signs off (UC-73). */
@@ -563,7 +639,10 @@ export class Journey {
       const task = expectOk(
         await this.as('ro').post(
           `/lending/loans/${loanId}/collateral/${p.collateralId}/release`,
-          { reference: `REL-${p.collateralId.slice(0, 6)}`, note: 'Title returned' },
+          {
+            reference: `REL-${p.collateralId.slice(0, 6)}`,
+            note: 'Title returned',
+          },
         ),
       );
       expect(
@@ -589,10 +668,14 @@ export class Journey {
   // ── Checkpoints ─────────────────────────────────────────────────────────
 
   async reconcile() {
-    const rec = expectOk(await this.as('finance').get('/lending/ops/reconciliation'));
+    const rec = expectOk(
+      await this.as('finance').get('/lending/ops/reconciliation'),
+    );
     expect(rec.breaks).toEqual([]);
     expect(rec.trialBalanceBalanced).toBe(true);
-    const tb = expectOk(await this.as('finance').get('/lending/ops/trial-balance'));
+    const tb = expectOk(
+      await this.as('finance').get('/lending/ops/trial-balance'),
+    );
     expect(tb.every((c: any) => c.totals.balanced)).toBe(true);
     return rec;
   }
