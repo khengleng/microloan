@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { maskBorrowerDto, maskBorrowerForAudit } from '../common/mask';
@@ -156,6 +156,12 @@ export class BorrowersService {
     this.authz.assertBranchAccess(actor, b.branchId);
     if (b._count.loans > 0) {
       throw new Error('Cannot delete borrower with associated loans');
+    }
+    // DOC-7: filed documents are kept for their retention period, so a
+    // customer with a document library cannot be deleted.
+    const filed = await this.prisma.customerDocument.count({ where: { tenantId: b.tenantId, borrowerId: id } });
+    if (filed > 0) {
+      throw new ConflictException('This customer has filed documents under retention and cannot be deleted.');
     }
 
     await this.prisma.borrower.delete({ where: { id } });

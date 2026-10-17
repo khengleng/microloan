@@ -33,6 +33,7 @@ import { AccessAdminService } from './access/access-admin.service';
 import { LendingOperationsService } from './accounting/operations.service';
 import { PolicyService } from './policy/policy.service';
 import type { ResourceType } from './policy/actions';
+import { GeneratedDocumentsService } from './documents/generated-documents.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -251,6 +252,7 @@ export class LendingApplicationsController {
   constructor(
     private readonly apps: ApplicationsService,
     private readonly groups: GroupsService,
+    private readonly generated: GeneratedDocumentsService,
   ) {}
 
   // ── Solidarity groups ─────────────────────────────────────────────────────
@@ -438,12 +440,19 @@ export class LendingApplicationsController {
 
   @LendingAction('loan.agreement.book')
   @Post(':id/book')
-  book(
+  async book(
     @Req() req: Req_,
     @Param('id', ID) id: string,
     @Body(new ZodPipe(S.book)) body: never,
   ) {
-    return this.apps.book(actor(req), id, body);
+    const booked = await this.apps.book(actor(req), id, body);
+    // DOC-9: the key facts statement is filed in the customer's library.
+    await this.generated.fileKeyFacts(
+      booked.account.tenantId,
+      booked.account.id,
+      actor(req).id,
+    );
+    return booked;
   }
 }
 
@@ -455,6 +464,7 @@ export class LendingLoansController {
     private readonly groups: GroupsService,
     private readonly holidays: PaymentHolidayService,
     private readonly collateral: CollateralService,
+    private readonly generated: GeneratedDocumentsService,
   ) {}
 
   /** Reset history, the full reset cycle, and what is currently due. */
@@ -638,13 +648,16 @@ export class LendingLoansController {
 
   @LendingAction('loan.repayment.post')
   @Post(':id/settlement')
-  settle(
+  async settle(
     @Req() req: Req_,
     @Param('id', ID) id: string,
     @Body(new ZodPipe(S.settlement)) body: never,
     @Headers('idempotency-key') key: string,
   ) {
-    return this.servicing.settle(actor(req), id, body, key);
+    const settled = await this.servicing.settle(actor(req), id, body, key);
+    // DOC-9: a settled loan's closure letter is filed in the customer's library.
+    await this.generated.afterSettlement(actor(req), id);
+    return settled;
   }
 
   @LendingAction('loan.repayment.reverse')

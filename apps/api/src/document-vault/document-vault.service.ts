@@ -5,6 +5,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -76,11 +77,9 @@ export class DocumentVaultService {
       );
     }
 
-    // The client's file name never shapes the key beyond safe characters.
-    const safeName = file.originalname
-      .replace(/[^A-Za-z0-9._-]/g, '_')
-      .slice(0, 120);
-    const key = `${storagePrefix(loan.tenantId, loanId)}${Date.now()}_${safeName}`;
+    // DOC-2: the client's file name never shapes the key (it is kept as the
+    // document's display name only).
+    const key = `${storagePrefix(loan.tenantId, loanId)}${Date.now()}_${randomUUID()}`;
 
     try {
       await this.s3Client.send(

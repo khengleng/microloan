@@ -91,6 +91,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'impairment-policy/:id': 'impairmentPolicy',
       'collateral/:collateralId': 'collateralAsset',
       'collateral-releases/:taskId': 'approvalTask',
+      'customers/:borrowerId': 'borrower',
+      'documents/:documentId': 'customerDocument',
+      'document-requests/:requestId': 'documentRequest',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
@@ -116,6 +119,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
     'users/:id': 'user',
     'tenants/:id': 'tenant',
     'plan-payments/:paymentId': 'planPayment',
+    'document-requests/:requestId': 'documentRequest',
+    'my-documents/:documentId': 'customerDocument',
   };
   return table[p] ?? null;
 }
@@ -126,6 +131,7 @@ const LITERALS: Record<string, string> = {
   'conditions/:code': 'AGREEMENT_SIGNED',
   'capabilities/:resourceType': 'LOAN_ACCOUNT',
   'payment/:reference': 'PAY-0000',
+  'document-links/:token': 'not-a-signed-document-link',
 };
 
 /** Global (platform) rows: not tenant data, so no victim to name. */
@@ -322,11 +328,15 @@ d('Tenant wall (integration)', () => {
       'PERSONAL_INSTALMENT',
       'WALL-PL',
     );
-    const { loanId } = await originateAndDisburse(f, productId, {
-      principal: '5000',
-      numberOfInstalments: 12,
-      disbursementDate: '2026-01-05',
-    });
+    const { loanId, borrowerId: victimBorrowerId } = await originateAndDisburse(
+      f,
+      productId,
+      {
+        principal: '5000',
+        numberOfInstalments: 12,
+        disbursementDate: '2026-01-05',
+      },
+    );
     expectOk(
       await f
         .as('opsMaker')
@@ -335,6 +345,17 @@ d('Tenant wall (integration)', () => {
           { amount: '50.00' },
           key('w'),
         ),
+    );
+    // A document the victim asked its customer for (DOC-10); the library
+    // already holds the application's ID document and the key facts.
+    expectOk(
+      await f
+        .as('ro')
+        .post(`/lending/customers/${victimBorrowerId}/document-requests`, {
+          category: 'KYC',
+          typeCode: 'PROOF_OF_ADDRESS',
+          label: 'Proof of address',
+        }),
     );
     // An unidentified receipt held for the victim.
     expectOk(
@@ -822,6 +843,36 @@ d('Tenant wall (integration)', () => {
         name: 'x.pdf',
         type: 'application/pdf',
         content: `tenants/${f.t1}/loans/${victimLegacyLoan}/1_victim.pdf`,
+      },
+    ]);
+    // DOC-1: a document filed for the attacker's own customer may not be
+    // linked to the victim's application or loan, nor ask for its documents.
+    const victimApplication = await victimId('application');
+    const pdf = Buffer.from('%PDF-1.4 wall').toString('base64');
+    for (const link of [
+      { applicationId: victimApplication },
+      { loanAccountId: victimLoan },
+    ])
+      cases.push([
+        'POST',
+        `/v1/lending/customers/${ownBorrower}/documents`,
+        {
+          category: 'OTHER',
+          typeCode: 'WALL_TEST',
+          fileName: 'x.pdf',
+          mimeType: 'application/pdf',
+          contentBase64: pdf,
+          ...link,
+        },
+      ]);
+    cases.push([
+      'POST',
+      `/v1/lending/customers/${ownBorrower}/document-requests`,
+      {
+        category: 'OTHER',
+        typeCode: 'WALL_TEST',
+        label: 'Wall test',
+        applicationId: victimApplication,
       },
     ]);
     const own = await owners();

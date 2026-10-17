@@ -351,6 +351,8 @@ model Borrower {
   applications     Application[]
   collateralAssets CollateralAsset[]
   groupMemberships GroupMembership[]
+  customerDocuments CustomerDocument[]
+  documentRequests  DocumentRequest[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
@@ -2673,4 +2675,143 @@ model MarginCall {
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
+}
+
+// ── Customer document library (DOC-1..10) ───────────────────────────────────
+
+/// One customer's document (DOC-1): KYC, application, loan, collateral,
+/// agreement and generated documents in one library per borrower. The file
+/// itself lives in object storage; each replacement is a new version (DOC-5).
+/// Never hard-deleted: deletion after retention is a soft delete plus removal
+/// of the stored objects (DOC-7).
+model CustomerDocument {
+  id              String                    @id @default(uuid())
+  tenantId        String
+  borrowerId      String
+  borrower        Borrower                  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// KYC, APPLICATION, LOAN, COLLATERAL, AGREEMENT, GENERATED, OTHER
+  category        String
+  /// Document type, e.g. NATIONAL_ID, ID_DOCUMENT, TITLE_DEED, KEY_FACTS
+  typeCode        String
+  title           String
+  applicationId   String?
+  loanAccountId   String?
+  /// A loan of the legacy loan book.
+  legacyLoanId    String?
+  collateralId    String?
+  requestId       String?
+  /// STAFF, PORTAL, GENERATED, LEGACY
+  origin          String
+  /// Shown to the borrower in the portal (their own uploads and letters sent to them).
+  customerVisible Boolean                   @default(false)
+  /// Review of the current version: PENDING_REVIEW, ACCEPTED, REJECTED, NOT_REQUIRED
+  reviewStatus    String                    @default("PENDING_REVIEW")
+  currentVersion  Int                       @default(1)
+  issuedOn        DateTime?                 @db.Date
+  expiresOn       DateTime?                 @db.Date
+  /// NONE, REMINDED, EXPIRED
+  expiryState     String                    @default("NONE")
+  reminderSentOn  DateTime?                 @db.Date
+  legalHold       Boolean                   @default(false)
+  legalHoldReason String?
+  legalHoldBy     String?
+  legalHoldAt     DateTime?
+  /// ACTIVE, DELETED
+  status          String                    @default("ACTIVE")
+  deletedAt       DateTime?
+  deletedBy       String?
+  deletionReason  String?
+  /// KYC_DOCUMENT, LOAN_DOCUMENT, APPLICATION_DOCUMENT — the older store this row stands for.
+  legacySource    String?
+  legacyId        String?
+  createdBy       String
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  versions        CustomerDocumentVersion[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, legacySource, legacyId])
+  @@index([tenantId, borrowerId, status])
+  @@index([tenantId, reviewStatus])
+  @@index([tenantId, expiresOn])
+  @@index([tenantId, applicationId])
+}
+
+/// One stored file of a customer document. Content fields are immutable;
+/// only the review outcome and the purge marker change.
+model CustomerDocumentVersion {
+  id              String           @id @default(uuid())
+  tenantId        String
+  documentId      String
+  document        CustomerDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// Display name only (sanitised); never part of the storage key.
+  fileName        String
+  mimeType        String
+  sizeBytes       Int
+  sha256          String
+  /// S3, LOCAL_DISK, or for linked older records LEGACY_KYC, LEGACY_VAULT, LEGACY_APPLICATION
+  storageProvider String
+  storageKey      String
+  uploadedBy      String
+  /// USER, CUSTOMER, SYSTEM
+  uploaderType    String
+  note            String           @default("")
+  /// PENDING_REVIEW, ACCEPTED, REJECTED, NOT_REQUIRED
+  reviewStatus    String           @default("PENDING_REVIEW")
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  /// Set when the stored object was removed after retention.
+  purgedAt        DateTime?
+  createdAt       DateTime         @default(now())
+
+  @@unique([documentId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, documentId])
+}
+
+/// A document the bank has asked the customer for (DOC-10).
+model DocumentRequest {
+  id            String    @id @default(uuid())
+  tenantId      String
+  borrowerId    String
+  borrower      Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  category      String
+  typeCode      String
+  label         String
+  message       String    @default("")
+  applicationId String?
+  loanAccountId String?
+  dueOn         DateTime? @db.Date
+  /// OPEN, SUBMITTED, ACCEPTED, CANCELLED
+  status        String    @default("OPEN")
+  documentId    String?
+  /// Why the last upload against this request was rejected, shown to the customer.
+  lastRejection String?
+  requestedBy   String
+  fulfilledAt   DateTime?
+  cancelledBy   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, status])
+}
+
+/// Retention period for a document category or type (DOC-7). Built-in
+/// defaults apply where a tenant has no rule (docs/servicing/DECISIONS.md).
+model DocumentRetentionRule {
+  id             String   @id @default(uuid())
+  tenantId       String
+  /// CATEGORY or TYPE
+  scope          String
+  code           String
+  retentionYears Int
+  updatedBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, scope, code])
+  @@unique([tenantId, id])
 }

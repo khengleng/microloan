@@ -21,9 +21,17 @@ import {
   UploadKycDto,
 } from './dto/borrower-auth.dto';
 import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
-import { BorrowerRoute, Public } from '../auth/auth-scope.decorator';
+import {
+  AnyAuthenticated,
+  BorrowerRoute,
+  Public,
+} from '../auth/auth-scope.decorator';
 
+// The borrower's own routes authenticate with BorrowerJwtGuard (per handler);
+// AnyAuthenticated tells the staff role/permission guards that no staff role
+// applies here, which they otherwise refused with 403 for every borrower.
 @BorrowerRoute()
+@AnyAuthenticated()
 @Controller('borrower')
 export class BorrowerPortalController {
   constructor(

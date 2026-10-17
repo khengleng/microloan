@@ -7,6 +7,7 @@ import type { BorrowerSession } from './borrower-jwt';
 import { UploadKycDto } from './dto/borrower-auth.dto';
 import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
 import { encryptField } from '../common/field-crypto';
+import { CustomerDocumentsService } from '../lending/documents/customer-documents.service';
 
 function outstandingOf(schedules: { totalAmount: any; paidPrincipal: any; paidInterest: any; paidPenalty: any }[]): number {
   return schedules.reduce(
@@ -23,6 +24,7 @@ export class BorrowerPortalService {
     private readonly prisma: PrismaService,
     private readonly paymentInstruments: PaymentInstrumentsService,
     private readonly agreements: AgreementsService,
+    private readonly library: CustomerDocumentsService,
   ) {}
 
   keyFacts(session: BorrowerSession, loanId: string) {
@@ -187,6 +189,21 @@ export class BorrowerPortalService {
   }
 
   async uploadKyc(session: BorrowerSession, dto: UploadKycDto) {
+    // DOC-1/DOC-2: an inline file goes to the customer's document library
+    // (object storage); the KycDocument row only points at it.
+    const filed = await this.library.fileKycFromPortal(
+      session,
+      dto.type,
+      dto.content,
+      dto.mimeType,
+    );
+    if (filed) {
+      await this.prisma.borrower.updateMany({
+        where: { id: session.borrowerId, kycStatus: 'REJECTED' },
+        data: { kycStatus: 'PENDING' },
+      });
+      return { id: filed.kycDocumentId, type: dto.type, createdAt: filed.createdAt, documentId: filed.documentId };
+    }
     const created = await this.prisma.kycDocument.create({
       data: {
         tenantId: session.tenantId,
