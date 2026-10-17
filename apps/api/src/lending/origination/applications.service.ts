@@ -547,6 +547,8 @@ export class ApplicationsService {
       valuationDate: string;
       valuer: string;
       method: string;
+      /** Balances of other loans ranking ahead on this asset (LT-04). */
+      priorLienAmount?: string;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -582,6 +584,15 @@ export class ApplicationsService {
           type: body.type,
           description: String(body.description ?? '').slice(0, 300),
           currency: app.currency,
+          priorLienAmount: body.priorLienAmount
+            ? lending
+                .parseMoney(
+                  body.priorLienAmount,
+                  app.currency,
+                  'priorLienAmount',
+                )
+                .toString()
+            : '0',
           createdBy: actor.id,
         },
       });
@@ -1643,6 +1654,8 @@ export class ApplicationsService {
           },
         });
         let lendable = new lending.D(0);
+        // LT-04: loans ranking ahead on the same assets count against the limit.
+        let priorLiens = new lending.D(0);
         for (const p of pledges) {
           const v = p.collateral.valuations[0];
           if (!v) continue;
@@ -1664,6 +1677,7 @@ export class ApplicationsService {
           lendable = lendable.plus(
             D(v.marketValue).times(new lending.D(1).minus(haircut)),
           );
+          priorLiens = priorLiens.plus(D(p.collateral.priorLienAmount));
         }
         metrics.collateralLendingValue = lendable.toDecimalPlaces(4).toString();
         if (lendable.isZero())
@@ -1672,13 +1686,23 @@ export class ApplicationsService {
             message: 'Secured products need a pledged, valued collateral.',
           });
         else {
-          const ltv = amount.div(lendable);
+          // Combined LTV: this loan plus everything ranking ahead of it.
+          const ltv = amount.plus(priorLiens).div(lendable);
           metrics.loanToValue = ltv.toDecimalPlaces(4).toString();
-          if (config.security.maxLtv && ltv.gt(config.security.maxLtv))
+          if (priorLiens.gt(0))
+            metrics.priorLiens = priorLiens.toDecimalPlaces(4).toString();
+          if (config.security.maxLtv && ltv.gt(config.security.maxLtv)) {
+            const limit = lending.securedLineLimit(
+              lendable.toString(),
+              config.security.maxLtv,
+              [priorLiens.toString()],
+              config.pricing.rounding,
+            ).limit;
             blocking.push({
               code: 'LTV',
-              message: `Loan-to-value ${ltv.toDecimalPlaces(3)} exceeds ${config.security.maxLtv}.`,
+              message: `${priorLiens.gt(0) ? 'Combined loan-to-value' : 'Loan-to-value'} ${ltv.toDecimalPlaces(3)} exceeds ${config.security.maxLtv}; the most that can be lent is ${limit}.`,
             });
+          }
         }
       }
       if (config.security.guaranteeRequired) {

@@ -66,6 +66,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'UnidentifiedPayment',
   'UnidentifiedPaymentMatch',
   'ImpairmentPolicy',
+  'MarginCall',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

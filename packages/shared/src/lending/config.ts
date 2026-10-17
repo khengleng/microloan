@@ -274,6 +274,8 @@ export const productConfigSchema = z
         valuationMaxAgeDays: z.number().int().min(1).nullable().default(null),
         guaranteeRequired: z.boolean().default(false),
         minGuarantors: z.number().int().min(0).default(0),
+        /** Days a borrower has to cure a margin call after a revaluation breaches max LTV (UC-51). */
+        marginCallCureDays: z.number().int().min(1).max(90).default(7),
       })
       .strict(),
     /**

@@ -160,6 +160,20 @@ export const S = {
       reason: z.string().max(500).optional(),
     })
     .strict(),
+  revaluation: z
+    .object({
+      marketValue: money,
+      valuationDate: date,
+      valuer: z.string().min(2).max(120),
+      method: z.string().min(2).max(40),
+    })
+    .strict(),
+  collateralRelease: z
+    .object({
+      reference: z.string().min(2).max(120),
+      note: z.string().max(500).optional(),
+    })
+    .strict(),
   refundProposal: z
     .object({ amount: money, reason: z.string().min(3).max(500) })
     .strict(),
@@ -310,6 +324,7 @@ export const S = {
       valuationDate: date,
       valuer: z.string().max(120),
       method: z.string().max(40),
+      priorLienAmount: money.optional(),
     })
     .strict(),
   guarantee: z

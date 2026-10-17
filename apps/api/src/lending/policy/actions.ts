@@ -140,6 +140,17 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan.repayment.reverse',
     makerChecker: true,
   }),
+  // Collateral on running loans (UC-51, UC-73).
+  A('loan.collateral.revalue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'collateral.manage',
+  }),
+  A('loan.collateral.release.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'collateral.manage',
+  }),
+  A('loan.collateral.release.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.disbursement.approve',
+    makerChecker: true,
+  }),
   A('loan.fee_waiver.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),

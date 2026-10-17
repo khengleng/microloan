@@ -1625,6 +1625,8 @@ model CollateralAsset {
   type        String
   description String
   currency    String
+  /// Balances of other loans ranking ahead on this asset (a first mortgage behind a HELOC).
+  priorLienAmount Decimal          @default(0) @db.Decimal(24, 4)
   createdBy   String
   createdAt   DateTime           @default(now())
   valuations  Valuation[]
@@ -1657,6 +1659,10 @@ model CollateralPledge {
   application   Application     @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
   /// ACTIVE, RELEASED
   status        String          @default("ACTIVE")
+  /// Release on closure (UC-73): who signed it off and the returned-document reference.
+  releasedAt       DateTime?
+  releasedBy       String?
+  releaseReference String?
   createdAt     DateTime        @default(now())
 
   @@unique([collateralId, applicationId])
@@ -1946,6 +1952,7 @@ model LoanAccount {
   /// Classification class and IFRS 9 stage from the tenant's impairment policy.
   classification         String?
   impairmentStage        Int?
+  marginCalls            MarginCall[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2638,6 +2645,32 @@ model ImpairmentPolicy {
   createdAt DateTime  @default(now())
 
   @@unique([tenantId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// A loan above its maximum loan-to-value after its collateral was revalued
+/// (UC-51): the borrower repays or adds collateral by the deadline.
+model MarginCall {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  valuationId          String
+  ltv                  Decimal     @db.Decimal(12, 6)
+  maxLtv               Decimal     @db.Decimal(12, 6)
+  outstanding          Decimal     @db.Decimal(24, 4)
+  lendingValue         Decimal     @db.Decimal(24, 4)
+  requiredRepayment    Decimal     @db.Decimal(24, 4)
+  requiredCollateral   Decimal     @db.Decimal(24, 4)
+  deadline             DateTime    @db.Date
+  /// OPEN, CURED, EXPIRED
+  status               String      @default("OPEN")
+  resolvedAt           DateTime?
+  resolution           String      @default("")
+  createdBy            String
+  createdAt            DateTime    @default(now())
+
   @@unique([tenantId, id])
   @@index([tenantId, status])
 }

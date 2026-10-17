@@ -25,6 +25,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
+import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
@@ -453,6 +454,7 @@ export class LendingLoansController {
     private readonly rateResets: RateResetService,
     private readonly groups: GroupsService,
     private readonly holidays: PaymentHolidayService,
+    private readonly collateral: CollateralService,
   ) {}
 
   /** Reset history, the full reset cycle, and what is currently due. */
@@ -665,6 +667,57 @@ export class LendingLoansController {
     @Body(new ZodPipe(S.writeOff)) body: never,
   ) {
     return this.servicing.proposeWriteOff(actor(req), id, body);
+  }
+
+  // ── Collateral on a running loan (UC-51, UC-73) ───────────────────────────
+
+  @LendingAction('loan.read')
+  @Get(':id/collateral')
+  loanCollateral(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.collateral.view(actor(req), id);
+  }
+
+  @LendingAction('loan.collateral.revalue')
+  @Post(':id/collateral')
+  pledgeCollateral(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.collateral)) body: never,
+  ) {
+    return this.collateral.pledge(actor(req), id, body);
+  }
+
+  @LendingAction('loan.collateral.revalue')
+  @Post(':id/collateral/:collateralId/valuations')
+  revalueCollateral(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('collateralId', ID) collateralId: string,
+    @Body(new ZodPipe(S.revaluation)) body: never,
+  ) {
+    return this.collateral.revalue(actor(req), id, collateralId, body);
+  }
+
+  @LendingAction('loan.collateral.release.propose')
+  @Post(':id/collateral/:collateralId/release')
+  proposeCollateralRelease(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('collateralId', ID) collateralId: string,
+    @Body(new ZodPipe(S.collateralRelease)) body: never,
+  ) {
+    return this.collateral.proposeRelease(actor(req), id, collateralId, body);
+  }
+
+  @LendingAction('loan.collateral.release.approve')
+  @Post(':id/collateral-releases/:taskId/decision')
+  decideCollateralRelease(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+  ) {
+    return this.collateral.decideRelease(actor(req), id, taskId, body);
   }
 
   @LendingAction('loan.fee_waiver.propose')
