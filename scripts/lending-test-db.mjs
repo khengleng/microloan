@@ -48,6 +48,7 @@ const INVARIANT_SECTIONS = [
   ['20261017_lending_relief_refinance', '-- Database-level invariants for relief and refinancing.'],
   ['20261017_lending_policies_advance_nonaccrual', '-- Database-level invariants for loan policies, advances and non-accrual.'],
   ['20261017_lending_rls_all_tables', '-- Database-level invariants for tenant isolation of the remaining tables.'],
+  ['20261017_lending_suspense_refunds', '-- Database-level invariants for unidentified payments and refunds.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {

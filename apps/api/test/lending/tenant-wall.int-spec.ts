@@ -84,6 +84,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'changes/:id': 'flagChangeApproval',
       'rules/:id': 'flagRule',
       'service-accounts/:id': 'serviceAccount',
+      'suspense/:id': 'unidentifiedPayment',
+      'refunds/:taskId': 'approvalTask',
+      'advance-refunds/:taskId': 'approvalTask',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
@@ -328,6 +331,19 @@ d('Tenant wall (integration)', () => {
           { amount: '50.00' },
           key('w'),
         ),
+    );
+    // An unidentified receipt held for the victim.
+    expectOk(
+      await f.as('opsMaker').post(
+        '/lending/suspense',
+        {
+          amount: '25.00',
+          currency: 'USD',
+          channel: 'BANK_TRANSFER',
+          externalReference: 'VICTIM-UNID',
+        },
+        key('vsus'),
+      ),
     );
     expectOk(
       await f.as('maker').post('/lending/policies', {
@@ -646,6 +662,9 @@ d('Tenant wall (integration)', () => {
     }
     expect(findings).toEqual([]);
     expect(await fingerprint()).toEqual(before);
+    // In the full suite (WALL_STRICT=1, run last) every route must have been
+    // attacked with a real victim row; run alone, the gaps are only reported.
+    if (process.env.WALL_STRICT === '1') expect([...unexercised]).toEqual([]);
     if (unexercised.size)
       // Rows that only other suites create; exercised when the whole suite runs.
       console.info(

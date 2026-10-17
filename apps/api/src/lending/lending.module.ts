@@ -15,6 +15,7 @@ import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
+import { SuspenseService } from './payments/suspense.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
@@ -31,6 +32,7 @@ import {
   LendingAccessController,
   LendingApplicationsController,
   LendingIntegrationsController,
+  LendingSuspenseController,
   LendingLoansController,
   LendingOperationsController,
   LendingProductsController,
@@ -51,6 +53,7 @@ import {
     LendingApplicationsController,
     LendingLoansController,
     LendingIntegrationsController,
+    LendingSuspenseController,
     LendingAccessController,
     LendingOperationsController,
     LendingFacilitiesController,
@@ -70,6 +73,7 @@ import {
     ApplicationsService,
     GroupsService,
     ServicingService,
+    SuspenseService,
     FacilitiesService,
     RateResetService,
     EodSchedulerService,

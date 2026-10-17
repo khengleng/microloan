@@ -24,6 +24,7 @@ import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
+import { SuspenseService } from './payments/suspense.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import { AccessAdminService } from './access/access-admin.service';
@@ -665,6 +666,34 @@ export class LendingLoansController {
     return this.servicing.proposeWriteOff(actor(req), id, body);
   }
 
+  @LendingAction('loan.advance_refund.propose')
+  @Post(':id/advance-refunds')
+  proposeAdvanceRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.refundProposal)) body: never,
+  ) {
+    return this.servicing.proposeAdvanceRefund(actor(req), id, body);
+  }
+
+  @LendingAction('loan.advance_refund.approve')
+  @Post(':id/advance-refunds/:taskId/decision')
+  decideAdvanceRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.servicing.decideAdvanceRefund(
+      actor(req),
+      id,
+      taskId,
+      body,
+      key,
+    );
+  }
+
   @LendingAction('loan.writeoff.approve')
   @Post(':id/write-offs/:taskId/decision')
   decideWriteOff(
@@ -675,6 +704,61 @@ export class LendingLoansController {
     @Headers('idempotency-key') key: string,
   ) {
     return this.servicing.decideWriteOff(actor(req), id, taskId, body, key);
+  }
+}
+
+/** Unidentified payments: held in suspense, matched to loans or refunded (UC-28, UC-74). */
+@Controller('lending/suspense')
+export class LendingSuspenseController {
+  constructor(private readonly suspense: SuspenseService) {}
+
+  @LendingAction('payment.suspense.read')
+  @Get()
+  list(@Req() req: Req_, @Query('status') status?: string) {
+    return this.suspense.list(actor(req), status);
+  }
+
+  @LendingAction('payment.suspense.receive')
+  @Post()
+  receive(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.suspenseReceive)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.suspense.receive(actor(req), body, key);
+  }
+
+  @LendingAction('payment.suspense.receive')
+  @Post(':id/matches')
+  match(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.suspenseMatch)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.suspense.match(actor(req), id, body, key);
+  }
+
+  @LendingAction('payment.refund.propose')
+  @Post(':id/refunds')
+  proposeRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.refundProposal)) body: never,
+  ) {
+    return this.suspense.proposeRefund(actor(req), id, body);
+  }
+
+  @LendingAction('payment.refund.approve')
+  @Post(':id/refunds/:taskId/decision')
+  decideRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.suspense.decideRefund(actor(req), id, taskId, body, key);
   }
 }
 

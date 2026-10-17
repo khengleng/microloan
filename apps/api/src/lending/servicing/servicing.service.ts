@@ -854,349 +854,367 @@ export class ServicingService {
   ) {
     const tenantId = requireTenant(actor);
     const hash = requestHash({ op: 'repay', id, body });
-    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
-      let state = await loadLoanState(tx, tenantId, id);
-      const amount = lending.parseMoney(
-        String(body.amount ?? ''),
-        state.account.currency,
-        'amount',
-      );
-      if (amount.lte(0))
-        throw new BadRequestException('Amount must be positive.');
-      await this.policy.enforce(
-        actor,
-        'loan.repayment.post',
-        resourceOf(state, [], amount.toString()),
-        tx,
-      );
-      const businessDate = await this.businessDate.get(tenantId, tx);
-      const valueDate = body.valueDate ?? businessDate;
-      BusinessDateService.checkValueDate(
-        valueDate,
-        businessDate,
-        state.config.repayment.maxBackdateDays,
-      );
-      state = await this.catchUp(tx, state, valueDate, businessDate, actor);
-      // Money already held as an advance pays what is due before new money does.
-      state = await this.applyAdvance(
-        tx,
-        state,
-        valueDate,
-        businessDate,
-        actor,
-      );
+    return this.money(tenantId, idempotencyKey, hash, (tx) =>
+      this.repayInTx(tx, actor, id, body, idempotencyKey, hash),
+    );
+  }
 
-      const cfg = state.config.repayment;
-      const { allocations, unallocated } = lending.allocatePayment(
-        amount.toString(),
-        dueItems(state, valueDate),
-        cfg.allocation.order,
-        cfg.allocation.strategy,
-      );
-      let excess = D(unallocated);
-      const sumOf = (c: string) =>
-        allocations
-          .filter((a) => a.component === c)
-          .reduce((s, a) => s.plus(a.amount), ZERO());
-      const duePrincipalPaid = sumOf('PRINCIPAL');
+  /**
+   * The repayment itself, inside the caller's transaction. `fundingAccount`
+   * replaces cash when the money is already on the books elsewhere — matched
+   * out of the unidentified-payments suspense account (UC-28).
+   */
+  async repayInTx(
+    tx: Tx,
+    actor: LendingActor,
+    id: string,
+    body: {
+      amount: string;
+      valueDate?: string;
+      externalReference?: string;
+      prepaymentStrategy?: 'RECAST' | 'SHORTEN';
+      /** Customer's choice for money beyond what is due, where the product allows it (UC-26). */
+      applyExcessAs?: 'ADVANCE' | 'PREPAY';
+    },
+    idempotencyKey: string,
+    hash: string,
+    opts: { fundingAccount?: string } = {},
+  ) {
+    const tenantId = requireTenant(actor);
+    let state = await loadLoanState(tx, tenantId, id);
+    const amount = lending.parseMoney(
+      String(body.amount ?? ''),
+      state.account.currency,
+      'amount',
+    );
+    if (amount.lte(0))
+      throw new BadRequestException('Amount must be positive.');
+    await this.policy.enforce(
+      actor,
+      'loan.repayment.post',
+      resourceOf(state, [], amount.toString()),
+      tx,
+    );
+    const businessDate = await this.businessDate.get(tenantId, tx);
+    const valueDate = body.valueDate ?? businessDate;
+    BusinessDateService.checkValueDate(
+      valueDate,
+      businessDate,
+      state.config.repayment.maxBackdateDays,
+    );
+    state = await this.catchUp(tx, state, valueDate, businessDate, actor);
+    // Money already held as an advance pays what is due before new money does.
+    state = await this.applyAdvance(tx, state, valueDate, businessDate, actor);
 
-      // UC-26: what happens to money beyond what is due is a product setting;
-      // the customer may ask for the other treatment where the product allows it.
-      const handling =
-        cfg.allocation.excessHandling === 'REJECT'
-          ? 'REJECT'
-          : (body.applyExcessAs ?? cfg.allocation.excessHandling);
-      let advanced = ZERO();
-      let prepaid = ZERO();
-      let prepaymentFee = ZERO();
-      let prepaymentCharge: lending.EarlyRepaymentCharge | null = null;
-      let reschedule: lending.RescheduleResult | null = null;
-      if (excess.gt(0) && handling === 'ADVANCE') {
-        // UC-27: held for the borrower and applied as instalments fall due. It
-        // can never exceed what the borrower owes today, so an advance is
-        // always used up by the loan and never strands money on a closed one.
-        const room = totalOutstanding(state)
-          .minus(D(amount).minus(excess))
-          .minus(D(state.account.advanceBalance));
-        if (excess.gt(room))
-          throw new BadRequestException(
-            `This payment would leave ${excess.minus(room)} ${state.account.currency} more on advance than the loan owes. Request a settlement quote and use early settlement to repay in full.`,
-          );
-        advanced = excess;
-        excess = ZERO();
-      } else if (excess.gt(0)) {
-        if (handling === 'REJECT' || !cfg.prepayment.allowed) {
-          throw new BadRequestException(
-            `The payment exceeds the ${D(amount).minus(excess)} ${state.account.currency} currently due, and this product does not take partial prepayments. Use early settlement to repay in full.`,
-          );
-        }
-        const principalLeft = D(state.account.principalOutstanding).minus(
-          duePrincipalPaid,
+    const cfg = state.config.repayment;
+    const { allocations, unallocated } = lending.allocatePayment(
+      amount.toString(),
+      dueItems(state, valueDate),
+      cfg.allocation.order,
+      cfg.allocation.strategy,
+    );
+    let excess = D(unallocated);
+    const sumOf = (c: string) =>
+      allocations
+        .filter((a) => a.component === c)
+        .reduce((s, a) => s.plus(a.amount), ZERO());
+    const duePrincipalPaid = sumOf('PRINCIPAL');
+
+    // UC-26: what happens to money beyond what is due is a product setting;
+    // the customer may ask for the other treatment where the product allows it.
+    const handling =
+      cfg.allocation.excessHandling === 'REJECT'
+        ? 'REJECT'
+        : (body.applyExcessAs ?? cfg.allocation.excessHandling);
+    let advanced = ZERO();
+    let prepaid = ZERO();
+    let prepaymentFee = ZERO();
+    let prepaymentCharge: lending.EarlyRepaymentCharge | null = null;
+    let reschedule: lending.RescheduleResult | null = null;
+    if (excess.gt(0) && handling === 'ADVANCE') {
+      // UC-27: held for the borrower and applied as instalments fall due. It
+      // can never exceed what the borrower owes today, so an advance is
+      // always used up by the loan and never strands money on a closed one.
+      const room = totalOutstanding(state)
+        .minus(D(amount).minus(excess))
+        .minus(D(state.account.advanceBalance));
+      if (excess.gt(room))
+        throw new BadRequestException(
+          `This payment would leave ${excess.minus(room)} ${state.account.currency} more on advance than the loan owes. Request a settlement quote and use early settlement to repay in full.`,
         );
-        // UC-32: the charge is part of the payment. Lock-in tiers replace the
-        // base fee while they apply (DECISIONS D-004, D-005); the charge is
-        // fixed + rate × basis, so the prepaid principal solves
-        // prepaid + charge(prepaid) = excess.
-        const chargeFor = (repaid: Dec) =>
-          engineCall(() =>
-            lending.earlyRepaymentCharge(
-              state.config,
-              'PARTIAL_PREPAYMENT',
-              toLocalDate(state.account.disbursementDate)!,
-              valueDate,
-              repaid.toString(),
-              principalLeft.toString(),
-            ),
-          );
-        const fixedPart = chargeFor(ZERO());
-        if (fixedPart.refused)
-          throw new BadRequestException({
-            message: fixedPart.explanation,
-            code: 'PREPAYMENT_LOCKED_IN',
-          });
-        const PROBE = new lending.D(1_000_000);
-        const rate = D(chargeFor(PROBE).charge)
-          .minus(fixedPart.charge)
-          .div(PROBE);
-        prepaid = lending.roundMoney(
-          excess.minus(fixedPart.charge).div(new lending.D(1).plus(rate)),
-          state.config.pricing.rounding,
+      advanced = excess;
+      excess = ZERO();
+    } else if (excess.gt(0)) {
+      if (handling === 'REJECT' || !cfg.prepayment.allowed) {
+        throw new BadRequestException(
+          `The payment exceeds the ${D(amount).minus(excess)} ${state.account.currency} currently due, and this product does not take partial prepayments. Use early settlement to repay in full.`,
         );
-        if (prepaid.lte(0))
-          throw new BadRequestException(
-            `The amount beyond what is due does not cover the ${fixedPart.charge} ${state.account.currency} early repayment charge.`,
-          );
-        prepaymentFee = excess.minus(prepaid);
-        prepaymentCharge = chargeFor(prepaid);
-        if (prepaid.gte(principalLeft)) {
-          throw new BadRequestException(
-            `This payment would repay the whole principal. Request a settlement quote and use early settlement instead.`,
-          );
-        }
-        if (cfg.prepayment.minAmount && prepaid.lt(cfg.prepayment.minAmount)) {
-          throw new BadRequestException(
-            `The minimum prepayment is ${cfg.prepayment.minAmount} ${state.account.currency}.`,
-          );
-        }
-        const strategy =
-          body.prepaymentStrategy ?? cfg.prepayment.defaultStrategy;
-        if (!cfg.prepayment.allowedStrategies.includes(strategy))
-          throw new BadRequestException(
-            `Prepayment strategy ${strategy} is not allowed for this product.`,
-          );
-        const future = state.lines.filter(
-          (l) =>
-            l.status === 'DUE' &&
-            l.number > 0 &&
-            lending.compareDates(toLocalDate(l.dueDate)!, valueDate) > 0,
-        );
-        if (!future.length)
-          throw new BadRequestException(
-            'There are no future instalments to prepay.',
-          );
-        try {
-          reschedule = lending.rescheduleAfterPrepayment(
-            state.contract,
-            future.map(engineLine),
+      }
+      const principalLeft = D(state.account.principalOutstanding).minus(
+        duePrincipalPaid,
+      );
+      // UC-32: the charge is part of the payment. Lock-in tiers replace the
+      // base fee while they apply (DECISIONS D-004, D-005); the charge is
+      // fixed + rate × basis, so the prepaid principal solves
+      // prepaid + charge(prepaid) = excess.
+      const chargeFor = (repaid: Dec) =>
+        engineCall(() =>
+          lending.earlyRepaymentCharge(
+            state.config,
+            'PARTIAL_PREPAYMENT',
+            toLocalDate(state.account.disbursementDate)!,
             valueDate,
-            principalLeft.minus(prepaid).toString(),
-            strategy,
-            state.account.instalmentAmount?.toString() ?? null,
-          );
-        } catch (e) {
-          if ((e as Error).name === 'EngineError')
-            throw new BadRequestException({
-              message: (e as Error).message,
-              code: (e as { code?: string }).code,
-            });
-          throw e;
-        }
-        const newVersion = state.agreementVersion + 1;
-        await tx.scheduleInstalment.updateMany({
-          where: {
-            tenantId,
-            loanAccountId: id,
-            id: { in: future.map((l) => l.id) },
-            status: 'DUE',
-          },
-          data: { status: 'SUPERSEDED' },
+            repaid.toString(),
+            principalLeft.toString(),
+          ),
+        );
+      const fixedPart = chargeFor(ZERO());
+      if (fixedPart.refused)
+        throw new BadRequestException({
+          message: fixedPart.explanation,
+          code: 'PREPAYMENT_LOCKED_IN',
         });
-        await tx.scheduleInstalment.createMany({
-          data: reschedule.lines.map((l) => ({
-            tenantId,
-            loanAccountId: id,
-            agreementVersion: newVersion,
-            number: l.number,
-            periodStart: fromLocalDate(l.periodStart),
-            periodEnd: fromLocalDate(l.periodEnd),
-            dueDate: fromLocalDate(l.dueDate),
-            openingPrincipal: l.openingPrincipal,
-            principalDue: l.principal,
-            interestDue: l.interest,
-            annualRate: l.annualRate,
-            projected: l.projected,
-          })),
-        });
-        const latest = await tx.agreementVersion.findFirst({
-          where: {
-            tenantId,
-            agreementId: state.account.agreementId,
-            version: state.agreementVersion,
-          },
-        });
-        await tx.agreementVersion.create({
-          data: {
-            tenantId,
-            agreementId: state.account.agreementId,
-            version: newVersion,
-            reason:
-              strategy === 'RECAST'
-                ? 'PREPAYMENT_RECAST'
-                : 'PREPAYMENT_SHORTEN',
-            productConfig: latest!.productConfig as Json,
-            // The contract's policies carry forward unchanged.
-            policies: (latest!.policies ?? undefined) as Json | undefined,
-            configHash: latest!.configHash,
-            terms: latest!.terms as Json,
-            scheduleInput: latest!.scheduleInput as Json,
-            calculation: {
-              reschedule,
-              prepaidPrincipal: prepaid.toString(),
-              valueDate,
-            } as unknown as Json,
-            engineVersion: lending.LENDING_ENGINE_VERSION,
-            effectiveDate: fromLocalDate(valueDate),
-            createdBy: actor.id,
-          },
-        });
-        excess = ZERO();
-      }
-
-      await this.applyAllocations(tx, state, allocations);
-      const comp = {
-        PENALTY: sumOf('PENALTY'),
-        FEE: sumOf('FEE'),
-        TAX: sumOf('TAX'),
-        INTEREST: sumOf('INTEREST'),
-        PRINCIPAL: duePrincipalPaid,
-      };
-      const acc = state.config.accounting;
-      const released = suspenseRelease(state, comp.INTEREST);
-      const event = await this.recordEvent(
-        tx,
-        state,
-        {
-          type: 'REPAYMENT',
-          amount,
-          businessDate,
-          valueDate,
-          components: {
-            penalty: comp.PENALTY.toString(),
-            fee: comp.FEE.toString(),
-            tax: comp.TAX.toString(),
-            interest: comp.INTEREST.toString(),
-            principal: comp.PRINCIPAL.toString(),
-            prepaidPrincipal: prepaid.toString(),
-            prepaymentFee: prepaymentFee.toString(),
-            prepaymentCharge: prepaymentCharge
-              ? {
-                  source: prepaymentCharge.source,
-                  monthsElapsed: prepaymentCharge.monthsElapsed,
-                  explanation: prepaymentCharge.explanation,
-                }
-              : undefined,
-            advance: advanced.toString(),
-            suspenseReleased: released.amount.toString(),
-            rescheduled: !!reschedule,
-            reschedule: reschedule?.explanation,
-          },
-          idempotencyKey,
-          requestHash: hash,
-          actor,
-          narrative: `Repayment of ${amount} ${state.account.currency}`,
-          externalReference: body.externalReference,
-          lines: [
-            { accountCode: acc.cash, debit: amount.toString() },
-            {
-              accountCode: acc.penaltyReceivable,
-              credit: comp.PENALTY.toString(),
-            },
-            {
-              accountCode: acc.feesReceivable,
-              credit: comp.FEE.plus(comp.TAX).toString(),
-            },
-            {
-              accountCode: acc.interestReceivable,
-              credit: comp.INTEREST.toString(),
-            },
-            {
-              accountCode: acc.loansReceivable,
-              credit: comp.PRINCIPAL.plus(prepaid).toString(),
-            },
-            { accountCode: acc.feeIncome, credit: prepaymentFee.toString() },
-            { accountCode: acc.customerAdvances, credit: advanced.toString() },
-            ...released.lines,
-          ],
-        },
-        allocations,
+      const PROBE = new lending.D(1_000_000);
+      const rate = D(chargeFor(PROBE).charge)
+        .minus(fixedPart.charge)
+        .div(PROBE);
+      prepaid = lending.roundMoney(
+        excess.minus(fixedPart.charge).div(new lending.D(1).plus(rate)),
+        state.config.pricing.rounding,
       );
-      const principalOutstanding = D(state.account.principalOutstanding)
-        .minus(comp.PRINCIPAL)
-        .minus(prepaid);
-      const data: Prisma.LoanAccountUpdateManyMutationInput = {
-        advanceBalance: D(state.account.advanceBalance)
-          .plus(advanced)
-          .toString(),
-        interestInSuspense: D(state.account.interestInSuspense)
-          .minus(released.amount)
-          .toString(),
-        principalOutstanding: principalOutstanding.toString(),
-        interestReceivable: D(state.account.interestReceivable)
-          .minus(comp.INTEREST)
-          .toString(),
-        feesReceivable: D(state.account.feesReceivable)
-          .minus(comp.FEE)
-          .minus(comp.TAX)
-          .toString(),
-        penaltyReceivable: D(state.account.penaltyReceivable)
-          .minus(comp.PENALTY)
-          .toString(),
-        lastAccrualDate: state.account.lastAccrualDate,
-      };
-      if (reschedule) {
-        data.instalmentAmount =
-          reschedule.instalmentAmount ?? state.account.instalmentAmount;
-        data.maturityDate = fromLocalDate(
-          reschedule.lines[reschedule.lines.length - 1].dueDate,
+      if (prepaid.lte(0))
+        throw new BadRequestException(
+          `The amount beyond what is due does not cover the ${fixedPart.charge} ${state.account.currency} early repayment charge.`,
+        );
+      prepaymentFee = excess.minus(prepaid);
+      prepaymentCharge = chargeFor(prepaid);
+      if (prepaid.gte(principalLeft)) {
+        throw new BadRequestException(
+          `This payment would repay the whole principal. Request a settlement quote and use early settlement instead.`,
         );
       }
-      await this.closeIfRepaid(tx, state, data);
-      await this.casAccount(tx, state, 'ACTIVE', data);
-      await this.outbox(tx, tenantId, 'lending.repayment', {
-        loanAccountId: id,
-        eventId: event.id,
-        amount: amount.toString(),
-        currency: state.account.currency,
-      });
-      await this.audit.write(
-        {
-          actor,
-          action: 'loan.repayment.post',
-          resourceType: 'LoanAccount',
-          resourceId: id,
-          outcome: 'SUCCESS',
-          details: {
-            event: event.id,
-            amount: amount.toString(),
-            prepaid: prepaid.toString(),
-            advance: advanced.toString(),
-          },
-          businessDate: fromLocalDate(businessDate),
-        },
-        tx,
+      if (cfg.prepayment.minAmount && prepaid.lt(cfg.prepayment.minAmount)) {
+        throw new BadRequestException(
+          `The minimum prepayment is ${cfg.prepayment.minAmount} ${state.account.currency}.`,
+        );
+      }
+      const strategy =
+        body.prepaymentStrategy ?? cfg.prepayment.defaultStrategy;
+      if (!cfg.prepayment.allowedStrategies.includes(strategy))
+        throw new BadRequestException(
+          `Prepayment strategy ${strategy} is not allowed for this product.`,
+        );
+      const future = state.lines.filter(
+        (l) =>
+          l.status === 'DUE' &&
+          l.number > 0 &&
+          lending.compareDates(toLocalDate(l.dueDate)!, valueDate) > 0,
       );
-      return event;
+      if (!future.length)
+        throw new BadRequestException(
+          'There are no future instalments to prepay.',
+        );
+      try {
+        reschedule = lending.rescheduleAfterPrepayment(
+          state.contract,
+          future.map(engineLine),
+          valueDate,
+          principalLeft.minus(prepaid).toString(),
+          strategy,
+          state.account.instalmentAmount?.toString() ?? null,
+        );
+      } catch (e) {
+        if ((e as Error).name === 'EngineError')
+          throw new BadRequestException({
+            message: (e as Error).message,
+            code: (e as { code?: string }).code,
+          });
+        throw e;
+      }
+      const newVersion = state.agreementVersion + 1;
+      await tx.scheduleInstalment.updateMany({
+        where: {
+          tenantId,
+          loanAccountId: id,
+          id: { in: future.map((l) => l.id) },
+          status: 'DUE',
+        },
+        data: { status: 'SUPERSEDED' },
+      });
+      await tx.scheduleInstalment.createMany({
+        data: reschedule.lines.map((l) => ({
+          tenantId,
+          loanAccountId: id,
+          agreementVersion: newVersion,
+          number: l.number,
+          periodStart: fromLocalDate(l.periodStart),
+          periodEnd: fromLocalDate(l.periodEnd),
+          dueDate: fromLocalDate(l.dueDate),
+          openingPrincipal: l.openingPrincipal,
+          principalDue: l.principal,
+          interestDue: l.interest,
+          annualRate: l.annualRate,
+          projected: l.projected,
+        })),
+      });
+      const latest = await tx.agreementVersion.findFirst({
+        where: {
+          tenantId,
+          agreementId: state.account.agreementId,
+          version: state.agreementVersion,
+        },
+      });
+      await tx.agreementVersion.create({
+        data: {
+          tenantId,
+          agreementId: state.account.agreementId,
+          version: newVersion,
+          reason:
+            strategy === 'RECAST' ? 'PREPAYMENT_RECAST' : 'PREPAYMENT_SHORTEN',
+          productConfig: latest!.productConfig as Json,
+          // The contract's policies carry forward unchanged.
+          policies: (latest!.policies ?? undefined) as Json | undefined,
+          configHash: latest!.configHash,
+          terms: latest!.terms as Json,
+          scheduleInput: latest!.scheduleInput as Json,
+          calculation: {
+            reschedule,
+            prepaidPrincipal: prepaid.toString(),
+            valueDate,
+          } as unknown as Json,
+          engineVersion: lending.LENDING_ENGINE_VERSION,
+          effectiveDate: fromLocalDate(valueDate),
+          createdBy: actor.id,
+        },
+      });
+      excess = ZERO();
+    }
+
+    await this.applyAllocations(tx, state, allocations);
+    const comp = {
+      PENALTY: sumOf('PENALTY'),
+      FEE: sumOf('FEE'),
+      TAX: sumOf('TAX'),
+      INTEREST: sumOf('INTEREST'),
+      PRINCIPAL: duePrincipalPaid,
+    };
+    const acc = state.config.accounting;
+    const released = suspenseRelease(state, comp.INTEREST);
+    const event = await this.recordEvent(
+      tx,
+      state,
+      {
+        type: 'REPAYMENT',
+        amount,
+        businessDate,
+        valueDate,
+        components: {
+          penalty: comp.PENALTY.toString(),
+          fee: comp.FEE.toString(),
+          tax: comp.TAX.toString(),
+          interest: comp.INTEREST.toString(),
+          principal: comp.PRINCIPAL.toString(),
+          prepaidPrincipal: prepaid.toString(),
+          prepaymentFee: prepaymentFee.toString(),
+          prepaymentCharge: prepaymentCharge
+            ? {
+                source: prepaymentCharge.source,
+                monthsElapsed: prepaymentCharge.monthsElapsed,
+                explanation: prepaymentCharge.explanation,
+              }
+            : undefined,
+          advance: advanced.toString(),
+          suspenseReleased: released.amount.toString(),
+          rescheduled: !!reschedule,
+          reschedule: reschedule?.explanation,
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Repayment of ${amount} ${state.account.currency}`,
+        externalReference: body.externalReference,
+        lines: [
+          {
+            accountCode: opts.fundingAccount ?? acc.cash,
+            debit: amount.toString(),
+          },
+          {
+            accountCode: acc.penaltyReceivable,
+            credit: comp.PENALTY.toString(),
+          },
+          {
+            accountCode: acc.feesReceivable,
+            credit: comp.FEE.plus(comp.TAX).toString(),
+          },
+          {
+            accountCode: acc.interestReceivable,
+            credit: comp.INTEREST.toString(),
+          },
+          {
+            accountCode: acc.loansReceivable,
+            credit: comp.PRINCIPAL.plus(prepaid).toString(),
+          },
+          { accountCode: acc.feeIncome, credit: prepaymentFee.toString() },
+          { accountCode: acc.customerAdvances, credit: advanced.toString() },
+          ...released.lines,
+        ],
+      },
+      allocations,
+    );
+    const principalOutstanding = D(state.account.principalOutstanding)
+      .minus(comp.PRINCIPAL)
+      .minus(prepaid);
+    const data: Prisma.LoanAccountUpdateManyMutationInput = {
+      advanceBalance: D(state.account.advanceBalance).plus(advanced).toString(),
+      interestInSuspense: D(state.account.interestInSuspense)
+        .minus(released.amount)
+        .toString(),
+      principalOutstanding: principalOutstanding.toString(),
+      interestReceivable: D(state.account.interestReceivable)
+        .minus(comp.INTEREST)
+        .toString(),
+      feesReceivable: D(state.account.feesReceivable)
+        .minus(comp.FEE)
+        .minus(comp.TAX)
+        .toString(),
+      penaltyReceivable: D(state.account.penaltyReceivable)
+        .minus(comp.PENALTY)
+        .toString(),
+      lastAccrualDate: state.account.lastAccrualDate,
+    };
+    if (reschedule) {
+      data.instalmentAmount =
+        reschedule.instalmentAmount ?? state.account.instalmentAmount;
+      data.maturityDate = fromLocalDate(
+        reschedule.lines[reschedule.lines.length - 1].dueDate,
+      );
+    }
+    await this.closeIfRepaid(tx, state, data);
+    await this.casAccount(tx, state, 'ACTIVE', data);
+    await this.outbox(tx, tenantId, 'lending.repayment', {
+      loanAccountId: id,
+      eventId: event.id,
+      amount: amount.toString(),
+      currency: state.account.currency,
     });
+    await this.audit.write(
+      {
+        actor,
+        action: 'loan.repayment.post',
+        resourceType: 'LoanAccount',
+        resourceId: id,
+        outcome: 'SUCCESS',
+        details: {
+          event: event.id,
+          amount: amount.toString(),
+          prepaid: prepaid.toString(),
+          advance: advanced.toString(),
+        },
+        businessDate: fromLocalDate(businessDate),
+      },
+      tx,
+    );
+    return event;
   }
 
   // ── Early settlement ──────────────────────────────────────────────────────
@@ -2308,6 +2326,164 @@ export class ServicingService {
       },
       tx,
     );
+  }
+
+  // ── Refund of money held for the borrower (UC-74) ─────────────────────────
+
+  /** Propose paying back (some of) the advance held on a loan. */
+  async proposeAdvanceRefund(
+    actor: LendingActor,
+    id: string,
+    body: { amount: string; reason: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const amount = lending.parseMoney(
+        String(body.amount ?? ''),
+        state.account.currency,
+        'amount',
+      );
+      await this.policy.enforce(
+        actor,
+        'loan.advance_refund.propose',
+        resourceOf(state, [], amount.toString()),
+        tx,
+      );
+      if (!body.reason?.trim())
+        throw new BadRequestException('Record why the advance is refunded.');
+      const held = D(state.account.advanceBalance);
+      if (amount.lte(0) || amount.gt(held))
+        throw new BadRequestException(
+          `A refund must be positive and at most the ${held} ${state.account.currency} held on advance.`,
+        );
+      const open = await tx.approvalTask.findFirst({
+        where: {
+          tenantId,
+          subjectId: id,
+          action: 'ADVANCE_REFUND',
+          status: 'PENDING',
+        },
+      });
+      if (open)
+        throw new ConflictException('A refund is already awaiting approval.');
+      const task = await tx.approvalTask.create({
+        data: {
+          tenantId,
+          subjectType: 'LOAN_ACCOUNT',
+          subjectId: id,
+          action: 'ADVANCE_REFUND',
+          requiredPermission: 'loan.repayment.reverse',
+          amount: amount.toString(),
+          currency: state.account.currency,
+          payload: { reason: body.reason.slice(0, 500) },
+          makerId: actor.id,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.advance_refund.propose',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: { task: task.id, amount: amount.toString() },
+        },
+        tx,
+      );
+      return task;
+    });
+  }
+
+  /** Approve and pay out (Dr customer advances, Cr cash), or reject. */
+  async decideAdvanceRefund(
+    actor: LendingActor,
+    id: string,
+    taskId: string,
+    body: { approve: boolean; comment?: string },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    const hash = requestHash({ op: 'advance-refund', id, taskId, body });
+    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const task = await tx.approvalTask.findFirst({
+        where: {
+          id: taskId,
+          tenantId,
+          subjectId: id,
+          action: 'ADVANCE_REFUND',
+        },
+      });
+      if (!task) throw new NotFoundException('Refund proposal not found');
+      const amount = D(task.amount);
+      const decision = await this.policy.enforce(
+        actor,
+        'loan.advance_refund.approve',
+        resourceOf(state, [task.makerId], amount.toString()),
+        tx,
+      );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'PENDING' },
+        data: {
+          status: body.approve ? 'EXECUTED' : 'REJECTED',
+          decidedBy: actor.id,
+          decidedAt: new Date(),
+          comment: body.comment?.slice(0, 500),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This refund proposal');
+      if (!body.approve) return { rejected: true };
+      if (amount.gt(D(state.account.advanceBalance)))
+        throw new ConflictException(
+          'Less is now held on advance than this refund; part of it was applied to instalments.',
+        );
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const acc = state.config.accounting;
+      const event = await this.recordEvent(tx, state, {
+        type: 'ADVANCE_REFUND',
+        amount,
+        businessDate,
+        valueDate: businessDate,
+        components: {
+          task: taskId,
+          reason: (task.payload as { reason?: string }).reason ?? '',
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Refund of ${amount} ${state.account.currency} held on advance`,
+        lines: [
+          { accountCode: acc.customerAdvances, debit: amount.toString() },
+          { accountCode: acc.cash, credit: amount.toString() },
+        ],
+      });
+      const data: Prisma.LoanAccountUpdateManyMutationInput = {
+        advanceBalance: D(state.account.advanceBalance)
+          .minus(amount)
+          .toString(),
+        principalOutstanding: D(state.account.principalOutstanding).toString(),
+        interestReceivable: D(state.account.interestReceivable).toString(),
+        feesReceivable: D(state.account.feesReceivable).toString(),
+        penaltyReceivable: D(state.account.penaltyReceivable).toString(),
+      };
+      await this.closeIfRepaid(tx, state, data);
+      await this.casAccount(tx, state, state.account.status, data);
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.advance_refund.approve',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          decision,
+          details: { event: event.id, amount: amount.toString() },
+          businessDate: fromLocalDate(businessDate),
+        },
+        tx,
+      );
+      return event;
+    });
   }
 
   async proposeWriteOff(

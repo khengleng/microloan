@@ -27,7 +27,8 @@ export class PostingService {
     input: {
       tenantId: string;
       financialEventId: string;
-      loanAccountId: string;
+      /** Null for tenant-level money (unidentified receipts and their refunds). */
+      loanAccountId: string | null;
       entryDate: Date;
       currency: string;
       description: string;

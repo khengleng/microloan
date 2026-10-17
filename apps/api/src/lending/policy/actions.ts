@@ -128,6 +128,25 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan_product.retire',
     workflowStates: ['APPROVED'],
   }),
+  // Unidentified payments and refunds (UC-28, UC-74): tenant-level money.
+  A('payment.suspense.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('payment.suspense.receive', 'TENANT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('payment.refund.propose', 'TENANT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('payment.refund.approve', 'TENANT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
+  A('loan.advance_refund.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.advance_refund.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {
     workflowStates: ['SUBMITTED'],

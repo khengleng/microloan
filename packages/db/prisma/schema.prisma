@@ -70,6 +70,7 @@ model Tenant {
   workflowVersions  WorkflowVersion[]
   lendingProducts   LendingProduct[]
   lendingPolicies   LendingPolicy[]
+  unidentifiedPayments UnidentifiedPayment[]
   borrowerGroups    BorrowerGroup[]
   applications      Application[]
   approvalTasks     ApprovalTask[]
@@ -2171,8 +2172,9 @@ model AccrualEvent {
 model FinancialEvent {
   id                String      @id @default(uuid())
   tenantId          String
-  loanAccountId     String
-  loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// Null for tenant-level money not yet tied to a loan (unidentified receipts, UC-28).
+  loanAccountId     String?
+  loanAccount       LoanAccount? @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
   /// DISBURSEMENT, REPAYMENT, ACCRUAL, PENALTY, SETTLEMENT, WRITE_OFF, RECOVERY, REVERSAL
   type              String
   /// POSTED, REVERSED
@@ -2185,8 +2187,8 @@ model FinancialEvent {
   idempotencyKey    String
   requestHash       String
   reversalOfId      String?     @unique
-  productVersionId  String
-  agreementVersion  Int
+  productVersionId  String?
+  agreementVersion  Int?
   engineVersion     String
   actorId           String
   actorType         String
@@ -2221,7 +2223,7 @@ model LendingJournalEntry {
   tenantId         String
   financialEventId String               @unique
   event            FinancialEvent       @relation(fields: [tenantId, financialEventId], references: [tenantId, id], onDelete: Cascade)
-  loanAccountId    String
+  loanAccountId    String?
   entryDate        DateTime             @db.Date
   currency         String
   description      String
@@ -2241,7 +2243,7 @@ model LendingJournalLine {
   accountId     String
   account       LedgerAccount       @relation(fields: [tenantId, accountId], references: [tenantId, id])
   accountCode   String
-  loanAccountId String
+  loanAccountId String?
   debit         Decimal             @default(0) @db.Decimal(24, 4)
   credit        Decimal             @default(0) @db.Decimal(24, 4)
 
@@ -2564,4 +2566,50 @@ model LendingPolicyVersion {
   @@unique([policyId, version])
   @@unique([tenantId, id])
   @@index([tenantId, status])
+}
+
+/// Money received that cannot yet be tied to a loan (UC-28). Held in the
+/// unidentified-payments suspense account until matched to loans or refunded.
+model UnidentifiedPayment {
+  id                String                     @id @default(uuid())
+  tenantId          String
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference         String
+  amount            Decimal                    @db.Decimal(24, 4)
+  /// What has not yet been matched or refunded.
+  remaining         Decimal                    @db.Decimal(24, 4)
+  currency          String
+  valueDate         DateTime                   @db.Date
+  /// BRANCH_CASH, BANK_TRANSFER, MOBILE, AGENT, PAYROLL, OTHER
+  channel           String
+  externalReference String
+  payerName         String?
+  narrative         String                     @default("")
+  /// OPEN, MATCHED, REFUNDED
+  status            String                     @default("OPEN")
+  receiptEventId    String                     @unique
+  receivedBy        String
+  createdAt         DateTime                   @default(now())
+  matches           UnidentifiedPaymentMatch[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, valueDate])
+}
+
+model UnidentifiedPaymentMatch {
+  id               String              @id @default(uuid())
+  tenantId         String
+  paymentId        String
+  payment          UnidentifiedPayment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Cascade)
+  /// MATCH (applied to a loan) or REFUND (returned to the payer)
+  kind             String
+  loanAccountId    String?
+  financialEventId String              @unique
+  amount           Decimal             @db.Decimal(24, 4)
+  actorId          String
+  reason           String              @default("")
+  createdAt        DateTime            @default(now())
+
+  @@index([tenantId, paymentId])
 }

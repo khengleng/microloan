@@ -80,6 +80,35 @@ const policyParameters = z
 const policyBody = z.record(z.string().max(40), z.unknown());
 
 export const S = {
+  suspenseReceive: z
+    .object({
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      valueDate: date.optional(),
+      channel: z.enum([
+        'BRANCH_CASH',
+        'BANK_TRANSFER',
+        'MOBILE',
+        'AGENT',
+        'PAYROLL',
+        'OTHER',
+      ]),
+      externalReference: z.string().min(2).max(120),
+      payerName: z.string().max(120).optional(),
+      narrative: z.string().max(500).optional(),
+    })
+    .strict(),
+  suspenseMatch: z
+    .object({
+      loanId: z.string().uuid(),
+      amount: money,
+      prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
+      applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+    })
+    .strict(),
+  refundProposal: z
+    .object({ amount: money, reason: z.string().min(3).max(500) })
+    .strict(),
   createPolicy: z
     .object({
       kind: z.enum(['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL']),
