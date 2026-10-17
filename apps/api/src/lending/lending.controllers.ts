@@ -984,6 +984,23 @@ export class LendingMigrationController {
     res.send(this.migration.template());
   }
 
+  /** The legacy module's running loans as a migration file, to move them onto this platform. */
+  @LendingAction('loan.migration.manage')
+  @Get('legacy-export.csv')
+  async legacyExport(
+    @Req() req: Req_,
+    @Res() res: Response,
+    @Query('productCode') productCode?: string,
+  ) {
+    const csv = await this.migration.legacyExport(actor(req), productCode);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="legacy-loans-migration.csv"',
+    );
+    res.send(csv);
+  }
+
   // Read by the maker or the approver; the service checks which.
   @AnyAuthenticated()
   @Get()

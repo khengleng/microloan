@@ -164,6 +164,70 @@ d('Loan-book migration (integration)', () => {
     expect(again.rows[0].issues[0].message).toMatch(/already migrated/);
   });
 
+  it('loans in the legacy module export as a migration file that loads cleanly', async () => {
+    await f.system(async () => {
+      const b = await f.prisma.borrower.create({
+        data: {
+          tenantId: f.t1,
+          branchId: f.b1,
+          firstName: 'Vanna',
+          lastName: 'Legacy',
+          idNumber: 'MIG-LEGACY-1',
+        },
+      });
+      const loanRow = await f.prisma.loan.create({
+        data: {
+          tenantId: f.t1,
+          branchId: f.b1,
+          borrowerId: b.id,
+          status: 'DISBURSED',
+          principal: '1200',
+          annualInterestRate: '18',
+          termMonths: 12,
+          interestMethod: 'REDUCING_BALANCE',
+          currency: 'USD',
+          startDate: new Date(Date.UTC(2025, 9, 5)),
+        },
+      });
+      for (let k = 1; k <= 12; k++) {
+        const paid = k <= 2;
+        await f.prisma.repaymentSchedule.create({
+          data: {
+            loanId: loanRow.id,
+            installmentNumber: k,
+            dueDate: new Date(Date.UTC(2025, 9 + k, 5)),
+            principalAmount: '100',
+            interestAmount: '10',
+            totalAmount: '110',
+            outstandingPrincipal: String(1200 - 100 * k),
+            paidPrincipal: paid ? '100' : '0',
+            paidInterest: paid ? '10' : '0',
+            isPaid: paid,
+          },
+        });
+      }
+    });
+    const res = await f
+      .as('finance')
+      .get('/lending/migrations/legacy-export.csv?productCode=PL-MIG');
+    expect(res.status).toBe(200);
+    const lines: string[] = res.text.trim().split('\n');
+    const legacy = lines.find((l) => l.includes('Vanna'))!;
+    expect(legacy).toContain('1000');
+    const b = expectOk(
+      await f.as('finance').post('/lending/migrations', {
+        fileName: 'legacy.csv',
+        content: [lines[0], legacy].join('\n') + '\n',
+        cutOverDate: '2026-01-05',
+      }),
+    );
+    expect(b.errorCount).toBe(0);
+    const row = b.rows[0];
+    expect(row.values.overdue_principal).toBe('100');
+    expect(row.values.next_due_date).toBe('2026-02-05');
+    expectOk(await f.as('finance').post(`/lending/migrations/${b.id}/cancel`));
+  });
+
   it('servicing continues from cut-over: the next instalments are paid and the arrears cured', async () => {
     expectOk(
       await f

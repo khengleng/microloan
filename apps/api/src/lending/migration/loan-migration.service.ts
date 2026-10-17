@@ -94,6 +94,123 @@ export class LoanMigrationService {
     return lending.migrationTemplate();
   }
 
+  /**
+   * The organisation's own loans in the legacy module, as a migration file at
+   * the business date — the way to move them onto the lending platform. The
+   * product code is the one the loans should be serviced under; review the
+   * file, then load it like any other.
+   */
+  async legacyExport(actor: LendingActor, productCode?: string) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'loan.migration.manage',
+      tenantResource(tenantId),
+    );
+    const cutOver = await this.businessDate.get(tenantId);
+    const cut = fromLocalDate(cutOver);
+    return this.lp.tenantTx(
+      tenantId,
+      async (tx) => {
+        const loans = await tx.loan.findMany({
+          where: { tenantId, status: { in: ['DISBURSED', 'DEFAULTED'] } },
+          include: {
+            schedules: { orderBy: { installmentNumber: 'asc' } },
+            borrower: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        const branches = new Map(
+          (
+            await tx.branch.findMany({
+              where: { tenantId },
+              select: { id: true, code: true, name: true },
+            })
+          ).map((b) => [b.id, b.code ?? b.name]),
+        );
+        const cell = (v: string | number | null | undefined) => {
+          const s0 = v === null || v === undefined ? '' : String(v);
+          const safe = /^[=+\-@]/.test(s0) ? `'${s0}` : s0;
+          return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+        };
+        const out = [lending.MIGRATION_COLUMNS.join(',')];
+        for (const l of loans) {
+          const lines = l.schedules;
+          const open = lines.filter(
+            (x) =>
+              D(x.principalAmount).minus(D(x.paidPrincipal)).gt(0) ||
+              D(x.interestAmount).minus(D(x.paidInterest)).gt(0) ||
+              D(x.penaltyAmount).minus(D(x.paidPenalty)).gt(0),
+          );
+          const overdue = open.filter((x) => x.dueDate <= cut);
+          const future = lines.filter((x) => x.dueDate > cut);
+          if (!future.length) continue; // fully due: settle or restructure it in the legacy module first
+          const sum = (
+            xs: typeof lines,
+            f: (x: (typeof lines)[number]) => lending.Dec,
+          ) => xs.reduce((t, x) => t.plus(f(x)), D(0));
+          const outstanding = sum(lines, (x) =>
+            D(x.principalAmount).minus(D(x.paidPrincipal)),
+          );
+          const prev = [...lines].reverse().find((x) => x.dueDate <= cut);
+          const row: Record<string, string> = {
+            external_loan_id: `LEGACY-${l.id}`,
+            customer_id: `LEGACY-${l.borrowerId}`,
+            first_name: l.borrower.firstName,
+            last_name: l.borrower.lastName,
+            id_number: l.borrower.idNumber ?? '',
+            phone: l.borrower.phone ?? '',
+            date_of_birth: l.borrower.dateOfBirth
+              ? toLocalDate(l.borrower.dateOfBirth)!
+              : '',
+            branch_code: l.branchId ? (branches.get(l.branchId) ?? '') : '',
+            product_code: productCode ?? '',
+            currency: l.currency,
+            original_principal: D(l.principal).toString(),
+            disbursement_date: toLocalDate(l.startDate)!,
+            annual_rate_pct: D(l.annualInterestRate).toString(),
+            principal_outstanding: outstanding.toString(),
+            next_due_date: toLocalDate(future[0].dueDate)!,
+            remaining_instalments: String(future.length),
+            current_period_start: toLocalDate(prev?.dueDate ?? l.startDate)!,
+            overdue_principal: sum(overdue, (x) =>
+              D(x.principalAmount).minus(D(x.paidPrincipal)),
+            ).toString(),
+            overdue_interest: sum(overdue, (x) =>
+              D(x.interestAmount).minus(D(x.paidInterest)),
+            ).toString(),
+            overdue_penalties: sum(overdue, (x) =>
+              D(x.penaltyAmount).minus(D(x.paidPenalty)),
+            ).toString(),
+            oldest_overdue_date: overdue[0]
+              ? toLocalDate(overdue[0].dueDate)!
+              : '',
+            non_accrual: l.status === 'DEFAULTED' ? 'Y' : 'N',
+            monthly_income: l.borrower.monthlyIncome
+              ? D(l.borrower.monthlyIncome).toString()
+              : '',
+          };
+          out.push(
+            lending.MIGRATION_COLUMNS.map((c) => cell(row[c])).join(','),
+          );
+        }
+        await this.audit.write(
+          {
+            actor,
+            action: 'loan.migration.manage',
+            resourceType: 'Tenant',
+            resourceId: tenantId,
+            outcome: 'SUCCESS',
+            details: { export: 'legacy-loans', rows: out.length - 1 },
+          },
+          tx,
+        );
+        return out.join('\n') + '\n';
+      },
+      { timeoutMs: 600_000 },
+    );
+  }
+
   private async can(
     actor: LendingActor,
     action: string,

@@ -41,6 +41,7 @@ function NewFile({ businessDate, can, onLoaded }: { businessDate: string; can: C
     const [cutOver, setCutOver] = useState(businessDate);
     const [controls, setControls] = useState<{ currency: string; loans: string; principal: string }[]>([]);
     const [dragging, setDragging] = useState(false);
+    const [legacyProduct, setLegacyProduct] = useState('');
     const { busy, error, run, clearError } = useAction();
 
     const read = async (f: File | undefined) => {
@@ -84,6 +85,15 @@ function NewFile({ businessDate, can, onLoaded }: { businessDate: string; can: C
                         <a href="/api/proxy/lending/migrations/template.csv" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#635BFF] hover:underline">
                             <Download size={12} /> Download the template
                         </a>
+                        <div className="rounded-md border border-[#E3E8EE] bg-[#F7FAFC] p-2 text-[12px] text-[#3C4257]">
+                            <div className="font-semibold">Moving loans from the legacy module?</div>
+                            <div className="mt-1 flex items-center gap-1">
+                                <TextInput value={legacyProduct} onChange={setLegacyProduct} placeholder="Product code to use" className="w-40" />
+                                <a href={`/api/proxy/lending/migrations/legacy-export.csv${qs({ productCode: legacyProduct.trim() })}`} className="inline-flex items-center gap-1 font-semibold text-[#635BFF] hover:underline">
+                                    <Download size={12} /> Export as a file
+                                </a>
+                            </div>
+                        </div>
                     </li>
                     <li className="space-y-2">
                         <div className="text-[12px] font-bold uppercase tracking-wide text-[#8792A2]">2 · Cut-over date</div>

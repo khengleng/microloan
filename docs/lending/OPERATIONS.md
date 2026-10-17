@@ -142,6 +142,10 @@ the cut-over date.
    equals the old system's net loan balances and is cleared against the
    balances transferred in the general ledger.
 
+Loans still in the legacy module are exported as a migration file at the
+business date (`GET /v1/lending/migrations/legacy-export.csv?productCode=…`,
+also on the Migration page): review it, then load it like any other file.
+
 Out of scope for files: facilities, cards, group loans, floating-rate,
 balloon and explicitly dated schedules (book them in the platform or migrate
 them as instalment loans).
