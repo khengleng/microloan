@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   Inject,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,6 +26,7 @@ import { Permission } from '../authz/permission.enum';
 import { LedgerService } from '../ledger/ledger.service';
 import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
 import { isCbcConfigured } from '../credit-bureau/cbc.provider';
+import { LegacyLoanGate } from './legacy-loan-gate';
 
 @Injectable()
 export class LoansService {
@@ -35,7 +37,16 @@ export class LoansService {
     private ledger: LedgerService,
     @Inject(forwardRef(() => BotService))
     private bot: BotService,
+    /** Consolidation: closes the legacy book to new business when the tenant's flag is on. */
+    @Optional() private legacyGate?: LegacyLoanGate,
   ) {}
+
+  /** Whether the tenant's legacy loan book is read-only (lending.legacy_loans.readonly). */
+  legacyStatus(actor: JwtPayload) {
+    if (!this.legacyGate)
+      return { readonly: false, source: 'NOT_CONFIGURED', message: '' };
+    return this.legacyGate.status(actor.tenantId);
+  }
 
   async create(actor: JwtPayload, dto: CreateLoanDto) {
     this.authz.assertPermission(actor, Permission.LOAN_APPLICATION_CREATE);
@@ -46,6 +57,7 @@ export class LoansService {
     });
     if (!borrower) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, borrower.branchId);
+    await this.legacyGate?.assertOpen(borrower.tenantId, 'create');
 
     // Feature #1: enforce the NBC interest-rate cap (tenant may set a lower cap).
     const cap = checkInterestRateCap(
@@ -261,6 +273,7 @@ export class LoansService {
       if (currentStatus !== LoanStatus.APPROVED) {
         throw new BadRequestException('Loan must be approved before disbursement.');
       }
+      await this.legacyGate?.assertOpen(loan.tenantId, 'disburse');
       if (loan.approvedBy && loan.approvedBy === actorId) {
         throw new BadRequestException('Approver cannot disburse the same loan.');
       }

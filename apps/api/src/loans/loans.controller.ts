@@ -17,6 +17,7 @@ import {
   CreateInteractionDto,
 } from './dto/create-loan.dto';
 import { Roles } from '../auth/roles.decorator';
+import { AnyAuthenticated } from '../auth/auth-scope.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -53,6 +54,13 @@ export class LoansController {
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 50,
     );
+  }
+
+  /** Whether the legacy loan book is closed to new business (lending.legacy_loans.readonly). */
+  @AnyAuthenticated()
+  @Get('legacy-status')
+  legacyStatus(@CurrentUser() user: JwtPayload) {
+    return this.loansService.legacyStatus(user);
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')

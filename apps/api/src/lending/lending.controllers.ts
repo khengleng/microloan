@@ -40,6 +40,7 @@ import { LendingOperationsService } from './accounting/operations.service';
 import { PolicyService } from './policy/policy.service';
 import type { ResourceType } from './policy/actions';
 import { GeneratedDocumentsService } from './documents/generated-documents.service';
+import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -1657,5 +1658,113 @@ export class LendingOperationsController {
   @Get('integrations')
   integrations() {
     return this.ops.integrations();
+  }
+}
+
+/**
+ * Regulatory returns (OPS-7) and the consolidated views of the lending and
+ * legacy books.
+ */
+@Controller('lending/regulatory')
+export class LendingRegulatoryController {
+  constructor(private readonly returns: RegulatoryReturnService) {}
+
+  /** The year's months, their close state and the returns generated for each. */
+  @LendingAction('regulatory.read')
+  @Get('returns')
+  list(@Req() req: Req_, @Query('year') year?: string) {
+    return this.returns.list(actor(req), year ? Number(year) : undefined);
+  }
+
+  /** A month's return computed now, not stored (also for months not closed yet). */
+  @LendingAction('regulatory.read')
+  @Get('preview')
+  preview(
+    @Req() req: Req_,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    return this.returns.preview(actor(req), Number(year), Number(month));
+  }
+
+  /** The combined trial balance: legacy and lending journals side by side. */
+  @LendingAction('accounting.read')
+  @Get('combined-trial-balance')
+  combinedTrialBalance(@Req() req: Req_, @Query('asOf') asOf?: string) {
+    return this.returns.combinedTrialBalance(actor(req), asOf || undefined);
+  }
+
+  @LendingAction('regulatory.prepare')
+  @Post('returns')
+  generate(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.regulatoryGenerate))
+    body: { year: number; month: number; comment?: string },
+  ) {
+    return this.returns.generate(actor(req), body);
+  }
+
+  @LendingAction('regulatory.read')
+  @Get('returns/:returnId')
+  get(@Req() req: Req_, @Param('returnId', ID) id: string) {
+    return this.returns.get(actor(req), id);
+  }
+
+  @LendingAction('regulatory.read')
+  @Get('returns/:returnId/export.csv')
+  async exportCsv(
+    @Req() req: Req_,
+    @Res() res: Response,
+    @Param('returnId', ID) id: string,
+    @Query('table') table?: string,
+  ) {
+    const out = await this.returns.csv(actor(req), id, table || undefined);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${out.filename}"`,
+    );
+    // A byte-order mark so spreadsheet programs read the file as UTF-8.
+    res.send(`\ufeff${out.csv}`);
+  }
+
+  @LendingAction('regulatory.read')
+  @Get('returns/:returnId/export.xlsx')
+  async exportXlsx(
+    @Req() req: Req_,
+    @Res() res: Response,
+    @Param('returnId', ID) id: string,
+  ) {
+    const out = await this.returns.xlsx(actor(req), id);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${out.filename}"`,
+    );
+    res.send(out.buffer);
+  }
+
+  @LendingAction('regulatory.prepare')
+  @Post('returns/:returnId/request-submission')
+  requestSubmission(
+    @Req() req: Req_,
+    @Param('returnId', ID) id: string,
+    @Body(new ZodPipe(S.regulatoryRequest)) body: { comment?: string },
+  ) {
+    return this.returns.requestSubmission(actor(req), id, body);
+  }
+
+  @LendingAction('regulatory.submit')
+  @Post('returns/:returnId/decision')
+  decide(
+    @Req() req: Req_,
+    @Param('returnId', ID) id: string,
+    @Body(new ZodPipe(S.regulatoryDecision))
+    body: { approve: boolean; reference?: string; comment?: string },
+  ) {
+    return this.returns.decide(actor(req), id, body);
   }
 }

@@ -230,6 +230,23 @@ export const S = {
   approve: z
     .object({ approve: z.boolean(), comment: z.string().max(500).optional() })
     .strict(),
+  regulatoryGenerate: z
+    .object({
+      year: z.number().int().min(2000).max(2200),
+      month: z.number().int().min(1).max(12),
+      comment: z.string().max(500).optional(),
+    })
+    .strict(),
+  regulatoryRequest: z
+    .object({ comment: z.string().max(500).optional() })
+    .strict(),
+  regulatoryDecision: z
+    .object({
+      approve: z.boolean(),
+      reference: z.string().trim().max(120).optional(),
+      comment: z.string().max(500).optional(),
+    })
+    .strict(),
   migrationUpload: z
     .object({
       fileName: z.string().trim().min(1).max(200),

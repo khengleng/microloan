@@ -17,6 +17,7 @@ import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
 import { PeriodCloseService } from './accounting/period-close.service';
+import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
@@ -77,6 +78,7 @@ import {
   LendingLoansController,
   LendingOperationsController,
   LendingProductsController,
+  LendingRegulatoryController,
 } from './lending.controllers';
 
 /**
@@ -99,6 +101,7 @@ import {
     LendingMigrationController,
     LendingAccessController,
     LendingOperationsController,
+    LendingRegulatoryController,
     LendingFacilitiesController,
     LendingCardsController,
     LendingBnplLeaseController,
@@ -116,6 +119,7 @@ import {
   providers: [
     ReportingService,
     PeriodCloseService,
+    RegulatoryReturnService,
     LoanMigrationService,
     CollectionsService,
     CovenantsService,

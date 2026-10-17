@@ -3870,3 +3870,46 @@ model MigrationRow {
   @@index([tenantId, batchId, status])
   @@index([tenantId, externalLoanId])
 }
+
+/// A monthly regulatory return (OPS-7): loan classification and provisioning,
+/// portfolio breakdowns, PAR, restructured loans, write-offs and recoveries,
+/// large exposures and interest rates, for the lending platform and the legacy
+/// loans together, with the reconciliation of principal to the ledger.
+///
+/// Generated only for a closed month, from its frozen close snapshot. The
+/// content is never edited (enforced by trigger): a correction is a new
+/// version that supersedes the draft or amends a submitted return.
+/// Submission is maker-checker: one person asks, another submits.
+model RegulatoryReturn {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  year                  Int
+  month                 Int
+  /// 1, 2, … within the month; a later version supersedes or amends the earlier.
+  version               Int
+  /// DRAFT, PENDING_SUBMISSION, SUBMITTED, SUPERSEDED
+  status                String    @default("DRAFT")
+  /// CLOSED_PERIOD (built on the month's close snapshot)
+  basis                 String
+  periodId              String?
+  content               Json
+  /// SHA-256 of the canonical content; it never changes.
+  contentHash           String
+  generatedBy           String
+  generatedAt           DateTime  @default(now())
+  submissionRequestedBy String?
+  submissionRequestedAt DateTime?
+  submittedBy           String?
+  submittedAt           DateTime?
+  /// The regulator's acknowledgement or filing reference, entered at submission.
+  submissionReference   String    @default("")
+  /// The later version that superseded or amended this one.
+  supersededById        String?
+  comment               String    @default("")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, year, month, version])
+  @@index([tenantId, year, month])
+}
