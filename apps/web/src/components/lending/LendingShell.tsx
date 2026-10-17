@@ -16,6 +16,7 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/groups', label: 'Groups' },
     { href: '/lending/collections', label: 'Collections' },
     { href: '/lending/suspense', label: 'Unidentified payments' },
+    { href: '/lending/payment-channels', label: 'Payment channels' },
     { href: '/lending/restructures', label: 'Restructures' },
     { href: '/lending/relief', label: 'Relief programmes' },
     { href: '/lending/accounting', label: 'Accounting' },

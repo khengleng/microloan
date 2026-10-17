@@ -29,6 +29,7 @@ import { LoanHolidayPanel } from '../relief/LoanHolidayPanel';
 import { RateResetsPanel } from '../relief/RateResetsPanel';
 import { FeeWaiverPanel } from './FeeWaiverPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
+import { LoanMandatesCard } from '../channels/LoanMandatesCard';
 
 const ACTIONS = [
     { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
@@ -199,6 +200,8 @@ export function LoanDetailView({ id }: { id: string }) {
             )}
 
             <LoanCollateralCard loanId={id} currency={cur} status={acc.status} />
+
+            <LoanMandatesCard loanId={id} status={acc.status} can={c} />
 
             {pendingTasks.length > 0 && (
                 <Card title="Open tasks" bodyClass="p-0">
