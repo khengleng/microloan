@@ -22,7 +22,11 @@ export class KpiService {
     this.authz.assertPermission(actor as any, Permission.LEDGER_VIEW);
     const now = Date.now();
     // Outstanding book = performing + defaulted; leaving DEFAULTED out understated PAR.
-    const loanScope = this.authz.scopeWhere(actor as any, { status: { in: ['DISBURSED', 'DEFAULTED'] } } as any);
+    // A branch manager sees their branch's book; ledger figures are not
+    // attributed to branches, so they are withheld from branch-scoped users.
+    const branch = this.authz.branchFilter(actor as any);
+    const branchScoped = !!branch.branchId;
+    const loanScope = this.authz.scopeWhere(actor as any, { status: { in: ['DISBURSED', 'DEFAULTED'] }, ...branch } as any);
 
     // ── Portfolio + PAR aging (from live schedules of disbursed loans) ────────
     const scheds = await this.prisma.repaymentSchedule.findMany({
@@ -100,13 +104,13 @@ export class KpiService {
     const totalExpense = round(provisionExpense + writeOffExpense, 2);
 
     // ── Aggregate counts & totals ────────────────────────────────────────────
-    const scope = this.authz.scopeWhere(actor as any, {});
+    const scope = this.authz.scopeWhere(actor as any, { ...branch });
     const [disbursedAgg, collectedAgg, activeLoans, borrowers, latestProvision, onTimeAgg, lateAgg] = await Promise.all([
       this.prisma.loan.aggregate({ _sum: { principal: true }, where: { ...(scope as any), status: { in: ['DISBURSED', 'CLOSED', 'DEFAULTED', 'WRITTEN_OFF'] } } }),
-      this.prisma.repayment.aggregate({ _sum: { amount: true }, where: { ...(scope as any), reversedAt: null } }),
+      this.prisma.repayment.aggregate({ _sum: { amount: true }, where: { ...this.authz.scopeWhere(actor as any, {}), loan: branch, reversedAt: null } as any }),
       this.prisma.loan.count({ where: { ...(scope as any), status: { in: ['DISBURSED', 'DEFAULTED'] } } }),
       this.prisma.borrower.count({ where: scope as any }),
-      this.prisma.provisionRun.findFirst({ where: scope as any, orderBy: { runDate: 'desc' }, select: { totalProvision: true, runDate: true } }),
+      this.prisma.provisionRun.findFirst({ where: this.authz.scopeWhere(actor as any, {}) as any, orderBy: { runDate: 'desc' }, select: { totalProvision: true, runDate: true } }),
       this.prisma.repaymentSchedule.count({ where: { loan: scope as any, isPaid: true, penaltyAmount: 0 } }),
       this.prisma.repaymentSchedule.count({ where: { loan: scope as any, isPaid: true, penaltyAmount: { gt: 0 } } }),
     ]);
@@ -136,17 +140,21 @@ export class KpiService {
         par30Pct: pct(par30, gross),
         par90Pct: pct(par90, gross),
       },
-      income: { interest, penalty, fee, total: totalIncome },
-      expense: { provision: provisionExpense, writeOff: writeOffExpense, total: totalExpense },
-      netOperatingIncome: round(totalIncome - totalExpense, 2),
+      income: branchScoped ? null : { interest, penalty, fee, total: totalIncome },
+      expense: branchScoped ? null : { provision: provisionExpense, writeOff: writeOffExpense, total: totalExpense },
+      netOperatingIncome: branchScoped ? null : round(totalIncome - totalExpense, 2),
       ratios: {
-        interestYieldPct: pct(interest, gross), // interest earned to date vs gross portfolio
-        provisionCoveragePct: pct(allowance, gross),
+        interestYieldPct: branchScoped ? null : pct(interest, gross), // interest earned to date vs gross portfolio
+        provisionCoveragePct: branchScoped ? null : pct(allowance, gross),
         collectionRatePct: pct(paidToDate, dueToDate),
         onTimeRepaymentPct: pct(onTimeAgg, paidInstallments),
-        writeOffRatePct: pct(expenseOf(ACCOUNT_CODES.WRITE_OFF_EXPENSE), totalDisbursed),
+        writeOffRatePct: branchScoped ? null : pct(expenseOf(ACCOUNT_CODES.WRITE_OFF_EXPENSE), totalDisbursed),
       },
+      branchScoped,
       notes: [
+        ...(branchScoped
+          ? ['Figures cover your branch only. Ledger income, expense and provisioning are organisation-wide and are not shown to branch users.']
+          : []),
         'Net interest margin and cost-to-income require the Treasury module (cost of funds / OPEX), which is not enabled in this build.',
         'Interest yield is cumulative interest income to date over the current gross portfolio, not annualised.',
       ],

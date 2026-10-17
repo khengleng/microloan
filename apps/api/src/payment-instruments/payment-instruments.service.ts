@@ -156,7 +156,8 @@ export class PaymentInstrumentsService {
           qrPayload: dto.qrPayload,
           qrImage: dto.qrImage,
           currency: dto.currency as any,
-          branchId: dto.branchId ?? null,
+          // Omitted keeps the branch; only an explicit null clears it.
+          branchId: dto.branchId === undefined ? undefined : dto.branchId,
           isActive: dto.isActive,
           isDefault: dto.isDefault,
         },

@@ -1,6 +1,8 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AuthzService } from '../authz/authz.service';
+import type { JwtPayload } from '../auth/jwt.strategy';
 import * as XLSX from 'xlsx';
 import * as PDFDocument from 'pdfkit';
 
@@ -9,11 +11,13 @@ export class ExportsService {
     constructor(
         private prisma: PrismaService,
         private audit: AuditService,
+        private authz: AuthzService,
     ) { }
 
-    async exportLoansToExcel(tenantId: string, actorId: string): Promise<Buffer> {
+    async exportLoansToExcel(tenantId: string, actorId: string, actor: JwtPayload): Promise<Buffer> {
+        // A branch-scoped user exports their own branch only.
         const loans = await this.prisma.loan.findMany({
-            where: { tenantId },
+            where: { tenantId, ...this.authz.branchFilter(actor as any) },
             include: { borrower: true, product: true },
         });
 
@@ -40,9 +44,9 @@ export class ExportsService {
         return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     }
 
-    async exportRepaymentsToExcel(tenantId: string, actorId: string): Promise<Buffer> {
+    async exportRepaymentsToExcel(tenantId: string, actorId: string, actor: JwtPayload): Promise<Buffer> {
         const repayments = await this.prisma.repayment.findMany({
-            where: { tenantId },
+            where: { tenantId, loan: this.authz.branchFilter(actor as any) },
             include: { loan: { include: { borrower: true } } },
         });
 
