@@ -352,6 +352,14 @@ export const productConfigSchema = z
         collectionStages: z.array(z.object({ code, label: text(60), fromDpd: z.number().int().min(0) }).strict()).default([]),
         writeOffMinDpd: z.number().int().min(0).nullable().default(null),
         restructureAllowed: z.boolean().default(true),
+        /**
+         * Minimum down payment as a fraction of the purchase price (principal +
+         * down payment), collected before disbursement (UC-02). Null: none required.
+         */
+        downPayment: z
+          .object({ minFraction: rateFraction.nullable().default(null) })
+          .strict()
+          .default({ minFraction: null }),
         /** Stop recognising interest as income past a days-past-due threshold (DECISIONS D-002). */
         nonAccrual: z
           .object({
@@ -470,6 +478,8 @@ export const productConfigSchema = z
         /** Loss allowance (contra-asset) and the expense that builds it (OPS-5). */
         loanLossAllowance: code.default('1300'),
         provisionExpense: code.default('5000'),
+        /** Down payments the lender collected, held until paid to the seller (UC-02). */
+        downPaymentsHeld: code.default('2600'),
       })
       .strict(),
   })
@@ -760,6 +770,8 @@ export interface NegotiatedTerms {
   balloonAmount?: string;
   explicitSchedule?: { dueDate: string; principal: string }[];
   waivedFeeCodes?: string[];
+  /** Paid by the borrower towards the purchase, not financed (UC-02). */
+  downPayment?: string;
   /**
    * The contract's choice from the product's policy menus (POLICY_MODEL.md).
    * A kind left out uses the product's default policy.
@@ -785,6 +797,13 @@ export function checkTerms(c: ProductConfig, t: NegotiatedTerms): TermsCheck {
   }
   if (principal.lt(dec(c.limits.minAmount)) || principal.gt(dec(c.limits.maxAmount))) {
     add('principal', `must be between ${c.limits.minAmount} and ${c.limits.maxAmount} ${c.identity.currency}`);
+  }
+  const minDown = c.operations.downPayment.minFraction;
+  if (minDown) {
+    const down = t.downPayment ? dec(t.downPayment, 'downPayment') : dec(0);
+    const required = principal.plus(down).times(minDown);
+    if (down.lt(required))
+      add('downPayment', `at least ${dec(minDown).times(100)}% of the purchase price (${principal.plus(down)}) is required: ${required.toDecimalPlaces(2)}`);
   }
   const n = c.repayment.method === 'EXPLICIT' ? t.explicitSchedule?.length ?? 0 : t.numberOfInstalments ?? 0;
   if (n < c.limits.minInstalments || n > c.limits.maxInstalments) add('numberOfInstalments', `must be between ${c.limits.minInstalments} and ${c.limits.maxInstalments}`);

@@ -1739,6 +1739,7 @@ export class ApplicationsService {
       balloonAmount: t.balloonAmount,
       explicitSchedule: t.explicitSchedule,
       waivedFeeCodes: t.waivedFeeCodes,
+      downPayment: t.downPayment,
       policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)

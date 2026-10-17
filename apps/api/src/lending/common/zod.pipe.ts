@@ -47,6 +47,7 @@ export const termsSchema = z
       .max(60)
       .optional(),
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
+    downPayment: money.optional(),
     riskCategory: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     policies: z
       .record(
@@ -351,7 +352,44 @@ export const S = {
   book: z.object({ plannedDisbursementDate: date.optional() }).strict(),
   prepareDisbursement: z.object({ valueDate: date.optional() }).strict(),
   executeDisbursement: z
-    .object({ externalReference: z.string().min(2).max(120) })
+    .object({
+      externalReference: z.string().min(2).max(120),
+      /**
+       * Who receives the money (UC-05); an INTERNAL_LOAN payee settles that
+       * loan of the same borrower from the proceeds (UC-35).
+       */
+      payees: z
+        .array(
+          z
+            .object({
+              type: z.enum([
+                'BORROWER',
+                'SELLER',
+                'DEALER',
+                'SCHOOL',
+                'PREVIOUS_LENDER',
+                'INTERNAL_LOAN',
+                'OTHER',
+              ]),
+              name: z.string().min(2).max(120),
+              reference: z.string().max(120).optional(),
+              account: z.string().max(60).optional(),
+              loanId: uuid.optional(),
+              amount: money,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20)
+        .optional(),
+    })
+    .strict(),
+  downPayment: z
+    .object({
+      amount: money,
+      collectedBy: z.enum(['LENDER', 'SELLER']),
+      externalReference: z.string().min(2).max(120),
+    })
     .strict(),
   repayment: z
     .object({

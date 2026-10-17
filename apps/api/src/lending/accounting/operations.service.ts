@@ -31,7 +31,8 @@ const SUBLEDGER_FIELDS: {
     | 'penaltyReceivable'
     | 'advanceBalance'
     | 'interestInSuspense'
-    | 'allowance';
+    | 'allowance'
+    | 'downPaymentHeld';
   mapping: string;
   /** Credit-balance accounts: the GL balance is credits − debits. */
   credit?: true;
@@ -60,6 +61,12 @@ const SUBLEDGER_FIELDS: {
     mapping: 'loanLossAllowance',
     credit: true,
     fallback: '1300',
+  },
+  {
+    field: 'downPaymentHeld',
+    mapping: 'downPaymentsHeld',
+    credit: true,
+    fallback: '2600',
   },
 ];
 

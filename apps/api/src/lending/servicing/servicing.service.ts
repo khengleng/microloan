@@ -286,10 +286,110 @@ export class ServicingService {
     });
   }
 
+  /**
+   * UC-02: record the borrower's down payment before disbursement. Money the
+   * lender collects is held for the seller and paid out with the proceeds;
+   * money paid straight to the seller is recorded with its evidence.
+   */
+  async recordDownPayment(
+    actor: LendingActor,
+    id: string,
+    body: {
+      amount: string;
+      collectedBy: 'LENDER' | 'SELLER';
+      externalReference: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    const hash = requestHash({ op: 'down-payment', id, body });
+    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const amount = lending.parseMoney(
+        body.amount,
+        state.account.currency,
+        'amount',
+      );
+      await this.policy.enforce(
+        actor,
+        'loan.down_payment.record',
+        resourceOf(state, [], amount.toString()),
+        tx,
+      );
+      if (state.account.status !== 'BOOKED')
+        throw new ConflictException(
+          'A down payment is recorded before the loan is disbursed.',
+        );
+      if (amount.lte(0))
+        throw new BadRequestException('Amount must be positive.');
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const lender = body.collectedBy === 'LENDER';
+      const acc = state.config.accounting;
+      const event = await this.recordEvent(tx, state, {
+        type: 'DOWN_PAYMENT',
+        amount,
+        businessDate,
+        valueDate: businessDate,
+        components: {
+          collectedBy: body.collectedBy,
+          amount: amount.toString(),
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: lender
+          ? `Down payment ${amount} held for the seller`
+          : `Down payment ${amount} paid to the seller (evidence ${body.externalReference})`,
+        externalReference: body.externalReference,
+        lines: lender
+          ? [
+              { accountCode: acc.cash, debit: amount.toString() },
+              { accountCode: acc.downPaymentsHeld, credit: amount.toString() },
+            ]
+          : [],
+      });
+      await this.casAccount(tx, state, 'BOOKED', {
+        downPaymentReceived: D(state.account.downPaymentReceived)
+          .plus(amount)
+          .toString(),
+        downPaymentHeld: lender
+          ? D(state.account.downPaymentHeld).plus(amount).toString()
+          : undefined,
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.down_payment.record',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            event: event.id,
+            amount: amount.toString(),
+            collectedBy: body.collectedBy,
+          },
+          businessDate: fromLocalDate(businessDate),
+        },
+        tx,
+      );
+      return event;
+    });
+  }
+
   async executeDisbursement(
     actor: LendingActor,
     id: string,
-    body: { externalReference: string },
+    body: {
+      externalReference: string;
+      payees?: {
+        type: string;
+        name: string;
+        reference?: string;
+        account?: string;
+        loanId?: string;
+        amount: string;
+      }[];
+    },
     idempotencyKey: string,
   ) {
     const tenantId = requireTenant(actor);
@@ -332,6 +432,19 @@ export class ServicingService {
           code: 'CONDITIONS_OUTSTANDING',
         });
       }
+      // UC-02: the agreed down payment must be in before the loan pays out.
+      const booked = await tx.agreementVersion.findFirst({
+        where: { tenantId, agreementId: state.account.agreementId, version: 1 },
+        select: { terms: true },
+      });
+      const agreedDown = D(
+        (booked?.terms as { downPayment?: string } | null)?.downPayment ?? '0',
+      );
+      if (D(state.account.downPaymentReceived).lt(agreedDown))
+        throw new BadRequestException({
+          message: `The ${agreedDown} ${state.account.currency} down payment has not been received (recorded: ${D(state.account.downPaymentReceived)}).`,
+          code: 'DOWN_PAYMENT_OUTSTANDING',
+        });
       const businessDate = await this.businessDate.get(tenantId, tx);
       const valueDate = (task.payload as { valueDate: string }).valueDate;
       BusinessDateService.checkValueDate(
@@ -445,9 +558,46 @@ export class ServicingService {
         fees.netDisbursement,
         valueDate,
       );
+      // UC-05: who receives the money. A down payment the lender holds goes
+      // out with the proceeds (to the seller); an INTERNAL_LOAN payee settles
+      // that loan of the same borrower (UC-35).
+      const held = D(state.account.downPaymentHeld);
+      const payout = D(fees.netDisbursement).plus(held);
+      const payees = body.payees ?? [
+        { type: 'BORROWER', name: 'Borrower', amount: payout.toString() },
+      ];
+      if (!body.payees && held.gt(0))
+        throw new BadRequestException(
+          'A down payment is held for the seller: name the payees of this disbursement.',
+        );
+      if (body.payees && refinance)
+        throw new BadRequestException(
+          'A refinancing disbursement pays the replaced loan itself; payees cannot be named.',
+        );
+      const named = payees.reduce(
+        (t, p) =>
+          t.plus(
+            lending.parseMoney(
+              p.amount,
+              state.account.currency,
+              'payee amount',
+            ),
+          ),
+        ZERO(),
+      );
+      if (!named.eq(payout))
+        throw new BadRequestException(
+          `The payees add up to ${named} ${state.account.currency}; the disbursement pays out ${payout}${held.gt(0) ? ` (proceeds ${fees.netDisbursement} + down payment held ${held})` : ''}.`,
+        );
+      for (const p of payees)
+        if ((p.type === 'INTERNAL_LOAN') !== !!p.loanId)
+          throw new BadRequestException(
+            'Name the loan for an INTERNAL_LOAN payee, and only for one.',
+          );
       const lines: PostingLine[] = [
         { accountCode: acc.loansReceivable, debit: fees.bookedPrincipal },
-        { accountCode: acc.cash, credit: fees.netDisbursement },
+        { accountCode: acc.downPaymentsHeld, debit: held.toString() },
+        { accountCode: acc.cash, credit: payout.toString() },
       ];
       for (const f of fees.lines) {
         if (f.waived) continue;
@@ -471,6 +621,8 @@ export class ServicingService {
           fees: fees.lines,
           task: task.id,
           agreementVersion,
+          downPaymentPaidOut: held.toString(),
+          payees,
         },
         idempotencyKey,
         requestHash: hash,
@@ -487,6 +639,7 @@ export class ServicingService {
         throw concurrentModification('This disbursement');
       await this.casAccount(tx, state, 'BOOKED', {
         status: 'ACTIVE',
+        downPaymentHeld: '0',
         principalOutstanding: fees.bookedPrincipal,
         feesReceivable: separateAmount.plus(separateTax).toString(),
         disbursementDate: fromLocalDate(valueDate),
@@ -494,6 +647,34 @@ export class ServicingService {
         instalmentAmount: schedule.instalmentAmount,
         lastAccrualDate: fromLocalDate(valueDate),
       });
+      // UC-35: each internal loan named as a payee is settled from the proceeds.
+      for (const p of payees.filter((x) => x.type === 'INTERNAL_LOAN')) {
+        const other = await tx.loanAccount.findFirst({
+          where: { id: p.loanId!, tenantId },
+          select: { borrowerId: true, id: true },
+        });
+        if (
+          !other ||
+          other.id === id ||
+          other.borrowerId !== state.account.borrowerId
+        )
+          throw new BadRequestException(
+            'An internal payee must be another active loan of the same borrower.',
+          );
+        await this.settleInTx(
+          tx,
+          actor,
+          p.loanId!,
+          {
+            amount: p.amount,
+            valueDate,
+            externalReference: `Consolidated into ${state.account.reference}`,
+          },
+          `${idempotencyKey}:consolidates:${p.loanId}`,
+          hash,
+          { authorizedByDisbursement: true },
+        );
+      }
       if (refinance) {
         await this.settleRefinancedLoan(tx, actor, state, refinance, event.id, {
           businessDate,
@@ -1467,198 +1648,221 @@ export class ServicingService {
   ) {
     const tenantId = requireTenant(actor);
     const hash = requestHash({ op: 'settle', id, body });
-    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
-      let state = await loadLoanState(tx, tenantId, id);
-      const amount = lending.parseMoney(
-        String(body.amount ?? ''),
-        state.account.currency,
-        'amount',
-      );
+    return this.money(tenantId, idempotencyKey, hash, (tx) =>
+      this.settleInTx(tx, actor, id, body, idempotencyKey, hash),
+    );
+  }
+
+  /**
+   * Early settlement inside the caller's transaction. `fundingAccount`
+   * replaces cash when the payoff is funded from elsewhere — another loan's
+   * proceeds in a consolidation (UC-35).
+   */
+  async settleInTx(
+    tx: Tx,
+    actor: LendingActor,
+    id: string,
+    body: { amount: string; valueDate?: string; externalReference?: string },
+    idempotencyKey: string,
+    hash: string,
+    opts: { fundingAccount?: string; authorizedByDisbursement?: boolean } = {},
+  ) {
+    const tenantId = requireTenant(actor);
+    let state = await loadLoanState(tx, tenantId, id);
+    const amount = lending.parseMoney(
+      String(body.amount ?? ''),
+      state.account.currency,
+      'amount',
+    );
+    // A consolidation payoff is authorised by the approved disbursement that funds it.
+    if (!opts.authorizedByDisbursement)
       await this.policy.enforce(
         actor,
         'loan.repayment.post',
         resourceOf(state, [], amount.toString()),
         tx,
       );
-      const businessDate = await this.businessDate.get(tenantId, tx);
-      const valueDate = body.valueDate ?? businessDate;
-      BusinessDateService.checkValueDate(
-        valueDate,
-        businessDate,
-        state.config.repayment.maxBackdateDays,
+    const businessDate = await this.businessDate.get(tenantId, tx);
+    const valueDate = body.valueDate ?? businessDate;
+    BusinessDateService.checkValueDate(
+      valueDate,
+      businessDate,
+      state.config.repayment.maxBackdateDays,
+    );
+    const q = await this.quote(tx, state, valueDate);
+    if (!amount.eq(q.payable))
+      throw new BadRequestException(
+        `The settlement amount on ${valueDate} is ${q.payable} ${state.account.currency}.`,
       );
-      const q = await this.quote(tx, state, valueDate);
-      if (!amount.eq(q.payable))
-        throw new BadRequestException(
-          `The settlement amount on ${valueDate} is ${q.payable} ${state.account.currency}.`,
-        );
-      state = await this.catchUp(tx, state, valueDate, businessDate, actor);
+    state = await this.catchUp(tx, state, valueDate, businessDate, actor);
 
-      // Allocate everything outstanding: due lines in full, then the remaining principal and interest to the first future line.
-      const allocations: lending.AllocationLine[] = [];
-      const live = state.lines.filter((l) => l.status === 'DUE');
-      const due = live.filter(
-        (l) => lending.compareDates(toLocalDate(l.dueDate)!, valueDate) <= 0,
-      );
-      const future = live.filter(
-        (l) => lending.compareDates(toLocalDate(l.dueDate)!, valueDate) > 0,
-      );
-      for (const l of due)
-        for (const [c, v] of Object.entries(outstanding(l)))
-          if (v.gt(0))
-            allocations.push({
-              instalmentNumber: l.number,
-              component: c as lending.DueComponent,
-              amount: v.toString(),
-            });
-      const allocated = (c: string) =>
-        allocations
-          .filter((a) => a.component === c)
-          .reduce((s, a) => s.plus(a.amount), ZERO());
-      const futurePrincipal = D(state.account.principalOutstanding).minus(
-        allocated('PRINCIPAL'),
-      );
-      const futureInterest = D(state.account.interestReceivable).minus(
-        allocated('INTEREST'),
-      );
-      const futureFees = D(state.account.feesReceivable)
-        .minus(allocated('FEE'))
-        .minus(allocated('TAX'));
-      if (future.length) {
-        if (futurePrincipal.gt(0))
+    // Allocate everything outstanding: due lines in full, then the remaining principal and interest to the first future line.
+    const allocations: lending.AllocationLine[] = [];
+    const live = state.lines.filter((l) => l.status === 'DUE');
+    const due = live.filter(
+      (l) => lending.compareDates(toLocalDate(l.dueDate)!, valueDate) <= 0,
+    );
+    const future = live.filter(
+      (l) => lending.compareDates(toLocalDate(l.dueDate)!, valueDate) > 0,
+    );
+    for (const l of due)
+      for (const [c, v] of Object.entries(outstanding(l)))
+        if (v.gt(0))
           allocations.push({
-            instalmentNumber: future[0].number,
-            component: 'PRINCIPAL',
-            amount: futurePrincipal.toString(),
+            instalmentNumber: l.number,
+            component: c as lending.DueComponent,
+            amount: v.toString(),
           });
-        if (futureInterest.gt(0))
-          allocations.push({
-            instalmentNumber: future[0].number,
-            component: 'INTEREST',
-            amount: futureInterest.toString(),
-          });
-        if (futureFees.gt(0))
-          allocations.push({
-            instalmentNumber: future[0].number,
-            component: 'FEE',
-            amount: futureFees.toString(),
-          });
-      }
-      await this.applyAllocations(
-        tx,
-        state,
-        allocations.filter((a) =>
-          due.some((l) => l.number === a.instalmentNumber),
-        ),
-      );
-      if (future.length)
-        await tx.scheduleInstalment.updateMany({
-          where: { tenantId, id: { in: future.map((l) => l.id) } },
-          data: { status: 'SUPERSEDED' },
+    const allocated = (c: string) =>
+      allocations
+        .filter((a) => a.component === c)
+        .reduce((s, a) => s.plus(a.amount), ZERO());
+    const futurePrincipal = D(state.account.principalOutstanding).minus(
+      allocated('PRINCIPAL'),
+    );
+    const futureInterest = D(state.account.interestReceivable).minus(
+      allocated('INTEREST'),
+    );
+    const futureFees = D(state.account.feesReceivable)
+      .minus(allocated('FEE'))
+      .minus(allocated('TAX'));
+    if (future.length) {
+      if (futurePrincipal.gt(0))
+        allocations.push({
+          instalmentNumber: future[0].number,
+          component: 'PRINCIPAL',
+          amount: futurePrincipal.toString(),
         });
+      if (futureInterest.gt(0))
+        allocations.push({
+          instalmentNumber: future[0].number,
+          component: 'INTEREST',
+          amount: futureInterest.toString(),
+        });
+      if (futureFees.gt(0))
+        allocations.push({
+          instalmentNumber: future[0].number,
+          component: 'FEE',
+          amount: futureFees.toString(),
+        });
+    }
+    await this.applyAllocations(
+      tx,
+      state,
+      allocations.filter((a) =>
+        due.some((l) => l.number === a.instalmentNumber),
+      ),
+    );
+    if (future.length)
+      await tx.scheduleInstalment.updateMany({
+        where: { tenantId, id: { in: future.map((l) => l.id) } },
+        data: { status: 'SUPERSEDED' },
+      });
 
-      const acc = state.config.accounting;
-      const rounding = D(q.roundingDifference);
-      // Every penny of interest is collected, so suspended interest is now income.
-      const released = suspenseRelease(
-        state,
-        D(state.account.interestReceivable),
-      );
-      const event = await this.recordEvent(
-        tx,
-        state,
-        {
-          type: 'SETTLEMENT',
-          amount,
-          businessDate,
-          valueDate,
-          components: { ...q },
-          idempotencyKey,
-          requestHash: hash,
-          actor,
-          narrative: `Early settlement ${amount} ${state.account.currency}`,
-          externalReference: body.externalReference,
-          lines: [
-            { accountCode: acc.cash, debit: amount.toString() },
-            {
-              accountCode: acc.customerAdvances,
-              debit: D(state.account.advanceBalance).toString(),
-            },
-            {
-              accountCode: acc.loansReceivable,
-              credit: D(state.account.principalOutstanding).toString(),
-            },
-            {
-              accountCode: acc.interestReceivable,
-              credit: D(state.account.interestReceivable).toString(),
-            },
-            {
-              accountCode: acc.feesReceivable,
-              credit: D(state.account.feesReceivable).toString(),
-            },
-            {
-              accountCode: acc.penaltyReceivable,
-              credit: D(state.account.penaltyReceivable).toString(),
-            },
-            { accountCode: acc.feeIncome, credit: q.settlementFee },
-            // Interest owed under the rebate method differs from what accrued
-            // by day count; the difference is income (or gives some back).
-            ...interestAdjustment(
-              acc.interestIncome,
-              D(q.interest).minus(D(state.account.interestReceivable)),
-            ),
-            ...released.lines,
-            ...allowanceRelease(state).lines,
-            rounding.gte(0)
-              ? {
-                  accountCode: acc.roundingDifferences,
-                  credit: rounding.toString(),
-                }
-              : {
-                  accountCode: acc.roundingDifferences,
-                  debit: rounding.negated().toString(),
-                },
-          ],
-        },
-        allocations,
-      );
-      await this.casAccount(tx, state, 'ACTIVE', {
-        status: 'CLOSED',
-        closedAt: new Date(),
-        principalOutstanding: '0',
-        interestReceivable: '0',
-        feesReceivable: '0',
-        penaltyReceivable: '0',
-        advanceBalance: '0',
-        interestInSuspense: '0',
-        allowance: '0',
-        nonAccrual: false,
-        nonAccrualSince: null,
-        daysPastDue: 0,
-        delinquencyBucket: 'CURRENT',
-        collectionStage: null,
-        lastAccrualDate: state.account.lastAccrualDate,
-      });
-      if (q.feeWaiverTaskId)
-        await this.consumeWaiver(tx, tenantId, q.feeWaiverTaskId, event.id);
-      await this.outbox(tx, tenantId, 'lending.settled', {
-        loanAccountId: id,
-        eventId: event.id,
-      });
-      await this.audit.write(
-        {
-          actor,
-          action: 'loan.settlement',
-          resourceType: 'LoanAccount',
-          resourceId: id,
-          outcome: 'SUCCESS',
-          details: q,
-          businessDate: fromLocalDate(businessDate),
-        },
-        tx,
-      );
-      return event;
+    const acc = state.config.accounting;
+    const rounding = D(q.roundingDifference);
+    // Every penny of interest is collected, so suspended interest is now income.
+    const released = suspenseRelease(
+      state,
+      D(state.account.interestReceivable),
+    );
+    const event = await this.recordEvent(
+      tx,
+      state,
+      {
+        type: 'SETTLEMENT',
+        amount,
+        businessDate,
+        valueDate,
+        components: { ...q },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Early settlement ${amount} ${state.account.currency}`,
+        externalReference: body.externalReference,
+        lines: [
+          {
+            accountCode: opts.fundingAccount ?? acc.cash,
+            debit: amount.toString(),
+          },
+          {
+            accountCode: acc.customerAdvances,
+            debit: D(state.account.advanceBalance).toString(),
+          },
+          {
+            accountCode: acc.loansReceivable,
+            credit: D(state.account.principalOutstanding).toString(),
+          },
+          {
+            accountCode: acc.interestReceivable,
+            credit: D(state.account.interestReceivable).toString(),
+          },
+          {
+            accountCode: acc.feesReceivable,
+            credit: D(state.account.feesReceivable).toString(),
+          },
+          {
+            accountCode: acc.penaltyReceivable,
+            credit: D(state.account.penaltyReceivable).toString(),
+          },
+          { accountCode: acc.feeIncome, credit: q.settlementFee },
+          // Interest owed under the rebate method differs from what accrued
+          // by day count; the difference is income (or gives some back).
+          ...interestAdjustment(
+            acc.interestIncome,
+            D(q.interest).minus(D(state.account.interestReceivable)),
+          ),
+          ...released.lines,
+          ...allowanceRelease(state).lines,
+          rounding.gte(0)
+            ? {
+                accountCode: acc.roundingDifferences,
+                credit: rounding.toString(),
+              }
+            : {
+                accountCode: acc.roundingDifferences,
+                debit: rounding.negated().toString(),
+              },
+        ],
+      },
+      allocations,
+    );
+    await this.casAccount(tx, state, 'ACTIVE', {
+      status: 'CLOSED',
+      closedAt: new Date(),
+      principalOutstanding: '0',
+      interestReceivable: '0',
+      feesReceivable: '0',
+      penaltyReceivable: '0',
+      advanceBalance: '0',
+      interestInSuspense: '0',
+      allowance: '0',
+      nonAccrual: false,
+      nonAccrualSince: null,
+      daysPastDue: 0,
+      delinquencyBucket: 'CURRENT',
+      collectionStage: null,
+      lastAccrualDate: state.account.lastAccrualDate,
     });
+    if (q.feeWaiverTaskId)
+      await this.consumeWaiver(tx, tenantId, q.feeWaiverTaskId, event.id);
+    await this.outbox(tx, tenantId, 'lending.settled', {
+      loanAccountId: id,
+      eventId: event.id,
+    });
+    await this.audit.write(
+      {
+        actor,
+        action: 'loan.settlement',
+        resourceType: 'LoanAccount',
+        resourceId: id,
+        outcome: 'SUCCESS',
+        details: q,
+        businessDate: fromLocalDate(businessDate),
+      },
+      tx,
+    );
+    return event;
   }
 
   // ── Reversal ──────────────────────────────────────────────────────────────

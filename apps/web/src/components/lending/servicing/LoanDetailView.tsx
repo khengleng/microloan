@@ -160,7 +160,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {!isBooked && !isActive && !isWrittenOff && !advanceHeld && <p className="text-[12px] text-[#697386]">This account is {acc.status.replace(/_/g, ' ').toLowerCase()}; no servicing actions are available.</p>}
                     <WhyBlocked caps={caps.caps} actions={ACTIONS} />
 
-                    {panel === 'disburse' && <DisbursementPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'disburse' && <DisbursementPanel loanId={id} currency={cur} account={acc} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'settle' && <SettlementPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'writeoff' && <WriteOffPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}

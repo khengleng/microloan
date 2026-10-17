@@ -11,10 +11,11 @@ export interface TermsDraft {
     disbursementDate: string;
     annualRatePct: string;
     firstDueDate: string;
+    downPayment: string;
 }
 
 export function emptyTermsDraft(disbursementDate: string): TermsDraft {
-    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '' };
+    return { principal: '', numberOfInstalments: '', disbursementDate, annualRatePct: '', firstDueDate: '', downPayment: '' };
 }
 
 export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft {
@@ -24,6 +25,7 @@ export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft
         disbursementDate: t?.disbursementDate ?? '',
         annualRatePct: t?.annualRate ? shiftDecimal(String(t.annualRate), 2) : '',
         firstDueDate: t?.firstDueDate ?? '',
+        downPayment: t?.downPayment ?? '',
     };
 }
 
@@ -34,6 +36,7 @@ export function validateTerms(d: TermsDraft): string[] {
     if (d.numberOfInstalments && !/^\d+$/.test(d.numberOfInstalments.trim())) errs.push('Number of instalments must be a whole number.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.disbursementDate)) errs.push('Disbursement date is required.');
     if (d.annualRatePct && !isDecimalString(d.annualRatePct)) errs.push('Annual rate must be a decimal percent, e.g. 12.5.');
+    if (d.downPayment && !/^\d+(\.\d{1,4})?$/.test(d.downPayment.trim())) errs.push('Down payment must be a decimal amount.');
     return errs;
 }
 
@@ -46,6 +49,7 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
         disbursementDate: d.disbursementDate,
         annualRate: d.annualRatePct.trim() ? percentToFraction(d.annualRatePct) : undefined,
         firstDueDate: d.firstDueDate || undefined,
+        downPayment: d.downPayment.trim() || undefined,
     } as Terms;
 }
 
@@ -67,6 +71,9 @@ export function TermsFields({ value, onChange, currency }: { value: TermsDraft; 
             </Field>
             <Field label="First due date" hint="Optional">
                 <TextInput type="date" value={value.firstDueDate} onChange={set('firstDueDate')} />
+            </Field>
+            <Field label={`Down payment${currency ? ` (${currency})` : ''}`} hint="Optional — paid by the borrower before disbursement">
+                <TextInput value={value.downPayment} onChange={set('downPayment')} inputMode="decimal" />
             </Field>
         </div>
     );

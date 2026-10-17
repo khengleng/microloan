@@ -1952,6 +1952,9 @@ model LoanAccount {
   /// Classification class and IFRS 9 stage from the tenant's impairment policy.
   classification         String?
   impairmentStage        Int?
+  /// Down payment recorded before disbursement (UC-02), and the part the lender holds for the seller.
+  downPaymentReceived    Decimal          @default(0) @db.Decimal(24, 4)
+  downPaymentHeld        Decimal          @default(0) @db.Decimal(24, 4)
   marginCalls            MarginCall[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)

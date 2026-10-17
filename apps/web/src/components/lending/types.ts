@@ -167,6 +167,8 @@ export interface Terms {
     balloonAmount?: Money;
     explicitSchedule?: { dueDate: LocalDate; principal: Money }[];
     waivedFeeCodes?: string[];
+    /** Paid by the borrower before disbursement (UC-02); not part of the loan. */
+    downPayment?: Money;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */
@@ -276,6 +278,8 @@ export interface LoanAccount extends LoanSummary {
     nonAccrual?: boolean; nonAccrualSince?: LocalDate | null; interestInSuspense?: Money;
     /** Loss allowance and classification from the tenant's impairment policy (OPS-5). */
     allowance?: Money; classification?: string | null; impairmentStage?: number | null;
+    /** Down payment received before disbursement and the part the lender still holds (UC-02). */
+    downPaymentReceived?: Money; downPaymentHeld?: Money;
 }
 
 export interface LoanScheduleLine {

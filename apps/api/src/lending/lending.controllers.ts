@@ -720,6 +720,17 @@ export class LendingLoansController {
     return this.collateral.decideRelease(actor(req), id, taskId, body);
   }
 
+  @LendingAction('loan.down_payment.record')
+  @Post(':id/down-payments')
+  recordDownPayment(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.downPayment)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.servicing.recordDownPayment(actor(req), id, body, key);
+  }
+
   @LendingAction('loan.fee_waiver.propose')
   @Post(':id/fee-waivers')
   proposeFeeWaiver(

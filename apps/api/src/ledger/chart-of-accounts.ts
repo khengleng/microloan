@@ -25,6 +25,7 @@ export const ACCOUNT_CODES = {
   CUSTOMER_ADVANCES: '2300',
   INTEREST_SUSPENSE: '2400',
   UNIDENTIFIED_SUSPENSE: '2500',
+  DOWN_PAYMENTS_HELD: '2600',
   RECOVERY_INCOME: '4300',
   ROUNDING_DIFFERENCES: '4900',
   // Restructuring concessions
@@ -108,6 +109,11 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
     name: 'Unidentified Payments (suspense)',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.DOWN_PAYMENTS_HELD,
+    name: 'Down Payments Held (for sellers)',
     type: LedgerAccountType.LIABILITY,
   },
   {
