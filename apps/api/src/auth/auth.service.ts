@@ -12,7 +12,8 @@ import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
-import { verify, generateSecret } from 'otplib';
+import { generateSecret } from 'otplib';
+import { totpCodeMatches } from './totp';
 import * as qrcode from 'qrcode';
 import { createHash, randomUUID, randomBytes } from 'crypto';
 import { Prisma } from '@microloan/db';
@@ -680,7 +681,7 @@ export class AuthService {
       );
     }
 
-    const isValid = verify({ token: code, secret: decryptField(user.twoFactorSecret)! });
+    const isValid = await totpCodeMatches(code, user.twoFactorSecret);
 
     if (!isValid) {
       const newAttempts = (user.loginAttempts || 0) + 1;
@@ -733,6 +734,9 @@ export class AuthService {
   async generateMfaSecret(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    // Replacing the secret of an enabled factor would let anyone holding a
+    // session (but not the authenticator) take the factor over.
+    if (user.twoFactorEnabled) throw new ConflictException('MFA is already enabled');
 
     const secret = generateSecret();
     const otpauthUrl = otpauth.keyuri(user.email, 'Magic Money', secret);
@@ -760,7 +764,9 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.twoFactorSecret) throw new UnauthorizedException('MFA not initiated');
 
-    const isValid = verify({ token: code, secret: decryptField(user.twoFactorSecret)! });
+    if (user.twoFactorEnabled) throw new ConflictException('MFA is already enabled');
+
+    const isValid = await totpCodeMatches(code, user.twoFactorSecret);
     if (!isValid) throw new UnauthorizedException('Invalid verification code');
 
     await this.prisma.user.update({
