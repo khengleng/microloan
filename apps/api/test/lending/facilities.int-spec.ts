@@ -952,4 +952,104 @@ d('Lending facilities (integration)', () => {
       expect(await dpd()).toBe(0);
     });
   });
+
+  // ── Over-limit and renewal (UC-41, UC-42) ─────────────────────────────────
+
+  describe('over-limit allowance and annual renewal', () => {
+    let facilityId: string;
+    let start: string;
+
+    beforeAll(async () => {
+      start = expectOk(await f.as('finance').get('/lending/ops/business-date'))
+        .businessDate as string;
+      const { productId } = await activeProduct(
+        f,
+        'REVOLVING_CREDIT',
+        'RC-OVERLIMIT',
+        (c) => {
+          c.facility.overlimitRate = '0.30';
+          c.facility.overlimitTolerance = '0.10';
+          c.facility.overlimitFee = '25';
+          c.facility.availabilityMonths = 12;
+        },
+      );
+      ({ facilityId } = await bookFacility(productId, {
+        principal: '10000',
+        numberOfInstalments: 12,
+        disbursementDate: start,
+        annualRate: '0.12',
+      }));
+    }, 60_000);
+
+    it('UC-41: a drawdown may run over the limit only within the allowance', async () => {
+      const over = await f
+        .as('opsMaker')
+        .post(`/lending/facilities/${facilityId}/drawdowns`, {
+          amount: '11500',
+        });
+      expect(over.status).toBe(400);
+      expect(JSON.stringify(over.body)).toMatch(/over-limit allowance/);
+      await drawdown(facilityId, { amount: '10800' }, 'ovl1');
+      expect(expectOk(await facility(facilityId)).position.outstanding).toBe(
+        '10800',
+      );
+    });
+
+    it('UC-41: the statement charges over-limit interest and the flat over-limit fee', async () => {
+      const periodEnd = lending.addDays(start, 30);
+      await setBusinessDate(periodEnd);
+      const r = expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/statements`,
+            { periodEnd },
+            'fac-ovl-stmt',
+          ),
+      );
+      expect(Number(r.detail.overlimitInterest)).toBeGreaterThan(0);
+      expect(r.detail.overlimitFee).toBe('25');
+    });
+
+    it('UC-42: a renewal extends availability and maturity once approved by another person', async () => {
+      const before = expectOk(await facility(facilityId)).facility;
+      expect(
+        (
+          await f
+            .as('opsMaker')
+            .post(`/lending/facilities/${facilityId}/limit-changes`, {
+              newLimit: '12000',
+              changeType: 'RENEWAL',
+              reason: 'Annual review',
+            })
+        ).status,
+      ).toBe(400);
+      const change = expectOk(
+        await f
+          .as('opsMaker')
+          .post(`/lending/facilities/${facilityId}/limit-changes`, {
+            newLimit: '12000',
+            changeType: 'RENEWAL',
+            renewalMonths: 12,
+            reason: 'Annual review: turnover up, conduct good',
+          }),
+      );
+      expectOk(
+        await f
+          .as('approver')
+          .post(
+            `/lending/facilities/${facilityId}/limit-changes/${change.id}/decide`,
+            { outcome: 'APPROVE' },
+          ),
+      );
+      const after = expectOk(await facility(facilityId)).facility;
+      expect(after.limitAmount).toBe('12000');
+      expect(after.availabilityTo).toBe(
+        lending.addMonths(before.availabilityTo, 12),
+      );
+      expect(after.maturityDate).toBe(
+        lending.addMonths(before.maturityDate, 12),
+      );
+    });
+  });
 });

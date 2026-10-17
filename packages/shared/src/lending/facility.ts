@@ -78,6 +78,11 @@ export interface FacilityTerms {
    * over-limit balances outright; a rate prices them instead.
    */
   overlimitRate: string | null;
+  /**
+   * How far above the limit a drawdown may take the balance, as a fraction
+   * of the limit (UC-41). Needs an over-limit rate; null or 0: none.
+   */
+  overlimitTolerance?: string | null;
   /** STAGED_DRAWDOWN: the agreed tranches. Empty for the other types. */
   tranches: FacilityTranche[];
 }
@@ -343,8 +348,18 @@ export function checkDrawdown(terms: FacilityTerms, movements: FacilityMovement[
 
   const position = facilityPosition(terms, movements, req.date);
   const available = dec(position.available, 'available');
-  if (amount.gt(available)) {
-    add('amount', `Drawing ${amount.toString()} would exceed the available limit of ${position.available}.`);
+  // UC-41: a priced over-limit allowance lets a drawdown run past the limit, up to the tolerance.
+  const tolerance =
+    terms.overlimitRate !== null && terms.overlimitTolerance && terms.type !== 'STAGED_DRAWDOWN'
+      ? roundMoney(dec(terms.limitAmount, 'limitAmount').times(dec(terms.overlimitTolerance, 'overlimitTolerance')), terms.rounding)
+      : ZERO;
+  if (amount.gt(available.plus(tolerance))) {
+    add(
+      'amount',
+      tolerance.gt(0)
+        ? `Drawing ${amount.toString()} would exceed the available limit of ${position.available} plus the over-limit allowance of ${tolerance.toString()}.`
+        : `Drawing ${amount.toString()} would exceed the available limit of ${position.available}.`,
+    );
   }
   if (terms.minimumDrawdown !== null) {
     const min = dec(terms.minimumDrawdown, 'minimumDrawdown');

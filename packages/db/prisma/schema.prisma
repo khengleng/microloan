@@ -1853,8 +1853,10 @@ model FacilityLimitChange {
   facility       Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
   previousLimit  Decimal  @db.Decimal(24, 4)
   newLimit       Decimal  @db.Decimal(24, 4)
-  /// INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT
+  /// INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT, RENEWAL
   changeType     String
+  /// RENEWAL (UC-42): months availability and maturity are extended by.
+  renewalMonths  Int?
   reason         String
   effectiveDate  DateTime @db.Date
   /// REQUESTED, APPROVED, REJECTED

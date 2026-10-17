@@ -339,6 +339,10 @@ export const productConfigSchema = z
          * balances outright rather than pricing them.
          */
         overlimitRate: rateFraction.nullable().default(null),
+        /** How far over the limit a drawdown may go, as a fraction of the limit (UC-41); needs an over-limit rate. */
+        overlimitTolerance: rateFraction.nullable().default(null),
+        /** Flat fee for each statement period in which the balance went over the limit (UC-41). */
+        overlimitFee: decimalString.nullable().default(null),
         /** Whether the drawn balance amortizes when availability ends. */
         termOutOnExpiry: z.boolean().default(false),
         /** STAGED_DRAWDOWN: the tranche plan a facility inherits. */
@@ -711,7 +715,7 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
     if (f.minimumDrawdown !== null || f.maximumDrawdown !== null) set.push('drawdown bounds');
     if (f.commitmentFeeRate !== null) set.push('commitmentFeeRate');
     if (f.minimumPaymentRate !== null || f.minimumPaymentFloor !== null) set.push('minimum payment');
-    if (f.overlimitRate !== null) set.push('overlimitRate');
+    if (f.overlimitRate !== null || f.overlimitTolerance !== null || f.overlimitFee !== null) set.push('over-limit terms');
     if (f.termOutOnExpiry) set.push('termOutOnExpiry');
     if (f.tranches.length) set.push('tranches');
     if (set.length) add('facility', `a TERM product draws no limit; remove ${set.join(', ')}`);
@@ -719,6 +723,9 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
   }
 
   if (f.availabilityMonths === null) add('facility.availabilityMonths', 'a facility needs an availability period');
+  if (f.overlimitTolerance !== null && dec(f.overlimitTolerance).gt(0) && f.overlimitRate === null) {
+    add('facility.overlimitTolerance', 'an over-limit allowance needs an over-limit rate');
+  }
   if (f.minLimit !== null && f.maxLimit !== null && dec(f.minLimit).gt(dec(f.maxLimit))) {
     add('facility', 'minLimit exceeds maxLimit');
   }

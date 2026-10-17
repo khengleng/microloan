@@ -71,6 +71,7 @@ export function facilityTerms(
     minimumPaymentRate: fc.minimumPaymentRate,
     minimumPaymentFloor: fc.minimumPaymentFloor,
     overlimitRate: fc.overlimitRate,
+    overlimitTolerance: fc.overlimitTolerance,
     // Shares of the limit become amounts only here, where the limit is known.
     tranches: fc.tranches.map((t) => ({
       code: t.code,

@@ -51,9 +51,11 @@ const limitRequest = z
       'EXTENSION',
       'SUSPENSION',
       'REINSTATEMENT',
+      'RENEWAL',
     ]),
     reason: z.string().min(1).max(500),
     effectiveDate: date.optional(),
+    renewalMonths: z.number().int().min(1).max(120).optional(),
   })
   .strict();
 

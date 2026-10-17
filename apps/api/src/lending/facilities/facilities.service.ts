@@ -618,7 +618,15 @@ export class FacilitiesService {
         ),
       );
       const interest = D(statement.interest).plus(statement.overlimitInterest);
-      const fee = D(statement.commitmentFee);
+      // UC-41: a flat fee for a period in which the balance went over the limit.
+      const wentOver =
+        D(statement.overlimitInterest).gt(0) ||
+        D(statement.closingBalance).gt(D(state.facility.limitAmount));
+      const overlimitFee =
+        wentOver && state.config.facility.overlimitFee
+          ? D(state.config.facility.overlimitFee)
+          : D(0);
+      const fee = D(statement.commitmentFee).plus(overlimitFee);
       const charges = interest.plus(fee);
 
       const loanState = await loadLoanState(tx, tenantId, state.account.id, {
@@ -636,6 +644,7 @@ export class FacilitiesService {
             interest: statement.interest,
             overlimitInterest: statement.overlimitInterest,
             commitmentFee: statement.commitmentFee,
+            overlimitFee: overlimitFee.toString(),
             periodStart,
             periodEnd,
           },
@@ -706,7 +715,10 @@ export class FacilitiesService {
           minimumPaymentDue: statement.minimumPayment
             ? fromLocalDate(lending.addDays(periodEnd, 21))
             : null,
-          calculation: statement as unknown as Json,
+          calculation: {
+            ...statement,
+            overlimitFee: overlimitFee.toString(),
+          } as unknown as Json,
           engineVersion: lending.LENDING_ENGINE_VERSION,
           createdBy: actor.id,
         },
@@ -722,7 +734,10 @@ export class FacilitiesService {
         periodEnd,
         charges: charges.toString(),
       });
-      return { statement: statementView(row), detail: statement };
+      return {
+        statement: statementView(row),
+        detail: { ...statement, overlimitFee: overlimitFee.toString() },
+      };
     });
   }
 
@@ -872,6 +887,8 @@ export class FacilitiesService {
       changeType: string;
       reason: string;
       effectiveDate?: string;
+      /** RENEWAL (UC-42): months to extend availability and maturity by. */
+      renewalMonths?: number;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -881,7 +898,12 @@ export class FacilitiesService {
       'EXTENSION',
       'SUSPENSION',
       'REINSTATEMENT',
+      'RENEWAL',
     ];
+    if (body.changeType === 'RENEWAL' && !body.renewalMonths)
+      throw new BadRequestException(
+        'A renewal says how many months to extend the facility by.',
+      );
     if (!types.includes(body.changeType)) {
       throw new BadRequestException(
         `changeType must be one of ${types.join(', ')}.`,
@@ -939,6 +961,8 @@ export class FacilitiesService {
           effectiveDate: fromLocalDate(effectiveDate),
           status: 'REQUESTED',
           requestedBy: actor.id,
+          renewalMonths:
+            body.changeType === 'RENEWAL' ? body.renewalMonths : null,
         },
       });
       await this.writeAudit(actor, tx, state, 'facility.limit.request', {
@@ -992,8 +1016,37 @@ export class FacilitiesService {
       if (decided.count !== 1)
         throw concurrentModification('This limit change');
       if (body.outcome === 'APPROVE') {
+        // UC-42: a renewal also extends availability and maturity, and
+        // brings an expired line back into use.
+        const months = change.renewalMonths ?? 0;
+        if (
+          months &&
+          !['ACTIVE', 'SUSPENDED', 'EXPIRED'].includes(state.facility.status)
+        )
+          throw new ConflictException(
+            `A ${state.facility.status.toLowerCase()} facility cannot be renewed.`,
+          );
         await this.casFacility(tx, state, {
           limitAmount: decStr(change.newLimit),
+          ...(months
+            ? {
+                availabilityTo: fromLocalDate(
+                  lending.addMonths(
+                    toLocalDate(state.facility.availabilityTo)!,
+                    months,
+                  ),
+                ),
+                maturityDate: fromLocalDate(
+                  lending.addMonths(
+                    toLocalDate(state.facility.maturityDate)!,
+                    months,
+                  ),
+                ),
+                ...(state.facility.status === 'EXPIRED'
+                  ? { status: 'ACTIVE' }
+                  : {}),
+              }
+            : {}),
         });
       }
       await this.writeAudit(
