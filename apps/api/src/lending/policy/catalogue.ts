@@ -227,6 +227,18 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Operations',
     financial: true,
   },
+  {
+    code: 'regulatory.prepare',
+    description:
+      'Generate regulatory returns for closed months and ask for their submission',
+    category: 'Operations',
+  },
+  {
+    code: 'regulatory.submit',
+    description:
+      'Submit a regulatory return prepared by someone else (checker)',
+    category: 'Operations',
+  },
   // Restructuring and hardship
   {
     code: 'restructure.request',
@@ -764,6 +776,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan_data.export',
       'accounting.period.close',
       'loan.migration.manage',
+      'regulatory.prepare',
     ],
   },
   {
@@ -778,6 +791,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'impairment.approve',
       'accounting.period.approve',
       'loan.migration.approve',
+      'regulatory.submit',
       'feature_flag.read',
       'access_policy.read',
       'policy.simulate',
@@ -1013,6 +1027,14 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     key: 'lending.integration.credit_bureau',
     description: 'Live credit bureau enquiries',
     category: 'Integrations',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.legacy_loans.readonly',
+    description:
+      'Legacy loans are closed to new business: no new legacy loans and no legacy disbursements. Repayments, payoff and servicing of existing legacy loans continue. New lending goes through the lending platform.',
+    category: 'Consolidation',
     sensitive: true,
     defaultEnabled: false,
   },

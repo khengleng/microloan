@@ -3,7 +3,7 @@ import {
     AlertTriangle, BarChart2, BookOpenCheck, Boxes, Building, Calculator, CalendarCheck, ClipboardList, Coins,
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
     Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
-    Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins,
+    Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap,
 } from 'lucide-react';
 
 /**
@@ -104,6 +104,9 @@ export const NAV: NavSection[] = [
         items: [
             { key: 'ledger', href: '/lending/accounting', icon: BookOpenCheck, lending: ['accounting.read'] },
             { key: 'periodClose', href: '/lending/close', icon: CalendarCheck, lending: ['accounting.period.close', 'accounting.period.approve'], queues: ['PERIODS_TO_APPROVE'] },
+            { key: 'regulatoryReturns', href: '/lending/regulatory', icon: FileCheck2, lending: ['regulatory.prepare', 'regulatory.submit', 'accounting.read'], queues: ['RETURNS_TO_SUBMIT'] },
+            { key: 'combinedLedger', href: '/lending/combined-ledger', icon: Scale, lending: ['accounting.read'] },
+            { key: 'migration', href: '/lending/migration', icon: DatabaseZap, lending: ['loan.migration.manage', 'loan.migration.approve'], queues: ['MIGRATIONS_TO_APPROVE'] },
             {
                 key: 'operations', href: '/lending/operations', icon: Wrench,
                 lending: ['servicing.batch.run', 'business_date.manage', 'rate_observation.manage', 'impairment.manage', 'impairment.approve'],

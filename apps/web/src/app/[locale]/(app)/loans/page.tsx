@@ -9,6 +9,7 @@ import { LoanModal } from '@/components/LoanModal';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
+import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
 
 interface Loan {
     id: string;
@@ -38,6 +39,7 @@ const LIMIT = 50;
 export default function LoansPage() {
     const { locale } = useParams();
     const t = useTranslations('Loans');
+    const legacy = useLegacyStatus();
     const tc = useTranslations('Common');
     const { showToast } = useToast();
     const STATUS_LABELS: Record<string, string> = {
@@ -126,7 +128,7 @@ export default function LoansPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-xl font-bold text-foreground flex items-center gap-2">{t('title')} <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Legacy</span></h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
                         {meta ? t('totalCount', { count: meta.total.toLocaleString() }) : t('managePortfolio')}
                     </p>
@@ -135,14 +137,18 @@ export default function LoansPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
-                    <button onClick={() => {
-                        clarityEvent('loan_application_start');
-                        setIsModalOpen(true);
-                    }} className="btn-primary">
-                        <Plus size={14} /> {t('newLoan')}
-                    </button>
+                    {!legacy?.readonly && (
+                        <button onClick={() => {
+                            clarityEvent('loan_application_start');
+                            setIsModalOpen(true);
+                        }} className="btn-primary">
+                            <Plus size={14} /> {t('newLoan')}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            <LegacyReadonlyBanner status={legacy} />
 
             {/* Status Tabs + Search */}
             <div className="bg-white border border-border rounded-md">

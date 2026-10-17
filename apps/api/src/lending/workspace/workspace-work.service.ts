@@ -167,6 +167,8 @@ const QUEUE_HREF: Record<string, string> = {
   DOCUMENTS_TO_REVIEW: '/lending/documents',
   UNIDENTIFIED_PAYMENTS: '/lending/suspense',
   PERIODS_TO_APPROVE: '/lending/close',
+  MIGRATIONS_TO_APPROVE: '/lending/migration',
+  RETURNS_TO_SUBMIT: '/lending/regulatory',
   COVENANTS_OVERDUE: '/lending/loans',
   PAYOFF_QUOTES_OPEN: '/lending/loans',
   ACCESS_TO_APPROVE: '/lending/access',
@@ -1141,6 +1143,61 @@ export class WorkspaceWorkService {
                 ? p.updatedAt
                 : (p.preparedAt ?? p.updatedAt)
               ).toISOString(),
+            })),
+          );
+        }
+        if (has('loan.migration.approve')) {
+          const rows = await tx.migrationBatch.findMany({
+            where: {
+              tenantId,
+              status: { in: ['VALIDATED', 'PARTIALLY_POSTED'] },
+              errorCount: 0,
+              createdBy: { not: me },
+            },
+            orderBy: { createdAt: 'asc' },
+            take: TOP,
+          });
+          add(
+            'MIGRATIONS_TO_APPROVE',
+            'Migration files to approve',
+            'loan.migration.approve',
+            'CHECKER',
+            rows.length,
+            rows.map((b) => ({
+              id: b.id,
+              reference: b.reference,
+              label: `${b.validCount} loan(s) · cut-over ${b.cutOverDate.toISOString().slice(0, 10)}`,
+              href: '/lending/migration',
+              since: b.createdAt.toISOString(),
+            })),
+          );
+        }
+        if (has('regulatory.submit')) {
+          const rows = await tx.regulatoryReturn.findMany({
+            where: {
+              tenantId,
+              status: 'PENDING_SUBMISSION',
+              generatedBy: { not: me },
+              OR: [
+                { submissionRequestedBy: null },
+                { submissionRequestedBy: { not: me } },
+              ],
+            },
+            orderBy: [{ year: 'asc' }, { month: 'asc' }],
+            take: TOP,
+          });
+          add(
+            'RETURNS_TO_SUBMIT',
+            'Regulatory returns to submit',
+            'regulatory.submit',
+            'CHECKER',
+            rows.length,
+            rows.map((r) => ({
+              id: r.id,
+              reference: `${r.year}-${String(r.month).padStart(2, '0')}`,
+              label: 'NBC return awaiting submission',
+              href: '/lending/regulatory',
+              since: r.createdAt.toISOString(),
             })),
           );
         }

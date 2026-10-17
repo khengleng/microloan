@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Wallet, Users, PiggyBank, ArrowUpRight, BarChart2, Plus } from 'lucide-react';
 import { LoanModal } from '@/components/LoanModal';
+import { useLegacyStatus } from '@/components/LegacyBanner';
 import { BorrowerModal } from '@/components/BorrowerModal';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { useRouter, useParams } from 'next/navigation';
@@ -31,6 +32,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
     const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
+    const legacy = useLegacyStatus();
     const [isBorrowerModalOpen, setIsBorrowerModalOpen] = useState(false);
     const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState(false);
 
@@ -131,9 +133,11 @@ export default function DashboardPage() {
                     <h1 className="text-[18px] font-bold text-foreground">{t('heading')}</h1>
                     <p className="text-[13px] text-muted-foreground mt-0.5">{t('subtitle')}</p>
                 </div>
-                <button onClick={() => setIsLoanModalOpen(true)} className="tv-button gap-1.5 text-[12px]">
-                    <Plus size={14} /> {t('newLoan')}
-                </button>
+                {!legacy?.readonly && (
+                    <button onClick={() => setIsLoanModalOpen(true)} className="tv-button gap-1.5 text-[12px]">
+                        <Plus size={14} /> {t('newLoan')}
+                    </button>
+                )}
             </div>
 
             {/* Metric Cards */}
@@ -223,7 +227,9 @@ export default function DashboardPage() {
                         </div>
                         <div className="p-3 space-y-1">
                             {[
-                                { label: t('createNewLoan'), icon: Plus, action: () => setIsLoanModalOpen(true) },
+                                ...(legacy?.readonly
+                                    ? [{ label: 'New application (lending)', icon: Plus, action: () => router.push(`/${locale}/lending/applications`) }]
+                                    : [{ label: t('createNewLoan'), icon: Plus, action: () => setIsLoanModalOpen(true) }]),
                                 { label: t('addBorrower'), icon: Users, action: () => setIsBorrowerModalOpen(true) },
                                 { label: t('recordRepayment'), icon: PiggyBank, action: () => setIsRepaymentModalOpen(true) },
                                 { label: t('viewReports'), icon: BarChart2, action: () => router.push(`/${locale}/reports`) },

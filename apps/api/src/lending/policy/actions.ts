@@ -218,6 +218,10 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.migration.manage', 'TENANT', 'CONFIG'),
   A('loan.migration.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('accounting.period.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
+  // Regulatory returns (OPS-7): read with accounting; submission is maker-checker.
+  A('regulatory.read', 'TENANT', 'READ', { permission: 'accounting.read' }),
+  A('regulatory.prepare', 'TENANT', 'CONFIG'),
+  A('regulatory.submit', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {
     workflowStates: ['SUBMITTED'],

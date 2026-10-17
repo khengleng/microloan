@@ -47,6 +47,19 @@ const MONEY_TASKS = [
   'COLLATERAL_RELEASE',
 ];
 
+/** The per-loan grades are kept for the regulatory return, not shown on the close screen. */
+function withoutLoanGrades(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== 'object') return snapshot;
+  const { loanGrades, ...rest } = snapshot as Record<string, unknown>;
+  const grades = loanGrades as { asOf?: string; loans?: unknown[] } | undefined;
+  return grades
+    ? {
+        ...rest,
+        loanGrades: { asOf: grades.asOf, count: grades.loans?.length ?? 0 },
+      }
+    : rest;
+}
+
 export function monthBounds(year: number, month: number) {
   const start = `${year}-${String(month).padStart(2, '0')}-01`;
   const end = lending.addDays(lending.addMonths(start, 1), -1);
@@ -246,7 +259,7 @@ export class PeriodCloseService {
       reopenRequestedBy: live.row?.reopenRequestedBy ?? null,
       checks,
       ready: checks.every((c) => c.status !== 'FAIL'),
-      snapshot: live.snapshot,
+      snapshot: withoutLoanGrades(live.snapshot),
       snapshotIsPreview: !live.row || live.row.status === 'OPEN',
       log: live.row?.log ?? [],
       permissions: {
@@ -637,12 +650,38 @@ export class PeriodCloseService {
               .toString()
           : '0';
     }
+    // Each live loan's grading as it stood at the close, for the regulatory
+    // return (OPS-7): balances are re-read from the ledger as of the month
+    // end, but days past due and class cannot be, so they are kept here.
+    const graded = await tx.loanAccount.findMany({
+      where: { tenantId, status: { in: ['ACTIVE', 'WRITTEN_OFF'] } },
+      select: {
+        id: true,
+        daysPastDue: true,
+        classification: true,
+        impairmentStage: true,
+        isRestructured: true,
+        nonAccrual: true,
+      },
+      orderBy: { id: 'asc' },
+    });
     return {
       takenAt: new Date().toISOString(),
       period: { start, end },
       trialBalance,
       month,
       portfolio,
+      loanGrades: {
+        asOf: await this.businessDate.get(tenantId, tx),
+        loans: graded.map((l) => ({
+          id: l.id,
+          dpd: l.daysPastDue,
+          classification: l.classification,
+          stage: l.impairmentStage,
+          restructured: l.isRestructured,
+          nonAccrual: l.nonAccrual,
+        })),
+      },
     };
   }
 

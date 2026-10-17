@@ -248,6 +248,14 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Impairment** — a tenant policy (regulatory class rates or ECL = PD × LGD
   × EAD by stage) approved by risk; end of day posts each loan's change in
   allowance, write-off uses it, closure releases it.
+* **Regulatory returns** — one monthly NBC-style return for the lending and
+  legacy loans together (classification and provisioning, PAR, breakdowns,
+  write-offs and recoveries, largest borrowers, rates against the cap),
+  generated from a closed month, reconciled to both ledgers, immutable and
+  versioned, submitted under maker-checker, CSV and Excel export; a combined
+  trial balance of both journals; and a flag that closes the legacy book to
+  new business ([OPERATIONS.md](docs/lending/OPERATIONS.md)). Gender, sector
+  and related-party data are not captured yet (DECISIONS D-045..D-049).
 * **Collateral on running loans** — revaluation and margin calls, more
   collateral, release after closure; combined LTV behind prior liens.
 * **Late charges and payments** — flat, percentage or penalty-interest late
@@ -319,7 +327,7 @@ Measured against that design, the web app today:
 | Search | ✅ | `GET /v1/search` and a search box in the top bar (`/` or Ctrl/⌘-K): borrowers by name, phone or national ID (blind index), loans, legacy loans, applications, facilities, cards and restructure cases by reference, within the caller's tenant and scope |
 | Explaining refusals | 🟡 | Lending applications, loans and product versions show the policy reason on disabled buttons; restructure cases, facilities and legacy pages do not; the browser treats unknown actions as allowed |
 | Scope, authority, MFA, delegation in the shell | ✅ | Top-bar chips for business date, scope, approval limit and sign-in strength; banners for "verify to approve" and delegated authority. No inline MFA step-up yet (the banner sends the person to sign in again) |
-| Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending) |
+| Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending); the legacy ones are now grouped and labelled "Legacy", and the legacy book can be closed to new business (`lending.legacy_loans.readonly`) |
 | Phase 2 screens | ✅ | Facilities, groups, policy library, unidentified payments, relief programmes, operations, and the servicing panels on the loan screen |
 | Role management | 🟡 | `/users` assigns only legacy roles; access roles are assigned separately under Lending › Access |
 | Khmer | 🟡 | Legacy screens, the portal page, the new menu, lending sub-tabs, home queues, shell chips and search are translated; the lending, accounting, FX, provisioning, KPI and audit screens themselves are English only |
