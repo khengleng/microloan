@@ -71,6 +71,7 @@ model Tenant {
   lendingProducts   LendingProduct[]
   lendingPolicies   LendingPolicy[]
   unidentifiedPayments UnidentifiedPayment[]
+  impairmentPolicies ImpairmentPolicy[]
   borrowerGroups    BorrowerGroup[]
   applications      Application[]
   approvalTasks     ApprovalTask[]
@@ -1940,6 +1941,11 @@ model LoanAccount {
   nonAccrualSince        DateTime?        @db.Date
   /// Interest accrued while on non-accrual, held in suspense until cure.
   interestInSuspense     Decimal          @default(0) @db.Decimal(24, 4)
+  /// Loss allowance held against this loan (OPS-5); posted as the change from the previous day.
+  allowance              Decimal          @default(0) @db.Decimal(24, 4)
+  /// Classification class and IFRS 9 stage from the tenant's impairment policy.
+  classification         String?
+  impairmentStage        Int?
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2612,4 +2618,26 @@ model UnidentifiedPaymentMatch {
   createdAt        DateTime            @default(now())
 
   @@index([tenantId, paymentId])
+}
+
+/// Tenant impairment policy (OPS-5): classification classes and either a
+/// regulatory rate per class or expected credit loss (PD × LGD × EAD) by
+/// stage. Versioned; a different user approves; one ACTIVE at a time.
+model ImpairmentPolicy {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  version   Int
+  settings  Json
+  /// PENDING, ACTIVE, REJECTED, RETIRED
+  status    String    @default("PENDING")
+  makerId   String
+  checkerId String?
+  decidedAt DateTime?
+  reason    String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
 }

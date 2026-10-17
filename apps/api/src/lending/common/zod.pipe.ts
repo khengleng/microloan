@@ -113,6 +113,53 @@ export const S = {
       validUntil: date.optional(),
     })
     .strict(),
+  impairmentPolicy: z
+    .object({
+      settings: z
+        .object({
+          mode: z.enum(['REGULATORY', 'ECL']),
+          classes: z
+            .array(
+              z
+                .object({
+                  code: z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/),
+                  label: z.string().min(1).max(80),
+                  minDpd: z.number().int().min(0).max(3650),
+                  rate: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage: z
+                    .union([z.literal(1), z.literal(2), z.literal(3)])
+                    .optional(),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(12),
+          ecl: z
+            .object({
+              stage2FromDpd: z.number().int().min(1).max(3650),
+              stage3FromDpd: z.number().int().min(1).max(3650),
+              restructuredMinStage: z.union([
+                z.literal(1),
+                z.literal(2),
+                z.literal(3),
+              ]),
+              nonAccrualIsStage3: z.boolean(),
+              pd: z
+                .object({
+                  stage1: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage2: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage3: z.string().regex(/^\d+(\.\d+)?$/),
+                })
+                .strict(),
+              lgd: z.string().regex(/^\d+(\.\d+)?$/),
+            })
+            .strict()
+            .optional(),
+        })
+        .strict(),
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
   refundProposal: z
     .object({ amount: money, reason: z.string().min(3).max(500) })
     .strict(),

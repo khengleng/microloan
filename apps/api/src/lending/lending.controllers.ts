@@ -25,6 +25,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
+import { ImpairmentService } from './accounting/impairment.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import { AccessAdminService } from './access/access-admin.service';
@@ -1003,6 +1004,7 @@ export class LendingOperationsController {
     private readonly ops: LendingOperationsService,
     private readonly servicing: ServicingService,
     private readonly holidays: PaymentHolidayService,
+    private readonly impairment: ImpairmentService,
   ) {}
 
   @LendingAction('loan.read')
@@ -1070,6 +1072,31 @@ export class LendingOperationsController {
   }
 
   @LendingAction('accounting.read')
+  @LendingAction('impairment.read')
+  @Get('impairment-policy')
+  impairmentPolicies(@Req() req: Req_) {
+    return this.impairment.list(actor(req));
+  }
+
+  @LendingAction('impairment.manage')
+  @Post('impairment-policy')
+  proposeImpairmentPolicy(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.impairmentPolicy)) body: never,
+  ) {
+    return this.impairment.propose(actor(req), body);
+  }
+
+  @LendingAction('impairment.approve')
+  @Post('impairment-policy/:id/decision')
+  decideImpairmentPolicy(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+  ) {
+    return this.impairment.decide(actor(req), id, body);
+  }
+
   @Get('journal')
   journal(@Req() req: Req_, @Query() q: Record<string, string>) {
     return this.ops.journal(actor(req), {

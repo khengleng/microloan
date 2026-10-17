@@ -154,6 +154,10 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan.repayment.reverse',
     makerChecker: true,
   }),
+  // Classification and impairment policy (OPS-5).
+  A('impairment.read', 'TENANT', 'READ', { permission: 'accounting.read' }),
+  A('impairment.manage', 'TENANT', 'CONFIG'),
+  A('impairment.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   A('workflow.manage', 'WORKFLOW', 'CONFIG'),
   A('workflow.approve', 'WORKFLOW', 'CONFIG', {
     workflowStates: ['SUBMITTED'],

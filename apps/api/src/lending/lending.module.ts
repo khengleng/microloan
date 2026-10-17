@@ -16,6 +16,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
+import { ImpairmentService } from './accounting/impairment.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
@@ -74,6 +75,7 @@ import {
     GroupsService,
     ServicingService,
     SuspenseService,
+    ImpairmentService,
     FacilitiesService,
     RateResetService,
     EodSchedulerService,

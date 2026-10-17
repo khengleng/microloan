@@ -190,6 +190,17 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Record benchmark rate observations',
     category: 'Operations',
   },
+  {
+    code: 'impairment.manage',
+    description:
+      'Propose loan classification and impairment (provisioning) policies',
+    category: 'Operations',
+  },
+  {
+    code: 'impairment.approve',
+    description: 'Approve an impairment policy proposed by someone else',
+    category: 'Operations',
+  },
   // Restructuring and hardship
   {
     code: 'restructure.request',
@@ -634,6 +645,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'accounting.read',
       'business_date.manage',
       'rate_observation.manage',
+      'impairment.manage',
       'servicing.batch.run',
       'loan_data.export',
     ],
@@ -646,6 +658,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       ...READ_ALL,
       'audit.read',
       'accounting.read',
+      'impairment.approve',
       'feature_flag.read',
       'access_policy.read',
       'policy.simulate',

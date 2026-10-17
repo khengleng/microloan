@@ -88,6 +88,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
       'fee-waivers/:taskId': 'approvalTask',
+      'impairment-policy/:id': 'impairmentPolicy',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
@@ -400,6 +401,7 @@ d('Tenant wall (integration)', () => {
           promisedDate: new Date(Date.UTC(2026, 1, 1)),
         },
       });
+      await p.provisionRun.create({ data: { tenantId: t } });
       await p.paymentInstrument.create({
         data: { tenantId: t, label: 'Victim bank' },
       });

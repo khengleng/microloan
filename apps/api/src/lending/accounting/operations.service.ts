@@ -30,7 +30,8 @@ const SUBLEDGER_FIELDS: {
     | 'feesReceivable'
     | 'penaltyReceivable'
     | 'advanceBalance'
-    | 'interestInSuspense';
+    | 'interestInSuspense'
+    | 'allowance';
   mapping: string;
   /** Credit-balance accounts: the GL balance is credits − debits. */
   credit?: true;
@@ -52,6 +53,13 @@ const SUBLEDGER_FIELDS: {
     mapping: 'interestSuspense',
     credit: true,
     fallback: '2400',
+  },
+  // The loss allowance is a contra-asset: a credit balance per loan.
+  {
+    field: 'allowance',
+    mapping: 'loanLossAllowance',
+    credit: true,
+    fallback: '1300',
   },
 ];
 

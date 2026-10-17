@@ -26,6 +26,7 @@ import { PolicyService } from '../policy/policy.service';
 import { PostingService, PostingLine } from '../accounting/posting.service';
 import { ApplicationsService } from '../origination/applications.service';
 import { GroupsService } from '../origination/groups.service';
+import { ImpairmentService } from '../accounting/impairment.service';
 import {
   Line,
   LoanState,
@@ -82,6 +83,7 @@ export class ServicingService {
     private readonly posting: PostingService,
     private readonly applications: ApplicationsService,
     private readonly groups: GroupsService,
+    private readonly impairment: ImpairmentService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -761,6 +763,85 @@ export class ServicingService {
   }
 
   /**
+   * OPS-5: classify the loan and post the change in its loss allowance —
+   * an expense when more is needed, a release when less is. Changes
+   * `state.account` in memory; the caller writes it.
+   */
+  private async provision(
+    tx: Tx,
+    state: LoanState,
+    dpd: number,
+    policy: lending.ImpairmentPolicy,
+    businessDate: string,
+    actor: LendingActor,
+  ) {
+    const a = state.account;
+    const principal = D(a.principalOutstanding);
+    // Exposure: what the loan carries on the books (suspended interest is not income).
+    const exposure = principal
+      .plus(D(a.interestReceivable))
+      .minus(D(a.interestInSuspense))
+      .plus(D(a.feesReceivable))
+      .plus(D(a.penaltyReceivable));
+    const r = engineCall(() =>
+      lending.assessImpairment(
+        policy,
+        {
+          daysPastDue: dpd,
+          principal: principal.toString(),
+          exposure: lending.D.max(0, exposure).toString(),
+          restructured: a.isRestructured,
+          onProbation: a.probationRemaining > 0,
+          nonAccrual: a.nonAccrual,
+        },
+        state.config.pricing.rounding,
+      ),
+    );
+    const required = D(r.allowance);
+    const delta = required.minus(D(a.allowance));
+    a.classification = r.classification;
+    a.impairmentStage = r.stage;
+    if (delta.isZero()) return;
+    const acc = state.config.accounting;
+    const up = delta.gt(0);
+    await this.recordEvent(tx, state, {
+      type: 'PROVISION',
+      amount: delta.abs(),
+      businessDate,
+      valueDate: businessDate,
+      components: {
+        classification: r.classification,
+        stage: r.stage,
+        required: required.toString(),
+        previous: D(a.allowance).toString(),
+        explanation: r.explanation,
+      },
+      idempotencyKey: `sys:provision:${a.id}:${randomUUID()}`,
+      requestHash: 'system',
+      actor,
+      narrative: up
+        ? `Loss allowance raised to ${required} (${r.classification})`
+        : `Loss allowance released to ${required} (${r.classification})`,
+      lines: up
+        ? [
+            { accountCode: acc.provisionExpense, debit: delta.toString() },
+            { accountCode: acc.loanLossAllowance, credit: delta.toString() },
+          ]
+        : [
+            {
+              accountCode: acc.loanLossAllowance,
+              debit: delta.abs().toString(),
+            },
+            {
+              accountCode: acc.provisionExpense,
+              credit: delta.abs().toString(),
+            },
+          ],
+    });
+    a.allowance = required.toString() as never;
+  }
+
+  /**
    * UC-62: move a loan onto non-accrual when it reaches the product's
    * days-past-due threshold, and back when it cures (DECISIONS D-002, D-006).
    * Changes `state.account` in memory; the caller writes it.
@@ -1235,7 +1316,7 @@ export class ServicingService {
         reschedule.lines[reschedule.lines.length - 1].dueDate,
       );
     }
-    await this.closeIfRepaid(tx, state, data);
+    await this.closeIfRepaid(tx, state, data, actor, businessDate);
     await this.casAccount(tx, state, 'ACTIVE', data);
     await this.outbox(tx, tenantId, 'lending.repayment', {
       loanAccountId: id,
@@ -1522,6 +1603,7 @@ export class ServicingService {
               D(q.interest).minus(D(state.account.interestReceivable)),
             ),
             ...released.lines,
+            ...allowanceRelease(state).lines,
             rounding.gte(0)
               ? {
                   accountCode: acc.roundingDifferences,
@@ -1544,6 +1626,7 @@ export class ServicingService {
         penaltyReceivable: '0',
         advanceBalance: '0',
         interestInSuspense: '0',
+        allowance: '0',
         nonAccrual: false,
         nonAccrualSince: null,
         daysPastDue: 0,
@@ -1924,6 +2007,7 @@ export class ServicingService {
             ? [{ accountCode: concessionAccount, debit: concession.toString() }]
             : []),
           ...released.lines,
+          ...allowanceRelease(state).lines,
           {
             accountCode: acc.loansReceivable,
             credit: decStr(a.principalOutstanding),
@@ -1947,6 +2031,7 @@ export class ServicingService {
         feesReceivable: '0',
         penaltyReceivable: '0',
         interestInSuspense: '0',
+        allowance: '0',
         nonAccrual: false,
         nonAccrualSince: null,
       });
@@ -2325,6 +2410,7 @@ export class ServicingService {
           credit: decStr(a.penaltyReceivable),
         },
         ...released.lines,
+        ...allowanceRelease(previous).lines,
       ],
     });
     await this.casAccount(tx, previous, 'ACTIVE', {
@@ -2335,6 +2421,7 @@ export class ServicingService {
       feesReceivable: '0',
       penaltyReceivable: '0',
       interestInSuspense: '0',
+      allowance: '0',
       nonAccrual: false,
       nonAccrualSince: null,
       refinancedByLoanId: state.account.id,
@@ -2686,7 +2773,7 @@ export class ServicingService {
         feesReceivable: D(state.account.feesReceivable).toString(),
         penaltyReceivable: D(state.account.penaltyReceivable).toString(),
       };
-      await this.closeIfRepaid(tx, state, data);
+      await this.closeIfRepaid(tx, state, data, actor, businessDate);
       await this.casAccount(tx, state, state.account.status, data);
       await this.audit.write(
         {
@@ -2839,7 +2926,9 @@ export class ServicingService {
         actor,
         narrative: 'Write-off',
         lines: [
-          { accountCode: acc.writeOffExpense, debit: total.toString() },
+          // The allowance absorbs the loss it was held for; the rest is expense,
+          // and any allowance beyond the loss is released (OPS-5).
+          ...writeOffAgainstAllowance(state, total),
           {
             accountCode: acc.loansReceivable,
             credit: a.principalOutstanding.toString(),
@@ -2871,6 +2960,7 @@ export class ServicingService {
         feesReceivable: '0',
         penaltyReceivable: '0',
         interestInSuspense: '0',
+        allowance: '0',
       });
       await this.audit.write(
         {
@@ -2931,6 +3021,8 @@ export class ServicingService {
     const scope = await this.policy.scopeFilter(actor, 'servicing.batch.run');
     if (!scope) return { processed: 0, failed: [] };
     const businessDate = await this.businessDate.get(tenantId);
+    // The tenant's impairment policy in force, if any (OPS-5, D-010).
+    const impairment = await this.impairment.active(tenantId);
     const accounts = await this.prisma.loanAccount.findMany({
       where: {
         tenantId,
@@ -2977,8 +3069,20 @@ export class ServicingService {
             businessDate,
             actor,
           );
+          if (impairment)
+            await this.provision(
+              tx,
+              state,
+              dq.dpd,
+              impairment,
+              businessDate,
+              actor,
+            );
           const a = state.account;
           const data: Prisma.LoanAccountUpdateManyMutationInput = {
+            allowance: D(a.allowance).toString(),
+            classification: a.classification,
+            impairmentStage: a.impairmentStage,
             interestReceivable: D(a.interestReceivable).toString(),
             principalOutstanding: D(a.principalOutstanding).toString(),
             feesReceivable: D(a.feesReceivable).toString(),
@@ -2995,7 +3099,7 @@ export class ServicingService {
             delinquencyFloorBucket: a.delinquencyFloorBucket,
           };
           // The last instalment may have been paid from the advance.
-          await this.closeIfRepaid(tx, state, data);
+          await this.closeIfRepaid(tx, state, data, actor, businessDate);
           await this.casAccount(tx, state, 'ACTIVE', data);
         });
         processed++;
@@ -3313,6 +3417,8 @@ export class ServicingService {
     tx: Tx,
     state: LoanState,
     data: Prisma.LoanAccountUpdateManyMutationInput,
+    actor: LendingActor,
+    businessDate: string,
   ) {
     const open = await tx.scheduleInstalment.count({
       where: {
@@ -3333,6 +3439,23 @@ export class ServicingService {
         state.account.advanceBalance,
     );
     if (open === 0 && zero && held.isZero()) {
+      // A repaid loan needs no allowance: release what was held (OPS-5).
+      const release = allowanceRelease(state);
+      if (release.amount.gt(0)) {
+        await this.recordEvent(tx, state, {
+          type: 'PROVISION',
+          amount: release.amount,
+          businessDate,
+          valueDate: businessDate,
+          components: { released: release.amount.toString(), reason: 'CLOSED' },
+          idempotencyKey: `sys:provision:${state.account.id}:${randomUUID()}`,
+          requestHash: 'system',
+          actor,
+          narrative: 'Loss allowance released on closure',
+          lines: release.lines,
+        });
+        data.allowance = '0';
+      }
       Object.assign(data, {
         status: 'CLOSED',
         closedAt: new Date(),
@@ -3484,6 +3607,42 @@ function suspenseRelease(
         ? [{ accountCode: rest!, credit: cleared.toString() }]
         : []),
     ],
+  };
+}
+
+/** Write-off lines: the allowance first, then expense; surplus allowance released. */
+function writeOffAgainstAllowance(state: LoanState, total: Dec) {
+  const acc = state.config.accounting;
+  const held = D(state.account.allowance);
+  const used = lending.D.min(held, total);
+  const surplus = held.minus(used);
+  return [
+    { accountCode: acc.loanLossAllowance, debit: used.toString() },
+    { accountCode: acc.writeOffExpense, debit: total.minus(used).toString() },
+    ...(surplus.gt(0)
+      ? [
+          { accountCode: acc.loanLossAllowance, debit: surplus.toString() },
+          { accountCode: acc.provisionExpense, credit: surplus.toString() },
+        ]
+      : []),
+  ];
+}
+
+/** Journal lines that release a loan's whole loss allowance, back to the provision expense or to `into`. */
+function allowanceRelease(state: LoanState, into?: string) {
+  const amount = D(state.account.allowance);
+  const acc = state.config.accounting;
+  return {
+    amount,
+    lines: amount.gt(0)
+      ? [
+          { accountCode: acc.loanLossAllowance, debit: amount.toString() },
+          {
+            accountCode: into ?? acc.provisionExpense,
+            credit: amount.toString(),
+          },
+        ]
+      : [],
   };
 }
 
