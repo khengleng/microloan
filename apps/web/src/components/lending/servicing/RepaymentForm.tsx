@@ -14,6 +14,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
     const [strategy, setStrategy] = useState('');
+    const [excess, setExcess] = useState('');
     const [problem, setProblem] = useState('');
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
@@ -22,7 +23,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const post = async () => {
         if (!MONEY_RE.test(amount.trim()) || !/[1-9]/.test(amount)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
         setProblem('');
-        const body = clean({ amount: amount.trim(), valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy });
+        const body = clean({ amount: amount.trim(), valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy, applyExcessAs: excess });
         const k = key.keyFor(body);
         const res = await run('repay', () => api.post(`/lending/loans/${loanId}/repayments`, body, idem(k)));
         if (res) {
@@ -35,7 +36,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
 
     return (
         <ActionPanel title="Post repayment" onClose={onClose}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <Field label={`Amount (${currency})`} error={problem || undefined}>
                     <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
                 </Field>
@@ -45,7 +46,15 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
                 <Field label="External reference" hint="Optional">
                     <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} />
                 </Field>
-                <Field label="Prepayment strategy" hint="Applies to any excess over amounts due">
+                <Field label="Money beyond what is due" hint="Held as an advance for the next instalments, or used to prepay principal">
+                    <SelectInput
+                        value={excess}
+                        onChange={setExcess}
+                        placeholder="Product default"
+                        options={[{ value: 'ADVANCE', label: 'Hold as advance' }, { value: 'PREPAY', label: 'Prepay principal' }]}
+                    />
+                </Field>
+                <Field label="Prepayment strategy" hint="When prepaying: how the schedule changes">
                     <SelectInput
                         value={strategy}
                         onChange={setStrategy}

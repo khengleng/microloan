@@ -12,13 +12,15 @@ interface LegacyBorrower { id: string; firstName?: string | null; lastName?: str
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function NewApplicationForm({ onCreated, onClose }: { onCreated: (id: string) => void; onClose: () => void }) {
+export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initialRefinance = '' }: { onCreated: (id: string) => void; onClose: () => void; refinancesLoanId?: string }) {
     const [search, setSearch] = useState('');
     const [query, setQuery] = useState('');
     const [borrowerId, setBorrowerId] = useState('');
     const [productId, setProductId] = useState('');
     const [terms, setTerms] = useState(() => emptyTermsDraft(todayIso()));
     const [purpose, setPurpose] = useState('');
+    // Refinancing: the new loan's proceeds settle this existing loan of the same borrower.
+    const [refinancesLoanId, setRefinancesLoanId] = useState(initialRefinance);
     const [localErrors, setLocalErrors] = useState<string[]>([]);
     const { busy, error, run, clearError } = useAction();
 
@@ -39,6 +41,7 @@ export function NewApplicationForm({ onCreated, onClose }: { onCreated: (id: str
         const errs = validateTerms(terms);
         if (!UUID_RE.test(borrowerId.trim())) errs.unshift('Select a borrower or paste a valid borrower UUID.');
         if (!productId) errs.unshift('Select a product.');
+        if (refinancesLoanId.trim() && !UUID_RE.test(refinancesLoanId.trim())) errs.unshift('The loan to refinance must be a loan account id.');
         setLocalErrors(errs);
         if (errs.length) return;
         const res = await run('create', () =>
@@ -47,6 +50,7 @@ export function NewApplicationForm({ onCreated, onClose }: { onCreated: (id: str
                 productId,
                 terms: termsFromDraft(terms),
                 purpose: purpose.trim(),
+                refinancesLoanId: refinancesLoanId.trim(),
             })),
         );
         if (res?.data?.id) onCreated(res.data.id);
@@ -97,6 +101,9 @@ export function NewApplicationForm({ onCreated, onClose }: { onCreated: (id: str
                     </Field>
                     <Field label="Purpose" hint="Optional">
                         <TextArea value={purpose} onChange={setPurpose} rows={2} maxLength={500} />
+                    </Field>
+                    <Field label="Refinances loan" hint="Optional — the new loan pays this loan off at disbursement (same borrower; the product must allow refinancing)">
+                        <TextInput value={refinancesLoanId} onChange={setRefinancesLoanId} placeholder="Loan account id" className="font-mono" />
                     </Field>
                 </div>
             </div>

@@ -270,6 +270,10 @@ export interface LoanAccount extends LoanSummary {
     borrowerId: string; applicationId: string; productId: string; productVersionId: string; familyCode: string;
     instalmentAmount: Money | null; disbursementDate: LocalDate | null; lastAccrualDate: LocalDate | null;
     restructureCount: number; probationRemaining: number; delinquencyFloorBucket: string | null;
+    /** Money paid before it was due, applied to instalments on their due dates (UC-27). */
+    advanceBalance?: Money;
+    /** Interest is held in suspense instead of income while true (UC-62). */
+    nonAccrual?: boolean; nonAccrualSince?: LocalDate | null; interestInSuspense?: Money;
 }
 
 export interface LoanScheduleLine {
@@ -289,7 +293,10 @@ export interface FinancialEvent {
 
 export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; payload?: unknown; createdAt?: string }
 
-export interface AgreementVersion { version: number; reason: string; effectiveDate: LocalDate; engineVersion: string; configHash: string; createdAt: string; createdBy: string }
+/** A policy the contract was composed from, frozen at booking (POLICY_MODEL.md). */
+export interface ContractPolicy { kind: string; code: string; version: number; policyVersionId: string; parameters: Record<string, number> }
+
+export interface AgreementVersion { version: number; reason: string; effectiveDate: LocalDate; engineVersion: string; configHash: string; createdAt: string; createdBy: string; policies?: ContractPolicy[] | null }
 
 export interface LoanDetail {
     account: LoanAccount;
@@ -305,6 +312,12 @@ export interface LoanDetail {
 export interface SettlementQuote {
     asOf: LocalDate; currency: string; principal: Money; interest: Money; fees: Money; penalties: Money;
     settlementFee: Money; total: Money; payable: Money; roundingDifference: Money;
+    /** Lock-in tier or base fee that set the settlement fee (UC-32). */
+    settlementFeeExplanation?: string;
+    /** Money held on advance that goes towards the payoff (UC-27). */
+    advanceApplied?: Money;
+    /** Rule of 78 / actuarial rebate on precomputed interest (UC-33). */
+    interestRebate?: { method: string; rebate: Money; explanation: string };
 }
 
 /* ── Ops ──────────────────────────────────────────────────────────────────── */

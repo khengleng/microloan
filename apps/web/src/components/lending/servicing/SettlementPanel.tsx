@@ -48,6 +48,7 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
         ['Fees', quote.fees],
         ['Penalties', quote.penalties],
         ['Settlement fee', quote.settlementFee],
+        ...(quote.advanceApplied && Number(quote.advanceApplied) > 0 ? [['Less: held on advance', `-${quote.advanceApplied}`] as [string, string]] : []),
         ['Total', quote.total],
         ['Rounding difference', quote.roundingDifference],
     ] : [];
@@ -63,6 +64,10 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
             {quote && (
                 <div className="space-y-2">
                     <p className="text-[12px] text-[#697386]">Quote as of <b>{quote.asOf}</b></p>
+                    {quote.interestRebate && (
+                        <p className="text-[12px] text-[#3C4257]"><b>Interest rebate ({quote.interestRebate.method.replace(/_/g, ' ').toLowerCase()}):</b> {quote.interestRebate.explanation}</p>
+                    )}
+                    {quote.settlementFeeExplanation && <p className="text-[12px] text-[#3C4257]"><b>Settlement fee:</b> {quote.settlementFeeExplanation}</p>}
                     <Table className="max-w-md">
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {rows.map(([k, v]) => (

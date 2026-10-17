@@ -1,0 +1,322 @@
+"use client";
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { Crown, UserPlus } from 'lucide-react';
+import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
+import { LendingShell, useLendingHref } from '../LendingShell';
+import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, Spinner, Table, TextArea, TextInput, td, tdR, th, thR } from '../ui';
+import { clean, useAction, useApi } from '../useAsync';
+import { MoneyCell } from '../MoneyCell';
+import { StatusBadge } from '../StatusBadge';
+import { fmtRate } from '../format';
+import { BorrowerPicker, shortId, useBorrowerNames } from './borrowers';
+import type { AddMemberBody, BorrowerGroupDetail, GroupMembership, LoanBinding, RemoveMemberResult } from './types';
+
+const TRANSITIONS: { status: 'ACTIVE' | 'DORMANT' | 'DISBANDED'; label: string; variant: 'primary' | 'secondary' | 'danger' }[] = [
+    { status: 'ACTIVE', label: 'Activate', variant: 'primary' },
+    { status: 'DORMANT', label: 'Mark dormant', variant: 'secondary' },
+    { status: 'DISBANDED', label: 'Disband', variant: 'danger' },
+];
+
+export function GroupDetailView({ id }: { id: string }) {
+    const { showToast } = useToast();
+    const { locale } = useParams();
+    const group = useApi<BorrowerGroupDetail>(`/lending/applications/groups/${id}`);
+    const [adding, setAdding] = useState(false);
+    const [removing, setRemoving] = useState<GroupMembership | null>(null);
+    const [confirmDisband, setConfirmDisband] = useState(false);
+    const status = useAction();
+
+    const g = group.data;
+    const nameOf = useBorrowerNames([
+        ...(g?.members.map((m) => m.borrowerId) ?? []),
+        ...(g?.loanBindings.map((b) => b.borrowerId) ?? []),
+    ]);
+
+    if (!g) {
+        return (
+            <LendingShell title="Group" back={{ href: '/lending/groups', label: 'Borrower groups' }}>
+                {group.error ? <ErrorBox error={group.error} /> : <Spinner />}
+            </LendingShell>
+        );
+    }
+
+    const active = g.members.filter((m) => !m.leftOn);
+    const past = g.members.filter((m) => m.leftOn);
+    const leader = active.find((m) => m.role === 'LEADER');
+    const disbanded = g.status === 'DISBANDED';
+    // Bindings are newest first: the first one for a borrower is their current share.
+    const latestBinding = new Map<string, LoanBinding>();
+    for (const b of g.loanBindings) if (!latestBinding.has(b.borrowerId)) latestBinding.set(b.borrowerId, b);
+
+    const changeStatus = async (next: 'ACTIVE' | 'DORMANT' | 'DISBANDED') => {
+        const res = await status.run(next, () => api.post(`/lending/applications/groups/${id}/status`, { status: next }));
+        setConfirmDisband(false);
+        if (res) {
+            showToast(`Group is now ${next.toLowerCase()}`, 'success');
+            group.reload();
+        }
+    };
+
+    const done = (msg: string) => {
+        showToast(msg, 'success');
+        setAdding(false);
+        setRemoving(null);
+        group.reload();
+    };
+
+    const borrowerLink = (borrowerId: string) => (
+        <Link href={`/${locale}/borrowers/${borrowerId}`} className="font-semibold text-[#635BFF] hover:underline">{nameOf(borrowerId)}</Link>
+    );
+
+    return (
+        <LendingShell
+            title={<span className="flex items-center gap-2">{g.name} <StatusBadge status={g.status} /></span>}
+            subtitle={<span className="font-mono text-[13px]">{g.code}</span>}
+            back={{ href: '/lending/groups', label: 'Borrower groups' }}
+            actions={
+                <>
+                    {TRANSITIONS.filter((t) => t.status !== g.status).map((t) => (
+                        <Btn
+                            key={t.status}
+                            variant={t.variant}
+                            busy={status.busy === t.status}
+                            disabled={disbanded || status.busy !== null}
+                            reason={disbanded ? 'This group has been disbanded.' : undefined}
+                            onClick={() => (t.status === 'DISBANDED' ? setConfirmDisband(true) : changeStatus(t.status))}
+                        >
+                            {t.label}
+                        </Btn>
+                    ))}
+                    <Btn variant="ghost" onClick={group.reload}>Refresh</Btn>
+                </>
+            }
+        >
+            <ErrorBox error={status.error} onDismiss={status.clearError} />
+            {confirmDisband && (
+                <ActionPanel title="Disband this group?" onClose={() => setConfirmDisband(false)}>
+                    <p className="text-[13px] text-[#3C4257]">
+                        A disbanded group takes no new members or loans. The API refuses this while any of the group&apos;s loans is still booked or active.
+                    </p>
+                    <Btn variant="danger" busy={status.busy === 'DISBANDED'} onClick={() => changeStatus('DISBANDED')}>Disband group</Btn>
+                </ActionPanel>
+            )}
+
+            <Card title="Group">
+                <KV
+                    cols={4}
+                    items={[
+                        ['Code', <span key="c" className="font-mono">{g.code}</span>],
+                        ['Status', <StatusBadge key="s" status={g.status} />],
+                        ['Formed on', g.formedOn ?? '—'],
+                        ['Branch', <span key="b" className="font-mono text-[12px]" title={g.branchId ?? undefined}>{shortId(g.branchId)}</span>],
+                        ['Active members', String(g.memberCount)],
+                        ['Leader', leader ? nameOf(leader.borrowerId) : '—'],
+                        ['Past members', String(past.length)],
+                        ['Loan bindings', String(g.loanBindings.length)],
+                    ]}
+                />
+            </Card>
+
+            <Card
+                title="Members"
+                subtitle="A member named on a booked or active loan may be refused exit, depending on the product's group terms."
+                bodyClass="p-0"
+                actions={
+                    <Btn variant="primary" disabled={disbanded} reason={disbanded ? 'This group has been disbanded.' : undefined} onClick={() => { setAdding(true); setRemoving(null); }}>
+                        <UserPlus size={14} /> Add member
+                    </Btn>
+                }
+            >
+                {(adding || removing) && (
+                    <div className="p-4 border-b border-[#E3E8EE]">
+                        {adding && <AddMemberForm groupId={id} hasLeader={!!leader} exclude={active.map((m) => m.borrowerId)} onDone={done} onClose={() => setAdding(false)} />}
+                        {removing && <RemoveMemberForm groupId={id} member={removing} name={nameOf(removing.borrowerId)} onDone={done} onClose={() => setRemoving(null)} />}
+                    </div>
+                )}
+                {g.members.length === 0 ? <Empty>No members yet. Add borrowers to form the group.</Empty> : (
+                    <Table>
+                        <thead>
+                            <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                                <th className={th}>Member</th>
+                                <th className={th}>Role</th>
+                                <th className={thR}>Current share</th>
+                                <th className={th}>Joined</th>
+                                <th className={th}>Status</th>
+                                <th className={th} />
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#F0F2F5]">
+                            {[...active, ...past].map((m) => {
+                                const b = latestBinding.get(m.borrowerId);
+                                return (
+                                    <tr key={m.id} className={m.leftOn ? 'bg-[#FAFBFC] text-[#8792A2]' : 'hover:bg-[#F7FAFC]'}>
+                                        <td className={td}>{borrowerLink(m.borrowerId)}</td>
+                                        <td className={td}>
+                                            {m.role === 'LEADER'
+                                                ? <span className="inline-flex items-center gap-1 font-semibold text-amber-700"><Crown size={13} /> Leader</span>
+                                                : 'Member'}
+                                        </td>
+                                        <td className={tdR}>
+                                            {b && !m.leftOn ? (
+                                                <div>
+                                                    <MoneyCell value={b.shareAmount} />
+                                                    <div className="text-[11px] text-[#697386]">{fmtRate(b.shareFraction)}</div>
+                                                </div>
+                                            ) : '—'}
+                                        </td>
+                                        <td className={`${td} whitespace-nowrap`}>{m.joinedOn ?? '—'}</td>
+                                        <td className={td}>
+                                            {m.leftOn ? (
+                                                <div className="space-y-0.5">
+                                                    <StatusBadge status="INACTIVE" />
+                                                    <div className="text-[11px]">Left {m.leftOn}{m.exitReason ? ` — ${m.exitReason}` : ''}</div>
+                                                    {m.exitSettlement && <div className="text-[11px]">Settlement: <MoneyCell value={m.exitSettlement} /></div>}
+                                                </div>
+                                            ) : <StatusBadge status="ACTIVE" />}
+                                        </td>
+                                        <td className={`${td} text-right`}>
+                                            {!m.leftOn && (
+                                                <Btn size="sm" variant="danger" onClick={() => { setRemoving(m); setAdding(false); }}>Remove</Btn>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </Table>
+                )}
+            </Card>
+
+            <LoanBindingsCard bindings={g.loanBindings} nameOf={nameOf} />
+        </LendingShell>
+    );
+}
+
+function AddMemberForm({ groupId, hasLeader, exclude, onDone, onClose }: {
+    groupId: string; hasLeader: boolean; exclude: string[]; onDone: (msg: string) => void; onClose: () => void;
+}) {
+    const [borrowerId, setBorrowerId] = useState('');
+    const [leader, setLeader] = useState(false);
+    const [joinedOn, setJoinedOn] = useState('');
+    const [problem, setProblem] = useState('');
+    const { busy, error, run, clearError } = useAction();
+
+    const submit = async () => {
+        if (!borrowerId) { setProblem('Pick a borrower.'); return; }
+        setProblem('');
+        const body: AddMemberBody = clean({ borrowerId, role: leader ? 'LEADER' : 'MEMBER', joinedOn });
+        const res = await run('add', () => api.post(`/lending/applications/groups/${groupId}/members`, body));
+        if (res) onDone(leader ? 'Leader added' : 'Member added');
+    };
+
+    return (
+        <ActionPanel title="Add member" onClose={onClose}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Field label="Borrower" error={problem || undefined} className="md:col-span-2">
+                    <BorrowerPicker value={borrowerId} onChange={setBorrowerId} exclude={exclude} />
+                </Field>
+                <div className="space-y-3">
+                    <Field label="Joined on" hint="Optional — defaults to the business date; cannot be later">
+                        <TextInput type="date" value={joinedOn} onChange={setJoinedOn} />
+                    </Field>
+                    <Checkbox
+                        checked={leader}
+                        onChange={setLeader}
+                        disabled={hasLeader}
+                        label={hasLeader ? 'Leader (the group already has one)' : 'Group leader'}
+                    />
+                </div>
+            </div>
+            <p className="text-[11px] text-[#697386]">
+                Shares are not set here: each member&apos;s share is allocated by the product&apos;s share basis when a group loan is booked.
+                A borrower can be an active member of only one group.
+            </p>
+            <ErrorBox error={error} onDismiss={clearError} />
+            <Btn variant="primary" onClick={submit} busy={busy === 'add'}>Add to group</Btn>
+        </ActionPanel>
+    );
+}
+
+function RemoveMemberForm({ groupId, member, name, onDone, onClose }: {
+    groupId: string; member: GroupMembership; name: string; onDone: (msg: string) => void; onClose: () => void;
+}) {
+    const [reason, setReason] = useState('');
+    const { busy, error, run, clearError } = useAction();
+    const refused = error?.code === 'MEMBER_EXIT_REFUSED';
+
+    const submit = async () => {
+        if (!reason.trim()) return;
+        const res = await run('remove', () =>
+            api.post<RemoveMemberResult>(`/lending/applications/groups/${groupId}/members/${member.borrowerId}/remove`, { reason: reason.trim() }),
+        );
+        if (res) {
+            const s = res.data.settlementAmount;
+            onDone(s ? `${name} left the group — settlement ${s}` : `${name} left the group`);
+        }
+    };
+
+    return (
+        <ActionPanel title={`Remove ${name}`} onClose={onClose}>
+            <Field label="Reason" hint="Recorded on the membership and in the audit trail">
+                <TextArea value={reason} onChange={setReason} rows={2} maxLength={500} />
+            </Field>
+            {refused ? (
+                <Notice tone="danger" title="This member cannot leave the group">
+                    <ul className="list-disc pl-5 space-y-0.5 mt-1">
+                        {(error.issues?.length ? error.issues.map((i) => i.message) : [error.message]).map((msg, k) => <li key={k}>{msg}</li>)}
+                    </ul>
+                    <p className="mt-1.5 text-[12px] opacity-80">
+                        A member named on a live loan stays jointly liable until that loan is repaid or the product allows exit with a balance outstanding.
+                    </p>
+                </Notice>
+            ) : (
+                <ErrorBox error={error} onDismiss={clearError} />
+            )}
+            <Btn variant="danger" onClick={submit} busy={busy === 'remove'} disabled={!reason.trim()} reason={!reason.trim() ? 'Give a reason' : undefined}>Remove member</Btn>
+        </ActionPanel>
+    );
+}
+
+function LoanBindingsCard({ bindings, nameOf }: { bindings: LoanBinding[]; nameOf: (id: string) => string }) {
+    const href = useLendingHref();
+    return (
+        <Card title="Loans" subtitle="Each member's liability as frozen onto the group's booked loans (newest first)." bodyClass="p-0">
+            {bindings.length === 0 ? <Empty>This group has no booked loans.</Empty> : (
+                <Table>
+                    <thead>
+                        <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                            <th className={th}>Loan</th>
+                            <th className={th}>Member</th>
+                            <th className={th}>Role</th>
+                            <th className={th}>Liability</th>
+                            <th className={thR}>Share</th>
+                            <th className={thR}>Fraction</th>
+                            <th className={thR}>Liable for</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F0F2F5]">
+                        {bindings.map((b, i) => (
+                            <tr key={`${b.loanAccountId ?? i}-${b.borrowerId}`} className="hover:bg-[#F7FAFC]">
+                                <td className={td}>
+                                    {b.loanAccountId
+                                        ? <Link href={href(`/lending/loans/${b.loanAccountId}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{shortId(b.loanAccountId)}</Link>
+                                        : <span className="text-[#AAB7C4]">—</span>}
+                                </td>
+                                <td className={td}>{nameOf(b.borrowerId)}</td>
+                                <td className={td}>{b.role === 'LEADER' ? 'Leader' : 'Member'}</td>
+                                <td className={td}><StatusBadge status={b.liability} /></td>
+                                <td className={tdR}><MoneyCell value={b.shareAmount} /></td>
+                                <td className={tdR}>{fmtRate(b.shareFraction)}</td>
+                                <td className={tdR}><MoneyCell value={b.liableFor} strong /></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+        </Card>
+    );
+}

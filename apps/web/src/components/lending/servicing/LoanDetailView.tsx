@@ -21,6 +21,13 @@ import { SettlementPanel } from './SettlementPanel';
 import { ReverseEventForm } from './ReverseEvent';
 import { WriteOffPanel } from './WriteOffPanel';
 import { EventsTable } from './EventsTable';
+import { AdvanceRefundPanel } from './AdvanceRefundPanel';
+import { NegotiatedSettlementPanel } from './NegotiatedSettlementPanel';
+import { RecoveryPanel } from './RecoveryPanel';
+import { GroupContributionsPanel } from '../groups/GroupContributionsPanel';
+import { LoanHolidayPanel } from '../relief/LoanHolidayPanel';
+import { RateResetsPanel } from '../relief/RateResetsPanel';
+import { FeeWaiverPanel } from './FeeWaiverPanel';
 
 const ACTIONS = [
     { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
@@ -31,9 +38,13 @@ const ACTIONS = [
     { code: 'loan.writeoff.propose', label: 'Propose write-off' },
     { code: 'loan.writeoff.approve', label: 'Approve write-off' },
     { code: 'restructure.request', label: 'Request restructure' },
+    { code: 'loan.settlement.negotiate', label: 'Negotiated settlement' },
+    { code: 'loan.recovery.post', label: 'Post recovery' },
+    { code: 'loan.advance_refund.propose', label: 'Propose advance refund' },
+    { code: 'loan.advance_refund.approve', label: 'Approve advance refund' },
 ];
 
-type Panel = 'disburse' | 'repay' | 'settle' | 'writeoff' | 'restructure' | { reverse: FinancialEvent };
+type Panel = 'disburse' | 'repay' | 'settle' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
 
 export function LoanDetailView({ id }: { id: string }) {
     const href = useLendingHref();
@@ -41,6 +52,8 @@ export function LoanDetailView({ id }: { id: string }) {
     const { showToast } = useToast();
     const loan = useApi<LoanDetail>(`/lending/loans/${id}`);
     const caps = useCapabilities('LOAN_ACCOUNT', id);
+    // Group loans take one repayment split by member (UC-22).
+    const groupInfo = useApi<{ group: boolean }>(`/lending/loans/${id}/group-members`);
     const [panel, setPanel] = useState<Panel | null>(null);
 
     const d = loan.data;
@@ -68,6 +81,9 @@ export function LoanDetailView({ id }: { id: string }) {
     const pendingTasks = d.tasks.filter((t) => t.status === 'PENDING' || t.status === 'APPROVED');
     const isBooked = acc.status === 'BOOKED';
     const isActive = acc.status === 'ACTIVE';
+    const isWrittenOff = acc.status === 'WRITTEN_OFF';
+    const advanceHeld = Number(acc.advanceBalance ?? 0) > 0;
+    const advanceTasks = d.tasks.filter((t) => t.action === 'ADVANCE_REFUND' && t.status === 'PENDING');
 
     const actionBtn = (label: string, p: Panel, codes: string[], variant: 'primary' | 'secondary' | 'danger' = 'secondary') => {
         const blocked = codes.map((code) => c(code)).filter((r) => !r.allowed);
@@ -102,6 +118,11 @@ export function LoanDetailView({ id }: { id: string }) {
                         ['Interest receivable', <Money key="ir" value={acc.interestReceivable} currency={cur} />],
                         ['Fees receivable', <Money key="fr" value={acc.feesReceivable} currency={cur} />],
                         ['Penalty receivable', <Money key="pr" value={acc.penaltyReceivable} currency={cur} />],
+                        ['Held on advance', <Money key="adv" value={acc.advanceBalance ?? '0'} currency={cur} />],
+                        ['Interest accrual', acc.nonAccrual
+                            ? <span key="na" className="text-amber-700 font-semibold" title="Interest is still owed but held in suspense, not income">Non-accrual since {acc.nonAccrualSince?.slice(0, 10)}</span>
+                            : 'Accruing'],
+                        ['Interest in suspense', <Money key="sus" value={acc.interestInSuspense ?? '0'} currency={cur} />],
                         ['Instalment', <Money key="in" value={acc.instalmentAmount} currency={cur} />],
                         ['Days past due', <span key="dpd" className={acc.daysPastDue > 0 ? 'text-red-600 font-semibold' : ''}>{acc.daysPastDue}</span>],
                         ['Delinquency bucket', <StatusBadge key="b" status={acc.delinquencyBucket} />],
@@ -122,17 +143,36 @@ export function LoanDetailView({ id }: { id: string }) {
                     <div className="flex flex-wrap gap-2">
                         {(isBooked || disbTasks.length > 0) && actionBtn('Disbursement', 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
                         {isActive && actionBtn('Post repayment', 'repay', ['loan.repayment.post'], 'primary')}
+                        {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}
                         {isActive && actionBtn('Early settlement', 'settle', ['loan.repayment.post'])}
                         {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? 'Write-off decision' : 'Propose write-off', 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
                         {isActive && actionBtn('Request restructure', 'restructure', ['restructure.request'])}
+                        {isActive && actionBtn('Negotiated settlement', 'negotiated', ['loan.settlement.negotiate'])}
+                        {(advanceHeld || advanceTasks.length > 0) && actionBtn(advanceTasks.length ? 'Advance refund decision' : 'Refund advance', 'advance-refund', ['loan.advance_refund.propose', 'loan.advance_refund.approve'])}
+                        {isWrittenOff && actionBtn('Record recovery', 'recovery', ['loan.recovery.post'], 'primary')}
+                        {isActive && actionBtn('Fee waiver', 'fee-waiver', ['loan.fee_waiver.propose', 'loan.fee_waiver.approve'])}
+                        {isActive && <Btn onClick={() => setPanel('holiday')}>Payment holiday</Btn>}
+                        {isActive && <Btn onClick={() => setPanel('rate-resets')}>Rate resets</Btn>}
                     </div>
-                    {!isBooked && !isActive && <p className="text-[12px] text-[#697386]">This account is {acc.status.replace(/_/g, ' ').toLowerCase()}; no servicing actions are available.</p>}
+                    {!isBooked && !isActive && !isWrittenOff && !advanceHeld && <p className="text-[12px] text-[#697386]">This account is {acc.status.replace(/_/g, ' ').toLowerCase()}; no servicing actions are available.</p>}
                     <WhyBlocked caps={caps.caps} actions={ACTIONS} />
 
                     {panel === 'disburse' && <DisbursementPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'settle' && <SettlementPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'writeoff' && <WriteOffPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'group-repay' && (
+                        <div className="space-y-2">
+                            <GroupContributionsPanel loanId={id} currency={cur} onDone={done} />
+                            <Btn variant="ghost" onClick={close}>Close</Btn>
+                        </div>
+                    )}
+                    {panel === 'holiday' && <LoanHolidayPanel loanId={id} onDone={done} onClose={close} />}
+                    {panel === 'rate-resets' && <RateResetsPanel loanId={id} onDone={done} onClose={close} />}
+                    {panel === 'fee-waiver' && <FeeWaiverPanel loanId={id} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'negotiated' && <NegotiatedSettlementPanel loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
+                    {panel === 'advance-refund' && <AdvanceRefundPanel loanId={id} currency={cur} held={acc.advanceBalance ?? '0'} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'recovery' && <RecoveryPanel loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'restructure' && (
                         <RequestRestructureForm
                             loanId={id}
@@ -143,18 +183,17 @@ export function LoanDetailView({ id }: { id: string }) {
                 </div>
             </Card>
 
-            <Card className="opacity-80">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p className="text-[13px] font-bold text-slate-500">Refinancing / negotiated settlement — not available</p>
-                        <p className="text-[12px] text-[#697386]">These servicing flows are not implemented in this release. See the capability matrix for status.</p>
+            {isActive && (
+                <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[13px] font-bold text-[#1A1F36]">Refinance</p>
+                            <p className="text-[12px] text-[#697386]">A new application for the same borrower pays this loan off from its proceeds at disbursement. Arrears rolled in and delinquent refinances are recorded and limited by the product.</p>
+                        </div>
+                        <Link href={href(`/lending/applications?refinance=${id}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">Start refinance application →</Link>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Btn disabled reason="Not implemented — see capability matrix">Refinance</Btn>
-                        <Link href={href('/lending/catalogue')} className="text-[12px] font-semibold text-[#635BFF] hover:underline">Capability matrix →</Link>
-                    </div>
-                </div>
-            </Card>
+                </Card>
+            )}
 
             {pendingTasks.length > 0 && (
                 <Card title="Open tasks" bodyClass="p-0">
@@ -199,13 +238,23 @@ export function LoanDetailView({ id }: { id: string }) {
             <Card title="Agreement versions" bodyClass="p-0">
                 {d.agreementVersions.length === 0 ? <Empty>No agreement versions.</Empty> : (
                     <Table>
-                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Version</th><th className={th}>Reason</th><th className={th}>Effective</th><th className={th}>Engine</th><th className={th}>Config hash</th><th className={th}>Created</th><th className={th}>By</th></tr></thead>
+                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Version</th><th className={th}>Reason</th><th className={th}>Effective</th><th className={th}>Policies</th><th className={th}>Engine</th><th className={th}>Config hash</th><th className={th}>Created</th><th className={th}>By</th></tr></thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {[...d.agreementVersions].reverse().map((v) => (
                                 <tr key={v.version} className={v.version === d.agreementVersion ? 'bg-emerald-50/30' : ''}>
                                     <td className={td}>v{v.version}{v.version === d.agreementVersion && <span className="ml-1 text-[10px] font-bold uppercase text-emerald-700">current</span>}</td>
                                     <td className={td}>{v.reason}</td>
                                     <td className={`${td} whitespace-nowrap`}>{v.effectiveDate?.slice(0, 10)}</td>
+                                    <td className={td}>
+                                        {v.policies?.length
+                                            ? v.policies.map((p) => (
+                                                <span key={p.kind} className="block text-[12px]" title={JSON.stringify(p.parameters)}>
+                                                    {p.kind.replace(/_/g, ' ').toLowerCase()}: <b>{p.code}</b> v{p.version}
+                                                    {Object.keys(p.parameters).length > 0 && <span className="text-[#697386]"> ({Object.entries(p.parameters).map(([k, val]) => `${k}=${val}`).join(', ')})</span>}
+                                                </span>
+                                            ))
+                                            : <span className="text-[#697386]">product terms</span>}
+                                    </td>
                                     <td className={td}><span className="font-mono text-[11px]">{v.engineVersion}</span></td>
                                     <td className={td}><span className="font-mono text-[11px]" title={v.configHash}>{v.configHash?.slice(0, 12)}</span></td>
                                     <td className={`${td} whitespace-nowrap`}>{fmtDateTime(v.createdAt)}</td>

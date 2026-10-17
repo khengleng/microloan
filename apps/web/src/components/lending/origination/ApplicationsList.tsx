@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -22,7 +22,9 @@ export function ApplicationsList() {
     const [search, setSearch] = useState('');
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
-    const [creating, setCreating] = useState(false);
+    // Arriving from a loan's "Refinance" action opens the form pre-filled.
+    const refinance = useSearchParams().get('refinance') ?? '';
+    const [creating, setCreating] = useState(!!refinance);
 
     const { data, error, loading, reload } = useApi<Paged<ApplicationSummary>>(`/lending/applications${qs({ status, search: query, page })}`);
     const rows = data?.data ?? [];
@@ -37,6 +39,7 @@ export function ApplicationsList() {
         >
             {creating && (
                 <NewApplicationForm
+                    refinancesLoanId={refinance}
                     onClose={() => setCreating(false)}
                     onCreated={(id) => router.push(href(`/lending/applications/${id}`))}
                 />
