@@ -13,6 +13,7 @@ import {
   borrower,
   expectOk,
   grant,
+  key,
 } from './harness';
 import { activeProduct, docs, standardRoles } from './setup';
 import { lending } from '@microloan/shared';
@@ -411,6 +412,144 @@ d('Group lending (integration)', () => {
       const actions = audit.data.map((a: any) => a.details?.action);
       expect(actions).toContain('CREATE');
       expect(actions).toContain('ADD_MEMBER');
+    });
+  });
+
+  describe('collecting a group repayment by member (UC-22)', () => {
+    let loanId: string;
+    let members: string[];
+
+    beforeAll(async () => {
+      let groupId: string;
+      ({ groupId, members } = await formGroup('GRP-C'));
+      const today = expectOk(
+        await f.as('finance').get('/lending/ops/business-date'),
+      ).businessDate as string;
+      const app = expectOk(
+        await f.as('ro').post('/lending/applications', {
+          borrowerId: members[0],
+          groupId,
+          productId,
+          terms: {
+            principal: '5000',
+            numberOfInstalments: 12,
+            disbursementDate: today,
+          },
+        }),
+      );
+      await docs(f, app.id, ['ID_DOCUMENT']);
+      expectOk(await f.as('ro').post(`/lending/applications/${app.id}/submit`));
+      expectOk(
+        await f
+          .as('analyst')
+          .post(`/lending/applications/${app.id}/recommend`, {
+            recommendation: 'APPROVE',
+            rationale: 'Group meets weekly',
+          }),
+      );
+      expectOk(
+        await f.as('approver').post(`/lending/applications/${app.id}/approve`, {
+          rationale: 'Approved within authority',
+        }),
+      );
+      loanId = expectOk(
+        await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
+      ).account.id;
+      const view = expectOk(
+        await f.as('opsMaker').get(`/lending/applications/${app.id}`),
+      );
+      for (const cp of view.conditions)
+        expectOk(
+          await f
+            .as('opsMaker')
+            .post(`/lending/applications/${app.id}/conditions/${cp.code}`, {
+              resolution: 'SATISFIED',
+              evidence: `Evidence for ${cp.code}`,
+            }),
+        );
+      const task = expectOk(
+        await f
+          .as('opsMaker')
+          .post(`/lending/loans/${loanId}/disbursements`, {}),
+      );
+      expectOk(
+        await f
+          .as('opsChecker')
+          .post(`/lending/loans/${loanId}/disbursements/${task.id}/decision`, {
+            approve: true,
+          }),
+      );
+      expectOk(
+        await f
+          .as('opsChecker')
+          .post(
+            `/lending/loans/${loanId}/disbursements/execute`,
+            { externalReference: 'GRP-C-DISB' },
+            key('grpc-disb'),
+          ),
+      );
+    }, 90_000);
+
+    const pay = (amount: string, contributions: unknown[]) =>
+      f
+        .as('opsMaker')
+        .post(
+          `/lending/loans/${loanId}/repayments`,
+          { amount, applyExcessAs: 'ADVANCE', contributions },
+          key('grpc'),
+        );
+
+    it('records who paid what within one group repayment', async () => {
+      const ev = expectOk(
+        await pay('100.00', [
+          { borrowerId: members[1], amount: '60.00' },
+          { borrowerId: members[2], amount: '40.00' },
+        ]),
+      );
+      const view = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}/group-members`),
+      );
+      const paid = (id: string) =>
+        view.members.find((m: any) => m.borrowerId === id).contributed;
+      expect(paid(members[1])).toBe('60');
+      expect(paid(members[2])).toBe('40');
+      expect(paid(members[3])).toBe('0');
+      expect(
+        view.contributions.filter((c: any) => c.financialEventId === ev.id),
+      ).toHaveLength(2);
+    });
+
+    it('refuses a split that does not add up, or names a non-member', async () => {
+      const short = await pay('100.00', [
+        { borrowerId: members[1], amount: '30.00' },
+      ]);
+      expect(short.status).toBe(400);
+      const stranger = await borrower(f, f.t1, f.b1);
+      const outsider = await pay('10.00', [
+        { borrowerId: stranger.id, amount: '10.00' },
+      ]);
+      expect(outsider.status).toBe(400);
+    });
+
+    it('a reversed repayment no longer counts towards what members paid', async () => {
+      const ev = expectOk(
+        await pay('20.00', [{ borrowerId: members[4], amount: '20.00' }]),
+      );
+      expectOk(
+        await f
+          .as('opsChecker')
+          .post(
+            `/lending/loans/${loanId}/events/${ev.id}/reverse`,
+            { reason: 'Cheque bounced' },
+            key('grpc-rev'),
+          ),
+      );
+      const view = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}/group-members`),
+      );
+      expect(
+        view.members.find((m: any) => m.borrowerId === members[4]).contributed,
+      ).toBe('0');
     });
   });
 });

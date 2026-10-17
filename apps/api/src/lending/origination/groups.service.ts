@@ -454,8 +454,24 @@ export class GroupsService {
       ]);
       if (!bindings.length)
         return { group: false, members: [], contributions: [] };
+      // Contributions are append-only; those of a reversed repayment no
+      // longer count towards what a member has paid.
+      const reversed = new Set(
+        (
+          await tx.financialEvent.findMany({
+            where: {
+              tenantId,
+              loanAccountId,
+              status: 'REVERSED',
+              id: { in: contributions.map((c) => c.financialEventId) },
+            },
+            select: { id: true },
+          })
+        ).map((e) => e.id),
+      );
       const paid = new Map<string, InstanceType<typeof lending.D>>();
       for (const c of contributions) {
+        if (reversed.has(c.financialEventId)) continue;
         paid.set(
           c.borrowerId,
           (paid.get(c.borrowerId) ?? D('0')).plus(D(c.amount)),
@@ -486,6 +502,7 @@ export class GroupsService {
           borrowerId: c.borrowerId,
           amount: decStr(c.amount),
           financialEventId: c.financialEventId,
+          reversed: reversed.has(c.financialEventId),
         })),
       };
     });

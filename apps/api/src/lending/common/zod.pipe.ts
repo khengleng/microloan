@@ -291,6 +291,12 @@ export const S = {
       externalReference: z.string().max(120).optional(),
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+      contributions: z
+        .array(
+          z.object({ borrowerId: z.string().uuid(), amount: money }).strict(),
+        )
+        .max(200)
+        .optional(),
     })
     .strict(),
   settlement: z

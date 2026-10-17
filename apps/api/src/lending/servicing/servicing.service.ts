@@ -25,6 +25,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { PostingService, PostingLine } from '../accounting/posting.service';
 import { ApplicationsService } from '../origination/applications.service';
+import { GroupsService } from '../origination/groups.service';
 import {
   Line,
   LoanState,
@@ -80,6 +81,7 @@ export class ServicingService {
     private readonly businessDate: BusinessDateService,
     private readonly posting: PostingService,
     private readonly applications: ApplicationsService,
+    private readonly groups: GroupsService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -849,6 +851,8 @@ export class ServicingService {
       prepaymentStrategy?: 'RECAST' | 'SHORTEN';
       /** Customer's choice for money beyond what is due, where the product allows it (UC-26). */
       applyExcessAs?: 'ADVANCE' | 'PREPAY';
+      /** On a group loan: who paid how much of this repayment (UC-22). */
+      contributions?: { borrowerId: string; amount: string }[];
     },
     idempotencyKey: string,
   ) {
@@ -875,6 +879,8 @@ export class ServicingService {
       prepaymentStrategy?: 'RECAST' | 'SHORTEN';
       /** Customer's choice for money beyond what is due, where the product allows it (UC-26). */
       applyExcessAs?: 'ADVANCE' | 'PREPAY';
+      /** On a group loan: who paid how much of this repayment (UC-22). */
+      contributions?: { borrowerId: string; amount: string }[];
     },
     idempotencyKey: string,
     hash: string,
@@ -889,6 +895,24 @@ export class ServicingService {
     );
     if (amount.lte(0))
       throw new BadRequestException('Amount must be positive.');
+    if (body.contributions?.length) {
+      // UC-22: a group repayment split by member must add up to the payment.
+      const split = body.contributions.reduce(
+        (t, c) =>
+          t.plus(
+            lending.parseMoney(
+              String(c.amount),
+              state.account.currency,
+              'contribution',
+            ),
+          ),
+        ZERO(),
+      );
+      if (!split.eq(amount))
+        throw new BadRequestException(
+          `The members' contributions add up to ${split.toString()} ${state.account.currency}, not the ${amount.toString()} paid.`,
+        );
+    }
     await this.policy.enforce(
       actor,
       'loan.repayment.post',
@@ -1161,6 +1185,14 @@ export class ServicingService {
       },
       allocations,
     );
+    if (body.contributions?.length)
+      await this.groups.recordContributions(
+        tx,
+        tenantId,
+        id,
+        event.id,
+        body.contributions,
+      );
     const principalOutstanding = D(state.account.principalOutstanding)
       .minus(comp.PRINCIPAL)
       .minus(prepaid);
