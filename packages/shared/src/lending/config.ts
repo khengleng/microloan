@@ -446,6 +446,74 @@ export const productConfigSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * Trade finance (LT-18, LT-19). Absent on every other product: the
+     * section is optional, so configurations written before it existed parse
+     * exactly as they did.
+     */
+    trade: z
+      .object({
+        /** Invoice financing on a revolving facility (LT-18, UC-67). */
+        invoice: z
+          .object({
+            /** Fraction of an approved invoice advanced, e.g. '0.8'. */
+            advanceRate: rateFraction,
+            /** Fee as a fraction of the invoice per fee period (TV-20: '0.02' per 30 days). */
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365),
+            feeBasis: z.enum(['WHOLE_PERIODS', 'PRO_RATA']).default('WHOLE_PERIODS'),
+            /** Days after the invoice due date before the borrower owes the advance (UC-67). */
+            recourseGraceDays: z.number().int().min(0).max(365).default(30),
+            /** Longest invoice (issue → due) the product finances. */
+            maxInvoiceTenorDays: z.number().int().min(1).max(730).default(180),
+          })
+          .strict()
+          .optional(),
+        /** Letters of credit (LT-19, UC-53). */
+        letterOfCredit: z
+          .object({
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365).default(90),
+            minimumFee: decimalString.default('0'),
+            maxTenorDays: z.number().int().min(1).max(1825).default(365),
+            /** Product code of the term loan a paid credit converts into (UC-53). */
+            conversionProductCode: code.nullable().default(null),
+          })
+          .strict()
+          .optional(),
+        /** Ledger accounts specific to trade finance. */
+        accounts: z
+          .object({
+            /** Invoice balance owed to the borrower once the advance and fee are repaid. */
+            reservePayable: code.default('2310'),
+            /** Off-balance-sheet memo pair for issued letters of credit. */
+            lcContingentAsset: code.default('9100'),
+            lcContingentLiability: code.default('9200'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
+    /** Syndicated lending (LT-24). Optional, like `trade`. */
+    syndication: z
+      .object({
+        minParticipants: z.number().int().min(2).max(50).default(2),
+        maxParticipants: z.number().int().min(2).max(50).default(20),
+        accounts: z
+          .object({
+            /** Participants' money collected by the agent and not yet passed on. */
+            participantsPayable: code.default('2320'),
+            /** Participants' funding of the loan, reduced as principal is returned to them. */
+            participantFunding: code.default('2330'),
+            /** Participants' share of interest, penalties and fees collected. */
+            participantShareExpense: code.default('5300'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
     accounting: z
       .object({
         cash: code,
@@ -578,6 +646,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   }
   validateGroupBlock(c, add);
   validateFacilityBlock(c, add);
+  validateTradeBlock(c, add);
 
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
   if (buckets[0].minDpd !== 0) add('operations.delinquencyBuckets', 'buckets must start at 0 DPD');
@@ -706,6 +775,35 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
   }
 }
 
+/**
+ * Trade-finance and syndication cross-field rules.
+ *
+ * Each specialised behaviour is tied to the one product shape it is serviced
+ * on, so a product cannot claim it while the servicing path ignores it:
+ * invoices are advanced against a revolving limit, a letter of credit is not
+ * itself a loan, and a syndicate shares one term loan.
+ */
+function validateTradeBlock(c: ProductConfig, add: (path: string, message: string) => void): void {
+  const inv = c.trade?.invoice;
+  const lc = c.trade?.letterOfCredit;
+  if (inv) {
+    if (c.facility.type !== 'REVOLVING') add('trade.invoice', 'invoices are advanced against a revolving limit; set facility.type to REVOLVING');
+    if (c.attributes.recourse !== 'FULL')
+      add('attributes.recourse', 'invoice financing here is with full recourse to the borrower (UC-67); non-recourse purchase is factoring or forfaiting, which is not offered');
+    if (dec(inv.advanceRate).lte(0)) add('trade.invoice.advanceRate', 'must be above 0');
+  }
+  if (lc) {
+    if (c.facility.type !== 'TERM') add('trade.letterOfCredit', 'a letter of credit is issued, not drawn; facility.type must be TERM');
+    if (inv) add('trade', 'a product finances invoices or issues letters of credit, not both');
+    if (c.syndication) add('trade.letterOfCredit', 'a letter of credit product cannot also be syndicated');
+  }
+  if (c.syndication) {
+    if (c.facility.type !== 'TERM') add('syndication', 'syndication shares one term loan; facility.type must be TERM');
+    if (c.identity.liability !== 'INDIVIDUAL') add('syndication', 'a syndicated loan has one borrower; group liability is not supported');
+    if (c.syndication.minParticipants > c.syndication.maxParticipants) add('syndication', 'minParticipants exceeds maxParticipants');
+  }
+}
+
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
 export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   const req = new Set<string>(['accounting.double_entry', 'servicing.repayment', 'servicing.accrual', 'servicing.closure', 'servicing.delinquency', 'credit.decision', 'origination.individual']);
@@ -742,6 +840,9 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.operations.integrations.kyc === 'EXTERNAL_REQUIRED') req.add('integration.kyc');
   const facilityCap: Record<string, string | null> = { TERM: null, REVOLVING: 'facility.revolving', OVERDRAFT: 'facility.overdraft', STAGED_DRAWDOWN: 'facility.staged_drawdown' };
   if (facilityCap[c.facility.type]) req.add(facilityCap[c.facility.type]!);
+  if (c.trade?.invoice) req.add('trade.invoice_finance');
+  if (c.trade?.letterOfCredit) req.add('trade.letter_of_credit');
+  if (c.syndication) req.add('syndication.participations');
   if (c.attributes.structure === 'MURABAHA') req.add('islamic.murabaha');
   if (c.attributes.structure === 'IJARAH') req.add('islamic.ijarah');
   return [...req].sort();

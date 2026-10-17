@@ -351,14 +351,37 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   }),
   // Corporate / project
   template('CORPORATE_TERM', 'CORPORATE_PROJECT', 'Corporate term loan', 'Senior term loan to a corporate borrower.', { ...CORPORATE, repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' }, limits: { minAmount: '100000', maxAmount: '50000000', minInstalments: 4, maxInstalments: 40 } }),
-  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', CORPORATE, ['syndication.participations']),
+  // The tenant is agent and lead; participants share funding and every
+  // collection by share (LT-24). Pricing is typically benchmark + margin:
+  // switch `attributes.rateType` to FLOATING and set `pricing.floating`.
+  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', { ...CORPORATE, syndication: { minParticipants: 2, maxParticipants: 20 } }, ['syndication.participations']),
   template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', { ...CORPORATE, attributes: { recourse: 'NON_RECOURSE' } }, ['project_finance.waterfall', 'covenants.monitoring']),
   template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', CORPORATE, ['project_finance.waterfall', 'covenants.monitoring']),
   template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', CORPORATE, ['covenants.monitoring']),
   // Trade / receivables
   template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents.', BUSINESS, ['trade.documentary']),
   template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance.', BUSINESS, ['trade.documentary']),
-  template('INVOICE_BACKED', 'TRADE_RECEIVABLES', 'Invoice-backed loan', 'Advances against an invoice register.', BUSINESS, ['trade.invoice_finance', 'collateral.borrowing_base']),
+  // A revolving limit drawn only by advances against approved invoices. The
+  // price is the invoice fee per period (TV-20), so the drawn balance itself
+  // carries no interest. The register's advance rate is this product's
+  // borrowing base, so the general borrowing-base capability is not needed
+  // (DECISIONS D-016).
+  template('INVOICE_BACKED', 'TRADE_RECEIVABLES', 'Invoice-backed loan', 'Advances against an invoice register.', {
+    ...BUSINESS,
+    attributes: { recourse: 'FULL' },
+    limits: { minAmount: '1000', maxAmount: '500000', minInstalments: 1, maxInstalments: 12 },
+    pricing: { accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' }, penalty: { type: 'NONE', annualRate: null } },
+    facility: { type: 'REVOLVING', availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
+    trade: { invoice: { advanceRate: '0.8', feeRatePerPeriod: '0.02', feePeriodDays: 30, feeBasis: 'WHOLE_PERIODS', recourseGraceDays: 30, maxInvoiceTenorDays: 180 } },
+  }, ['trade.invoice_finance']),
+  // An import letter of credit (LT-19): a fee-earning contingent commitment
+  // that becomes a term loan only if the bank pays under it (UC-53). The loan
+  // it converts into is a separate, configured term product.
+  template('LETTER_OF_CREDIT', 'TRADE_RECEIVABLES', 'Import letter of credit', 'Documentary credit for an importer; converts to a loan when paid.', {
+    ...BUSINESS,
+    limits: { minAmount: '1000', maxAmount: '2000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { letterOfCredit: { feeRatePerPeriod: '0.005', feePeriodDays: 90, minimumFee: '50', maxTenorDays: 365, conversionProductCode: null } },
+  }, ['trade.letter_of_credit']),
   template('FACTORING', 'TRADE_RECEIVABLES', 'Factoring', 'Purchase of receivables with debtor collection.', { ...BUSINESS, attributes: { recourse: 'FULL' } }, ['trade.factoring']),
   template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance.', BUSINESS, ['trade.supply_chain']),
   template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of trade receivables.', { ...BUSINESS, attributes: { recourse: 'NON_RECOURSE' } }, ['trade.forfaiting']),

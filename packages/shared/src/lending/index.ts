@@ -20,4 +20,6 @@ export * from './policies.js';
 export * from './rebate.js';
 export * from './collateral.js';
 export * from './invoice.js';
+export * from './letter-of-credit.js';
+export * from './syndication.js';
 export * from './impairment.js';
