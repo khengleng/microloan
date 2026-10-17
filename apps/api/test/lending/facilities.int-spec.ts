@@ -952,4 +952,73 @@ d('Lending facilities (integration)', () => {
       expect(await dpd()).toBe(0);
     });
   });
+  // ── Repaying stated interest (regression) ─────────────────────────────────
+
+  describe('a repayment that also pays stated interest', () => {
+    let facilityId: string;
+    let loanId: string;
+
+    beforeAll(async () => {
+      const today = expectOk(
+        await f.as('finance').get('/lending/ops/business-date'),
+      ).businessDate as string;
+      const { productId } = await activeProduct(
+        f,
+        'REVOLVING_CREDIT',
+        'RC-INTPAY',
+        (c) => {
+          c.facility.commitmentFeeRate = null;
+        },
+      );
+      ({ facilityId, loanId } = await bookFacility(productId, {
+        principal: '20000',
+        numberOfInstalments: 12,
+        disbursementDate: today,
+        annualRate: '0.12',
+      }));
+      await drawdown(facilityId, { amount: '10000' }, 'ip1');
+      const periodEnd = lending.addDays(today, 30);
+      await setBusinessDate(periodEnd);
+      expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/statements`,
+            { periodEnd },
+            'fac-ip-stmt',
+          ),
+      );
+    }, 60_000);
+
+    it('reinstates only the principal it repaid, and reconciles', async () => {
+      const loan = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      const interest = Number(loan.account.interestReceivable);
+      expect(interest).toBeGreaterThan(0);
+      expectOk(
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/facilities/${facilityId}/repayments`,
+            { amount: (interest + 4000).toFixed(2) },
+            'fac-ip-repay',
+          ),
+      );
+      const after = expectOk(
+        await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+      );
+      expect(after.account.principalOutstanding).toBe('6000');
+      const v = expectOk(await facility(facilityId));
+      // Regression: the whole payment, interest included, was counted as
+      // principal repaid, overstating the headroom by the interest paid.
+      expect(v.position.outstanding).toBe('6000');
+      expect(v.position.available).toBe('14000');
+      expect(v.position.totalRepaid).toBe('4000');
+      const rec = expectOk(
+        await f.as('finance').get('/lending/ops/reconciliation'),
+      );
+      expect(rec.breaks).toEqual([]);
+    });
+  });
 });
