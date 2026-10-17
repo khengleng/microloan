@@ -115,6 +115,59 @@ snapshot) and waits for a person to approve it.
 
 The close covers the lending ledger. The legacy ledger is closed separately.
 
+## Regulatory returns and the two loan books
+
+Lending › Regulatory returns. One monthly NBC-style return per organisation
+covers the lending platform **and** the legacy loans, per currency
+(assumptions: DECISIONS D-045..D-049).
+
+* **Tables** — portfolio by currency and book; classification and
+  provisioning (NBC classes, required provision against allowance held);
+  PAR 1/30/90; by product and family, branch, purpose, borrower type (group
+  or individual) and loan size; restructured loans by class; disbursed,
+  written off and recovered in the month; the 20 largest borrowers; interest
+  rates against the cap. Every table carries per-currency totals, and the
+  return checks that every breakdown adds up to the portfolio.
+* **Reconciliation** — for each currency and book, principal and allowance of
+  the loans in the return against loans receivable and the allowance in that
+  book's journal at month end (the lending book also against the trial
+  balance frozen at the close). Legacy loans already moved by a loan-book
+  migration appear once, under the lending platform, and as a reconciling
+  item on the legacy line until cleared against 3900.
+* **Workflow** — any month can be **previewed**; only a **closed** month can
+  be **generated** (finance, `regulatory.prepare`). The stored return and its
+  SHA-256 hash never change (database trigger); a correction is a new
+  version, which supersedes the draft or amends a submitted return. Finance
+  **sends it for submission** — refused while anything fails to tie — and a
+  different person (`regulatory.submit`, Risk / compliance) **submits** it
+  with the regulator's reference, or sends it back.
+* **Export** — CSV (whole return or one table; UTF-8 with BOM, formula-safe)
+  and a workbook with a sheet per table.
+* The close now keeps each live loan's days past due and class
+  (`snapshot.loanGrades`), so a closed month's return grades loans as they
+  stood at the close.
+
+API: `GET /v1/lending/regulatory/returns?year=`, `GET …/preview?year=&month=`,
+`POST …/returns {year, month}`, `GET …/returns/:id`,
+`GET …/returns/:id/export.csv[?table=CODE]`, `GET …/returns/:id/export.xlsx`,
+`POST …/returns/:id/request-submission`, `POST …/returns/:id/decision
+{approve, reference?, comment?}`.
+
+**Combined ledger** (Lending › Combined ledger,
+`GET /v1/lending/regulatory/combined-trial-balance?asOf=`): the legacy and the
+lending journals side by side per account and currency, with the combined
+balance and whether each book, and the two together, balance.
+
+**Closing the legacy book to new business.** Turn on the flag
+`lending.legacy_loans.readonly` (Lending › Access & policy › Flags; proposed
+by one administrator, approved by another). The legacy module then refuses
+new loans and disbursements (`409 LEGACY_LOANS_READONLY`) while repayments,
+payoff, reversals, write-offs and restructuring of existing legacy loans go
+on. Legacy screens hide "new loan" and "disburse" and show a banner pointing
+to Lending › Applications and Lending › Migration
+(`GET /v1/loans/legacy-status`). The legacy menus are grouped and labelled
+"Legacy". Nothing is deleted.
+
 ## Taking over a loan book (migration)
 
 Lending › Migration. Running loans from another system are loaded as a CSV
