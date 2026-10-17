@@ -2226,7 +2226,11 @@ export class InvoiceFinanceService {
       const sup = await tx.tradeSupplier.findFirst({
         where: { id: rec.supplierId, tenantId },
       });
-      if (!sup || sup.status !== 'ACTIVE')
+      const usable =
+        sup &&
+        (sup.status === 'ACTIVE' ||
+          (sup.status === 'PENDING' && !cfg.supplierApprovalRequired));
+      if (!usable)
         throw new ConflictException({
           message: `${inv.debtorName} is not an approved supplier on this programme.`,
           code: 'SUPPLIER_NOT_ACTIVE',
