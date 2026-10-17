@@ -212,6 +212,80 @@ describe('a holiday is an ordinary restructure', () => {
   });
 });
 
+describe('the interest a holiday defers', () => {
+  const contract: L.ScheduleInput = {
+    principal: '12000',
+    currency: 'USD',
+    disbursementDate: '2026-01-01',
+    annualRate: '0.12',
+    rateConvention: 'NOMINAL',
+    interestMethod: 'REDUCING_BALANCE',
+    accrualBasis: 'DAILY',
+    dayCount: 'ACT_365_FIXED',
+    method: 'EQUAL_INSTALMENT',
+    frequency: 'MONTHLY',
+    numberOfInstalments: 12,
+  };
+  const schedule = L.generateSchedule(contract);
+  const snapshot: L.BalanceSnapshot = {
+    asOf: '2026-04-01',
+    currency: 'USD',
+    principal: schedule.lines[2].closingPrincipal,
+    overduePrincipal: '0',
+    overdueInterest: '0',
+    accruedInterestNotDue: '0',
+    fees: '0',
+    penalties: '0',
+    taxes: '0',
+    unallocatedPayments: '0',
+  };
+  const calcFor = (treatment: L.DeferredInterestTreatment) =>
+    L.calculateRestructure(
+      contract,
+      snapshot,
+      L.holidayRestructureOptions(programme({ interestTreatment: treatment }), 3, '2026-04-01', 9),
+      {
+        allowInterestCapitalization: true,
+        allowFeeCapitalization: true,
+        allowPenaltyCapitalization: false,
+        maxTotalInstalments: 60,
+      },
+    );
+
+  test('a deferred holiday defers real interest, not zero', () => {
+    // The deferred instalments show zero interest by construction, so reading
+    // it off them would report every holiday as free.
+    const calc = calcFor('DEFER_NO_CAPITALIZATION');
+    assert.ok(
+      calc.lines.slice(0, 3).every((l) => new L.D(l.interest).isZero()),
+      'the deferred lines carry no interest of their own',
+    );
+    const deferred = L.holidayDeferredInterest(calc, 'DEFER_NO_CAPITALIZATION', 3);
+    assert.ok(new L.D(deferred).gt(0), `expected real interest, got ${deferred}`);
+  });
+
+  test('a waived holiday reports what was given up', () => {
+    const calc = calcFor('WAIVE');
+    const waived = L.holidayDeferredInterest(calc, 'WAIVE', 3);
+    assert.ok(new L.D(waived).gt(0), `expected a waived amount, got ${waived}`);
+    assert.equal(waived, calc.concessionValue.futureInterestWaived);
+  });
+
+  test('paying separately leaves the interest on the instalments', () => {
+    const calc = calcFor('PAY_SEPARATELY');
+    const paid = L.holidayDeferredInterest(calc, 'PAY_SEPARATELY', 3);
+    assert.ok(new L.D(paid).gt(0));
+  });
+
+  test('an unknown treatment is refused', () => {
+    const calc = calcFor('DEFER_NO_CAPITALIZATION');
+    assert.throws(
+      () => L.holidayDeferredInterest(calc, 'FREE_MONEY' as never, 3),
+      /Unknown deferred interest treatment/,
+    );
+  });
+});
+
 describe('what a holiday costs', () => {
   test('waiving the interest is the only treatment that is free', () => {
     const r = L.describeHolidayCost('WAIVE', '250');

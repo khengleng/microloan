@@ -317,10 +317,14 @@ export class PaymentHolidayService {
       );
 
       const agreementVersion = state.agreementVersion + 1;
-      const deferred = calc.lines.slice(0, body.instalments);
-      const deferredInterest = deferred.reduce(
-        (t, l) => t.plus(D(l.interest)),
-        D('0'),
+      // Read from where the treatment actually keeps it: summing the
+      // deferred lines gives zero, because the engine zeroes their interest.
+      const deferredInterest = D(
+        lending.holidayDeferredInterest(
+          calc,
+          programme.interestTreatment as lending.DeferredInterestTreatment,
+          body.instalments,
+        ),
       );
       const resumesOn =
         calc.lines[body.instalments]?.dueDate ??

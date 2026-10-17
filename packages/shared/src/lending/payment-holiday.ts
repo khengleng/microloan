@@ -20,9 +20,13 @@
  * borrower owing more than when they started, which is why the treatment is
  * stated on the programme rather than defaulted.
  */
-import { dec, EngineError } from './decimal.js';
+import { dec, EngineError, ZERO } from './decimal.js';
 import { LocalDate, compareDates, parseDate } from './dates.js';
-import type { DeferredInterestTreatment, RestructureOptions } from './restructure.js';
+import type {
+  DeferredInterestTreatment,
+  RestructureCalculation,
+  RestructureOptions,
+} from './restructure.js';
 
 export interface HolidayProgramme {
   code: string;
@@ -191,6 +195,38 @@ export function holidayRestructureOptions(
     paymentDeferralInstalments: instalments,
     deferredInterestTreatment: programme.interestTreatment,
   };
+}
+
+/**
+ * The interest a holiday actually defers.
+ *
+ * This cannot be read off the deferred instalments: when interest is waived
+ * or carried forward, the engine sets those lines' interest to zero and moves
+ * the amount into the calculation's components. Summing the lines therefore
+ * always yields zero, which would report every holiday as free — the opposite
+ * of what `describeHolidayCost` is for. Each treatment keeps the figure in a
+ * different place, so each is read from where it lives.
+ */
+export function holidayDeferredInterest(
+  calc: RestructureCalculation,
+  treatment: DeferredInterestTreatment,
+  instalments: number,
+): string {
+  switch (treatment) {
+    case 'WAIVE':
+      return calc.concessionValue.futureInterestWaived;
+    case 'DEFER_NO_CAPITALIZATION':
+      return calc.components.deferred.interest;
+    case 'CAPITALIZE':
+    case 'PAY_SEPARATELY':
+      // These treatments leave the interest on the instalments themselves.
+      return calc.lines
+        .slice(0, instalments)
+        .reduce((total, l) => total.plus(dec(l.interest, 'interest')), ZERO)
+        .toString();
+    default:
+      throw new EngineError('INVALID_TREATMENT', `Unknown deferred interest treatment ${String(treatment)}.`);
+  }
 }
 
 /**
