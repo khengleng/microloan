@@ -132,72 +132,96 @@ export class SuspenseService {
   ) {
     const tenantId = requireTenant(actor);
     const hash = requestHash({ op: 'suspense-receive', body });
-    return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
-      await this.policy.enforce(
-        actor,
-        'payment.suspense.receive',
-        tenantResource(tenantId),
-        tx,
-      );
-      const currency = lending.getCurrency(body.currency).code;
-      const amount = lending.parseMoney(body.amount, currency, 'amount');
-      if (amount.lte(0))
-        throw new BadRequestException('Amount must be positive.');
-      const businessDate = await this.businessDate.get(tenantId, tx);
-      const valueDate = body.valueDate ?? businessDate;
-      BusinessDateService.checkValueDate(valueDate, businessDate, 30);
-      const event = await this.tenantEvent(tx, actor, {
-        type: 'SUSPENSE_RECEIPT',
-        amount,
-        currency,
-        businessDate,
-        valueDate,
-        idempotencyKey,
-        hash,
-        externalReference: body.externalReference,
-        narrative: `Unidentified ${body.channel.toLowerCase().replace('_', ' ')} receipt ${body.externalReference}`,
-        components: {
-          channel: body.channel,
-          payerName: body.payerName ?? null,
-        },
-        lines: [
-          { accountCode: ACCOUNT_CODES.CASH, debit: amount.toString() },
-          {
-            accountCode: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
-            credit: amount.toString(),
-          },
-        ],
-      });
-      const payment = await tx.unidentifiedPayment.create({
-        data: {
-          tenantId,
-          reference: `UNID-${event.id.slice(0, 8).toUpperCase()}`,
-          amount: amount.toString(),
-          remaining: amount.toString(),
-          currency,
-          valueDate: fromLocalDate(valueDate),
-          channel: body.channel,
-          externalReference: body.externalReference.slice(0, 120),
-          payerName: body.payerName?.slice(0, 120) ?? null,
-          narrative: (body.narrative ?? '').slice(0, 500),
-          receiptEventId: event.id,
-          receivedBy: actor.id,
-        },
-      });
-      await this.audit.write(
+    return this.servicing.money(tenantId, idempotencyKey, hash, (tx) =>
+      this.receiveInTx(tx, actor, body, idempotencyKey, hash),
+    );
+  }
+
+  /**
+   * The receipt itself, inside the caller's transaction — used by channel
+   * file imports and auto-debit for money that cannot be applied to a loan
+   * (UC-16, UC-18, UC-19).
+   */
+  async receiveInTx(
+    tx: Tx,
+    actor: LendingActor,
+    body: {
+      amount: string;
+      currency: string;
+      valueDate?: string;
+      channel: Channel;
+      externalReference: string;
+      payerName?: string;
+      narrative?: string;
+    },
+    idempotencyKey: string,
+    hash: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'payment.suspense.receive',
+      tenantResource(tenantId),
+      tx,
+    );
+    const currency = lending.getCurrency(body.currency).code;
+    const amount = lending.parseMoney(body.amount, currency, 'amount');
+    if (amount.lte(0))
+      throw new BadRequestException('Amount must be positive.');
+    const businessDate = await this.businessDate.get(tenantId, tx);
+    const valueDate = body.valueDate ?? businessDate;
+    BusinessDateService.checkValueDate(valueDate, businessDate, 30);
+    const event = await this.tenantEvent(tx, actor, {
+      type: 'SUSPENSE_RECEIPT',
+      amount,
+      currency,
+      businessDate,
+      valueDate,
+      idempotencyKey,
+      hash,
+      externalReference: body.externalReference,
+      narrative: `Unidentified ${body.channel.toLowerCase().replace('_', ' ')} receipt ${body.externalReference}`,
+      components: {
+        channel: body.channel,
+        payerName: body.payerName ?? null,
+      },
+      lines: [
+        { accountCode: ACCOUNT_CODES.CASH, debit: amount.toString() },
         {
-          actor,
-          action: 'payment.suspense.receive',
-          resourceType: 'UnidentifiedPayment',
-          resourceId: payment.id,
-          outcome: 'SUCCESS',
-          details: { amount: amount.toString(), currency },
-          businessDate: fromLocalDate(businessDate),
+          accountCode: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
+          credit: amount.toString(),
         },
-        tx,
-      );
-      return payment;
+      ],
     });
+    const payment = await tx.unidentifiedPayment.create({
+      data: {
+        tenantId,
+        reference: `UNID-${event.id.slice(0, 8).toUpperCase()}`,
+        amount: amount.toString(),
+        remaining: amount.toString(),
+        currency,
+        valueDate: fromLocalDate(valueDate),
+        channel: body.channel,
+        externalReference: body.externalReference.slice(0, 120),
+        payerName: body.payerName?.slice(0, 120) ?? null,
+        narrative: (body.narrative ?? '').slice(0, 500),
+        receiptEventId: event.id,
+        receivedBy: actor.id,
+      },
+    });
+    await this.audit.write(
+      {
+        actor,
+        action: 'payment.suspense.receive',
+        resourceType: 'UnidentifiedPayment',
+        resourceId: payment.id,
+        outcome: 'SUCCESS',
+        details: { amount: amount.toString(), currency },
+        businessDate: fromLocalDate(businessDate),
+      },
+      tx,
+    );
+    return payment;
   }
 
   /**

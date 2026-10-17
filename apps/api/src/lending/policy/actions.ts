@@ -140,6 +140,18 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan.repayment.reverse',
     makerChecker: true,
   }),
+  // Payment channels (UC-16, UC-18, UC-19, UC-21).
+  A('payment.channel.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('payment.channel_file.import', 'TENANT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('payment.channel.configure', 'TENANT', 'CONFIG', {
+    permission: 'rate_observation.manage',
+  }),
+  // Revoking stays possible on a closed loan; the service allows new mandates on live loans only.
+  A('loan.mandate.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
   // Collateral on running loans (UC-51, UC-73).
   A('loan.collateral.revalue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'collateral.manage',

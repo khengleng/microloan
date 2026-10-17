@@ -74,7 +74,8 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 
 1. Post the day's repayments and disbursements.
 2. Advance the business date (at most 31 days per step): `POST /v1/lending/ops/business-date`.
-3. Run the batch: `POST /v1/lending/loans/batch/run` — accrual, interest
+3. Run the batch: `POST /v1/lending/loans/batch/run` — auto-debit collection
+   under active mandates (first, so a collected instalment is never late), accrual, interest
    capitalization, penalties, delinquency buckets and collection stages,
    restructure monitoring and system referrals. It is idempotent and processes
    only accounts in the caller's scope; each account is its own transaction.
@@ -106,6 +107,8 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 
 | Integration | Status |
 |---|---|
+| Bank auto-debit (UC-16) | Mock only (`MOCK_BANK_DEBIT`, deterministic by account number). Mandates and attempts are recorded; production refuses the mock, so no debit is attempted there. |
+| Exchange rates (UC-21) | The organisation's own published rate table (real). `LENDING_FX_SOURCE=MOCK` selects fixed development rates, refused in production. |
 | Payment rails (automated payout / collection) | Mock only. Disbursements are recorded by operations with an external bank/cash reference (manual rail, fully supported). Products requiring an adapter cannot be activated. |
 | Identity / KYC | Manual KYC status only; `EXTERNAL_REQUIRED` products cannot be activated. |
 | Credit bureau | Products with `creditBureau: REQUIRED` cannot be activated (the legacy CBC module is not wired into lending). |
@@ -301,6 +304,71 @@ thereafter.
   `evergreening` verdict. Review those: a refinance that replaces a
   delinquent loan and funds its arrears has moved a problem, not solved it.
 
+## Payment channels
+
+Lending › Payment channels; decisions D-017..D-019 in
+[docs/servicing/DECISIONS.md](../servicing/DECISIONS.md).
+
+**Auto-debit (UC-16).** Record the borrower's mandate on the loan screen
+(bank, account, mandate reference, consent date; one active mandate per
+loan, revocable). At the start of each end-of-day run, every active mandate
+whose loan has an instalment due that day is collected for everything due
+and unpaid (less any advance) through the bank adapter, and the ordinary
+repayment is posted by `system:auto-debit`. A refusal is recorded with the
+bank's code, a `lending.auto_debit.failed` outbox notice is queued, and the
+debit is retried per the settings (default 3 attempts a day apart). Only a
+mock bank exists: accounts ending in `000` fail for insufficient funds, in
+`999` as closed, anything else succeeds; production refuses the mock.
+
+**Settlement files (UC-18).** CSV with a header row, columns in any order:
+
+```
+reference,loan_ref,amount,currency,value_date,channel_txn_id[,payer_name]
+R-1001,LN-260105-ABC123,120.50,USD,2026-02-05,WING-889211,Sok Dara
+```
+
+`loan_ref` is the loan account reference; leave it blank when the payer gave
+none. `channel_txn_id` identifies the payment at the channel (MOBILE, QR,
+WALLET or AGENT). Lines starting with `#` are comments. Value dates may be at
+most 30 days back.
+
+**Payroll files (UC-19).** The employer, period (YYYY-MM), currency and value
+date are given with the upload; the CSV has `employee_ref, amount` and at
+least one of `national_id` / `loan_ref` per line:
+
+```
+employee_ref,national_id,loan_ref,amount
+E-001,010203040,,55.00
+```
+
+**Rules for both.** A file with any malformed line is refused and every error
+listed; nothing is imported. The same file sent again returns the original
+import. A line whose transaction id was imported before is recorded as a
+duplicate and applies nothing (if its content differs it stays a break until
+the channel confirms it). Lines that name a live loan in their currency post
+the ordinary repayment; every other line, and any line the loan refuses, goes
+to unidentified payments with the reason, to be matched or refunded there.
+Integrations push files with a service-account key holding
+`loan.repayment.post`.
+
+**Daily reconciliation.** Per value date and channel: file total = posted +
+reversed + matched from suspense + refunded + still in suspense. Breaks are
+money still in suspense, posted payments since reversed, and conflicting
+repeats. Payroll is also summarised per employer and period.
+
+**Cross-currency payments (UC-21).** On the repayment form choose the currency
+paid; a preview shows the bank rate (mid less the configured spread), the
+amount credited and the FX gain or loss. Rates come from the organisation's
+published exchange rates (`/v1/fx/rates`, FX_MANAGE); a payment is refused when
+no rate is published for its value date (tolerance configurable).
+`LENDING_FX_SOURCE=MOCK` uses fixed development rates instead (refused in
+production). Postings: payment currency Dr cash / Cr FX position (1050); loan
+currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410).
+
+**Settings** (FINANCE_OFFICER, `rate_observation.manage`): FX spread in basis
+points, how many days old a rate may be, auto-debit attempts per due date and
+days between attempts.
+
 ## Known limitations
 
 * Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL, trade finance,
@@ -328,6 +396,7 @@ thereafter.
 | Loans | `GET loans`, `GET loans/export.csv`, `POST loans/batch/run`, `GET loans/:id`, `GET :id/settlement-quote`, `POST :id/disbursements`, `POST :id/disbursements/:taskId/decision`, `POST :id/disbursements/execute`, `POST :id/repayments`, `POST :id/settlement`, `POST :id/events/:eventId/reverse`, `POST :id/write-offs`, `POST :id/write-offs/:taskId/decision` |
 | Restructuring | `GET restructures`, `GET restructures/tasks`, `POST restructures/loans/:loanId`, `GET/POST restructures/:id/...` (`evidence`, `more-info`, `assessments`, `simulate`, `proposals`, `proposals/:pid/approve`, `reject`, `proposals/:pid/acceptance`, `conditions/:code`, `execute`, `reverse`, `withdraw`), `GET restructures/policy/current`, `POST restructures/policy`, `POST restructures/policy/:id/decision` |
 | Customer portal | `POST portal/loans/:loanId/restructure-requests`, `GET portal/restructures`, `GET portal/restructures/:id`, `POST portal/restructures/:id/proposals/:pid/accept` |
+| Payment channels | `GET/PUT payment-channels/settings`, `POST payment-channels/{settlement-files,payroll-files}`, `GET payment-channels/files`, `GET payment-channels/files/:fileId`, `GET payment-channels/reconciliation?date=&channel=`, `GET payment-channels/payroll-summary`, `GET payment-channels/auto-debit/attempts`; loans: `GET/POST :id/mandates`, `POST :id/mandates/:mandateId/revoke`, `GET :id/fx-quote`, `POST :id/fx-repayments`; service key: `POST integrations/{settlement-files,payroll-files}` |
 | Access | `GET access`, `POST access/{roles,assignments,delegations,authorities,policies,cohorts,simulate,service-accounts}`, decisions and revocations, `GET access/flags`, `POST access/flags/rules`, `GET access/capabilities/:type/:id` |
 | Integrations | `POST integrations/loans/:id/repayments` (service-account key) |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |

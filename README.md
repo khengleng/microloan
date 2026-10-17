@@ -362,9 +362,12 @@ wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
    in the database, with no versions, expiry or retention (DOC-1..10).
 2. No collection escalation engine or collector work queues in the lending
    stack; no guarantor demand or set-off (UC-58, UC-60, UC-61).
-3. Payment channels beyond manual and service-account posting: auto-debit,
-   wallet settlement files, payroll files, cross-currency (UC-16..21).
-4. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
+3. Auto-debit has no real bank integration: mandates, collection, retries
+   and reconciliation run on a mock bank (UC-16). Settlement and payroll
+   files and cross-currency payments are built (UC-18, UC-19, UC-21).
+4. Recovery workflows: repossession, pawn forfeiture, credit insurance, debt
+   sale (UC-65, UC-66, UC-68, UC-71).
+5. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
 
 Not started: credit cards, BNPL merchant settlement, invoice finance, letters
 of credit, syndication, closure letters and credit bureau reporting,
@@ -493,6 +496,11 @@ environment layout and the backup caveat).
   the lending journal's `loanAccountId` become nullable for tenant-level
   receipts. Their invariants run in CI. They have not been run against a
   production-shaped database: take a snapshot first.
+* The payment-channels migration (`20261019000300_lending_payment_channels`:
+  mandates, auto-debit attempts, channel files and lines, channel settings) is
+  additive — new tables only, with CHECKs, an immutability trigger on imported
+  lines and forced RLS. Two ledger accounts (1050 FX position, 4400 FX
+  gain/loss) are added to the chart on first use.
 * **Database role.** Row-level security does nothing for a superuser or a
   `BYPASSRLS` role, and Railway's default user is `postgres`. Run the API as a
   `NOSUPERUSER NOBYPASSRLS` role that does not own the tables (migrations keep

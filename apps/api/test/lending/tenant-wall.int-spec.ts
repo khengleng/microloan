@@ -101,6 +101,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'insurance-claims/:claimId': 'insuranceClaim',
       'recovery-tasks/:taskId': 'approvalTask',
       'recovery-refunds/:refundId': 'recoveryRefund',
+      'mandates/:mandateId': 'directDebitMandate',
+      'files/:fileId': 'channelFile',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
@@ -358,6 +360,25 @@ d('Tenant wall (integration)', () => {
         },
         key('vsus'),
       ),
+    );
+    // A direct-debit mandate and an imported settlement file (UC-16, UC-18).
+    expectOk(
+      await f.as('opsMaker').post(`/lending/loans/${loanId}/mandates`, {
+        mandateReference: `WALL-DD-${key('m')}`.slice(0, 60),
+        bankCode: 'ABA',
+        accountNumber: '0001234567',
+        accountName: 'Victim Borrower',
+        consentDate: '2026-01-05',
+      }),
+    );
+    expectOk(
+      await f
+        .as('opsMaker')
+        .post('/lending/payment-channels/settlement-files', {
+          channel: 'WALLET',
+          fileName: 'victim-wallet.csv',
+          content: `reference,loan_ref,amount,currency,value_date,channel_txn_id\nV1,,5.00,USD,2026-01-05,${key('vtx')}\n`,
+        }),
     );
     expectOk(
       await f.as('maker').post('/lending/policies', {

@@ -39,6 +39,9 @@ export const ACCOUNT_CODES = {
   DEBT_SALE_GAIN: '4400',
   RECOVERY_COSTS: '5300',
   DEBT_SALE_LOSS: '5400',
+  // Payment channels: money received in a currency other than the loan's (UC-21)
+  FX_POSITION: '1050',
+  FX_GAIN_LOSS: '4410',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -178,5 +181,17 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     code: ACCOUNT_CODES.DEBT_SALE_LOSS,
     name: 'Loss on Sale of Loans',
     type: LedgerAccountType.EXPENSE,
+  },
+  // Each currency's leg of a cross-currency payment passes through here, so
+  // every journal balances in its own currency.
+  {
+    code: ACCOUNT_CODES.FX_POSITION,
+    name: 'Foreign Currency Position',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.FX_GAIN_LOSS,
+    name: 'Foreign Exchange Gain / Loss',
+    type: LedgerAccountType.INCOME,
   },
 ];

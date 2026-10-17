@@ -1966,6 +1966,7 @@ model LoanAccount {
   insurancePolicies      InsurancePolicy[]
   debtSales              DebtSale[]
   recoveryRefunds        RecoveryRefund[]
+  directDebitMandates    DirectDebitMandate[]
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -2961,4 +2962,144 @@ model RecoveryRefund {
   @@unique([tenantId, id])
   @@index([tenantId, status])
   @@index([tenantId, loanAccountId])
+}
+
+/// Payment-channel settings of a tenant (UC-16, UC-21): the spread on the
+/// bank's FX rate, how old a rate may be, and the auto-debit retry policy.
+/// Without a row the defaults below apply.
+model PaymentChannelSettings {
+  id                   String   @id @default(uuid())
+  tenantId             String   @unique
+  fxSpreadBps          Int      @default(0)
+  fxMaxRateAgeDays     Int      @default(0)
+  autoDebitMaxAttempts Int      @default(3)
+  autoDebitRetryDays   Int      @default(1)
+  updatedBy            String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([tenantId, id])
+}
+
+/// A borrower's authority for the bank to collect instalments from their
+/// account on the due date (UC-16). One ACTIVE mandate per loan.
+model DirectDebitMandate {
+  id               String             @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  loanAccount      LoanAccount        @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  mandateReference String
+  bankCode         String
+  accountNumber    String
+  accountName      String
+  consentDate      DateTime           @db.Date
+  /// ACTIVE, REVOKED
+  status           String             @default("ACTIVE")
+  revokedAt        DateTime?
+  revokedBy        String?
+  revokeReason     String             @default("")
+  createdBy        String
+  createdAt        DateTime           @default(now())
+  attempts         AutoDebitAttempt[]
+
+  @@unique([tenantId, mandateReference])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// One collection attempt under a mandate for one due date (UC-16).
+model AutoDebitAttempt {
+  id                    String             @id @default(uuid())
+  tenantId              String
+  mandateId             String
+  mandate               DirectDebitMandate @relation(fields: [tenantId, mandateId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId         String
+  dueDate               DateTime           @db.Date
+  attemptNo             Int
+  businessDate          DateTime           @db.Date
+  amount                Decimal            @db.Decimal(24, 4)
+  currency              String
+  adapter               String
+  /// PENDING, SUCCEEDED, FAILED, SUSPENSE (collected but could not be applied)
+  status                String             @default("PENDING")
+  failureCode           String?
+  bankReference         String?
+  financialEventId      String?
+  unidentifiedPaymentId String?
+  nextRetryDate         DateTime?          @db.Date
+  detail                String             @default("")
+  createdAt             DateTime           @default(now())
+  completedAt           DateTime?
+
+  @@unique([tenantId, mandateId, dueDate, attemptNo])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, nextRetryDate])
+  @@index([tenantId, loanAccountId])
+}
+
+/// An imported settlement (mobile, QR, wallet, agent) or payroll remittance
+/// file (UC-18, UC-19). Imported once per content hash.
+model ChannelFile {
+  id             String            @id @default(uuid())
+  tenantId       String
+  /// SETTLEMENT, PAYROLL
+  kind           String
+  /// MOBILE, QR, WALLET, AGENT, PAYROLL
+  channel        String
+  fileName       String
+  fileHash       String
+  employer       String?
+  period         String?
+  lineCount      Int
+  postedCount    Int
+  suspenseCount  Int
+  duplicateCount Int
+  /// Per currency: what the file reported, excluding repeated lines.
+  totals         Json
+  businessDate   DateTime          @db.Date
+  importedBy     String
+  createdAt      DateTime          @default(now())
+  lines          ChannelFileLine[]
+
+  @@unique([tenantId, kind, fileHash])
+  @@unique([tenantId, id])
+  @@index([tenantId, channel, businessDate])
+}
+
+/// One payment line of an imported channel file and what became of it.
+model ChannelFileLine {
+  id                    String      @id @default(uuid())
+  tenantId              String
+  fileId                String
+  file                  ChannelFile @relation(fields: [tenantId, fileId], references: [tenantId, id], onDelete: Cascade)
+  lineNo                Int
+  channel               String
+  channelTxnId          String
+  /// channel:txnId on the first occurrence; null on a repeat, so a payment is applied once.
+  dedupeKey             String?
+  reference             String      @default("")
+  loanRef               String?
+  employeeRef           String?
+  /// Blind index and last digits of the national id; the id itself is not stored.
+  nationalIdHash        String?
+  nationalIdHint        String?
+  payerName             String?
+  amount                Decimal     @db.Decimal(24, 4)
+  currency              String
+  valueDate             DateTime    @db.Date
+  /// POSTED, SUSPENSE, DUPLICATE
+  outcome               String
+  reason                String      @default("")
+  loanAccountId         String?
+  financialEventId      String?
+  unidentifiedPaymentId String?
+  duplicateOfLineId     String?
+  conflicting           Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+
+  @@unique([tenantId, dedupeKey])
+  @@unique([tenantId, id])
+  @@index([tenantId, fileId])
+  @@index([tenantId, channel, valueDate])
 }

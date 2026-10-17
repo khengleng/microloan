@@ -19,6 +19,13 @@ import { ReportingService } from './reporting/reporting.service';
 import { CollectionsService } from './collections/collections.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
+import { PaymentChannelsService } from './payments/payment-channels.service';
+import { ChannelFilesService } from './payments/channel-files.service';
+import {
+  ChannelIntegrationsController,
+  LoanPaymentChannelsController,
+  PaymentChannelsController,
+} from './payments/payment-channels.controller';
 import { ImpairmentService } from './accounting/impairment.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -70,6 +77,9 @@ import {
     LendingFacilitiesController,
     RecoveryController,
     RecoveryDeskController,
+    PaymentChannelsController,
+    LoanPaymentChannelsController,
+    ChannelIntegrationsController,
   ],
   providers: [
     ReportingService,
@@ -90,6 +100,8 @@ import {
     ServicingService,
     SuspenseService,
     CollateralService,
+    PaymentChannelsService,
+    ChannelFilesService,
     ImpairmentService,
     FacilitiesService,
     RateResetService,
