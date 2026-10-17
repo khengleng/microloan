@@ -34,6 +34,7 @@ import { LoanCollateralCard } from './LoanCollateralCard';
 import { LoanDocumentsCard } from './LoanDocumentsCard';
 import { LoanRecoveryCard } from '../recovery/LoanRecoveryCard';
 import { LoanMandatesCard } from '../channels/LoanMandatesCard';
+import { PurchaseLinkedCard } from './PurchaseLinkedCard';
 
 const ACTIONS = [
     { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
@@ -194,6 +195,8 @@ export function LoanDetailView({ id }: { id: string }) {
                     )}
                 </div>
             </Card>
+
+            <PurchaseLinkedCard loanId={id} detail={d} onDone={done} />
 
             {acc.status !== 'BOOKED' && <LoanDocumentsCard loanId={id} closed={acc.status === 'CLOSED'} />}
 

@@ -315,6 +315,8 @@ export interface LoanDetail {
     schedule: LoanScheduleLine[];
     events: FinancialEvent[];
     tasks: ApprovalTask[];
+    /** Card, BNPL or lease behaviour on this loan (LT-07, LT-11, LT-15). */
+    specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | null;
 }
 
 export interface SettlementQuote {
