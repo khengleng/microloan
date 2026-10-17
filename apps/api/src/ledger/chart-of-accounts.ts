@@ -22,6 +22,8 @@ export const ACCOUNT_CODES = {
     FEES_RECEIVABLE: '1220',
     PENALTY_RECEIVABLE: '1230',
     TAX_PAYABLE: '2200',
+    CUSTOMER_ADVANCES: '2300',
+    INTEREST_SUSPENSE: '2400',
     RECOVERY_INCOME: '4300',
     ROUNDING_DIFFERENCES: '4900',
     // Restructuring concessions
@@ -42,6 +44,10 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     { code: ACCOUNT_CODES.FEES_RECEIVABLE, name: 'Fees Receivable', type: LedgerAccountType.ASSET },
     { code: ACCOUNT_CODES.PENALTY_RECEIVABLE, name: 'Penalties Receivable', type: LedgerAccountType.ASSET },
     { code: ACCOUNT_CODES.TAX_PAYABLE, name: 'Tax Payable', type: LedgerAccountType.LIABILITY },
+    { code: ACCOUNT_CODES.CUSTOMER_ADVANCES, name: 'Customer Advances (paid before due)', type: LedgerAccountType.LIABILITY },
+    // Contra to accrued interest receivable, like the allowance: interest accrued on
+    // non-accrual loans that has not been recognised as income.
+    { code: ACCOUNT_CODES.INTEREST_SUSPENSE, name: 'Interest in Suspense (non-accrual)', type: LedgerAccountType.ASSET },
     { code: ACCOUNT_CODES.RECOVERY_INCOME, name: 'Recoveries on Written-Off Loans', type: LedgerAccountType.INCOME },
     { code: ACCOUNT_CODES.ROUNDING_DIFFERENCES, name: 'Rounding Differences', type: LedgerAccountType.INCOME },
     { code: ACCOUNT_CODES.PRINCIPAL_FORGIVEN, name: 'Principal Forgiven (Restructuring)', type: LedgerAccountType.EXPENSE },
