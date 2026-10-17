@@ -64,6 +64,8 @@ const feeSchema = z
     treatment: z.enum(['DEDUCTED', 'FINANCED', 'SEPARATE']),
     taxRate: rateFraction.optional(),
     waivable: z.boolean(),
+    /** INSURER: a credit-insurance premium collected for the insurer — booked to the insurer payable, not fee income (UC-06). */
+    payee: z.enum(['LENDER', 'INSURER']).default('LENDER'),
   })
   .strict()
   .superRefine((f, ctx) => {
@@ -433,6 +435,23 @@ export const productConfigSchema = z
       })
       .strict()
       .default({}),
+    /** Recovery workflows: repossession, pawn forfeiture, debt sale (DECISIONS D-011…D-014). */
+    recovery: z
+      .object({
+        /** Days past due before collateral may be repossessed. */
+        repossessionMinDpd: z.number().int().min(0).max(3650).default(90),
+        /** Order net sale proceeds clear the balances in, after costs (UC-65). */
+        proceedsOrder: z
+          .array(z.enum(['PENALTY', 'FEE', 'INTEREST', 'PRINCIPAL']))
+          .length(4)
+          .default(['INTEREST', 'PRINCIPAL', 'FEE', 'PENALTY']),
+        /** Days after the redemption deadline before a pawn may be forfeited (UC-66). */
+        pawnForfeitureGraceDays: z.number().int().min(0).max(365).default(0),
+        /** Days past due before a performing loan may be sold to a collection agency (UC-71). */
+        debtSaleMinDpd: z.number().int().min(0).max(3650).default(90),
+      })
+      .strict()
+      .default({}),
     /**
      * Policy kinds this product composes from the policy library. A kind not
      * listed uses this configuration's own section for every contract.
@@ -470,6 +489,13 @@ export const productConfigSchema = z
         /** Loss allowance (contra-asset) and the expense that builds it (OPS-5). */
         loanLossAllowance: code.default('1300'),
         provisionExpense: code.default('5000'),
+        /** Recovery workflows (UC-06, UC-65, UC-66, UC-68, UC-71). */
+        insurerPayable: code.default('2600'),
+        insuranceClaimsReceivable: code.default('1410'),
+        borrowerRefundsPayable: code.default('2700'),
+        recoveryCostsExpense: code.default('5300'),
+        debtSaleGain: code.default('4400'),
+        debtSaleLoss: code.default('5400'),
       })
       .strict(),
   })
@@ -575,6 +601,9 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   }
   if (new Set(c.restructuring.settlementAllocationOrder).size !== 5) {
     add('restructuring.settlementAllocationOrder', 'must list each component exactly once');
+  }
+  if (new Set(c.recovery.proceedsOrder).size !== 4) {
+    add('recovery.proceedsOrder', 'must list each component exactly once');
   }
   validateGroupBlock(c, add);
   validateFacilityBlock(c, add);

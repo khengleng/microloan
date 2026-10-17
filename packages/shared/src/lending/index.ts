@@ -21,3 +21,4 @@ export * from './rebate.js';
 export * from './collateral.js';
 export * from './invoice.js';
 export * from './impairment.js';
+export * from './recovery.js';
