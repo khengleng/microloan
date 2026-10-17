@@ -1222,6 +1222,13 @@ export class ServicingService {
     let prepaymentCharge: lending.EarlyRepaymentCharge | null = null;
     let prepaymentWaiver: { id: string } | null = null;
     let reschedule: lending.RescheduleResult | null = null;
+    // What a reversal needs to put the schedule back (UC-23).
+    let rescheduledTo: {
+      version: number;
+      supersededLineIds: string[];
+      previousInstalment: string | null;
+      previousMaturity: string | null;
+    } | null = null;
     if (excess.gt(0) && handling === 'ADVANCE') {
       // UC-27: held for the borrower and applied as instalments fall due. It
       // can never exceed what the borrower owes today, so an advance is
@@ -1331,6 +1338,12 @@ export class ServicingService {
         throw e;
       }
       const newVersion = state.agreementVersion + 1;
+      rescheduledTo = {
+        version: newVersion,
+        supersededLineIds: future.map((l) => l.id),
+        previousInstalment: state.account.instalmentAmount?.toString() ?? null,
+        previousMaturity: toLocalDate(state.account.maturityDate),
+      };
       await tx.scheduleInstalment.updateMany({
         where: {
           tenantId,
@@ -1430,6 +1443,7 @@ export class ServicingService {
           payer: body.payer ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
+          rescheduledTo,
         },
         idempotencyKey,
         requestHash: hash,
@@ -2128,6 +2142,12 @@ export class ServicingService {
         advance?: string;
         suspenseReleased?: string;
         rescheduled?: boolean;
+        rescheduledTo?: {
+          version: number;
+          supersededLineIds: string[];
+          previousInstalment: string | null;
+          previousMaturity: string | null;
+        } | null;
       };
       // A repayment's advance goes back out; an advance application puts the
       // money back on advance (UC-23, UC-27).
@@ -2139,9 +2159,14 @@ export class ServicingService {
         throw new ConflictException(
           'Part of the advance from this repayment has already been applied to instalments; reverse those advance applications first (latest first).',
         );
-      if (components.rescheduled)
+      const undo = components.rescheduled ? components.rescheduledTo : null;
+      if (components.rescheduled && !undo)
         throw new ConflictException(
-          'This repayment rescheduled the loan; reversing a prepayment is not supported in Phase 1.',
+          'This repayment rescheduled the loan before reversals of rescheduling were recorded; reverse it by restructure.',
+        );
+      if (undo && state.agreementVersion !== undo.version)
+        throw new ConflictException(
+          'The loan has been rescheduled or restructured since this prepayment; it cannot be reversed automatically.',
         );
       const later = await tx.financialEvent.count({
         where: {
@@ -2159,6 +2184,88 @@ export class ServicingService {
           'Reverse later repayments first (latest first).',
         );
       const businessDate = await this.businessDate.get(tenantId, tx);
+
+      // UC-23: a prepayment that rescheduled the loan is undone by a new
+      // agreement version restoring the instalments it replaced. The replacement
+      // lines must be untouched (later payments are reversed first).
+      if (undo) {
+        const replaced = state.lines.filter(
+          (l) => l.agreementVersion === undo.version,
+        );
+        const touched = replaced.some((l) =>
+          [
+            l.principalPaid,
+            l.interestPaid,
+            l.feePaid,
+            l.taxPaid,
+            l.penaltyPaid,
+            l.feeDue,
+            l.penaltyDue,
+          ].some((v) => D(v).gt(0)),
+        );
+        if (touched)
+          throw new ConflictException(
+            'Charges or payments have been applied to the rescheduled instalments; reverse those first.',
+          );
+        const originals = await tx.scheduleInstalment.findMany({
+          where: {
+            tenantId,
+            loanAccountId: id,
+            id: { in: undo.supersededLineIds },
+            status: 'SUPERSEDED',
+          },
+          orderBy: { number: 'asc' },
+        });
+        if (originals.length !== undo.supersededLineIds.length)
+          throw new ConflictException(
+            'The replaced instalments are no longer on record; this prepayment cannot be reversed automatically.',
+          );
+        await tx.scheduleInstalment.updateMany({
+          where: {
+            tenantId,
+            loanAccountId: id,
+            id: { in: replaced.map((l) => l.id) },
+          },
+          data: { status: 'SUPERSEDED' },
+        });
+        const restoredVersion = undo.version + 1;
+        await tx.scheduleInstalment.createMany({
+          data: originals.map(
+            ({ id: _id, createdAt: _c, status: _s, ...l }) => ({
+              ...l,
+              agreementVersion: restoredVersion,
+              status: 'DUE',
+            }),
+          ),
+        });
+        const latest = await tx.agreementVersion.findFirst({
+          where: {
+            tenantId,
+            agreementId: state.account.agreementId,
+            version: undo.version,
+          },
+        });
+        await tx.agreementVersion.create({
+          data: {
+            tenantId,
+            agreementId: state.account.agreementId,
+            version: restoredVersion,
+            reason: 'PREPAYMENT_REVERSED',
+            productConfig: latest!.productConfig as Json,
+            policies: (latest!.policies ?? undefined) as Json | undefined,
+            configHash: latest!.configHash,
+            terms: latest!.terms as Json,
+            scheduleInput: latest!.scheduleInput as Json,
+            calculation: {
+              reversalOf: original.id,
+              restoredLines: originals.map((l) => l.number),
+            } as unknown as Json,
+            engineVersion: lending.LENDING_ENGINE_VERSION,
+            effectiveDate: fromLocalDate(businessDate),
+            createdBy: actor.id,
+          },
+        });
+      }
 
       // Undo the allocations on the schedule lines.
       for (const a of original.allocations) {
@@ -2304,6 +2411,14 @@ export class ServicingService {
         penaltyReceivable: D(state.account.penaltyReceivable)
           .plus(components.penalty)
           .toString(),
+        ...(undo
+          ? {
+              instalmentAmount: undo.previousInstalment,
+              maturityDate: undo.previousMaturity
+                ? fromLocalDate(undo.previousMaturity)
+                : state.account.maturityDate,
+            }
+          : {}),
       });
       await this.audit.write(
         {
