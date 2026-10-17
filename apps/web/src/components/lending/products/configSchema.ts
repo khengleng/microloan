@@ -182,6 +182,7 @@ export const STEPS: StepSpec[] = [
             { path: 'security.valuationMaxAgeDays', label: 'Valuation max age (days)', kind: 'nint' },
             { path: 'security.guaranteeRequired', label: 'Guarantee required', kind: 'bool' },
             { path: 'security.minGuarantors', label: 'Minimum guarantors', kind: 'int' },
+            { path: 'security.marginCallCureDays', label: 'Margin call cure period (days)', kind: 'int', hint: 'Time to repay or add collateral after a revaluation breaches max LTV' },
             { path: 'security.haircuts', label: 'Haircuts by collateral type', kind: 'json', hint: '{ "LAND": "0.3" }' },
         ],
     },

@@ -138,8 +138,12 @@ export function DocumentUploadForm({ appId, required, onDone, onClose }: {
 
 /* ── Collateral ──────────────────────────────────────────────────────────── */
 
-export function CollateralForm({ appId, currency, onDone, onClose }: { appId: string; currency?: string; onDone: () => void; onClose: () => void }) {
-    const [f, setF] = useState({ type: '', description: '', marketValue: '', valuationDate: todayIso(), valuer: '', method: 'MARKET' });
+export function CollateralForm({ appId, currency, onDone, onClose, endpoint }: {
+    appId: string; currency?: string; onDone: () => void; onClose: () => void;
+    /** Where to post; defaults to the application. A running loan pledges at /lending/loans/:id/collateral. */
+    endpoint?: string;
+}) {
+    const [f, setF] = useState({ type: '', description: '', marketValue: '', valuationDate: todayIso(), valuer: '', method: 'MARKET', priorLienAmount: '' });
     const [problems, setProblems] = useState<string[]>([]);
     const { busy, error, run, clearError } = useAction();
     const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }));
@@ -152,11 +156,13 @@ export function CollateralForm({ appId, currency, onDone, onClose }: { appId: st
         if (!f.valuationDate) errs.push('Valuation date is required.');
         if (!f.valuer.trim()) errs.push('Valuer is required.');
         if (!f.method.trim()) errs.push('Method is required.');
+        if (f.priorLienAmount.trim() && !MONEY_RE.test(f.priorLienAmount.trim())) errs.push('Prior liens must be a decimal amount.');
         setProblems(errs);
         if (errs.length) return;
-        const res = await run('collateral', () => api.post(`/lending/applications/${appId}/collateral`, {
+        const res = await run('collateral', () => api.post(endpoint ?? `/lending/applications/${appId}/collateral`, {
             type: f.type.trim(), description: f.description.trim(), marketValue: f.marketValue.trim(),
             valuationDate: f.valuationDate, valuer: f.valuer.trim(), method: f.method.trim(),
+            ...(f.priorLienAmount.trim() ? { priorLienAmount: f.priorLienAmount.trim() } : {}),
         }));
         if (res) onDone();
     };
@@ -170,6 +176,9 @@ export function CollateralForm({ appId, currency, onDone, onClose }: { appId: st
                 <Field label="Valuation date"><TextInput type="date" value={f.valuationDate} onChange={set('valuationDate')} /></Field>
                 <Field label="Valuer"><TextInput value={f.valuer} onChange={set('valuer')} maxLength={120} /></Field>
                 <Field label="Method"><TextInput value={f.method} onChange={set('method')} maxLength={40} /></Field>
+                <Field label="Loans ranking ahead" hint="Optional — e.g. the first mortgage behind a home-equity line; counted in combined LTV">
+                    <TextInput value={f.priorLienAmount} onChange={set('priorLienAmount')} inputMode="decimal" />
+                </Field>
             </div>
             <Problems items={problems} />
             <ErrorBox error={error} onDismiss={clearError} />
