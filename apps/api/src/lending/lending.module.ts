@@ -15,6 +15,7 @@ import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
+import { ReportingService } from './reporting/reporting.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
@@ -61,6 +62,7 @@ import {
     LendingFacilitiesController,
   ],
   providers: [
+    ReportingService,
     LendingPrisma,
     AuditEventService,
     BusinessDateService,

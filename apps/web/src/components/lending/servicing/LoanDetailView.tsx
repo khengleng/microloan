@@ -30,6 +30,7 @@ import { LoanHolidayPanel } from '../relief/LoanHolidayPanel';
 import { RateResetsPanel } from '../relief/RateResetsPanel';
 import { FeeWaiverPanel } from './FeeWaiverPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
+import { LoanDocumentsCard } from './LoanDocumentsCard';
 
 const ACTIONS = [
     { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
@@ -188,6 +189,8 @@ export function LoanDetailView({ id }: { id: string }) {
                     )}
                 </div>
             </Card>
+
+            {acc.status !== 'BOOKED' && <LoanDocumentsCard loanId={id} closed={acc.status === 'CLOSED'} />}
 
             {isActive && (
                 <Card>

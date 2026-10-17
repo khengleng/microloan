@@ -25,6 +25,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { SuspenseService } from './payments/suspense.service';
+import { ReportingService } from './reporting/reporting.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
 import { RateResetService } from './servicing/rate-reset.service';
@@ -455,7 +456,27 @@ export class LendingLoansController {
     private readonly groups: GroupsService,
     private readonly holidays: PaymentHolidayService,
     private readonly collateral: CollateralService,
+    private readonly reporting: ReportingService,
   ) {}
+
+  /** Loan statement for a period (OPS-4). */
+  @LendingAction('loan.read')
+  @Get(':id/statement')
+  statement(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.reporting.statement(actor(req), id, { from, to });
+  }
+
+  /** Confirmation that a closed loan is repaid (UC-75). */
+  @LendingAction('loan.read')
+  @Get(':id/closure-letter')
+  closureLetter(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.reporting.closureLetter(actor(req), id);
+  }
 
   /** Reset history, the full reset cycle, and what is currently due. */
   /** Who is bound to this loan, what each agreed to carry, and who has paid. */
@@ -1095,7 +1116,55 @@ export class LendingOperationsController {
     private readonly servicing: ServicingService,
     private readonly holidays: PaymentHolidayService,
     private readonly impairment: ImpairmentService,
+    private readonly reporting: ReportingService,
   ) {}
+
+  /** Due-soon reminders and overdue notices, with the text to send (OPS-7). */
+  @LendingAction('loan.read')
+  @Get('notices')
+  notices(
+    @Req() req: Req_,
+    @Query('kind') kind?: string,
+    @Query('days') days?: string,
+  ) {
+    return this.reporting.notices(actor(req), {
+      kind,
+      days: days ? Number(days) : undefined,
+    });
+  }
+
+  /** Journal lines for the general ledger (OPS-6). */
+  @LendingAction('accounting.read')
+  @Get('gl-export.csv')
+  async glExport(
+    @Req() req: Req_,
+    @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const out = await this.reporting.glExport(actor(req), { from, to });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="gl-${from}-${to}.csv"`,
+    );
+    res.setHeader('X-Total-Debit', out.totals.debit);
+    res.setHeader('X-Total-Credit', out.totals.credit);
+    res.send(out.csv);
+  }
+
+  /** The credit bureau reporting file (UC-75). */
+  @LendingAction('loan_data.export')
+  @Get('bureau-export.csv')
+  async bureauExport(@Req() req: Req_, @Res() res: Response) {
+    const out = await this.reporting.bureauExport(actor(req));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="credit-bureau.csv"',
+    );
+    res.send(out);
+  }
 
   @LendingAction('loan.read')
   @Get('business-date')

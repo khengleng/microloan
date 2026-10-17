@@ -183,18 +183,43 @@ function JournalView() {
     );
 }
 
+function ExportsView() {
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+    const linkCls = 'inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]';
+    const ready = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
+    return (
+        <div className="space-y-4">
+            <Card title="General-ledger export" subtitle="Every lending journal line in the period, for posting to the general ledger. The debit and credit totals are returned with the file.">
+                <div className="flex flex-wrap items-end gap-2">
+                    <Field label="From"><TextInput type="date" value={from} onChange={setFrom} className="w-44" /></Field>
+                    <Field label="To"><TextInput type="date" value={to} onChange={setTo} className="w-44" /></Field>
+                    {ready
+                        ? <a className={linkCls} href={`/api/proxy/lending/ops/gl-export.csv${qs({ from, to })}`}>Download GL lines (CSV)</a>
+                        : <span className="text-[12px] text-[#697386]">Choose the period to export.</span>}
+                </div>
+            </Card>
+            <Card title="Credit bureau file" subtitle="One record per loan you may export — status, balance, days past due and classification at the business date. Closed loans are reported as paid.">
+                <a className={linkCls} href="/api/proxy/lending/ops/bureau-export.csv">Download bureau file (CSV)</a>
+            </Card>
+        </div>
+    );
+}
+
 export default function LendingAccountingPage() {
-    const [tab, setTab] = useState<'tb' | 'rec' | 'journal'>('rec');
+    const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports'>('rec');
     return (
         <LendingShell title="Accounting reconciliation" subtitle="Lending sub-ledger journals, trial balance and sub-ledger-to-ledger reconciliation.">
             <Tabs value={tab} onChange={setTab} tabs={[
                 { value: 'rec', label: 'Reconciliation' },
                 { value: 'tb', label: 'Trial balance' },
                 { value: 'journal', label: 'Journal' },
+                { value: 'exports', label: 'Exports' },
             ]} />
             {tab === 'tb' && <TrialBalanceView />}
             {tab === 'rec' && <ReconciliationView />}
             {tab === 'journal' && <JournalView />}
+            {tab === 'exports' && <ExportsView />}
         </LendingShell>
     );
 }
