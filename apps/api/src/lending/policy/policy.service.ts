@@ -5,6 +5,7 @@ import { runAsSystem } from '../../prisma/tenant-context';
 import { AuditEventService } from '../common/audit-event.service';
 import type { Tx } from '../common/lending-prisma';
 import type { LendingActor } from '../common/util';
+import { currentBatch } from '../servicing/batch-scope';
 import { ACTION_BY_CODE, actionsFor, ResourceType } from './actions';
 import { CompiledPolicy, policyRulesSchema } from './abac';
 import {
@@ -349,6 +350,20 @@ export class PolicyService {
       Date.now() - hit.loadedAt < CACHE_TTL_MS
     )
       return hit;
+    // Inside an end-of-day run the decision is still made in the loan's
+    // transaction on the authorization version it reads above; the rest of
+    // the context is shared by the run's loans while that version holds, on
+    // the same terms as the cache above (DECISIONS D-051).
+    const batch = tx && tenantId ? currentBatch(tenantId) : undefined;
+    const shared = batch?.memo.get('policy-context') as
+      | TenantContextCache
+      | undefined;
+    if (
+      shared &&
+      shared.version === version &&
+      Date.now() - shared.loadedAt < CACHE_TTL_MS
+    )
+      return shared;
     const db = tx ?? this.prisma;
     const [flags, platformRules, tenantRules, policyVersions, fxRows] =
       await Promise.all([
@@ -416,6 +431,7 @@ export class PolicyService {
       fx,
     };
     if (!tx) this.contexts.set(key, ctx);
+    else batch?.memo.set('policy-context', ctx);
     return ctx;
   }
 

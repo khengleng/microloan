@@ -8,6 +8,22 @@ export class PrismaHealthIndicator extends HealthIndicator {
         super();
     }
 
+    /** True when `SELECT 1` answers within `timeoutMs`. */
+    async ping(timeoutMs: number): Promise<boolean> {
+        let timer: NodeJS.Timeout | undefined;
+        try {
+            const timeout = new Promise<boolean>((resolve) => {
+                timer = setTimeout(() => resolve(false), timeoutMs);
+            });
+            const query = this.prisma.$queryRaw`SELECT 1`.then(() => true);
+            return await Promise.race([query, timeout]);
+        } catch {
+            return false;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+
     async isHealthy(key: string): Promise<HealthIndicatorResult> {
         try {
             // Execute a simple query to ensure the DB connection is alive

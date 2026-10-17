@@ -321,13 +321,33 @@ export class LendingOperationsService {
       'accounting.read',
       tenantResource(tenantId),
     );
-    const entries = await this.prisma.lendingJournalEntry.findMany({
+    // Summed in the database per currency and account: loading every entry
+    // with its lines needs one bind parameter per entry, which fails beyond
+    // PostgreSQL's 32,767 (about 24,000 entries in practice).
+    const currencies = await this.prisma.lendingJournalEntry.groupBy({
+      by: ['currency'],
       where: { tenantId },
-      select: {
-        currency: true,
-        lines: { select: { accountCode: true, debit: true, credit: true } },
-      },
+      orderBy: { currency: 'asc' },
     });
+    const entries: {
+      currency: string;
+      lines: { accountCode: string; debit: string; credit: string }[];
+    }[] = [];
+    for (const { currency } of currencies) {
+      const sums = await this.prisma.lendingJournalLine.groupBy({
+        by: ['accountCode'],
+        where: { tenantId, entry: { currency } },
+        _sum: { debit: true, credit: true },
+      });
+      entries.push({
+        currency,
+        lines: sums.map((x) => ({
+          accountCode: x.accountCode,
+          debit: (x._sum.debit ?? 0).toString(),
+          credit: (x._sum.credit ?? 0).toString(),
+        })),
+      });
+    }
     const byCurrency = new Map<
       string,
       Map<
@@ -442,18 +462,36 @@ export class LendingOperationsService {
     const facilityByAgreement = new Map(
       facilities.map((x) => [x.agreementId, x]),
     );
+    // Read in bulk, not per loan (docs/lending/PERFORMANCE.md): each
+    // agreement's accounting mapping from its latest version, the schedule's
+    // unpaid principal per loan, and the facility loans' principal movements.
+    const mappings = await this.accountingMappings(tenantId);
+    const schedules = await this.prisma.scheduleInstalment.groupBy({
+      by: ['loanAccountId'],
+      where: { tenantId, status: 'DUE' },
+      _sum: {
+        principalDue: true,
+        principalPaid: true,
+        capitalizedInterest: true,
+      },
+    });
+    const unpaidByLoan = new Map(
+      schedules.map((x) => [
+        x.loanAccountId,
+        D(x._sum.principalDue ?? '0')
+          .minus(D(x._sum.principalPaid ?? '0'))
+          .minus(D(x._sum.capitalizedInterest ?? '0')),
+      ]),
+    );
+    const facilityEvents = await this.facilityMovements(
+      tenantId,
+      accounts
+        .filter((a) => facilityByAgreement.has(a.agreementId))
+        .map((a) => a.id),
+    );
     const breaks: Record<string, unknown>[] = [];
     for (const a of accounts) {
-      const version = await this.prisma.agreementVersion.findFirst({
-        where: { tenantId, agreementId: a.agreementId },
-        orderBy: { version: 'desc' },
-        select: { productConfig: true },
-      });
-      const mapping = (
-        version?.productConfig as
-          | { accounting?: Record<string, string> }
-          | undefined
-      )?.accounting;
+      const mapping = mappings.get(a.agreementId);
       if (!mapping) {
         breaks.push({
           loanAccountId: a.id,
@@ -482,17 +520,7 @@ export class LendingOperationsService {
       if (facility) {
         // Drawn − repaid must be the principal balance. Capitalized charges
         // raise principal too, so they count as advances here.
-        const events = await this.prisma.financialEvent.findMany({
-          where: {
-            tenantId,
-            loanAccountId: a.id,
-            status: 'POSTED',
-            type: {
-              in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
-            },
-          },
-          include: { journal: { include: { lines: true } } },
-        });
+        const events = facilityEvents.get(a.id) ?? [];
         // A repayment moves the drawn balance only by the principal it
         // repaid; the rest settled stated interest, fees or penalties.
         const movedBy = (t: string) =>
@@ -537,22 +565,7 @@ export class LendingOperationsService {
             movements: expected.toString(),
           });
       } else if (a.status === 'ACTIVE') {
-        const sched = await this.prisma.scheduleInstalment.findMany({
-          where: { tenantId, loanAccountId: a.id, status: 'DUE' },
-          select: {
-            principalDue: true,
-            principalPaid: true,
-            capitalizedInterest: true,
-          },
-        });
-        const unpaid = sched.reduce(
-          (s, l) =>
-            s
-              .plus(D(l.principalDue))
-              .minus(D(l.principalPaid))
-              .minus(D(l.capitalizedInterest)),
-          new lending.D(0),
-        );
+        const unpaid = unpaidByLoan.get(a.id) ?? new lending.D(0);
         if (!unpaid.eq(D(a.principalOutstanding)))
           breaks.push({
             loanAccountId: a.id,
@@ -579,6 +592,52 @@ export class LendingOperationsService {
       details: { accounts: accounts.length, breaks: breaks.length },
     });
     return result;
+  }
+
+  /** Each agreement's accounting mapping, from its latest version. */
+  private async accountingMappings(tenantId: string) {
+    // Raw SQL for DISTINCT ON and to read only the mapping out of the
+    // configuration; scoped by tenant explicitly.
+    const rows = await this.prisma.$queryRaw<
+      { agreementId: string; accounting: Record<string, string> | null }[]
+    >`SELECT DISTINCT ON ("agreementId") "agreementId", "productConfig" -> 'accounting' AS accounting
+      FROM "AgreementVersion" WHERE "tenantId" = ${tenantId}
+      ORDER BY "agreementId", version DESC`;
+    const out = new Map<string, Record<string, string>>();
+    for (const r of rows)
+      if (r.accounting && typeof r.accounting === 'object')
+        out.set(r.agreementId, r.accounting);
+    return out;
+  }
+
+  /** Posted principal movements of facility loans, with their journals, by loan. */
+  private async facilityMovements(tenantId: string, loanIds: string[]) {
+    const out = new Map<
+      string,
+      Prisma.FinancialEventGetPayload<{
+        include: { journal: { include: { lines: true } } };
+      }>[]
+    >();
+    // In slices: an IN list has to stay under PostgreSQL's bind-parameter limit.
+    for (let i = 0; i < loanIds.length; i += 500) {
+      const events = await this.prisma.financialEvent.findMany({
+        where: {
+          tenantId,
+          loanAccountId: { in: loanIds.slice(i, i + 500) },
+          status: 'POSTED',
+          type: {
+            in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
+          },
+        },
+        include: { journal: { include: { lines: true } } },
+      });
+      for (const e of events) {
+        const list = out.get(e.loanAccountId!) ?? [];
+        list.push(e);
+        out.set(e.loanAccountId!, list);
+      }
+    }
+    return out;
   }
 
   // ── Audit explorer ────────────────────────────────────────────────────────

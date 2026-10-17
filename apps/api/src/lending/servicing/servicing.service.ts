@@ -37,6 +37,7 @@ import {
   outstanding,
   resourceOf,
 } from './loan-state';
+import { eodConcurrency, runInBatchScope } from './batch-scope';
 
 type Json = Prisma.InputJsonValue;
 type Dec = InstanceType<typeof lending.D>;
@@ -78,6 +79,17 @@ export interface DisbursementContext {
   businessDate: string;
   actor: LendingActor;
   idempotencyKey: string;
+}
+
+/** Watches the end-of-day batch (see ServicingService.registerBatchObserver). */
+export interface BatchObserver {
+  batchStarted?(tenantId: string, businessDate: string, accounts: number): void;
+  loanProcessed?(tenantId: string, ms: number, ok: boolean): void;
+  batchFinished?(
+    tenantId: string,
+    businessDate: string,
+    result: { processed: number; failed: number; ms: number },
+  ): void;
 }
 
 export type DisbursementHook = (
@@ -3724,6 +3736,26 @@ export class ServicingService {
     this.tenantBatchHooks.push(hook);
   }
 
+  private batchObservers: BatchObserver[] = [];
+  /**
+   * Lets metrics and the load-test harness watch the end-of-day batch: how
+   * long each loan took and how the run ended. Observers only listen; an
+   * observer that throws is ignored, so it can never fail a batch.
+   */
+  registerBatchObserver(observer: BatchObserver) {
+    this.batchObservers.push(observer);
+  }
+
+  private observe(fn: (o: BatchObserver) => void) {
+    for (const o of this.batchObservers) {
+      try {
+        fn(o);
+      } catch {
+        // An observer is instrumentation; it never changes the batch.
+      }
+    }
+  }
+
   // ── End-of-day batch: accrual, penalties, delinquency ─────────────────────
 
   /**
@@ -3760,82 +3792,46 @@ export class ServicingService {
       },
       select: { id: true },
     });
-    const failed: { id: string; error: string }[] = [];
     let processed = 0;
-    for (const { id } of accounts) {
-      try {
-        await this.lp.tenantTx(tenantId, async (tx) => {
-          let state = await loadLoanState(tx, tenantId, id);
-          await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
-          state = await this.catchUp(
-            tx,
-            state,
-            businessDate,
-            businessDate,
-            actor,
+    const failures: { index: number; id: string; error: string }[] = [];
+    const batchStart = performance.now();
+    this.observe((o) =>
+      o.batchStarted?.(tenantId, businessDate, accounts.length),
+    );
+    // Loans are processed LENDING_EOD_CONCURRENCY at a time, each still in
+    // its own transaction with its row lock and compare-and-set, so the
+    // outcome is the same as one at a time (docs/lending/PERFORMANCE.md).
+    let next = 0;
+    const worker = async () => {
+      for (let i = next++; i < accounts.length; i = next++) {
+        const { id } = accounts[i];
+        const loanStart = performance.now();
+        try {
+          await this.batchLoan(tenantId, id, businessDate, actor, impairment);
+          processed++;
+          this.observe((o) =>
+            o.loanProcessed?.(tenantId, performance.now() - loanStart, true),
           );
-          // An advance pays today's instalment before it can be late.
-          state = await this.applyAdvance(
-            tx,
-            state,
-            businessDate,
-            businessDate,
-            actor,
+        } catch (e) {
+          failures.push({ index: i, id, error: (e as Error).message });
+          this.observe((o) =>
+            o.loanProcessed?.(tenantId, performance.now() - loanStart, false),
           );
-          const penalty = await this.assessPenalties(
-            tx,
-            state,
-            businessDate,
-            actor,
-          );
-          for (const hook of this.batchHooks)
-            await hook(tx, state, businessDate, actor);
-          const dq = delinquency(state, businessDate);
-          await this.nonAccrualTransition(
-            tx,
-            state,
-            dq.dpd,
-            businessDate,
-            actor,
-          );
-          if (impairment)
-            await this.provision(
-              tx,
-              state,
-              dq.dpd,
-              impairment,
-              businessDate,
-              actor,
-            );
-          const a = state.account;
-          const data: Prisma.LoanAccountUpdateManyMutationInput = {
-            allowance: D(a.allowance).toString(),
-            classification: a.classification,
-            impairmentStage: a.impairmentStage,
-            interestReceivable: D(a.interestReceivable).toString(),
-            principalOutstanding: D(a.principalOutstanding).toString(),
-            feesReceivable: D(a.feesReceivable).toString(),
-            penaltyReceivable: D(a.penaltyReceivable).plus(penalty).toString(),
-            advanceBalance: D(a.advanceBalance).toString(),
-            interestInSuspense: D(a.interestInSuspense).toString(),
-            nonAccrual: a.nonAccrual,
-            nonAccrualSince: a.nonAccrualSince,
-            lastAccrualDate: a.lastAccrualDate,
-            daysPastDue: dq.dpd,
-            delinquencyBucket: dq.bucket,
-            collectionStage: dq.stage,
-            probationRemaining: a.probationRemaining,
-            delinquencyFloorBucket: a.delinquencyFloorBucket,
-          };
-          // The last instalment may have been paid from the advance.
-          await this.closeIfRepaid(tx, state, data, actor, businessDate);
-          await this.casAccount(tx, state, 'ACTIVE', data);
-        });
-        processed++;
-      } catch (e) {
-        failed.push({ id, error: (e as Error).message });
+        }
       }
-    }
+    };
+    await runInBatchScope(tenantId, businessDate, () =>
+      Promise.all(
+        Array.from(
+          { length: Math.min(eodConcurrency(), accounts.length) },
+          worker,
+        ),
+      ),
+    );
+    // Reported in the order the accounts were listed, as before.
+    const failed = failures
+      .sort((x, y) => x.index - y.index)
+      .map(({ id, error }) => ({ id, error }));
     await this.audit.write({
       actor,
       action: 'servicing.batch.run',
@@ -3853,7 +3849,79 @@ export class ServicingService {
           lastBatchFailures: failed.length,
         },
       });
+    this.observe((o) =>
+      o.batchFinished?.(tenantId, businessDate, {
+        processed,
+        failed: failed.length,
+        ms: performance.now() - batchStart,
+      }),
+    );
     return { businessDate, processed, failed };
+  }
+
+  /** One loan of the end-of-day batch, in its own transaction. */
+  private async batchLoan(
+    tenantId: string,
+    id: string,
+    businessDate: string,
+    actor: LendingActor,
+    impairment: lending.ImpairmentPolicy | null,
+  ) {
+    await this.lp.tenantTx(tenantId, async (tx) => {
+      let state = await loadLoanState(tx, tenantId, id);
+      await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
+      state = await this.catchUp(tx, state, businessDate, businessDate, actor);
+      // An advance pays today's instalment before it can be late.
+      state = await this.applyAdvance(
+        tx,
+        state,
+        businessDate,
+        businessDate,
+        actor,
+      );
+      const penalty = await this.assessPenalties(
+        tx,
+        state,
+        businessDate,
+        actor,
+      );
+      for (const hook of this.batchHooks)
+        await hook(tx, state, businessDate, actor);
+      const dq = delinquency(state, businessDate);
+      await this.nonAccrualTransition(tx, state, dq.dpd, businessDate, actor);
+      if (impairment)
+        await this.provision(
+          tx,
+          state,
+          dq.dpd,
+          impairment,
+          businessDate,
+          actor,
+        );
+      const a = state.account;
+      const data: Prisma.LoanAccountUpdateManyMutationInput = {
+        allowance: D(a.allowance).toString(),
+        classification: a.classification,
+        impairmentStage: a.impairmentStage,
+        interestReceivable: D(a.interestReceivable).toString(),
+        principalOutstanding: D(a.principalOutstanding).toString(),
+        feesReceivable: D(a.feesReceivable).toString(),
+        penaltyReceivable: D(a.penaltyReceivable).plus(penalty).toString(),
+        advanceBalance: D(a.advanceBalance).toString(),
+        interestInSuspense: D(a.interestInSuspense).toString(),
+        nonAccrual: a.nonAccrual,
+        nonAccrualSince: a.nonAccrualSince,
+        lastAccrualDate: a.lastAccrualDate,
+        daysPastDue: dq.dpd,
+        delinquencyBucket: dq.bucket,
+        collectionStage: dq.stage,
+        probationRemaining: a.probationRemaining,
+        delinquencyFloorBucket: a.delinquencyFloorBucket,
+      };
+      // The last instalment may have been paid from the advance.
+      await this.closeIfRepaid(tx, state, data, actor, businessDate);
+      await this.casAccount(tx, state, 'ACTIVE', data);
+    });
   }
 
   private async assessPenalties(
@@ -4174,13 +4242,6 @@ export class ServicingService {
     actor: LendingActor,
     businessDate: string,
   ) {
-    const open = await tx.scheduleInstalment.count({
-      where: {
-        tenantId: state.account.tenantId,
-        loanAccountId: state.account.id,
-        status: 'DUE',
-      },
-    });
     const zero = [
       'principalOutstanding',
       'interestReceivable',
@@ -4192,7 +4253,17 @@ export class ServicingService {
       (data.advanceBalance as string | undefined) ??
         state.account.advanceBalance,
     );
-    if (open === 0 && zero && held.isZero()) {
+    // Only a loan that owes nothing can close, so only then are its open
+    // instalments counted (one query saved for every loan that still owes).
+    if (!zero || !held.isZero()) return;
+    const open = await tx.scheduleInstalment.count({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        status: 'DUE',
+      },
+    });
+    if (open === 0) {
       // A repaid loan needs no allowance: release what was held (OPS-5).
       const release = allowanceRelease(state);
       if (release.amount.gt(0)) {

@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  /// Pool and query counters for the /metrics endpoint (docs/lending/OPERATIONS.md).
+  previewFeatures = ["metrics"]
 }
 
 datasource db {
@@ -2289,6 +2291,8 @@ model LendingJournalLine {
 
   @@index([tenantId, accountCode])
   @@index([tenantId, loanAccountId])
+  /// The balanced-journal constraint trigger sums an entry's lines by entryId at commit.
+  @@index([entryId])
 }
 
 // ── Restructuring and hardship ─────────────────────────────────────────────
