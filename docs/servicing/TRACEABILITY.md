@@ -19,8 +19,8 @@ Updated 17 Oct 2026 after the build-out on `feat/composable-policies`.
 
 | Group | ✅ | 🟡 | ⛔ | Total |
 |---|---|---|---|---|
-| Loan types (LT) | 12 | 8 | 4 | 24 |
-| Use cases (UC) | 46 | 8 | 21 | 75 |
+| Loan types (LT) | 13 | 7 | 4 | 24 |
+| Use cases (UC) | 51 | 7 | 17 | 75 |
 | Operations (OPS) | 3 | 5 | 0 | 8 |
 | Documents (DOC) | 0 | 6 | 4 | 10 |
 | Test vectors (TV) | 19 match | 1 engine only | 0 not reproduced | 20 |
@@ -38,6 +38,12 @@ policies with lock-in charges, margin calls and collateral release
 returned-payment fee (UC-23), third-party payer (UC-20), promise-to-pay
 follow-up (UC-59), and every golden test vector.
 
+Then the recovery workflows: repossession (UC-65), pawn
+custody, forfeiture and auction (UC-66, LT-09), credit insurance with a
+financed premium owed to the insurer (UC-06, UC-68) and debt sale (UC-71),
+in `api/recovery/` with the web recovery card and desk. Assumptions are
+DECISIONS D-011 to D-016.
+
 ## Remaining gaps ranked by risk to money owed
 
 | # | Gap | Items | Why it matters |
@@ -45,10 +51,9 @@ follow-up (UC-59), and every golden test vector.
 | 1 | Customer documents live in three unrelated stores, two of them as base64 in the database | DOC-1..10 | No single record of what a customer gave the bank; no retention or expiry |
 | 2 | No collection escalation engine or collector work queues in the lending stack; guarantor demand and set-off missing | UC-58, UC-60, UC-61 | Arrears follow-up relies on people remembering |
 | 3 | Payment channels beyond manual and service-account posting | UC-16, UC-18, UC-19, UC-21 | Auto-debit, wallet settlement files, payroll files and cross-currency payments must be keyed by hand |
-| 4 | Recovery workflows: repossession, pawn forfeiture, insurance claim, debt sale | UC-65, UC-66, UC-68, UC-71 | Recoveries happen off-system |
-| 5 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
-| 6 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
-| 7 | Closure letter and credit bureau update; promotional rates; payoff letter | UC-75, UC-46, UC-34 | Customer and bureau communication off-system |
+| 4 | Disbursement: down payment and payment to third parties | UC-02, UC-05, UC-35 | Dealer, school and previous-lender payouts are not recorded |
+| 5 | Specialised products: cards, BNPL, invoice finance, letters of credit, syndication | LT-07, LT-11, LT-18, LT-19, LT-24 and their UCs | Not offered (capability-gated) |
+| 6 | Closure letter and credit bureau update; promotional rates; payoff letter | UC-75, UC-46, UC-34 | Customer and bureau communication off-system |
 
 ## Loan types
 
@@ -62,7 +67,7 @@ follow-up (UC-59), and every golden test vector.
 | LT-06 Student | ✅ | L | `STUDENT_LOAN`; grace + capitalization, `pricing.capitalization.basis` SIMPLE (TV-16) | Template still COMPOUND by default (D-009) |
 | LT-07 Credit card | ⛔ | — | `CREDIT_CARD` blocked by `card.revolving_credit` | No purchase grace, statement cycle or card minimum payment |
 | LT-08 Payday | ✅ | L | `SALARY_ADVANCE` catalogue.ts:204 (interest-only, one instalment) | Needs reconfiguring for a fee; no nominal APR (TV-08) |
-| LT-09 Pawn / gold | 🟡 | L | Collateral codes + max LTV | No custody, valuation by weight/purity, forfeiture or auction |
+| LT-09 Pawn / gold | ✅ | L | Custody record, valuation by weight × purity × price per gram (eng/recovery.ts `pawnValuation`), forfeiture after the redemption deadline under maker-checker, auction, return on redemption: api/recovery/recovery.service.ts; et/recovery.test.ts; int/recovery.int-spec.ts | Gold price entered per item (no price feed) |
 | LT-10 Debt consolidation | 🟡 | L | `DEBT_CONSOLIDATION` catalogue.ts:210 | Cannot pay off several or external debts (UC-35) |
 | LT-11 BNPL | 🟡 | L | `BNPL` blocked by `bnpl.merchant_settlement`; a 4×fortnightly 0% plan can be configured | No merchant settlement or refund handling (UC-52) |
 | LT-12 Term loan | ✅ | L | `SME_TERM` catalogue.ts:301; `CORPORATE_TERM` :353 (quarterly) | Quarterly untested end to end |
@@ -89,7 +94,7 @@ follow-up (UC-59), and every golden test vector.
 | UC-03 | ✅ | L, G | `svc` prepare/approve/execute (maker-checker); int/security.int-spec.ts:118 | — |
 | UC-04 | ✅ | L | `CONSTRUCTION` staged facility; int/facilities.int-spec.ts:559 | Interest posted at statement, not daily |
 | UC-05 | ⛔ | — | Disbursement takes only an external reference | No payee split (seller, dealer, school, other lender) |
-| UC-06 | 🟡 | L | Fee treatment `FINANCED` eng/fees.ts:77 | Premium booked as fee income, not an insurer payable; no policy record |
+| UC-06 | ✅ | L | Fee `FINANCED` with `payee: INSURER` credits the insurer payable (2600) at disbursement, not fee income (`svc` executeDisbursement); policy record and remittance under maker-checker api/recovery/recovery.service.ts; int/recovery.int-spec.ts (UC-06) | — |
 | UC-07 | ✅ | L | Irregular first period eng/schedule.ts:212; et/schedule.test.ts:146; TV-09 | No template enables it |
 
 ### B. Scheduled repayment
@@ -180,13 +185,13 @@ follow-up (UC-59), and every golden test vector.
 |---|---|---|---|---|
 | UC-63 | ✅ | L, G | api/restructuring/restructuring.service.ts; int/restructure.int-spec.ts | Legacy restructure has no maker-checker |
 | UC-64 | ✅ | L | Negotiated settlement `svc`; int/settlement.int-spec.ts:114 | No web screen |
-| UC-65 | ⛔ | — | none | No repossession workflow |
-| UC-66 | ⛔ | — | none | — |
+| UC-65 | ✅ | L | Seize (maker-checker) → value → sell; proceeds waterfall eng/recovery.ts `applyRecoveryProceeds`; surplus to a borrower payable paid out under maker-checker; deficiency stays on the open loan; pledge SOLD: api/recovery/recovery.service.ts; int/recovery.int-spec.ts (surplus, deficiency, write-off then recovery) | Proceeds order and costs are assumptions (DECISIONS D-011, D-012) |
+| UC-66 | ✅ | L | Forfeiture after the deadline (maker-checker), auction through the same waterfall: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | — |
 | UC-67 | ⛔ | — | `trade.factoring` not implemented | — |
-| UC-68 | ⛔ | — | none | — |
+| UC-68 | ✅ | L | Policy per loan; claim approved by a second user settles the loan against an insurer receivable (1410), excess to the estate; insurer payment clears it: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | D-013 |
 | UC-69 | ✅ | L, G | Write-off propose/approve `svc`; int/settlement.int-spec.ts:275 | Legacy write-off has no maker-checker |
 | UC-70 | ✅ | L | Recovery `svc`; int/settlement.int-spec.ts:296 | No web screen |
-| UC-71 | ⛔ | — | none | — |
+| UC-71 | ✅ | L | Debt sale of a delinquent or written-off loan under maker-checker and authority; gain/loss net of allowance (eng/recovery.ts `debtSaleResult`, 4400 / 5400); status SOLD, no further servicing: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | D-015 |
 
 ### J. Closure
 | ID | Status | Stack | Evidence | Gap |

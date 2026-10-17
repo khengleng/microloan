@@ -32,6 +32,7 @@ import { RateResetsPanel } from '../relief/RateResetsPanel';
 import { FeeWaiverPanel } from './FeeWaiverPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
 import { LoanDocumentsCard } from './LoanDocumentsCard';
+import { LoanRecoveryCard } from '../recovery/LoanRecoveryCard';
 
 const ACTIONS = [
     { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
@@ -208,6 +209,7 @@ export function LoanDetailView({ id }: { id: string }) {
             )}
 
             <LoanCollateralCard loanId={id} currency={cur} status={acc.status} />
+            <LoanRecoveryCard loanId={id} currency={cur} can={c} onChanged={() => { loan.reload(); caps.reload(); }} />
 
             {pendingTasks.length > 0 && (
                 <Card title="Open tasks" bodyClass="p-0">

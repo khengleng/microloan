@@ -606,7 +606,12 @@ export class ServicingService {
             accountCode: acc.feesReceivable,
             debit: D(f.amount).plus(f.tax).toString(),
           });
-        lines.push({ accountCode: acc.feeIncome, credit: f.amount });
+        // A credit-insurance premium is the insurer's money, not income (UC-06).
+        lines.push({
+          accountCode:
+            f.payee === 'INSURER' ? acc.insurerPayable : acc.feeIncome,
+          credit: f.amount,
+        });
         if (D(f.tax).gt(0))
           lines.push({ accountCode: acc.taxPayable, credit: f.tax });
       }
@@ -4107,7 +4112,7 @@ export class ServicingService {
   }
 }
 
-function totalOutstanding(state: LoanState): Dec {
+export function totalOutstanding(state: LoanState): Dec {
   const a = state.account;
   return D(a.principalOutstanding)
     .plus(D(a.interestReceivable))
@@ -4192,7 +4197,7 @@ function dueItems(state: LoanState, asOf: string): lending.DueItem[] {
  * `rest` given, the remainder of the suspense balance is cleared to that
  * account too (a write-off or forgiveness, where it reduces the loss).
  */
-function suspenseRelease(
+export function suspenseRelease(
   state: LoanState,
   interestCollected: Dec,
   rest?: string,
@@ -4220,7 +4225,7 @@ function suspenseRelease(
 }
 
 /** Write-off lines: the allowance first, then expense; surplus allowance released. */
-function writeOffAgainstAllowance(state: LoanState, total: Dec) {
+export function writeOffAgainstAllowance(state: LoanState, total: Dec) {
   const acc = state.config.accounting;
   const held = D(state.account.allowance);
   const used = lending.D.min(held, total);
@@ -4238,7 +4243,7 @@ function writeOffAgainstAllowance(state: LoanState, total: Dec) {
 }
 
 /** Journal lines that release a loan's whole loss allowance, back to the provision expense or to `into`. */
-function allowanceRelease(state: LoanState, into?: string) {
+export function allowanceRelease(state: LoanState, into?: string) {
   const amount = D(state.account.allowance);
   const acc = state.config.accounting;
   return {
@@ -4256,7 +4261,7 @@ function allowanceRelease(state: LoanState, into?: string) {
 }
 
 /** An advance is the borrower's money; it is refunded or used before the loan is closed some other way. */
-function refuseWhileAdvanceHeld(state: LoanState, action: string) {
+export function refuseWhileAdvanceHeld(state: LoanState, action: string) {
   const held = D(state.account.advanceBalance);
   if (held.gt(0))
     throw new ConflictException(

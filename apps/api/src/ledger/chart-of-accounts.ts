@@ -32,6 +32,13 @@ export const ACCOUNT_CODES = {
   // Restructuring concessions
   PRINCIPAL_FORGIVEN: '5110',
   RESTRUCTURE_CONCESSIONS: '5200',
+  // Recovery workflows (UC-06, UC-65, UC-66, UC-68, UC-71)
+  INSURANCE_CLAIMS_RECEIVABLE: '1410',
+  INSURER_PAYABLE: '2610',
+  BORROWER_REFUNDS_PAYABLE: '2710',
+  DEBT_SALE_GAIN: '4400',
+  RECOVERY_COSTS: '5300',
+  DEBT_SALE_LOSS: '5400',
 } as const;
 
 export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
@@ -140,6 +147,36 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.RESTRUCTURE_CONCESSIONS,
     name: 'Restructure Concessions (Waivers)',
+    type: LedgerAccountType.EXPENSE,
+  },
+  {
+    code: ACCOUNT_CODES.INSURANCE_CLAIMS_RECEIVABLE,
+    name: 'Insurance Claims Receivable',
+    type: LedgerAccountType.ASSET,
+  },
+  {
+    code: ACCOUNT_CODES.INSURER_PAYABLE,
+    name: 'Insurance Premiums Payable to Insurers',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.BORROWER_REFUNDS_PAYABLE,
+    name: 'Recovery Surplus Payable to Borrowers',
+    type: LedgerAccountType.LIABILITY,
+  },
+  {
+    code: ACCOUNT_CODES.DEBT_SALE_GAIN,
+    name: 'Gain on Sale of Loans',
+    type: LedgerAccountType.INCOME,
+  },
+  {
+    code: ACCOUNT_CODES.RECOVERY_COSTS,
+    name: 'Unrecovered Repossession and Sale Costs',
+    type: LedgerAccountType.EXPENSE,
+  },
+  {
+    code: ACCOUNT_CODES.DEBT_SALE_LOSS,
+    name: 'Loss on Sale of Loans',
     type: LedgerAccountType.EXPENSE,
   },
 ];

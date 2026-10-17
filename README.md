@@ -351,7 +351,8 @@ non-accrual and impairment (regulatory or ECL), suspense and refunds,
 restructuring, payment holidays, refinance, negotiated settlement, write-off
 and recovery, floating-rate resets, facilities with term-out and arrears,
 group lending with member contributions, collateral margin calls and release,
-maker-checker throughout, an automatic end-of-day run, and a tested tenant
+recovery workflows (repossession, pawn custody and auction, credit insurance
+claims, debt sale), maker-checker throughout, an automatic end-of-day run, and a tested tenant
 wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
 
 **Largest remaining gaps, by risk to money owed** (full list in
@@ -363,9 +364,7 @@ wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
    stack; no guarantor demand or set-off (UC-58, UC-60, UC-61).
 3. Payment channels beyond manual and service-account posting: auto-debit,
    wallet settlement files, payroll files, cross-currency (UC-16..21).
-4. Recovery workflows: repossession, pawn forfeiture, credit insurance, debt
-   sale (UC-65, UC-66, UC-68, UC-71).
-5. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
+4. Down payment and third-party disbursement (UC-02, UC-05, UC-35).
 
 Not started: credit cards, BNPL merchant settlement, invoice finance, letters
 of credit, syndication, closure letters and credit bureau reporting,

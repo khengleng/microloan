@@ -55,6 +55,7 @@ const INVARIANT_SECTIONS = [
   ['20261019000600_lending_payoff_quotes', '-- Database-level invariants for payoff letters.'],
   ['20261019000700_lending_collections_work', '-- Database-level invariants for collections work, guarantor demands and set-off.'],
   ['20261019000800_lending_facility_renewal', '-- Database-level invariants for facility renewal.'],
+  ['20261019000100_lending_recovery', '-- Database-level invariants for recovery workflows.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
