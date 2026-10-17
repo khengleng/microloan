@@ -83,12 +83,42 @@ export const S = {
       borrowerId: uuid,
       /** Required by group-liability products; refused by individual ones. */
       groupId: uuid.optional(),
+      /** The loan this application will replace at disbursement. */
+      refinancesLoanId: uuid.optional(),
       productId: uuid,
       portfolioId: uuid.optional(),
       legalEntityId: uuid.optional(),
       terms: termsSchema,
       purpose: z.string().max(500).optional(),
       segmentCode: z.string().max(48).optional(),
+    })
+    .strict(),
+  holidayProgramme: z
+    .object({
+      code: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/),
+      name: z.string().min(2).max(120),
+      maxInstalments: z.number().int().min(1).max(24),
+      interestTreatment: z.enum([
+        'PAY_SEPARATELY',
+        'DEFER_NO_CAPITALIZATION',
+        'CAPITALIZE',
+        'WAIVE',
+      ]),
+      termTreatment: z.enum(['EXTEND_TERM', 'KEEP_MATURITY']),
+      opensOn: date,
+      closesOn: date,
+      minInstalmentsPaid: z.number().int().min(0).max(600).optional(),
+      maxDaysPastDue: z.number().int().min(0).max(3650).optional(),
+      minInstalmentsRemaining: z.number().int().min(1).max(600).optional(),
+      maxHolidaysPerLoan: z.number().int().min(1).max(10).optional(),
+      allowRestructured: z.boolean().optional(),
+    })
+    .strict(),
+  holidayStatus: z.object({ status: z.enum(['OPEN', 'CLOSED']) }).strict(),
+  holidayEnrol: z
+    .object({
+      instalments: z.number().int().min(1).max(24),
+      effectiveDate: date.optional(),
     })
     .strict(),
   negotiatedSettlement: z

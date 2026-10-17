@@ -20,6 +20,7 @@ import { LendingFacilitiesController } from './facilities/facilities.controller'
 import { AccessAdminService } from './access/access-admin.service';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { RestructuringService } from './restructuring/restructuring.service';
+import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import {
   RestructuringController,
   RestructuringPortalController,
@@ -71,6 +72,7 @@ import {
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,
+    PaymentHolidayService,
   ],
   exports: [
     PolicyService,

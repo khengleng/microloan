@@ -71,6 +71,7 @@ model Tenant {
   applications      Application[]
   approvalTasks     ApprovalTask[]
   facilities        Facility[]
+  holidayProgrammes PaymentHolidayProgramme[]
   lendingAgreements LendingAgreement[]
   restructureCases  RestructureCase[]
 }
@@ -1499,6 +1500,9 @@ model Application {
   borrower         Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
   /// Set when the product carries group liability; null for individual loans.
   groupId          String?
+  /// Set when this application refinances an existing loan, which its
+  /// proceeds will settle at disbursement.
+  refinancesLoanId String?
   productId        String
   /// Pinned when the application is created; terms are checked against it.
   productVersionId String
@@ -1931,6 +1935,12 @@ model LoanAccount {
   lastAccrualDate        DateTime?        @db.Date
   closedAt               DateTime?
   writtenOffAt           DateTime?
+  /// Refinancing: the loan this one replaced, and the one that replaced it.
+  /// Both are kept so a chain of refinances is traceable in either direction.
+  refinancedFromLoanId   String?
+  refinancedByLoanId     String?
+  /// How many times this borrowing has been refinanced, carried down the chain.
+  refinanceCount         Int              @default(0)
   /// Restructuring: the loan stays flagged; executing a restructure does not reset delinquency.
   isRestructured         Boolean          @default(false)
   restructureCount       Int              @default(0)
@@ -1994,6 +2004,105 @@ model RateReset {
   @@unique([loanAccountId, resetDate])
   @@unique([tenantId, id])
   @@index([tenantId, loanAccountId, resetDate])
+}
+
+/// A published payment-holiday offer.
+///
+/// A programme is not a hardship case: it is an offer the lender must apply
+/// consistently, so its eligibility is evaluated from recorded loan state
+/// rather than an officer's judgement.
+model PaymentHolidayProgramme {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code                   String
+  name                   String
+  /// DRAFT, OPEN, CLOSED
+  status                 String   @default("DRAFT")
+  maxInstalments         Int
+  /// PAY_SEPARATELY, DEFER_NO_CAPITALIZATION, CAPITALIZE, WAIVE
+  interestTreatment      String
+  /// EXTEND_TERM, KEEP_MATURITY
+  termTreatment          String
+  opensOn                DateTime @db.Date
+  closesOn               DateTime @db.Date
+  minInstalmentsPaid     Int      @default(0)
+  maxDaysPastDue         Int      @default(30)
+  minInstalmentsRemaining Int     @default(1)
+  maxHolidaysPerLoan     Int      @default(1)
+  allowRestructured      Boolean  @default(false)
+  version                Int      @default(0)
+  createdBy              String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  enrolments PaymentHolidayEnrolment[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// One loan's holiday under a programme. Append-only: a holiday that is
+/// granted is part of the loan's history, and a correction is a reversal of
+/// the amendment it produced, not an edit here.
+model PaymentHolidayEnrolment {
+  id               String                  @id @default(uuid())
+  tenantId         String
+  programmeId      String
+  programme        PaymentHolidayProgramme @relation(fields: [tenantId, programmeId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId    String
+  borrowerId       String
+  instalments      Int
+  effectiveDate    DateTime                @db.Date
+  /// First due date the borrower pays again.
+  resumesOn        DateTime                @db.Date
+  /// Interest arising during the holiday, and what became of it.
+  deferredInterest Decimal                 @db.Decimal(24, 4)
+  interestTreatment String
+  termTreatment    String
+  /// The agreement version the holiday produced.
+  agreementVersion Int
+  /// Engine inputs, the rescheduled lines and the explanation, for audit.
+  calculation      Json
+  engineVersion    String
+  grantedBy        String
+  createdAt        DateTime                @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, programmeId])
+}
+
+/// What a refinance did: the loan replaced, the loan that replaced it, and
+/// the supervisory facts about whether arrears were rolled forward.
+/// Append-only.
+model RefinanceRecord {
+  id                String   @id @default(uuid())
+  tenantId          String
+  /// The loan being replaced.
+  previousLoanId    String
+  /// The loan whose proceeds settled it.
+  newLoanId         String   @unique
+  borrowerId        String
+  payoffAmount      Decimal  @db.Decimal(24, 4)
+  appliedToPayoff   Decimal  @db.Decimal(24, 4)
+  topUpToBorrower   Decimal  @db.Decimal(24, 4)
+  shortfallPaid     Decimal  @db.Decimal(24, 4)
+  arrears           Decimal  @db.Decimal(24, 4)
+  /// Arrears funded by the new loan rather than repaid by the borrower.
+  arrearsRolledIn   Decimal  @db.Decimal(24, 4)
+  previousDaysPastDue Int
+  /// Replaced a delinquent loan AND funded its arrears.
+  evergreening      Boolean
+  calculation       Json
+  engineVersion     String
+  executedBy        String
+  createdAt         DateTime @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, previousLoanId])
+  @@index([tenantId, borrowerId])
 }
 
 model ScheduleInstalment {

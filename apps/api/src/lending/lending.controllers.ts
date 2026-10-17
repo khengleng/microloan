@@ -24,6 +24,7 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { RateResetService } from './servicing/rate-reset.service';
+import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import { AccessAdminService } from './access/access-admin.service';
 import { LendingOperationsService } from './accounting/operations.service';
 import { PolicyService } from './policy/policy.service';
@@ -386,6 +387,7 @@ export class LendingLoansController {
     private readonly servicing: ServicingService,
     private readonly rateResets: RateResetService,
     private readonly groups: GroupsService,
+    private readonly holidays: PaymentHolidayService,
   ) {}
 
   /** Reset history, the full reset cycle, and what is currently due. */
@@ -499,6 +501,35 @@ export class LendingLoansController {
     @Headers('idempotency-key') key: string,
   ) {
     return this.servicing.postRepayment(actor(req), id, body, key);
+  }
+
+  /** Holidays granted on this loan. */
+  @LendingAction('loan.read')
+  @Get(':id/payment-holidays')
+  holidayHistory(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.holidays.history(actor(req), id);
+  }
+
+  /** Whether this loan qualifies under a programme, and what it would cost. */
+  @LendingAction('loan.read')
+  @Get(':id/payment-holidays/:programmeId/eligibility')
+  holidayEligibility(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('programmeId', ID) programmeId: string,
+  ) {
+    return this.holidays.checkEligibility(actor(req), programmeId, id);
+  }
+
+  @LendingAction('payment_holiday.grant')
+  @Post(':id/payment-holidays/:programmeId')
+  grantHoliday(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('programmeId', ID) programmeId: string,
+    @Body(new ZodPipe(S.holidayEnrol)) body: never,
+  ) {
+    return this.holidays.enrol(actor(req), programmeId, id, body);
   }
 
   /** What a settlement at this amount gives up. Nothing is posted. */
@@ -803,6 +834,7 @@ export class LendingOperationsController {
   constructor(
     private readonly ops: LendingOperationsService,
     private readonly servicing: ServicingService,
+    private readonly holidays: PaymentHolidayService,
   ) {}
 
   @LendingAction('loan.read')
@@ -836,6 +868,31 @@ export class LendingOperationsController {
   @Get('rates')
   rates(@Req() req: Req_, @Query('benchmarkCode') code?: string) {
     return this.ops.rates(actor(req), code);
+  }
+
+  @LendingAction('payment_holiday.read')
+  @Get('payment-holiday-programmes')
+  holidayProgrammes(@Req() req: Req_, @Query('status') status?: string) {
+    return this.holidays.listProgrammes(actor(req), { status });
+  }
+
+  @LendingAction('payment_holiday.manage')
+  @Post('payment-holiday-programmes')
+  createHolidayProgramme(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.holidayProgramme)) body: never,
+  ) {
+    return this.holidays.createProgramme(actor(req), body);
+  }
+
+  @LendingAction('payment_holiday.approve')
+  @Post('payment-holiday-programmes/:id/status')
+  setHolidayProgrammeStatus(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.holidayStatus)) body: never,
+  ) {
+    return this.holidays.setProgrammeStatus(actor(req), id, body);
   }
 
   @LendingAction('rate_observation.manage')

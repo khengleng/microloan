@@ -12,7 +12,7 @@ packages/shared/src/lending/   pure engine: money, dates, schedules, fees, APR, 
                                affordability, restructuring, config schema, catalogue, capabilities
 packages/db/prisma/            schema (+ lending models), migrations 20261016_lending_platform_phase1,
                                20261017_lending_facilities_phase2, 20261017_lending_rate_resets,
-                               20261017_lending_group_liability
+                               20261017_lending_group_liability, 20261017_lending_relief_refinance
 apps/api/src/lending/
   policy/        RBAC + ABAC + feature-flag decision engine, permission/role/flag catalogue
   products/      product catalogue, versions (maker-checker lifecycle), workflows, simulation
@@ -226,6 +226,51 @@ cash is income, attributed against what *was* written off, principal first, so
 recovered principal is distinguishable from recovered penalties. A payment
 larger than the amount still written off is refused, and the loan stays
 `WRITTEN_OFF` — recovering part of a loss does not make a loan perform again.
+
+## Payment holidays and refinancing
+
+**A payment-holiday programme** is a published offer, not a hardship case.
+That difference drives the design: eligibility is evaluated from recorded
+loan state — instalments paid, days past due, holidays already taken — never
+from an officer's justification, and every refusal returns its reasons, so
+the same borrower gets the same answer whoever asks. Publishing a programme
+is maker-checker, like activating a product version: it is an offer made to a
+whole book.
+
+The holiday itself is an ordinary restructure (`paymentDeferralInstalments`),
+so it uses the same schedule engine, produces an `AgreementVersion` and
+supersedes the instalments it replaces. The programme states two things the
+engine will not guess:
+
+* **What happens to the interest** — `WAIVE` is the only treatment that costs
+  the borrower nothing; `CAPITALIZE` grows the debt, `DEFER_NO_CAPITALIZATION`
+  moves it, `PAY_SEPARATELY` defers only principal.
+* **What happens to the term** — `EXTEND_TERM` pushes maturity out by the
+  holiday; `KEEP_MATURITY` keeps the end date and makes the later instalments
+  heavier.
+
+A holiday must also leave instalments behind to serve it: deferring a loan's
+last payments is a term extension and is assessed as one.
+
+**Refinancing** replaces a loan with a new one whose proceeds settle it. The
+settlement of the old loan is posted *in the same transaction* as the new
+loan's disbursement — a disbursement that landed without the payoff would
+leave the borrower owing twice.
+
+The arithmetic is not the point. A refinance can bury an arrears problem:
+roll a struggling loan's overdue interest and penalties into a fresh facility
+and the old loan closes "paid" while the borrower is no better off. So
+`RefinanceRecord` stores, beside the money, how much of the payoff was
+arrears, how much of those arrears the **new loan** funded rather than the
+borrower, and how delinquent the replaced loan was. Those two conditions
+together are `evergreening`, and a database CHECK constraint refuses a row
+that reports it as anything else. The facts are written when the refinance
+happens, because once the old loan is closed its balances no longer show them.
+
+Products control this separately from refinancing itself:
+`refinanceAllowDelinquent` and `refinanceAllowArrearsRollIn` are distinct, and
+rolling arrears in is only reachable on a delinquent loan, so configuring one
+without the other is a validation error.
 
 ## Money, dates and the engine
 

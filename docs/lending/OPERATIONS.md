@@ -65,7 +65,7 @@ pnpm test:api             # API unit tests, including the decision-engine securi
 # Integration — real HTTP API, guards and PostgreSQL with the migration's triggers and RLS:
 export LENDING_TEST_DATABASE_URL=<throwaway database whose name contains "test" or "ci">
 pnpm test:lending:db      # resets that database: schema push + migration invariants
-pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating rates, groups, settlement
+pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating, groups, settlement, relief
 ```
 
 CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`.
@@ -86,6 +86,7 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 * `packages/db/prisma/migrations/20261017_lending_facilities_phase2/migration.sql`
 * `packages/db/prisma/migrations/20261017_lending_rate_resets/migration.sql`
 * `packages/db/prisma/migrations/20261017_lending_group_liability/migration.sql`
+* `packages/db/prisma/migrations/20261017_lending_relief_refinance/migration.sql`
   is additive: new tables, a new `Tenant.authzVersion` column, new unique
   indexes on `(tenantId, id)` for `User`, `Borrower`, `LedgerAccount`, plus the
   triggers, constraints and RLS policies. It was rehearsed against the
@@ -258,6 +259,44 @@ approval authority measured on the concession):
 * The cash is posted to recovery income (`4300`) and attributed against what
   was written off, principal first. The loan stays `WRITTEN_OFF`.
 * A recovery larger than the amount still written off is refused.
+
+## Payment holidays
+
+Programmes are published, then loans are enrolled.
+
+* Draft: `POST /lending/ops/payment-holiday-programmes` with the window, the
+  eligibility rules, `interestTreatment` and `termTreatment`.
+* Open it: `POST /lending/ops/payment-holiday-programmes/:id/status` with
+  `{"status":"OPEN"}` — **a different person** from the one who drafted it.
+* Check a loan: `GET /lending/loans/:id/payment-holidays/:programmeId/eligibility`
+  returns whether it qualifies, for how many instalments, and every reason it
+  does not.
+* Grant: `POST /lending/loans/:id/payment-holidays/:programmeId` with
+  `{"instalments": n}`. Eligibility is re-checked here against committed
+  state, because a loan can fall past due between the offer and the grant.
+* `GET /lending/loans/:id/payment-holidays` lists what was granted and the
+  interest it deferred.
+
+Tell borrowers what the holiday costs: only `WAIVE` is free. `CAPITALIZE`
+adds the deferred interest to the principal and charges interest on it
+thereafter.
+
+## Refinancing
+
+* The product must set `restructuring.allowRefinance`.
+* Create the application with `refinancesLoanId` naming the loan to replace.
+  Same borrower, and that loan must be `ACTIVE`.
+* Everything else is ordinary origination. **At disbursement**, the new loan's
+  proceeds settle the old one in the same transaction and the old loan closes.
+* A new loan too small to cover the payoff is refused unless the product sets
+  `allowRefinanceShortfall`; nothing is half-applied, so the old loan is left
+  untouched.
+* `refinanceAllowDelinquent`, `refinanceAllowArrearsRollIn`,
+  `refinanceMaxDaysPastDue`, `refinanceMinInstalmentsPaid` and
+  `maxRefinanceCount` gate what may be refinanced.
+* Every refinance writes a `RefinanceRecord` with the arrears rolled in and an
+  `evergreening` verdict. Review those: a refinance that replaces a
+  delinquent loan and funds its arrears has moved a problem, not solved it.
 
 ## Known limitations
 

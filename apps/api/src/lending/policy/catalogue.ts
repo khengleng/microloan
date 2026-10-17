@@ -306,6 +306,34 @@ export const PERMISSIONS: PermissionDefinition[] = [
     platformAllowed: true,
   },
   {
+    code: 'payment_holiday.read',
+    description: 'View payment-holiday programmes and enrolments',
+    category: 'Restructuring',
+  },
+  {
+    code: 'payment_holiday.manage',
+    description: 'Draft payment-holiday programmes',
+    category: 'Restructuring',
+  },
+  {
+    code: 'payment_holiday.approve',
+    description: 'Open or close a payment-holiday programme (checker)',
+    category: 'Restructuring',
+    financial: true,
+  },
+  {
+    code: 'payment_holiday.grant',
+    description: 'Grant a payment holiday to a loan under an open programme',
+    category: 'Restructuring',
+    financial: true,
+  },
+  {
+    code: 'loan.refinance.execute',
+    description: 'Replace a loan with a new one whose proceeds settle it',
+    category: 'Servicing',
+    financial: true,
+  },
+  {
     code: 'loan.settlement.negotiate',
     description: 'Close a loan for less than it owes, waiving charges',
     category: 'Servicing',
@@ -571,6 +599,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan.read',
       'loan.repayment.post',
       'loan.recovery.post',
+      'payment_holiday.read',
+      'payment_holiday.grant',
       'restructure.request',
       'restructure.simulate',
       'restructure.monitor',
@@ -584,6 +614,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     permissions: [
       'loan.settlement.negotiate',
       'loan.settlement.negotiate_principal',
+      'payment_holiday.read',
+      'payment_holiday.manage',
+      'payment_holiday.approve',
       'loan.read',
       'restructure.simulate',
       'restructure.approve',

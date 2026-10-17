@@ -429,6 +429,15 @@ export class ServicingService {
       });
 
       const acc = state.config.accounting;
+      // A refinance disburses into the loan it replaces rather than to the
+      // borrower, and both legs must commit together: a disbursement that
+      // landed without the payoff would leave the borrower owing twice.
+      const refinance = await this.prepareRefinance(
+        tx,
+        state,
+        fees.netDisbursement,
+        valueDate,
+      );
       const lines: PostingLine[] = [
         { accountCode: acc.loansReceivable, debit: fees.bookedPrincipal },
         { accountCode: acc.cash, credit: fees.netDisbursement },
@@ -478,6 +487,14 @@ export class ServicingService {
         instalmentAmount: schedule.instalmentAmount,
         lastAccrualDate: fromLocalDate(valueDate),
       });
+      if (refinance) {
+        await this.settleRefinancedLoan(tx, actor, state, refinance, event.id, {
+          businessDate,
+          valueDate,
+          idempotencyKey,
+          hash,
+        });
+      }
       await this.outbox(tx, tenantId, 'lending.disbursed', {
         loanAccountId: id,
         eventId: event.id,
@@ -1698,6 +1715,225 @@ export class ServicingService {
       },
       recovered,
     };
+  }
+
+  /**
+   * Work out the refinance a disbursement is funding, if any.
+   *
+   * Returns null for an ordinary disbursement. Everything that could refuse
+   * the refinance is checked here, before any money is posted.
+   */
+  private async prepareRefinance(
+    tx: Tx,
+    state: LoanState,
+    netProceeds: string,
+    valueDate: string,
+  ) {
+    const tenantId = state.account.tenantId;
+    const application = await tx.application.findFirst({
+      where: { id: state.account.applicationId, tenantId },
+      select: { refinancesLoanId: true },
+    });
+    const previousId = application?.refinancesLoanId;
+    if (!previousId) return null;
+
+    const previous = await loadLoanState(tx, tenantId, previousId);
+    if (previous.account.borrowerId !== state.account.borrowerId) {
+      throw new BadRequestException(
+        'A refinance must replace a loan of the same borrower.',
+      );
+    }
+    if (previous.account.status !== 'ACTIVE') {
+      throw new ConflictException(
+        `The loan being refinanced is ${previous.account.status}; only an active loan can be replaced.`,
+      );
+    }
+    const overdue = previous.lines.filter(
+      (l) =>
+        l.status === 'DUE' &&
+        lending.compareDates(toLocalDate(l.dueDate)!, valueDate) <= 0,
+    );
+    const overdueCharges = overdue.reduce(
+      (t, l) =>
+        t
+          .plus(D(l.interestDue))
+          .minus(D(l.interestPaid))
+          .plus(D(l.feeDue))
+          .minus(D(l.feePaid))
+          .plus(D(l.penaltyDue))
+          .minus(D(l.penaltyPaid)),
+      ZERO(),
+    );
+    const paid = previous.lines.filter(
+      (l) => l.status === 'PAID' && l.number > 0,
+    ).length;
+
+    const result = engineCall(() =>
+      lending.calculateRefinance(
+        {
+          principal: decStr(previous.account.principalOutstanding),
+          interest: decStr(previous.account.interestReceivable),
+          fees: decStr(previous.account.feesReceivable),
+          penalties: decStr(previous.account.penaltyReceivable),
+          overdue: overdueCharges.toString(),
+          daysPastDue: previous.account.daysPastDue,
+        },
+        {
+          newPrincipal: netProceeds,
+          // Fees are already out of the net proceeds at this point.
+          allowBorrowerShortfallPayment:
+            state.config.restructuring.allowRefinanceShortfall,
+        },
+        state.account.currency,
+        state.config.pricing.rounding,
+      ),
+    );
+    const issues = lending.checkRefinanceRules(
+      {
+        allowDelinquent: state.config.restructuring.refinanceAllowDelinquent,
+        allowArrearsRollIn:
+          state.config.restructuring.refinanceAllowArrearsRollIn,
+        maxDaysPastDue: state.config.restructuring.refinanceMaxDaysPastDue,
+        minInstalmentsPaid:
+          state.config.restructuring.refinanceMinInstalmentsPaid,
+        maxRefinanceCount: state.config.restructuring.maxRefinanceCount,
+      },
+      result,
+      {
+        daysPastDue: previous.account.daysPastDue,
+        instalmentsPaid: paid,
+        refinanceCount: previous.account.refinanceCount,
+      },
+    );
+    if (issues.length) {
+      throw new BadRequestException({
+        message: issues.map((i) => i.message).join(' '),
+        code: 'REFINANCE_REFUSED',
+        issues,
+      });
+    }
+    return { previous, result };
+  }
+
+  /**
+   * Close the replaced loan from the new loan's proceeds.
+   *
+   * Posted as a SETTLEMENT on the old loan in the same transaction as the new
+   * loan's disbursement, so the two can never diverge. The supervisory facts
+   * — arrears, how much of them the new loan funded, whether the old loan was
+   * delinquent — are written to RefinanceRecord, because once the old loan is
+   * closed its balances no longer show them.
+   */
+  private async settleRefinancedLoan(
+    tx: Tx,
+    actor: LendingActor,
+    state: LoanState,
+    refinance: { previous: LoanState; result: lending.RefinanceResult },
+    disbursementEventId: string,
+    dates: {
+      businessDate: string;
+      valueDate: string;
+      idempotencyKey: string;
+      hash: string;
+    },
+  ) {
+    const { previous, result } = refinance;
+    const tenantId = state.account.tenantId;
+    const acc = previous.config.accounting;
+    const a = previous.account;
+    const payoff = D(result.payoffAmount);
+
+    await tx.scheduleInstalment.updateMany({
+      where: { tenantId, loanAccountId: a.id, status: 'DUE' },
+      data: { status: 'SUPERSEDED' },
+    });
+    const settlement = await this.recordEvent(tx, previous, {
+      type: 'SETTLEMENT',
+      amount: payoff,
+      businessDate: dates.businessDate,
+      valueDate: dates.valueDate,
+      components: {
+        refinancedBy: state.account.id,
+        disbursementEventId,
+        ...result,
+      },
+      // The settlement is part of the same client request as the
+      // disbursement, so it derives its key rather than inventing one.
+      idempotencyKey: `${dates.idempotencyKey}:refi`,
+      requestHash: dates.hash,
+      actor,
+      narrative: `Settled by refinance into ${state.account.reference}`,
+      lines: [
+        { accountCode: acc.cash, debit: payoff.toString() },
+        {
+          accountCode: acc.loansReceivable,
+          credit: decStr(a.principalOutstanding),
+        },
+        {
+          accountCode: acc.interestReceivable,
+          credit: decStr(a.interestReceivable),
+        },
+        { accountCode: acc.feesReceivable, credit: decStr(a.feesReceivable) },
+        {
+          accountCode: acc.penaltyReceivable,
+          credit: decStr(a.penaltyReceivable),
+        },
+      ],
+    });
+    await this.casAccount(tx, previous, 'ACTIVE', {
+      status: 'CLOSED',
+      closedAt: new Date(),
+      principalOutstanding: '0',
+      interestReceivable: '0',
+      feesReceivable: '0',
+      penaltyReceivable: '0',
+      refinancedByLoanId: state.account.id,
+    });
+    await tx.loanAccount.updateMany({
+      where: { id: state.account.id, tenantId },
+      data: {
+        refinancedFromLoanId: a.id,
+        refinanceCount: a.refinanceCount + 1,
+      },
+    });
+    await tx.refinanceRecord.create({
+      data: {
+        tenantId,
+        previousLoanId: a.id,
+        newLoanId: state.account.id,
+        borrowerId: a.borrowerId,
+        payoffAmount: result.payoffAmount,
+        appliedToPayoff: result.appliedToPayoff,
+        topUpToBorrower: result.topUpToBorrower,
+        shortfallPaid: result.shortfall,
+        arrears: result.arrears,
+        arrearsRolledIn: result.arrearsRolledIn,
+        previousDaysPastDue: a.daysPastDue,
+        evergreening: result.evergreening,
+        calculation: result as unknown as Json,
+        engineVersion: lending.LENDING_ENGINE_VERSION,
+        executedBy: actor.id,
+      },
+    });
+    await this.audit.write(
+      {
+        actor,
+        action: 'loan.refinance.execute',
+        resourceType: 'LoanAccount',
+        resourceId: state.account.id,
+        outcome: 'SUCCESS',
+        details: {
+          previousLoan: a.reference,
+          settlementEvent: settlement.id,
+          payoff: result.payoffAmount,
+          topUp: result.topUpToBorrower,
+          arrearsRolledIn: result.arrearsRolledIn,
+          evergreening: result.evergreening,
+        },
+        businessDate: fromLocalDate(dates.businessDate),
+      },
+      tx,
+    );
   }
 
   async proposeWriteOff(

@@ -160,6 +160,13 @@ letting a receivable vanish, and authorizes forgiving principal separately
 from waiving charges. Money arriving after a write-off is posted as a
 recovery, attributed against what was written off, without reviving the loan.
 
+Payment holidays are run as published programmes with consistent, recorded
+eligibility and maker-checker publication, stating explicitly what the
+deferral does to the interest and to the term. Refinancing settles the
+replaced loan from the new one's proceeds in a single transaction, and
+records how much of the old loan's arrears the new loan funded — the
+difference between a refinance and evergreening.
+
 ### Administration screens
 
 Under **Lending** in the web app: product catalogue and capability matrix,
@@ -171,12 +178,13 @@ The borrower portal adds restructure requests and proposal acceptance.
 
 ### What is not implemented yet
 
-Refinancing, stand-alone payment holidays, borrowing bases, connected-party
-exposure, break-glass access and the specialised modules (cards, BNPL, trade,
-factoring, income-contingent, syndicated, project finance, Islamic) are still
-outstanding. Revolving facilities, overdrafts, staged drawdowns, contractual
-floating-rate resets, joint-liability group lending, negotiated settlement and
-post-write-off recovery shipped in Phase 2. Payment rails,
+Borrowing bases, connected-party exposure, break-glass access and the
+specialised modules (cards, BNPL, trade, factoring, income-contingent,
+syndicated, project finance, Islamic) are still outstanding. Revolving
+facilities, overdrafts, staged drawdowns, contractual floating-rate resets,
+joint-liability group lending, negotiated settlement, post-write-off
+recovery, payment-holiday programmes and refinancing shipped in Phase 2.
+Payment rails,
 external KYC, credit bureau, notifications and external accounting have adapter
 interfaces with clearly labelled mocks that are refused in production. The full
 list of gaps and limitations is in [OPERATIONS.md](docs/lending/OPERATIONS.md).
@@ -225,7 +233,7 @@ pnpm test:api             # API unit tests (incl. decision-engine security tests
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
 pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating rates, groups, settlement
+pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating, groups, settlement, relief
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```

@@ -320,6 +320,24 @@ export const productConfigSchema = z
           .default(['PRINCIPAL', 'INTEREST', 'FEE', 'TAX', 'PENALTY']),
         /** Whether money received after a write-off may be posted as a recovery. */
         allowPostWriteOffRecovery: z.boolean().default(true),
+        /**
+         * Whether a loan may be replaced by a new one whose proceeds settle
+         * it. Off by default: refinancing is how arrears get buried, so a
+         * product opts into it.
+         */
+        allowRefinance: z.boolean().default(false),
+        /** Replacing a loan that is behind at all. */
+        refinanceAllowDelinquent: z.boolean().default(false),
+        /**
+         * Funding the replaced loan's arrears from the new loan. This is the
+         * mechanism of evergreening, so it is separately controlled.
+         */
+        refinanceAllowArrearsRollIn: z.boolean().default(false),
+        refinanceMaxDaysPastDue: z.number().int().min(0).max(3650).nullable().default(30),
+        refinanceMinInstalmentsPaid: z.number().int().min(0).max(600).default(6),
+        maxRefinanceCount: z.number().int().min(0).max(10).default(1),
+        /** Whether the borrower may pay a shortfall when proceeds fall short. */
+        allowRefinanceShortfall: z.boolean().default(false),
       })
       .strict()
       .default({}),
@@ -421,6 +439,15 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');
   if (c.security.guaranteeRequired && c.security.minGuarantors < 1) add('security.minGuarantors', 'at least one guarantor is required');
 
+  if (
+    c.restructuring.refinanceAllowArrearsRollIn &&
+    !c.restructuring.refinanceAllowDelinquent
+  ) {
+    add(
+      'restructuring.refinanceAllowArrearsRollIn',
+      'rolling arrears into a new loan is only reachable on a delinquent loan; allow refinanceAllowDelinquent or turn it off',
+    );
+  }
   if (
     c.restructuring.allowNegotiatedSettlement &&
     !c.restructuring.allowedOptions.includes('CHARGE_WAIVER') &&
@@ -567,6 +594,7 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.operations.writeOffMinDpd !== null) req.add('servicing.write_off');
   if (c.operations.restructureAllowed) req.add('servicing.restructure');
   if (c.restructuring.allowNegotiatedSettlement) req.add('servicing.negotiated_settlement');
+  if (c.restructuring.allowRefinance) req.add('servicing.refinance');
   if (c.restructuring.allowPostWriteOffRecovery && c.operations.writeOffMinDpd !== null) {
     req.add('servicing.recovery_after_write_off');
   }

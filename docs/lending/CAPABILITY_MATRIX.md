@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 41 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 19
+✅ Fully implemented: 43 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 17
 
 ## Capabilities
 
@@ -89,9 +89,9 @@ A product version can be activated only when every capability it requires is **F
 | `servicing.restructure` | ✅ Fully implemented | 1 | Hardship cases: affordability, options, maker-checker approval, customer acceptance, amendment execution and monitoring | Tests: `packages/shared/test/restructure.test.ts, apps/api/test/lending/restructure.int-spec.ts` |
 | `restructure.affordability` | ✅ Fully implemented | 1 | Individual, household, business (DSCR) and seasonal affordability templates | Tests: `packages/shared/test/restructure.test.ts` |
 | `restructure.customer_self_service` | ✅ Fully implemented | 1 | Customers request restructuring and accept their own proposals in the borrower portal | Tests: `apps/api/test/lending/*.int-spec.ts` |
-| `servicing.refinance` | ⛔ Not implemented | 2 | Refinancing into a new loan linked to the original agreement |  |
+| `servicing.refinance` | ✅ Fully implemented | 2 | Refinancing: the new loan’s proceeds settle the old one in the same transaction, with arrears roll-in and evergreening reported and separately permitted | Tests: `packages/shared/test/refinance.test.ts, apps/api/test/lending/relief.int-spec.ts` |
 | `servicing.negotiated_settlement` | ✅ Fully implemented | 2 | Negotiated settlement: close a loan for less than it owes, with the concession itemised by component, posted as an expense and authorized separately when principal is forgiven | Tests: `packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts` |
-| `servicing.payment_holiday` | ⛔ Not implemented | 2 | Stand-alone payment holiday programme (relief is available inside a restructure as a payment deferral) |  |
+| `servicing.payment_holiday` | ✅ Fully implemented | 2 | Payment-holiday programmes: published offers with consistent eligibility, maker-checker publication, and an explicit choice of interest and term treatment | Tests: `packages/shared/test/payment-holiday.test.ts, apps/api/test/lending/relief.int-spec.ts` |
 
 ### Facility
 

@@ -186,6 +186,17 @@ export const ACTIONS: ActionDefinition[] = [
     makerChecker: true,
     minAssurance: 'MFA',
   }),
+  // Payment holidays. Publishing a programme is maker-checker, like a
+  // product version: it is an offer made to a whole book.
+  A('payment_holiday.read', 'TENANT', 'READ'),
+  A('payment_holiday.manage', 'TENANT', 'CONFIG'),
+  A('payment_holiday.approve', 'TENANT', 'CONFIG', {
+    workflowStates: ['DRAFT', 'OPEN'],
+    makerChecker: true,
+  }),
+  A('payment_holiday.grant', 'LOAN_ACCOUNT', 'RESTRUCTURE', {
+    workflowStates: ['ACTIVE'],
+  }),
   // Settling for less and forgiving principal are different credit calls, so
   // they carry different authorities. The amount measured is the concession.
   A('loan.settlement.negotiate', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {

@@ -44,6 +44,8 @@ export interface CreateApplicationBody {
   borrowerId: string;
   /** Required when the product carries group liability. */
   groupId?: string;
+  /** An existing loan this application will replace at disbursement. */
+  refinancesLoanId?: string;
   productId: string;
   portfolioId?: string;
   legalEntityId?: string;
@@ -235,6 +237,29 @@ export class ApplicationsService {
           'This product lends to an individual borrower, not a group.',
         );
       }
+      if (body.refinancesLoanId) {
+        if (!config.restructuring.allowRefinance) {
+          throw new BadRequestException(
+            'This product does not permit refinancing an existing loan.',
+          );
+        }
+        const previous = await tx.loanAccount.findFirst({
+          where: { id: body.refinancesLoanId, tenantId },
+          select: { borrowerId: true, status: true },
+        });
+        if (!previous)
+          throw new NotFoundException('The loan to refinance was not found');
+        if (previous.borrowerId !== borrower.id) {
+          throw new BadRequestException(
+            'A refinance must replace a loan of the same borrower.',
+          );
+        }
+        if (previous.status !== 'ACTIVE') {
+          throw new BadRequestException(
+            `The loan to refinance is ${previous.status}; only an active loan can be replaced.`,
+          );
+        }
+      }
       if (isGroupProduct) {
         const businessDate = await this.businessDate.get(tenantId, tx);
         const { members } = await this.groups.composition(
@@ -281,6 +306,7 @@ export class ApplicationsService {
           legalEntityId: body.legalEntityId,
           borrowerId: borrower.id,
           groupId: body.groupId ?? null,
+          refinancesLoanId: body.refinancesLoanId ?? null,
           productId: product.id,
           productVersionId: version.id,
           channel: actor.channel,
