@@ -80,6 +80,17 @@ export interface DisbursementContext {
   idempotencyKey: string;
 }
 
+/** Watches the end-of-day batch (see ServicingService.registerBatchObserver). */
+export interface BatchObserver {
+  batchStarted?(tenantId: string, businessDate: string, accounts: number): void;
+  loanProcessed?(tenantId: string, ms: number, ok: boolean): void;
+  batchFinished?(
+    tenantId: string,
+    businessDate: string,
+    result: { processed: number; failed: number; ms: number },
+  ): void;
+}
+
 export type DisbursementHook = (
   tx: Tx,
   ctx: DisbursementContext,
@@ -3724,6 +3735,26 @@ export class ServicingService {
     this.tenantBatchHooks.push(hook);
   }
 
+  private batchObservers: BatchObserver[] = [];
+  /**
+   * Lets metrics and the load-test harness watch the end-of-day batch: how
+   * long each loan took and how the run ended. Observers only listen; an
+   * observer that throws is ignored, so it can never fail a batch.
+   */
+  registerBatchObserver(observer: BatchObserver) {
+    this.batchObservers.push(observer);
+  }
+
+  private observe(fn: (o: BatchObserver) => void) {
+    for (const o of this.batchObservers) {
+      try {
+        fn(o);
+      } catch {
+        // An observer is instrumentation; it never changes the batch.
+      }
+    }
+  }
+
   // ── End-of-day batch: accrual, penalties, delinquency ─────────────────────
 
   /**
@@ -3762,7 +3793,12 @@ export class ServicingService {
     });
     const failed: { id: string; error: string }[] = [];
     let processed = 0;
+    const batchStart = performance.now();
+    this.observe((o) =>
+      o.batchStarted?.(tenantId, businessDate, accounts.length),
+    );
     for (const { id } of accounts) {
+      const loanStart = performance.now();
       try {
         await this.lp.tenantTx(tenantId, async (tx) => {
           let state = await loadLoanState(tx, tenantId, id);
@@ -3832,8 +3868,14 @@ export class ServicingService {
           await this.casAccount(tx, state, 'ACTIVE', data);
         });
         processed++;
+        this.observe((o) =>
+          o.loanProcessed?.(tenantId, performance.now() - loanStart, true),
+        );
       } catch (e) {
         failed.push({ id, error: (e as Error).message });
+        this.observe((o) =>
+          o.loanProcessed?.(tenantId, performance.now() - loanStart, false),
+        );
       }
     }
     await this.audit.write({
@@ -3853,6 +3895,13 @@ export class ServicingService {
           lastBatchFailures: failed.length,
         },
       });
+    this.observe((o) =>
+      o.batchFinished?.(tenantId, businessDate, {
+        processed,
+        failed: failed.length,
+        ms: performance.now() - batchStart,
+      }),
+    );
     return { businessDate, processed, failed };
   }
 
