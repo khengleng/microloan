@@ -73,7 +73,10 @@ export class SyndicationService {
     this.servicing.registerDisbursementGuard(async (tx, state) => {
       if (!state.config.syndication) return;
       const s = await tx.syndicate.findFirst({
-        where: { tenantId: state.account.tenantId, loanAccountId: state.account.id },
+        where: {
+          tenantId: state.account.tenantId,
+          loanAccountId: state.account.id,
+        },
         select: { status: true },
       });
       if (s?.status !== 'FUNDED')
@@ -96,10 +99,19 @@ export class SyndicationService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadLoanState(tx, tenantId, loanId, { lock: false });
-      await this.policy.enforce(actor, 'syndication.read', resourceOf(state), tx);
+      await this.policy.enforce(
+        actor,
+        'syndication.read',
+        resourceOf(state),
+        tx,
+      );
       const s = await tx.syndicate.findFirst({
         where: { tenantId, loanAccountId: loanId },
-        include: { participants: { orderBy: [{ isAgent: 'desc' }, { lenderName: 'asc' }] } },
+        include: {
+          participants: {
+            orderBy: [{ isAgent: 'desc' }, { lenderName: 'asc' }],
+          },
+        },
       });
       const entries = s
         ? await tx.participationEntry.findMany({
@@ -153,16 +165,32 @@ export class SyndicationService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadLoanState(tx, tenantId, loanId);
       const cfg = syndicationConfig(state);
-      await this.policy.enforce(actor, 'syndication.manage', resourceOf(state), tx);
+      await this.policy.enforce(
+        actor,
+        'syndication.manage',
+        resourceOf(state),
+        tx,
+      );
       const principal = decStr(state.account.bookedPrincipal);
       const resolved = engineCall(() =>
-        lending.resolveParticipations(principal, body.participants, state.config.pricing.rounding, cfg),
+        lending.resolveParticipations(
+          principal,
+          body.participants,
+          state.config.pricing.rounding,
+          cfg,
+        ),
       );
-      let s = await tx.syndicate.findFirst({ where: { tenantId, loanAccountId: loanId } });
+      let s = await tx.syndicate.findFirst({
+        where: { tenantId, loanAccountId: loanId },
+      });
       if (s && s.status !== 'DRAFT')
-        throw new ConflictException(`The syndicate is already ${s.status.toLowerCase()}; it can no longer be changed.`);
+        throw new ConflictException(
+          `The syndicate is already ${s.status.toLowerCase()}; it can no longer be changed.`,
+        );
       if (s) {
-        await tx.syndicateParticipant.deleteMany({ where: { tenantId, syndicateId: s.id } });
+        await tx.syndicateParticipant.deleteMany({
+          where: { tenantId, syndicateId: s.id },
+        });
         await this.cas(tx, s, 'DRAFT', { makerId: actor.id, principal });
       } else {
         s = await tx.syndicate.create({
@@ -180,7 +208,7 @@ export class SyndicationService {
       await tx.syndicateParticipant.createMany({
         data: resolved.map((p) => ({
           tenantId,
-          syndicateId: s!.id,
+          syndicateId: s.id,
           loanAccountId: loanId,
           lenderName: p.lenderName.slice(0, 160),
           isAgent: p.isAgent,
@@ -191,7 +219,11 @@ export class SyndicationService {
       });
       await this.writeAudit(actor, tx, loanId, 'syndication.manage', {
         syndicate: s.id,
-        participants: resolved.map((p) => ({ lender: p.lenderName, share: p.share, commitment: p.commitment })),
+        participants: resolved.map((p) => ({
+          lender: p.lenderName,
+          share: p.share,
+          commitment: p.commitment,
+        })),
       });
       return { id: s.id, status: 'DRAFT', participants: resolved };
     });
@@ -203,12 +235,25 @@ export class SyndicationService {
       const state = await loadLoanState(tx, tenantId, loanId);
       syndicationConfig(state);
       const s = await this.load(tx, tenantId, loanId);
-      await this.policy.enforce(actor, 'syndication.approve', resourceOf(state, [s.makerId]), tx);
+      await this.policy.enforce(
+        actor,
+        'syndication.approve',
+        resourceOf(state, [s.makerId]),
+        tx,
+      );
       // The loan may have been re-booked at another amount since the draft.
       if (!D(s.principal).eq(D(state.account.bookedPrincipal)))
-        throw new ConflictException('The loan amount changed since the syndicate was drafted; set the participants again.');
-      await this.cas(tx, s, 'DRAFT', { status: 'APPROVED', checkerId: actor.id, approvedAt: new Date() });
-      await this.writeAudit(actor, tx, loanId, 'syndication.approve', { syndicate: s.id });
+        throw new ConflictException(
+          'The loan amount changed since the syndicate was drafted; set the participants again.',
+        );
+      await this.cas(tx, s, 'DRAFT', {
+        status: 'APPROVED',
+        checkerId: actor.id,
+        approvedAt: new Date(),
+      });
+      await this.writeAudit(actor, tx, loanId, 'syndication.approve', {
+        syndicate: s.id,
+      });
       return { id: s.id, status: 'APPROVED' };
     });
   }
@@ -230,14 +275,24 @@ export class SyndicationService {
       const state = await loadLoanState(tx, tenantId, loanId);
       const cfg = syndicationConfig(state);
       const s = await this.load(tx, tenantId, loanId);
-      await this.policy.enforce(actor, 'syndication.fund', resourceOf(state, [], decStr(s.principal)), tx);
+      await this.policy.enforce(
+        actor,
+        'syndication.fund',
+        resourceOf(state, [], decStr(s.principal)),
+        tx,
+      );
       if (s.status !== 'APPROVED')
         throw new ConflictException(
-          s.status === 'FUNDED' ? 'Participant funding is already recorded.' : 'The syndicate must be approved before it is funded.',
+          s.status === 'FUNDED'
+            ? 'Participant funding is already recorded.'
+            : 'The syndicate must be approved before it is funded.',
         );
       const participants = await this.participants(tx, s);
       const others = participants.filter((p) => !p.isAgent);
-      const total = others.reduce((t, p) => t.plus(D(p.commitment)), new lending.D(0));
+      const total = others.reduce(
+        (t, p) => t.plus(D(p.commitment)),
+        new lending.D(0),
+      );
       const businessDate = await this.businessDate.get(tenantId, tx);
       const event = await this.servicing.recordEvent(tx, state, {
         type: 'PARTICIPATION_FUNDING',
@@ -246,7 +301,11 @@ export class SyndicationService {
         valueDate: businessDate,
         components: {
           syndicateId: s.id,
-          participants: others.map((p) => ({ id: p.id, lender: p.lenderName, amount: decStr(p.commitment) })),
+          participants: others.map((p) => ({
+            id: p.id,
+            lender: p.lenderName,
+            amount: decStr(p.commitment),
+          })),
         },
         idempotencyKey,
         requestHash: hash,
@@ -254,8 +313,14 @@ export class SyndicationService {
         narrative: `Participant funding of syndicated loan ${state.account.reference}`,
         externalReference: body.externalReference.trim().slice(0, 120),
         lines: [
-          { accountCode: state.config.accounting.cash, debit: total.toString() },
-          { accountCode: cfg.accounts.participantFunding, credit: total.toString() },
+          {
+            accountCode: state.config.accounting.cash,
+            debit: total.toString(),
+          },
+          {
+            accountCode: cfg.accounts.participantFunding,
+            credit: total.toString(),
+          },
         ],
       });
       await tx.participationEntry.createMany({
@@ -274,9 +339,21 @@ export class SyndicationService {
           where: { id: p.id, tenantId },
           data: { funded: decStr(p.commitment) },
         });
-      await this.cas(tx, s, 'APPROVED', { status: 'FUNDED', fundingEventId: event.id, fundedAt: new Date() });
-      await this.writeAudit(actor, tx, loanId, 'syndication.fund', { event: event.id, amount: total.toString() });
-      return { id: s.id, status: 'FUNDED', eventId: event.id, participantFunding: total.toString() };
+      await this.cas(tx, s, 'APPROVED', {
+        status: 'FUNDED',
+        fundingEventId: event.id,
+        fundedAt: new Date(),
+      });
+      await this.writeAudit(actor, tx, loanId, 'syndication.fund', {
+        event: event.id,
+        amount: total.toString(),
+      });
+      return {
+        id: s.id,
+        status: 'FUNDED',
+        eventId: event.id,
+        participantFunding: total.toString(),
+      };
     });
   }
 
@@ -288,7 +365,12 @@ export class SyndicationService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadLoanState(tx, tenantId, loanId);
       syndicationConfig(state);
-      await this.policy.enforce(actor, 'syndication.distribute', resourceOf(state), tx);
+      await this.policy.enforce(
+        actor,
+        'syndication.distribute',
+        resourceOf(state),
+        tx,
+      );
       const businessDate = await this.businessDate.get(tenantId, tx);
       return this.distributeInTx(tx, state, businessDate, actor);
     });
@@ -304,16 +386,28 @@ export class SyndicationService {
    * principal, interest, fee and penalty receivables (and fees taken straight
    * to income). Tax is the agent's to remit and is never shared.
    */
-  private async distributeInTx(tx: Tx, state: LoanState, businessDate: string, actor: LendingActor) {
+  private async distributeInTx(
+    tx: Tx,
+    state: LoanState,
+    businessDate: string,
+    actor: LendingActor,
+  ) {
     const tenantId = state.account.tenantId;
-    const s = await tx.syndicate.findFirst({ where: { tenantId, loanAccountId: state.account.id } });
-    if (!s || s.status !== 'FUNDED') return { distributed: 0, skipped: [] as string[] };
+    const s = await tx.syndicate.findFirst({
+      where: { tenantId, loanAccountId: state.account.id },
+    });
+    if (!s || s.status !== 'FUNDED')
+      return { distributed: 0, skipped: [] as string[] };
     const cfg = syndicationConfig(state);
     const participants = await this.participants(tx, s);
     const done = new Set(
       (
         await tx.participationEntry.findMany({
-          where: { tenantId, loanAccountId: state.account.id, kind: { notIn: ['FUNDING', 'PAYOUT'] } },
+          where: {
+            tenantId,
+            loanAccountId: state.account.id,
+            kind: { notIn: ['FUNDING', 'PAYOUT'] },
+          },
           select: { sourceEventId: true },
           distinct: ['sourceEventId'],
         })
@@ -346,7 +440,12 @@ export class SyndicationService {
       if (e.type === 'REVERSAL') {
         const original = e.reversalOfId ? byId.get(e.reversalOfId) : undefined;
         // Only the reversal of a collection that was shared is shared.
-        if (!original || !SHARED_TYPES.includes(original.type) || !done.has(original.id)) continue;
+        if (
+          !original ||
+          !SHARED_TYPES.includes(original.type) ||
+          !done.has(original.id)
+        )
+          continue;
         sign = -1;
       }
       if ((e.components as { negotiated?: boolean } | null)?.negotiated) {
@@ -367,7 +466,13 @@ export class SyndicationService {
       const components = Object.fromEntries(
         Object.entries(collected).map(([k, v]) => [k, v.toString()]),
       ) as Partial<Record<Component, string>>;
-      const parts = engineCall(() => lending.splitCollection(participants.map(shareOf), components, state.config.pricing.rounding));
+      const parts = engineCall(() =>
+        lending.splitCollection(
+          participants.map(shareOf),
+          components,
+          state.config.pricing.rounding,
+        ),
+      );
       const lines: PostingLine[] = [];
       const entries: Prisma.ParticipationEntryCreateManyInput[] = [];
       let principal = new lending.D(0);
@@ -410,10 +515,18 @@ export class SyndicationService {
       if (!entries.length) continue;
       const due = principal.plus(income);
       // A negative amount (a reversal) posts on the opposite side.
-      const leg = (code: string, v: Dec, side: 'debit' | 'credit'): PostingLine[] => {
+      const leg = (
+        code: string,
+        v: Dec,
+        side: 'debit' | 'credit',
+      ): PostingLine[] => {
         if (v.isZero()) return [];
         const amount = v.abs().toString();
-        return [(side === 'debit') === v.gt(0) ? { accountCode: code, debit: amount } : { accountCode: code, credit: amount }];
+        return [
+          (side === 'debit') === v.gt(0)
+            ? { accountCode: code, debit: amount }
+            : { accountCode: code, credit: amount },
+        ];
       };
       lines.push(
         ...leg(cfg.accounts.participantFunding, principal, 'debit'),
@@ -425,7 +538,13 @@ export class SyndicationService {
         amount: due.abs(),
         businessDate,
         valueDate: businessDate,
-        components: { syndicateId: s.id, sourceEventId: e.id, sourceType: e.type, sign, collected: components },
+        components: {
+          syndicateId: s.id,
+          sourceEventId: e.id,
+          sourceType: e.type,
+          sign,
+          collected: components,
+        },
         idempotencyKey: `sys:syndicate-share:${e.id}`,
         requestHash: 'system',
         actor,
@@ -441,11 +560,14 @@ export class SyndicationService {
         const data: Record<string, string> = {};
         for (const x of mine) {
           const f = EARNED_FIELD[x.kind as Component] as string;
-          data[f] = D((data[f] ?? (p as Record<string, unknown>)[f]) as string)
+          data[f] = D(data[f] ?? (p as Record<string, unknown>)[f])
             .plus(D(x.amount as string))
             .toString();
         }
-        await tx.syndicateParticipant.updateMany({ where: { id: p.id, tenantId }, data });
+        await tx.syndicateParticipant.updateMany({
+          where: { id: p.id, tenantId },
+          data,
+        });
         Object.assign(p, data);
       }
       done.add(e.id);
@@ -468,15 +590,36 @@ export class SyndicationService {
       syndicationConfig(state);
       const p = await this.participant(tx, tenantId, loanId, participantId);
       const due = payable(p);
-      const amount = body.amount ? engineCall(() => lending.parseMoney(body.amount!, state.account.currency, 'amount')) : due;
-      await this.policy.enforce(actor, 'syndication.payout.propose', resourceOf(state, [], amount.toString()), tx);
-      if (p.isAgent) throw new BadRequestException('The agent does not pay itself.');
+      const amount = body.amount
+        ? engineCall(() =>
+            lending.parseMoney(body.amount!, state.account.currency, 'amount'),
+          )
+        : due;
+      await this.policy.enforce(
+        actor,
+        'syndication.payout.propose',
+        resourceOf(state, [], amount.toString()),
+        tx,
+      );
+      if (p.isAgent)
+        throw new BadRequestException('The agent does not pay itself.');
       if (amount.lte(0) || amount.gt(due))
-        throw new BadRequestException(`A payout must be positive and at most the ${due} ${state.account.currency} due to ${p.lenderName}.`);
+        throw new BadRequestException(
+          `A payout must be positive and at most the ${due} ${state.account.currency} due to ${p.lenderName}.`,
+        );
       const open = await tx.approvalTask.findFirst({
-        where: { tenantId, subjectType: 'SYNDICATE_PARTICIPANT', subjectId: participantId, action: PAYOUT, status: 'PENDING' },
+        where: {
+          tenantId,
+          subjectType: 'SYNDICATE_PARTICIPANT',
+          subjectId: participantId,
+          action: PAYOUT,
+          status: 'PENDING',
+        },
       });
-      if (open) throw new ConflictException('A payout to this participant is already awaiting approval.');
+      if (open)
+        throw new ConflictException(
+          'A payout to this participant is already awaiting approval.',
+        );
       const task = await tx.approvalTask.create({
         data: {
           tenantId,
@@ -486,7 +629,10 @@ export class SyndicationService {
           requiredPermission: 'loan.repayment.reverse',
           amount: amount.toString(),
           currency: state.account.currency,
-          payload: { loanAccountId: loanId, externalReference: body.externalReference?.slice(0, 120) ?? null } as Json,
+          payload: {
+            loanAccountId: loanId,
+            externalReference: body.externalReference?.slice(0, 120) ?? null,
+          } as Json,
           makerId: actor.id,
         },
       });
@@ -512,9 +658,17 @@ export class SyndicationService {
       const state = await loadLoanState(tx, tenantId, loanId);
       const cfg = syndicationConfig(state);
       const task = await tx.approvalTask.findFirst({
-        where: { id: taskId, tenantId, subjectType: 'SYNDICATE_PARTICIPANT', action: PAYOUT },
+        where: {
+          id: taskId,
+          tenantId,
+          subjectType: 'SYNDICATE_PARTICIPANT',
+          action: PAYOUT,
+        },
       });
-      if (!task || (task.payload as { loanAccountId?: string }).loanAccountId !== loanId)
+      if (
+        !task ||
+        (task.payload as { loanAccountId?: string }).loanAccountId !== loanId
+      )
         throw new NotFoundException('Payout proposal not found');
       const p = await this.participant(tx, tenantId, loanId, task.subjectId);
       const amount = D(task.amount);
@@ -536,7 +690,9 @@ export class SyndicationService {
       if (res.count !== 1) throw concurrentModification('This payout proposal');
       if (!body.approve) return { rejected: true };
       if (amount.gt(payable(p)))
-        throw new ConflictException(`Only ${payable(p)} is now due to ${p.lenderName}; a reversal reduced it.`);
+        throw new ConflictException(
+          `Only ${payable(p)} is now due to ${p.lenderName}; a reversal reduced it.`,
+        );
       const businessDate = await this.businessDate.get(tenantId, tx);
       const event = await this.servicing.recordEvent(tx, state, {
         type: 'PARTICIPATION_PAYOUT',
@@ -548,10 +704,18 @@ export class SyndicationService {
         requestHash: hash,
         actor,
         narrative: `Paid to participant ${p.lenderName} on ${state.account.reference}`,
-        externalReference: (task.payload as { externalReference?: string | null }).externalReference ?? null,
+        externalReference:
+          (task.payload as { externalReference?: string | null })
+            .externalReference ?? null,
         lines: [
-          { accountCode: cfg.accounts.participantsPayable, debit: amount.toString() },
-          { accountCode: state.config.accounting.cash, credit: amount.toString() },
+          {
+            accountCode: cfg.accounts.participantsPayable,
+            debit: amount.toString(),
+          },
+          {
+            accountCode: state.config.accounting.cash,
+            credit: amount.toString(),
+          },
         ],
       });
       await tx.participationEntry.create({
@@ -577,7 +741,11 @@ export class SyndicationService {
           resourceId: loanId,
           outcome: 'SUCCESS',
           decision,
-          details: { event: event.id, participant: p.lenderName, amount: amount.toString() },
+          details: {
+            event: event.id,
+            participant: p.lenderName,
+            amount: amount.toString(),
+          },
           businessDate: fromLocalDate(businessDate),
         },
         tx,
@@ -589,7 +757,9 @@ export class SyndicationService {
   // ── Internals ─────────────────────────────────────────────────────────────
 
   private async load(tx: Tx, tenantId: string, loanId: string) {
-    const s = await tx.syndicate.findFirst({ where: { tenantId, loanAccountId: loanId } });
+    const s = await tx.syndicate.findFirst({
+      where: { tenantId, loanAccountId: loanId },
+    });
     if (!s) throw new NotFoundException('This loan has no syndicate yet.');
     return s;
   }
@@ -601,24 +771,54 @@ export class SyndicationService {
     });
   }
 
-  private async participant(tx: Tx, tenantId: string, loanId: string, participantId: string) {
-    const p = await tx.syndicateParticipant.findFirst({ where: { id: participantId, tenantId, loanAccountId: loanId } });
+  private async participant(
+    tx: Tx,
+    tenantId: string,
+    loanId: string,
+    participantId: string,
+  ) {
+    const p = await tx.syndicateParticipant.findFirst({
+      where: { id: participantId, tenantId, loanAccountId: loanId },
+    });
     if (!p) throw new NotFoundException('Participant not found');
     return p;
   }
 
-  private async cas(tx: Tx, s: Syndicate, fromStatus: string, data: Prisma.SyndicateUpdateManyMutationInput) {
+  private async cas(
+    tx: Tx,
+    s: Syndicate,
+    fromStatus: string,
+    data: Prisma.SyndicateUpdateManyMutationInput,
+  ) {
     const res = await tx.syndicate.updateMany({
-      where: { id: s.id, tenantId: s.tenantId, version: s.version, status: fromStatus },
+      where: {
+        id: s.id,
+        tenantId: s.tenantId,
+        version: s.version,
+        status: fromStatus,
+      },
       data: { ...data, version: { increment: 1 } },
     });
     if (res.count !== 1) throw concurrentModification('This syndicate');
     s.version += 1;
   }
 
-  private async writeAudit(actor: LendingActor, tx: Tx, loanId: string, action: string, details: Record<string, unknown>) {
+  private async writeAudit(
+    actor: LendingActor,
+    tx: Tx,
+    loanId: string,
+    action: string,
+    details: Record<string, unknown>,
+  ) {
     await this.audit.write(
-      { actor, action, resourceType: 'LoanAccount', resourceId: loanId, outcome: 'SUCCESS', details },
+      {
+        actor,
+        action,
+        resourceType: 'LoanAccount',
+        resourceId: loanId,
+        outcome: 'SUCCESS',
+        details,
+      },
       tx,
     );
   }
@@ -627,7 +827,10 @@ export class SyndicationService {
 function syndicationConfig(state: LoanState) {
   const c = state.config.syndication;
   if (!c)
-    throw new BadRequestException({ message: 'This loan is not under a syndicated product.', code: 'NOT_SYNDICATED' });
+    throw new BadRequestException({
+      message: 'This loan is not under a syndicated product.',
+      code: 'NOT_SYNDICATED',
+    });
   return {
     minParticipants: c.minParticipants,
     maxParticipants: c.maxParticipants,
@@ -640,12 +843,20 @@ function syndicationConfig(state: LoanState) {
 }
 
 function shareOf(p: Participant) {
-  return { isAgent: p.isAgent, share: decStr(p.share), feeShare: decStr(p.feeShare) };
+  return {
+    isAgent: p.isAgent,
+    share: decStr(p.share),
+    feeShare: decStr(p.feeShare),
+  };
 }
 
 /** What has been shared with a participant and not yet paid to it. */
 function payable(p: Participant): Dec {
-  return D(p.principalReturned).plus(D(p.interestEarned)).plus(D(p.penaltyEarned)).plus(D(p.feesEarned)).minus(D(p.paidOut));
+  return D(p.principalReturned)
+    .plus(D(p.interestEarned))
+    .plus(D(p.penaltyEarned))
+    .plus(D(p.feesEarned))
+    .minus(D(p.paidOut));
 }
 
 function participantView(p: Participant) {

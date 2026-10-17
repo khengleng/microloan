@@ -41,7 +41,12 @@ type LcConfig = NonNullable<
 /** What an LC carries from the product it was issued under. */
 interface LcTerms {
   letterOfCredit: LcConfig;
-  accounts: { cash: string; feeIncome: string; contingentAsset: string; contingentLiability: string };
+  accounts: {
+    cash: string;
+    feeIncome: string;
+    contingentAsset: string;
+    contingentLiability: string;
+  };
   conversion: {
     productId: string;
     productCode: string;
@@ -110,7 +115,12 @@ export class LettersOfCreditService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const lc = await this.load(tx, tenantId, id);
-      await this.policy.enforce(actor, 'trade.lc.read', await this.resource(tx, lc), tx);
+      await this.policy.enforce(
+        actor,
+        'trade.lc.read',
+        await this.resource(tx, lc),
+        tx,
+      );
       const drawings = await tx.lcDrawing.findMany({
         where: { tenantId, letterOfCreditId: id },
         orderBy: { sequence: 'asc' },
@@ -118,9 +128,18 @@ export class LettersOfCreditService {
       const loans = await tx.loanAccount.findMany({
         where: {
           tenantId,
-          id: { in: drawings.map((d) => d.loanAccountId).filter((x): x is string => !!x) },
+          id: {
+            in: drawings
+              .map((d) => d.loanAccountId)
+              .filter((x): x is string => !!x),
+          },
         },
-        select: { id: true, reference: true, status: true, principalOutstanding: true },
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          principalOutstanding: true,
+        },
       });
       return {
         letterOfCredit: view(lc),
@@ -130,7 +149,10 @@ export class LettersOfCreditService {
             ? plain(loans.find((l) => l.id === d.loanAccountId)!)
             : null,
         })),
-        undrawn: D(lc.amount).minus(D(lc.drawnAmount)).minus(D(lc.releasedAmount)).toString(),
+        undrawn: D(lc.amount)
+          .minus(D(lc.drawnAmount))
+          .minus(D(lc.releasedAmount))
+          .toString(),
       };
     });
   }
@@ -163,10 +185,16 @@ export class LettersOfCreditService {
         throw new BadRequestException('The importer must belong to a branch.');
       if (
         body.portfolioId &&
-        !(await tx.portfolio.findFirst({ where: { id: body.portfolioId, tenantId } }))
+        !(await tx.portfolio.findFirst({
+          where: { id: body.portfolioId, tenantId },
+        }))
       )
         throw new NotFoundException('Portfolio not found');
-      const { product, version, config } = await this.activeProduct(tx, tenantId, body.productId);
+      const { product, version, config } = await this.activeProduct(
+        tx,
+        tenantId,
+        body.productId,
+      );
       const cfg = config.trade?.letterOfCredit;
       if (!cfg)
         throw new BadRequestException({
@@ -174,7 +202,9 @@ export class LettersOfCreditService {
           code: 'NOT_LC_PRODUCT',
         });
       const currency = config.identity.currency;
-      const amount = engineCall(() => lending.parseMoney(body.amount, currency, 'amount'));
+      const amount = engineCall(() =>
+        lending.parseMoney(body.amount, currency, 'amount'),
+      );
       const resource: Resource = {
         type: 'LETTER_OF_CREDIT',
         id: 'new',
@@ -194,20 +224,41 @@ export class LettersOfCreditService {
         requiredFlags: configFlags(config),
       };
       await this.policy.enforce(actor, 'trade.lc.request', resource, tx);
-      if (amount.lt(D(config.limits.minAmount)) || amount.gt(D(config.limits.maxAmount)))
+      if (
+        amount.lt(D(config.limits.minAmount)) ||
+        amount.gt(D(config.limits.maxAmount))
+      )
         throw new BadRequestException({
           message: `A letter of credit under this product is between ${config.limits.minAmount} and ${config.limits.maxAmount} ${currency}.`,
           code: 'LC_AMOUNT',
         });
-      if (!body.beneficiaryName?.trim()) throw new BadRequestException('Name the beneficiary.');
+      if (!body.beneficiaryName?.trim())
+        throw new BadRequestException('Name the beneficiary.');
       const businessDate = await this.businessDate.get(tenantId, tx);
       const fee = engineCall(() =>
-        lending.letterOfCreditFee(lcFeeTerms(cfg), amount.toString(), businessDate, body.expiryDate, config.pricing.rounding),
+        lending.letterOfCreditFee(
+          lcFeeTerms(cfg),
+          amount.toString(),
+          businessDate,
+          body.expiryDate,
+          config.pricing.rounding,
+        ),
       );
       // The loan a payment turns into is fixed now, so the importer and the
       // checker see what they are agreeing to (UC-53).
-      const conversion = await this.conversionProduct(tx, tenantId, cfg, currency);
-      this.checkConversionTerms(conversion.config, amount.toString(), body.numberOfInstalments, body.annualRate, businessDate);
+      const conversion = await this.conversionProduct(
+        tx,
+        tenantId,
+        cfg,
+        currency,
+      );
+      this.checkConversionTerms(
+        conversion.config,
+        amount.toString(),
+        body.numberOfInstalments,
+        body.annualRate,
+        businessDate,
+      );
       const terms: LcTerms = {
         letterOfCredit: cfg,
         accounts: {
@@ -238,7 +289,8 @@ export class LettersOfCreditService {
           amount: amount.toString(),
           beneficiaryName: body.beneficiaryName.trim().slice(0, 160),
           beneficiaryBank: body.beneficiaryBank?.trim().slice(0, 160) || null,
-          beneficiaryAccount: body.beneficiaryAccount?.trim().slice(0, 60) || null,
+          beneficiaryAccount:
+            body.beneficiaryAccount?.trim().slice(0, 60) || null,
           issueDate: fromLocalDate(businessDate),
           expiryDate: fromLocalDate(body.expiryDate),
           terms: terms as unknown as Json,
@@ -294,10 +346,20 @@ export class LettersOfCreditService {
         hash,
         externalReference: lc.reference,
         narrative: `Letter of credit ${lc.reference} issued to ${lc.beneficiaryName} (contingent)`,
-        components: { letterOfCreditId: id, contingent: decStr(lc.amount), expiryDate: toLocalDate(lc.expiryDate) },
+        components: {
+          letterOfCreditId: id,
+          contingent: decStr(lc.amount),
+          expiryDate: toLocalDate(lc.expiryDate),
+        },
         lines: [
-          { accountCode: terms.accounts.contingentAsset, debit: decStr(lc.amount) },
-          { accountCode: terms.accounts.contingentLiability, credit: decStr(lc.amount) },
+          {
+            accountCode: terms.accounts.contingentAsset,
+            debit: decStr(lc.amount),
+          },
+          {
+            accountCode: terms.accounts.contingentLiability,
+            credit: decStr(lc.amount),
+          },
         ],
       });
       let feeEventId: string | null = null;
@@ -346,7 +408,13 @@ export class LettersOfCreditService {
         },
         tx,
       );
-      return { id, status: 'ISSUED', fee: fee.fee, memoEventId: memo.id, feeEventId };
+      return {
+        id,
+        status: 'ISSUED',
+        fee: fee.fee,
+        memoEventId: memo.id,
+        feeEventId,
+      };
     });
   }
 
@@ -354,13 +422,20 @@ export class LettersOfCreditService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const lc = await this.lock(tx, tenantId, id);
-      await this.policy.enforce(actor, 'trade.lc.reject', await this.resource(tx, lc, [lc.requestedBy]), tx);
+      await this.policy.enforce(
+        actor,
+        'trade.lc.reject',
+        await this.resource(tx, lc, [lc.requestedBy]),
+        tx,
+      );
       await this.cas(tx, lc, 'REQUESTED', {
         status: 'REJECTED',
         rejectedBy: actor.id,
         rejectionReason: body.reason.slice(0, 500),
       });
-      await this.writeAudit(actor, tx, lc, 'trade.lc.reject', { reason: body.reason });
+      await this.writeAudit(actor, tx, lc, 'trade.lc.reject', {
+        reason: body.reason,
+      });
       return { id, status: 'REJECTED' };
     });
   }
@@ -379,15 +454,34 @@ export class LettersOfCreditService {
     const hash = requestHash({ op: 'lc.close', id, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const lc = await this.lock(tx, tenantId, id);
-      await this.policy.enforce(actor, 'trade.lc.close', await this.resource(tx, lc), tx);
+      await this.policy.enforce(
+        actor,
+        'trade.lc.close',
+        await this.resource(tx, lc),
+        tx,
+      );
       const businessDate = await this.businessDate.get(tenantId, tx);
-      if (body.action === 'EXPIRE' && lending.compareDates(businessDate, toLocalDate(lc.expiryDate)!) <= 0)
-        throw new ConflictException(`The credit is valid until ${toLocalDate(lc.expiryDate)}; it cannot expire before then.`);
+      if (
+        body.action === 'EXPIRE' &&
+        lending.compareDates(businessDate, toLocalDate(lc.expiryDate)!) <= 0
+      )
+        throw new ConflictException(
+          `The credit is valid until ${toLocalDate(lc.expiryDate)}; it cannot expire before then.`,
+        );
       const open = await tx.lcDrawing.count({
-        where: { tenantId, letterOfCreditId: id, status: { in: ['REQUESTED', 'APPROVED'] } },
+        where: {
+          tenantId,
+          letterOfCreditId: id,
+          status: { in: ['REQUESTED', 'APPROVED'] },
+        },
       });
-      if (open) throw new ConflictException('Decide the drawings awaiting payment first.');
-      const undrawn = D(lc.amount).minus(D(lc.drawnAmount)).minus(D(lc.releasedAmount));
+      if (open)
+        throw new ConflictException(
+          'Decide the drawings awaiting payment first.',
+        );
+      const undrawn = D(lc.amount)
+        .minus(D(lc.drawnAmount))
+        .minus(D(lc.releasedAmount));
       const terms = lc.terms as unknown as LcTerms;
       const event = await this.tenantEvent(tx, actor, {
         type: 'LC_RELEASE',
@@ -398,10 +492,21 @@ export class LettersOfCreditService {
         hash,
         externalReference: lc.reference,
         narrative: `Letter of credit ${lc.reference} ${body.action === 'EXPIRE' ? 'expired' : 'cancelled'}: undrawn commitment released`,
-        components: { letterOfCreditId: id, action: body.action, released: undrawn.toString(), reason: body.reason.slice(0, 500) },
+        components: {
+          letterOfCreditId: id,
+          action: body.action,
+          released: undrawn.toString(),
+          reason: body.reason.slice(0, 500),
+        },
         lines: [
-          { accountCode: terms.accounts.contingentLiability, debit: undrawn.toString() },
-          { accountCode: terms.accounts.contingentAsset, credit: undrawn.toString() },
+          {
+            accountCode: terms.accounts.contingentLiability,
+            debit: undrawn.toString(),
+          },
+          {
+            accountCode: terms.accounts.contingentAsset,
+            credit: undrawn.toString(),
+          },
         ],
       });
       const status = body.action === 'EXPIRE' ? 'EXPIRED' : 'CANCELLED';
@@ -412,7 +517,11 @@ export class LettersOfCreditService {
         closedAt: new Date(),
         closeReason: body.reason.slice(0, 500),
       });
-      await this.writeAudit(actor, tx, lc, 'trade.lc.close', { action: body.action, released: undrawn.toString(), event: event.id });
+      await this.writeAudit(actor, tx, lc, 'trade.lc.close', {
+        action: body.action,
+        released: undrawn.toString(),
+        event: event.id,
+      });
       return { id, status, released: undrawn.toString(), eventId: event.id };
     });
   }
@@ -422,12 +531,18 @@ export class LettersOfCreditService {
   async requestDrawing(
     actor: LendingActor,
     id: string,
-    body: { amount: string; documentsReference: string; numberOfInstalments?: number },
+    body: {
+      amount: string;
+      documentsReference: string;
+      numberOfInstalments?: number;
+    },
   ) {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const lc = await this.lock(tx, tenantId, id);
-      const amount = engineCall(() => lending.parseMoney(body.amount, lc.currency, 'amount'));
+      const amount = engineCall(() =>
+        lending.parseMoney(body.amount, lc.currency, 'amount'),
+      );
       await this.policy.enforce(
         actor,
         'trade.lc.drawing.request',
@@ -435,15 +550,35 @@ export class LettersOfCreditService {
         tx,
       );
       if (!body.documentsReference?.trim())
-        throw new BadRequestException('Record the reference of the documents presented.');
+        throw new BadRequestException(
+          'Record the reference of the documents presented.',
+        );
       const businessDate = await this.businessDate.get(tenantId, tx);
       await this.assertDrawable(tx, lc, amount.toString(), businessDate);
       const terms = lc.terms as unknown as LcTerms;
-      const instalments = body.numberOfInstalments ?? terms.conversion.numberOfInstalments;
-      const conversion = await this.conversionProduct(tx, tenantId, terms.letterOfCredit, lc.currency, terms.conversion.productId);
-      this.checkConversionTerms(conversion.config, amount.toString(), instalments, terms.conversion.annualRate ?? undefined, businessDate);
+      const instalments =
+        body.numberOfInstalments ?? terms.conversion.numberOfInstalments;
+      const conversion = await this.conversionProduct(
+        tx,
+        tenantId,
+        terms.letterOfCredit,
+        lc.currency,
+        terms.conversion.productId,
+      );
+      this.checkConversionTerms(
+        conversion.config,
+        amount.toString(),
+        instalments,
+        terms.conversion.annualRate ?? undefined,
+        businessDate,
+      );
       const sequence =
-        ((await tx.lcDrawing.aggregate({ where: { tenantId, letterOfCreditId: id }, _max: { sequence: true } }))._max.sequence ?? 0) + 1;
+        ((
+          await tx.lcDrawing.aggregate({
+            where: { tenantId, letterOfCreditId: id },
+            _max: { sequence: true },
+          })
+        )._max.sequence ?? 0) + 1;
       const drawing = await tx.lcDrawing.create({
         data: {
           tenantId,
@@ -457,7 +592,10 @@ export class LettersOfCreditService {
         },
       });
       await this.cas(tx, lc, lc.status, {});
-      await this.writeAudit(actor, tx, lc, 'trade.lc.drawing.request', { drawing: drawing.id, amount: amount.toString() });
+      await this.writeAudit(actor, tx, lc, 'trade.lc.drawing.request', {
+        drawing: drawing.id,
+        amount: amount.toString(),
+      });
       return plain(drawing);
     });
   }
@@ -477,26 +615,56 @@ export class LettersOfCreditService {
       const drawing = await this.loadDrawing(tx, tenantId, id, drawingId);
       await this.policy.enforce(
         actor,
-        decision === 'APPROVE' ? 'trade.lc.drawing.approve' : 'trade.lc.drawing.reject',
-        await this.resource(tx, lc, [drawing.requestedBy], decStr(drawing.amount), drawing.status),
+        decision === 'APPROVE'
+          ? 'trade.lc.drawing.approve'
+          : 'trade.lc.drawing.reject',
+        await this.resource(
+          tx,
+          lc,
+          [drawing.requestedBy],
+          decStr(drawing.amount),
+          drawing.status,
+        ),
         tx,
       );
       if (decision === 'APPROVE') {
         const businessDate = await this.businessDate.get(tenantId, tx);
-        await this.assertDrawable(tx, lc, decStr(drawing.amount), businessDate, drawing.id);
+        await this.assertDrawable(
+          tx,
+          lc,
+          decStr(drawing.amount),
+          businessDate,
+          drawing.id,
+        );
       }
-      await this.casDrawing(tx, drawing, decision === 'APPROVE' ? 'REQUESTED' : drawing.status, {
+      await this.casDrawing(
+        tx,
+        drawing,
+        decision === 'APPROVE' ? 'REQUESTED' : drawing.status,
+        {
+          status: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+          ...(decision === 'APPROVE'
+            ? { approvedBy: actor.id, approvedAt: new Date() }
+            : { rejectedBy: actor.id, rejectionReason: reason!.slice(0, 500) }),
+        },
+      );
+      await this.writeAudit(
+        actor,
+        tx,
+        lc,
+        decision === 'APPROVE'
+          ? 'trade.lc.drawing.approve'
+          : 'trade.lc.drawing.reject',
+        {
+          drawing: drawingId,
+          amount: decStr(drawing.amount),
+          reason,
+        },
+      );
+      return {
+        id: drawingId,
         status: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        ...(decision === 'APPROVE'
-          ? { approvedBy: actor.id, approvedAt: new Date() }
-          : { rejectedBy: actor.id, rejectionReason: reason!.slice(0, 500) }),
-      });
-      await this.writeAudit(actor, tx, lc, decision === 'APPROVE' ? 'trade.lc.drawing.approve' : 'trade.lc.drawing.reject', {
-        drawing: drawingId,
-        amount: decStr(drawing.amount),
-        reason,
-      });
-      return { id: drawingId, status: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED' };
+      };
     });
   }
 
@@ -519,13 +687,27 @@ export class LettersOfCreditService {
       const decision = await this.policy.enforce(
         actor,
         'trade.lc.drawing.pay',
-        await this.resource(tx, lc, [drawing.requestedBy], amount.toString(), drawing.status),
+        await this.resource(
+          tx,
+          lc,
+          [drawing.requestedBy],
+          amount.toString(),
+          drawing.status,
+        ),
         tx,
       );
       if (!body.externalReference?.trim())
-        throw new BadRequestException('Record the bank reference of the payment to the beneficiary.');
+        throw new BadRequestException(
+          'Record the bank reference of the payment to the beneficiary.',
+        );
       const businessDate = await this.businessDate.get(tenantId, tx);
-      await this.assertDrawable(tx, lc, amount.toString(), businessDate, drawing.id);
+      await this.assertDrawable(
+        tx,
+        lc,
+        amount.toString(),
+        businessDate,
+        drawing.id,
+      );
       const terms = lc.terms as unknown as LcTerms;
 
       // 1. The paid part of the commitment leaves the memo.
@@ -540,31 +722,59 @@ export class LettersOfCreditService {
         narrative: `Letter of credit ${lc.reference}: drawing ${drawing.sequence} paid, contingent released`,
         components: { letterOfCreditId: id, drawingId },
         lines: [
-          { accountCode: terms.accounts.contingentLiability, debit: amount.toString() },
-          { accountCode: terms.accounts.contingentAsset, credit: amount.toString() },
+          {
+            accountCode: terms.accounts.contingentLiability,
+            debit: amount.toString(),
+          },
+          {
+            accountCode: terms.accounts.contingentAsset,
+            credit: amount.toString(),
+          },
         ],
       });
 
       // 2. The importer's loan, booked under the conversion product exactly
       //    as an approved application is booked.
-      const conv = await this.conversionProduct(tx, tenantId, terms.letterOfCredit, lc.currency, terms.conversion.productId);
+      const conv = await this.conversionProduct(
+        tx,
+        tenantId,
+        terms.letterOfCredit,
+        lc.currency,
+        terms.conversion.productId,
+      );
       const config = conv.config;
       const loanTerms: lending.NegotiatedTerms = {
         principal: amount.toString(),
         numberOfInstalments: drawing.numberOfInstalments,
         disbursementDate: businessDate,
-        ...(terms.conversion.annualRate ? { annualRate: terms.conversion.annualRate } : {}),
+        ...(terms.conversion.annualRate
+          ? { annualRate: terms.conversion.annualRate }
+          : {}),
         // The credit already earned its fee; the beneficiary is paid the
         // drawing in full (DECISIONS D-014).
         waivedFeeCodes: config.pricing.fees.map((f) => f.code),
       };
-      this.checkConversionTerms(config, amount.toString(), drawing.numberOfInstalments, terms.conversion.annualRate ?? undefined, businessDate);
-      const booking = await this.applications.bookingCalculation(tx, tenantId, config, loanTerms, {
-        productVersionId: conv.version.id,
-        productVersion: conv.version.version,
-      });
+      this.checkConversionTerms(
+        config,
+        amount.toString(),
+        drawing.numberOfInstalments,
+        terms.conversion.annualRate ?? undefined,
+        businessDate,
+      );
+      const booking = await this.applications.bookingCalculation(
+        tx,
+        tenantId,
+        config,
+        loanTerms,
+        {
+          productVersionId: conv.version.id,
+          productVersion: conv.version.version,
+        },
+      );
       if (!D(booking.fees.netDisbursement).eq(amount))
-        throw new ConflictException('The conversion product deducts charges the drawing cannot carry.');
+        throw new ConflictException(
+          'The conversion product deducts charges the drawing cannot carry.',
+        );
       const agreement = await tx.lendingAgreement.create({
         data: {
           tenantId,
@@ -587,7 +797,11 @@ export class LettersOfCreditService {
           reason: 'BOOKING',
           productConfig: config as unknown as Json,
           configHash: conv.version.configHash,
-          terms: { ...loanTerms, letterOfCredit: lc.reference, drawing: drawing.sequence } as unknown as Json,
+          terms: {
+            ...loanTerms,
+            letterOfCredit: lc.reference,
+            drawing: drawing.sequence,
+          } as unknown as Json,
           policies: [] as unknown as Json,
           scheduleInput: booking.input as unknown as Json,
           calculation: {
@@ -684,7 +898,9 @@ export class LettersOfCreditService {
       const drawn = D(lc.drawnAmount).plus(amount);
       await this.cas(tx, lc, lc.status, {
         drawnAmount: drawn.toString(),
-        status: drawn.plus(D(lc.releasedAmount)).gte(D(lc.amount)) ? 'FULLY_DRAWN' : 'PARTIALLY_DRAWN',
+        status: drawn.plus(D(lc.releasedAmount)).gte(D(lc.amount))
+          ? 'FULLY_DRAWN'
+          : 'PARTIALLY_DRAWN',
       });
       await this.servicing.outbox(tx, tenantId, 'lending.disbursed', {
         loanAccountId: account.id,
@@ -707,7 +923,11 @@ export class LettersOfCreditService {
             loanAccount: account.reference,
             event: event.id,
           },
-          configVersions: { productVersion: conv.version.version, configHash: conv.version.configHash, engine: lending.LENDING_ENGINE_VERSION },
+          configVersions: {
+            productVersion: conv.version.version,
+            configHash: conv.version.configHash,
+            engine: lending.LENDING_ENGINE_VERSION,
+          },
           businessDate: fromLocalDate(businessDate),
         },
         tx,
@@ -727,26 +947,47 @@ export class LettersOfCreditService {
   // ── Internals ─────────────────────────────────────────────────────────────
 
   private async activeProduct(tx: Tx, tenantId: string, productId: string) {
-    const product = await tx.lendingProduct.findFirst({ where: { id: productId, tenantId } });
+    const product = await tx.lendingProduct.findFirst({
+      where: { id: productId, tenantId },
+    });
     if (!product) throw new NotFoundException('Product not found');
-    const version = await tx.productVersion.findFirst({ where: { tenantId, productId, status: 'ACTIVE' } });
-    if (!version) throw new BadRequestException('This product has no active version for new business.');
+    const version = await tx.productVersion.findFirst({
+      where: { tenantId, productId, status: 'ACTIVE' },
+    });
+    if (!version)
+      throw new BadRequestException(
+        'This product has no active version for new business.',
+      );
     const r = lending.validateProductConfig(version.config);
     if (!r.ok)
-      throw new BadRequestException({ message: 'Product configuration is invalid.', code: 'INVALID_PRODUCT_CONFIG', issues: r.issues });
+      throw new BadRequestException({
+        message: 'Product configuration is invalid.',
+        code: 'INVALID_PRODUCT_CONFIG',
+        issues: r.issues,
+      });
     return { product, version, config: r.config };
   }
 
   /** The configured term product a paid credit becomes (UC-53). */
-  private async conversionProduct(tx: Tx, tenantId: string, cfg: LcConfig, currency: string, productId?: string) {
+  private async conversionProduct(
+    tx: Tx,
+    tenantId: string,
+    cfg: LcConfig,
+    currency: string,
+    productId?: string,
+  ) {
     let id = productId;
     if (!id) {
       if (!cfg.conversionProductCode)
         throw new BadRequestException({
-          message: 'The letter-of-credit product names no conversion product; configure trade.letterOfCredit.conversionProductCode.',
+          message:
+            'The letter-of-credit product names no conversion product; configure trade.letterOfCredit.conversionProductCode.',
           code: 'LC_NO_CONVERSION_PRODUCT',
         });
-      const p = await tx.lendingProduct.findFirst({ where: { tenantId, code: cfg.conversionProductCode }, select: { id: true } });
+      const p = await tx.lendingProduct.findFirst({
+        where: { tenantId, code: cfg.conversionProductCode },
+        select: { id: true },
+      });
       if (!p)
         throw new BadRequestException({
           message: `Conversion product ${cfg.conversionProductCode} does not exist.`,
@@ -756,7 +997,12 @@ export class LettersOfCreditService {
     }
     const conv = await this.activeProduct(tx, tenantId, id);
     const c = conv.config;
-    if (c.facility.type !== 'TERM' || c.trade || c.syndication || c.identity.liability !== 'INDIVIDUAL')
+    if (
+      c.facility.type !== 'TERM' ||
+      c.trade ||
+      c.syndication ||
+      c.identity.liability !== 'INDIVIDUAL'
+    )
       throw new BadRequestException({
         message: `Conversion product ${conv.product.code} must be an individual term loan.`,
         code: 'LC_CONVERSION_PRODUCT',
@@ -769,7 +1015,13 @@ export class LettersOfCreditService {
     return conv;
   }
 
-  private checkConversionTerms(config: lending.ProductConfig, principal: string, instalments: number, annualRate: string | undefined, date: string) {
+  private checkConversionTerms(
+    config: lending.ProductConfig,
+    principal: string,
+    instalments: number,
+    annualRate: string | undefined,
+    date: string,
+  ) {
     const check = lending.checkTerms(config, {
       principal,
       numberOfInstalments: instalments,
@@ -784,9 +1036,17 @@ export class LettersOfCreditService {
       });
   }
 
-  private async assertDrawable(tx: Tx, lc: Lc, amount: string, date: string, excludeDrawingId?: string) {
+  private async assertDrawable(
+    tx: Tx,
+    lc: Lc,
+    amount: string,
+    date: string,
+    excludeDrawingId?: string,
+  ) {
     if (!['ISSUED', 'PARTIALLY_DRAWN'].includes(lc.status))
-      throw new ConflictException(`This letter of credit is ${lc.status.toLowerCase().replace(/_/g, ' ')}.`);
+      throw new ConflictException(
+        `This letter of credit is ${lc.status.toLowerCase().replace(/_/g, ' ')}.`,
+      );
     // Drawings awaiting payment already claim part of the credit.
     const pending = await tx.lcDrawing.aggregate({
       where: {
@@ -800,7 +1060,10 @@ export class LettersOfCreditService {
     const check = lending.checkLetterOfCreditDrawing(
       {
         amount: decStr(lc.amount),
-        drawn: D(lc.drawnAmount).plus(D(lc.releasedAmount)).plus(D(pending._sum.amount ?? '0')).toString(),
+        drawn: D(lc.drawnAmount)
+          .plus(D(lc.releasedAmount))
+          .plus(D(pending._sum.amount ?? '0'))
+          .toString(),
         expiryDate: toLocalDate(lc.expiryDate)!,
       },
       { amount, date },
@@ -813,10 +1076,22 @@ export class LettersOfCreditService {
       });
   }
 
-  private async resource(tx: Tx, lc: Lc, makerIds: string[] = [], amount?: string, workflowState?: string): Promise<Resource> {
+  private async resource(
+    tx: Tx,
+    lc: Lc,
+    makerIds: string[] = [],
+    amount?: string,
+    workflowState?: string,
+  ): Promise<Resource> {
     const [product, version] = await Promise.all([
-      tx.lendingProduct.findFirst({ where: { id: lc.productId, tenantId: lc.tenantId }, select: { code: true } }),
-      tx.productVersion.findFirst({ where: { id: lc.productVersionId, tenantId: lc.tenantId }, select: { status: true, config: true } }),
+      tx.lendingProduct.findFirst({
+        where: { id: lc.productId, tenantId: lc.tenantId },
+        select: { code: true },
+      }),
+      tx.productVersion.findFirst({
+        where: { id: lc.productVersionId, tenantId: lc.tenantId },
+        select: { status: true, config: true },
+      }),
     ]);
     const parsed = lending.validateProductConfig(version?.config);
     return {
@@ -877,7 +1152,9 @@ export class LettersOfCreditService {
         narrative: e.narrative,
       },
     });
-    if (e.lines.some((l) => D(l.debit ?? '0').gt(0) || D(l.credit ?? '0').gt(0)))
+    if (
+      e.lines.some((l) => D(l.debit ?? '0').gt(0) || D(l.credit ?? '0').gt(0))
+    )
       await this.posting.post(tx, {
         tenantId,
         financialEventId: event.id,
@@ -902,30 +1179,63 @@ export class LettersOfCreditService {
     return this.load(tx, tenantId, id);
   }
 
-  private async loadDrawing(tx: Tx, tenantId: string, id: string, drawingId: string) {
-    const d = await tx.lcDrawing.findFirst({ where: { id: drawingId, tenantId, letterOfCreditId: id } });
+  private async loadDrawing(
+    tx: Tx,
+    tenantId: string,
+    id: string,
+    drawingId: string,
+  ) {
+    const d = await tx.lcDrawing.findFirst({
+      where: { id: drawingId, tenantId, letterOfCreditId: id },
+    });
     if (!d) throw new NotFoundException('Drawing not found');
     return d;
   }
 
-  private async cas(tx: Tx, lc: Lc, fromStatus: string, data: Prisma.LetterOfCreditUpdateManyMutationInput) {
+  private async cas(
+    tx: Tx,
+    lc: Lc,
+    fromStatus: string,
+    data: Prisma.LetterOfCreditUpdateManyMutationInput,
+  ) {
     const res = await tx.letterOfCredit.updateMany({
-      where: { id: lc.id, tenantId: lc.tenantId, version: lc.version, status: fromStatus },
+      where: {
+        id: lc.id,
+        tenantId: lc.tenantId,
+        version: lc.version,
+        status: fromStatus,
+      },
       data: { ...data, version: { increment: 1 } },
     });
     if (res.count !== 1) throw concurrentModification('This letter of credit');
     lc.version += 1;
   }
 
-  private async casDrawing(tx: Tx, d: Drawing, fromStatus: string, data: Prisma.LcDrawingUpdateManyMutationInput) {
+  private async casDrawing(
+    tx: Tx,
+    d: Drawing,
+    fromStatus: string,
+    data: Prisma.LcDrawingUpdateManyMutationInput,
+  ) {
     const res = await tx.lcDrawing.updateMany({
-      where: { id: d.id, tenantId: d.tenantId, version: d.version, status: fromStatus },
+      where: {
+        id: d.id,
+        tenantId: d.tenantId,
+        version: d.version,
+        status: fromStatus,
+      },
       data: { ...data, version: { increment: 1 } },
     });
     if (res.count !== 1) throw concurrentModification('This drawing');
   }
 
-  private async writeAudit(actor: LendingActor, tx: Tx, lc: Lc, action: string, details: Record<string, unknown>) {
+  private async writeAudit(
+    actor: LendingActor,
+    tx: Tx,
+    lc: Lc,
+    action: string,
+    details: Record<string, unknown>,
+  ) {
     await this.audit.write(
       {
         actor,
@@ -953,7 +1263,12 @@ function plain<T extends Record<string, unknown>>(row: T) {
   const out: Record<string, unknown> = { ...row };
   for (const [k, v] of Object.entries(out)) {
     if (v instanceof Date && /Date$/.test(k)) out[k] = toLocalDate(v);
-    else if (v && typeof v === 'object' && 'toFixed' in v && !(v instanceof Date))
+    else if (
+      v &&
+      typeof v === 'object' &&
+      'toFixed' in v &&
+      !(v instanceof Date)
+    )
       out[k] = (v as { toString(): string }).toString();
   }
   return out;
@@ -964,6 +1279,9 @@ function view(lc: Lc) {
     ...plain(lc),
     issueDate: toLocalDate(lc.issueDate),
     expiryDate: toLocalDate(lc.expiryDate),
-    undrawn: D(lc.amount).minus(D(lc.drawnAmount)).minus(D(lc.releasedAmount)).toString(),
+    undrawn: D(lc.amount)
+      .minus(D(lc.drawnAmount))
+      .minus(D(lc.releasedAmount))
+      .toString(),
   };
 }

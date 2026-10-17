@@ -33,7 +33,9 @@ import {
 } from '../facilities/facility-state';
 
 type Json = Prisma.InputJsonValue;
-type Invoice = NonNullable<Awaited<ReturnType<Tx['tradeInvoice']['findFirst']>>>;
+type Invoice = NonNullable<
+  Awaited<ReturnType<Tx['tradeInvoice']['findFirst']>>
+>;
 type InvoiceConfig = NonNullable<
   NonNullable<lending.ProductConfig['trade']>['invoice']
 >;
@@ -156,7 +158,11 @@ export class InvoiceFinanceService {
           orderBy: { createdAt: 'asc' },
         }),
         tx.approvalTask.findMany({
-          where: { tenantId, subjectType: 'TRADE_INVOICE', subjectId: invoiceId },
+          where: {
+            tenantId,
+            subjectType: 'TRADE_INVOICE',
+            subjectId: invoiceId,
+          },
           orderBy: { createdAt: 'desc' },
         }),
       ]);
@@ -321,7 +327,11 @@ export class InvoiceFinanceService {
     });
   }
 
-  async reject(actor: LendingActor, invoiceId: string, body: { reason: string }) {
+  async reject(
+    actor: LendingActor,
+    invoiceId: string,
+    body: { reason: string },
+  ) {
     const tenantId = requireTenant(actor);
     if (!body.reason?.trim())
       throw new BadRequestException('Give a reason for rejecting the invoice.');
@@ -424,7 +434,12 @@ export class InvoiceFinanceService {
         actor,
         'trade.invoice.advance.release',
         // As for any payout, the requester may not release their own advance.
-        this.resource(state, inv, [inv.advanceRequestedBy ?? ''], amount.toString()),
+        this.resource(
+          state,
+          inv,
+          [inv.advanceRequestedBy ?? ''],
+          amount.toString(),
+        ),
         tx,
       );
       if (!body.externalReference?.trim())
@@ -486,13 +501,18 @@ export class InvoiceFinanceService {
         recourseDate: fromLocalDate(recourseDate),
         advanceReleasedBy: actor.id,
       });
-      await this.servicing.outbox(tx, tenantId, 'lending.trade.invoice_advanced', {
-        invoiceId,
-        facilityId: state.facility.id,
-        eventId: event.id,
-        amount: amount.toString(),
-        currency: inv.currency,
-      });
+      await this.servicing.outbox(
+        tx,
+        tenantId,
+        'lending.trade.invoice_advanced',
+        {
+          invoiceId,
+          facilityId: state.facility.id,
+          eventId: event.id,
+          amount: amount.toString(),
+          currency: inv.currency,
+        },
+      );
       await this.writeAudit(actor, tx, inv, 'trade.invoice.advance.release', {
         event: event.id,
         amount: amount.toString(),
@@ -673,12 +693,18 @@ export class InvoiceFinanceService {
         },
       });
       await this.casInvoice(tx, inv, inv.status, {
-        advanceOutstanding: D(inv.advanceOutstanding).minus(toAdvance).toString(),
+        advanceOutstanding: D(inv.advanceOutstanding)
+          .minus(toAdvance)
+          .toString(),
         feeRaised: D(inv.feeRaised).plus(feeRaise).toString(),
         feePaid: D(inv.feePaid).plus(toFee).toString(),
         reserveHeld: D(inv.reserveHeld).plus(toReserve).toString(),
         ...(body.source === 'DEBTOR'
-          ? { collectedFromDebtor: D(inv.collectedFromDebtor).plus(amount).toString() }
+          ? {
+              collectedFromDebtor: D(inv.collectedFromDebtor)
+                .plus(amount)
+                .toString(),
+            }
           : {
               collectedFromBorrower: D(inv.collectedFromBorrower)
                 .plus(amount)
@@ -769,7 +795,12 @@ export class InvoiceFinanceService {
     idempotencyKey: string,
   ) {
     const tenantId = requireTenant(actor);
-    const hash = requestHash({ op: 'invoice.reserve', invoiceId, taskId, body });
+    const hash = requestHash({
+      op: 'invoice.reserve',
+      invoiceId,
+      taskId,
+      body,
+    });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const { inv, state } = await this.locked(tx, tenantId, invoiceId);
       const task = await tx.approvalTask.findFirst({
@@ -826,7 +857,10 @@ export class InvoiceFinanceService {
             accountCode: tradeAccounts(state.config).reservePayable,
             debit: amount.toString(),
           },
-          { accountCode: state.config.accounting.cash, credit: amount.toString() },
+          {
+            accountCode: state.config.accounting.cash,
+            credit: amount.toString(),
+          },
         ],
       });
       await this.casInvoice(tx, inv, inv.status, {
@@ -897,7 +931,11 @@ export class InvoiceFinanceService {
           amount: raise,
           businessDate,
           valueDate: recourseDate,
-          components: { invoiceId: inv.id, fee: raise.toString(), recourse: true },
+          components: {
+            invoiceId: inv.id,
+            fee: raise.toString(),
+            recourse: true,
+          },
           idempotencyKey: `sys:invoice-recourse:${inv.id}`,
           requestHash: 'system',
           actor,
@@ -915,7 +953,9 @@ export class InvoiceFinanceService {
       await this.casInvoice(tx, inv, 'FUNDED', {
         status: 'RECOURSE',
         recourseAt: new Date(),
-        feeRaised: D(inv.feeRaised).plus(raise.gt(0) ? raise : 0).toString(),
+        feeRaised: D(inv.feeRaised)
+          .plus(raise.gt(0) ? raise : 0)
+          .toString(),
       });
       await this.audit.write(
         {
@@ -933,11 +973,16 @@ export class InvoiceFinanceService {
         },
         tx,
       );
-      await this.servicing.outbox(tx, tenantId, 'lending.trade.invoice_recourse', {
-        invoiceId: inv.id,
-        borrowerId: inv.borrowerId,
-        recourseDate,
-      });
+      await this.servicing.outbox(
+        tx,
+        tenantId,
+        'lending.trade.invoice_recourse',
+        {
+          invoiceId: inv.id,
+          borrowerId: inv.borrowerId,
+          recourseDate,
+        },
+      );
     }
     const unpaid = await tx.tradeInvoice.findMany({
       where: { tenantId, facilityId: facility.id, status: 'RECOURSE' },
@@ -985,10 +1030,8 @@ export class InvoiceFinanceService {
   private advanceOf(inv: Invoice, state: FacilityState): string {
     return engineCall(
       () =>
-        lending.invoiceAdvance(
-          termsOf(inv),
-          state.config.pricing.rounding,
-        ).advance,
+        lending.invoiceAdvance(termsOf(inv), state.config.pricing.rounding)
+          .advance,
     );
   }
 
@@ -1049,7 +1092,9 @@ export class InvoiceFinanceService {
         .toString(),
       recourseDate: toLocalDate(inv.recourseDate),
       inRecourse: inv.status === 'RECOURSE',
-      reserveOwedToBorrower: D(inv.reserveHeld).minus(D(inv.reservePaid)).toString(),
+      reserveOwedToBorrower: D(inv.reserveHeld)
+        .minus(D(inv.reservePaid))
+        .toString(),
     };
   }
 
@@ -1112,7 +1157,11 @@ export class InvoiceFinanceService {
         resourceType: 'TradeInvoice',
         resourceId: inv.id,
         outcome: 'SUCCESS',
-        details: { invoice: inv.reference, facility: inv.facilityId, ...details },
+        details: {
+          invoice: inv.reference,
+          facility: inv.facilityId,
+          ...details,
+        },
       },
       tx,
     );

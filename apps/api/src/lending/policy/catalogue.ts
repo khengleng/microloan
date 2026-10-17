@@ -434,14 +434,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Raise facility interest, fees and period statements',
     category: 'Facilities',
     financial: true,
-  },  {
+  },
+  {
     code: 'trade.invoice.manage',
     description: 'Register invoices in an invoice-finance register (maker)',
     category: 'Trade finance',
   },
   {
     code: 'trade.invoice.approve',
-    description: 'Approve or reject invoices as eligible for an advance (checker)',
+    description:
+      'Approve or reject invoices as eligible for an advance (checker)',
     category: 'Trade finance',
     financial: true,
   },
@@ -826,7 +828,8 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   },
   {
     key: 'lending.trade.invoice_finance',
-    description: 'Invoice financing: registers, advances and debtor collections',
+    description:
+      'Invoice financing: registers, advances and debtor collections',
     category: 'Capabilities',
     sensitive: true,
     defaultEnabled: false,
