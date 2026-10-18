@@ -3981,5 +3981,51 @@
         "noOffer": "There is no offer yet. We will let you know when one is ready."
       }
     }
+  },
+  "LendingSimulator": {
+    "principalError": "Decimal amount, e.g. 1500.00",
+    "rateError": "Percent, e.g. 12.5",
+    "terms": "Terms",
+    "productVersion": "Product version",
+    "selectVersion": "Select a product version…",
+    "principal": "Principal",
+    "instalments": "Number of instalments",
+    "annualRate": "Annual rate (%)",
+    "annualRateHint": "Blank = product default",
+    "annualRatePlaceholder": "e.g. 12",
+    "disbursementDate": "Disbursement date",
+    "firstDueDate": "First due date",
+    "optional": "Optional",
+    "principalGrace": "Principal grace instalments",
+    "interestGrace": "Interest grace instalments",
+    "balloon": "Balloon amount",
+    "balloonHint": "Balloon products only",
+    "waivedFees": "Waived fee codes",
+    "waivedFeesHint": "Comma-separated",
+    "explicit": "Explicit schedule (EXPLICIT repayment method)",
+    "explicitRows": "Explicit schedule (EXPLICIT repayment method) — {count, plural, one {# row} other {# rows}}",
+    "dueDateN": "Due date #{n}",
+    "addRow": "Add row",
+    "simulate": "Simulate"
+  },
+  "LendingAudit": {
+    "policyDecision": "Policy decision",
+    "details": "Details",
+    "configVersions": "Configuration versions in force",
+    "footer": "event {id} · actor {actorType} {actorId} · business date {date}",
+    "resourceType": "Resource type",
+    "any": "Any",
+    "resourceId": "Resource id",
+    "actionContains": "Action contains",
+    "actionPlaceholder": "e.g. loan.repayment",
+    "outcome": "Outcome",
+    "search": "Search",
+    "reset": "Reset",
+    "refresh": "Refresh",
+    "none": "No audit events match.",
+    "colTime": "Time",
+    "colAction": "Action",
+    "colResource": "Resource",
+    "colActor": "Actor"
   }
 }

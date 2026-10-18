@@ -3981,5 +3981,51 @@
         "noOffer": "មិនទាន់មានសំណើនៅឡើយទេ។ យើងនឹងជូនដំណឹងអ្នក នៅពេលសំណើរួចរាល់។"
       }
     }
+  },
+  "LendingSimulator": {
+    "principalError": "ចំនួនទសភាគ ឧ. 1500.00",
+    "rateError": "ភាគរយ ឧ. 12.5",
+    "terms": "លក្ខខណ្ឌ",
+    "productVersion": "កំណែផលិតផល",
+    "selectVersion": "ជ្រើសរើសកំណែផលិតផល…",
+    "principal": "ប្រាក់ដើម",
+    "instalments": "ចំនួនដំណាក់កាលបង់",
+    "annualRate": "អត្រាការប្រាក់ប្រចាំឆ្នាំ (%)",
+    "annualRateHint": "ទុកទទេ = លំនាំដើមរបស់ផលិតផល",
+    "annualRatePlaceholder": "ឧ. 12",
+    "disbursementDate": "កាលបរិច្ឆេទបើកប្រាក់",
+    "firstDueDate": "ថ្ងៃដល់កំណត់ដំបូង",
+    "optional": "ស្រេចចិត្ត",
+    "principalGrace": "ចំនួនដំណាក់កាលអនុគ្រោះប្រាក់ដើម",
+    "interestGrace": "ចំនួនដំណាក់កាលអនុគ្រោះការប្រាក់",
+    "balloon": "ចំនួនបង់ចុងក្រោយធំ (balloon)",
+    "balloonHint": "សម្រាប់តែផលិតផល balloon",
+    "waivedFees": "កូដថ្លៃសេវាដែលលើកលែង",
+    "waivedFeesHint": "បំបែកដោយសញ្ញាក្បៀស",
+    "explicit": "កាលវិភាគកំណត់ផ្ទាល់ (វិធីសង EXPLICIT)",
+    "explicitRows": "កាលវិភាគកំណត់ផ្ទាល់ (វិធីសង EXPLICIT) — {count, plural, other {# ជួរ}}",
+    "dueDateN": "ថ្ងៃដល់កំណត់ #{n}",
+    "addRow": "បន្ថែមជួរ",
+    "simulate": "គណនាសាកល្បង"
+  },
+  "LendingAudit": {
+    "policyDecision": "ការសម្រេចតាមគោលការណ៍",
+    "details": "ព័ត៌មានលម្អិត",
+    "configVersions": "កំណែការកំណត់ដែលកំពុងអនុវត្ត",
+    "footer": "ព្រឹត្តិការណ៍ {id} · អ្នកធ្វើ {actorType} {actorId} · កាលបរិច្ឆេទអាជីវកម្ម {date}",
+    "resourceType": "ប្រភេទធនធាន",
+    "any": "ទាំងអស់",
+    "resourceId": "លេខសម្គាល់ធនធាន",
+    "actionContains": "សកម្មភាពមាន",
+    "actionPlaceholder": "ឧ. loan.repayment",
+    "outcome": "លទ្ធផល",
+    "search": "ស្វែងរក",
+    "reset": "កំណត់ឡើងវិញ",
+    "refresh": "ផ្ទុកឡើងវិញ",
+    "none": "គ្មានព្រឹត្តិការណ៍សវនកម្មត្រូវគ្នាទេ។",
+    "colTime": "ពេលវេលា",
+    "colAction": "សកម្មភាព",
+    "colResource": "ធនធាន",
+    "colActor": "អ្នកធ្វើ"
   }
 }
