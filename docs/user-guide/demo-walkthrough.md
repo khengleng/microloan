@@ -99,6 +99,13 @@ reversals need you to be signed in **with an authenticator code**
   | Srey Mom | Siem Reap | 900 |
   | Vanna Keo | Phnom Penh | 15,000 |
 
+- **Scoring:** the scorecards `STANDARD_RETAIL` and `THIN_FILE` are
+  active. `PL-STD` scores on `STANDARD_RETAIL` with `THIN_FILE` as a
+  silent challenger; `MF-IND` scores customers with less than 6 months of
+  history on `THIN_FILE`. **Srey Mom** and **Sokha Chan** have recorded
+  consents and verified alternative data (utility bills, telco statement,
+  rent, business cash flow) — see the **Alternative data** button on their
+  profiles.
 - **Branches:** Head Office, Phnom Penh, Siem Reap. There is also a
   Cambodia holiday calendar and five institutional counterparties with
   limits.
@@ -176,8 +183,14 @@ Chapter: [05](05-applications-and-credit-decisions.md),
    application. Open it.
 4. Click **Approve**, write a **Rationale** and click
    **Approve application**. The status becomes **APPROVED**.
-5. To see the origination credit score, open **Credit decisions** ›
-   **Detail** and look in the assessment.
+5. Look at the **Credit score** card under **Application**. It shows the
+   `STANDARD_RETAIL` score, grade and outcome, a bar for each factor, and —
+   because `PL-STD` runs `THIN_FILE` as a silent challenger — a dashed
+   **Challenger — shadow, does not affect the decision** box below. The
+   challenger uses Sokha Chan's verified water bills and rent receipts.
+   Open **Input snapshot** to see each value, its source and consent.
+   Whatever the outcome says, the approval above was still needed
+   ([24](24-scorecards-and-alternative-data.md)).
 
 Try these to see the controls work:
 
@@ -375,6 +388,11 @@ loan is far enough behind:
 
 - Products: create and approve a new product version as `product.maker` /
   `product.checker` ([04](04-products-and-policies.md)).
+- Scoring: as `officer.rep`, submit a **Microenterprise loan** application
+  for Srey Mom and see the thin-file score; as `analyst`, draft a new
+  scorecard version and test it; as `risk`, approve and activate it, and
+  open **Products › Scorecard monitoring**
+  ([24](24-scorecards-and-alternative-data.md), section 11).
 - Access: assign a role and an approval limit as `admin` and approve it as
   `admin2` ([18](18-tenant-administration.md)).
 - Facilities, trade finance and the other specialised loan types are all

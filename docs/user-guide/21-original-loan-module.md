@@ -88,7 +88,7 @@ Note: CBC needs member credentials that your IT team must configure. Until then,
 
 ### 3.3 Risk & Decision (scorecard)
 
-On the loan page, the **Risk & Decision** card scores the loan. Click **Run scorecard** (or **Re-score**). The card shows a score out of 100, a **Grade**, a decision (**APPROVE**, **REFER** or **DECLINE**), the debt-service ratio, a **Recommended rate** and the points for each factor. The result is advice only: it does not approve or reject the loan. See [scorecards-and-alternative-data.md](scorecards-and-alternative-data.md).
+On the loan page, the **Risk & Decision** card scores the loan. Click **Run scorecard** (or **Re-score**). The card shows a score out of 100, a **Grade**, a decision (**APPROVE**, **REFER** or **DECLINE**), the debt-service ratio, a **Recommended rate** and the points for each factor. The result is advice only: it does not approve or reject the loan. This is a separate, older scorecard from the one used on lending-platform applications, which is described in [Scorecards and alternative data](24-scorecards-and-alternative-data.md).
 
 ---
 

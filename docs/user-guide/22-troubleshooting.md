@@ -64,7 +64,9 @@ list. Each line is one reason; all of them must be cleared.
 | **The borrower's date of birth is required for this product.** | The product has age rules; there is no date-of-birth field on the borrower screen. | Ask IT to record the date of birth. |
 | **Approval requirements are not met.** with **Monthly income is needed to assess affordability.** | The borrower's monthly income is blank. | Edit the borrower and fill **Monthly Income (USD)**. |
 | **This product lends to a group; name the group the loan is for.** | Group applications cannot be created from the screen yet. | Ask IT ([10](10-group-lending.md)). |
-| You cannot find the credit score | It is shown only after a recommendation, under **Credit decisions › Detail** (assessment). | See [05](05-applications-and-credit-decisions.md). |
+| You cannot find the credit score | The application is scored when it is submitted; the **Credit score** card on the application page stays empty while it is a draft. | Submit the application, or (credit analyst / approver) click **Re-run score**. See [24](24-scorecards-and-alternative-data.md). |
+| A credit score factor is marked **missing** | No consent in force, no verified record (or the record is older than 365 days), no exchange rate for a riel cash flow, or the data comes from a provider or the credit bureau, which are not connected yet. | Open **Input snapshot** on the **Credit score** card and read the **Note**. See [24](24-scorecards-and-alternative-data.md), section 7. |
+| **Recommend approve** shown but the application still waits | The score only recommends; the normal recommendation and approvals are still needed. | Continue the normal process ([05](05-applications-and-credit-decisions.md)). |
 
 ## Disbursement
 

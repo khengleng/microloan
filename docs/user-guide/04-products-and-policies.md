@@ -136,6 +136,7 @@ The same editor is used when you create a product and when you edit a draft vers
 | **Operations** | **Workflow code** (see section 10), **Restructure allowed**, **Write-off minimum DPD**, **Minimum down payment**, **Non-accrual** settings, **Credit bureau**, **KYC** and **Payments** integration settings, **Required documents**, **Disbursement conditions**, **Delinquency buckets**, **Collection stages**. |
 | **Restructuring** | **Allowed options**, capitalization permissions, maximum extension and deferral, probation, proposal validity, negotiated settlement, post-write-off recovery and refinancing rules. |
 | **Policies** | **Policy menus**: which policy library entries this product offers (see section 9). |
+| **Scoring** | **Champion scorecard code**, **Challenger scorecard code (shadow, never decides)**, thin-file scoring, **Decline below score**, **Outcome for grades without a rule**, **Grade rules** (outcome, maximum amount and rate add-on per grade), knock-outs and **Require the grade’s rate add-on at approval**. See [chapter 24](24-scorecards-and-alternative-data.md), section 6. |
 | **Accounting** | The ledger account code used for each kind of posting (cash, loans receivable, interest income and so on). |
 | **Review / JSON** | The complete configuration as text. |
 
@@ -149,7 +150,7 @@ Note: The **Operations** step settings decide whether the product depends on out
 
 Each of these needs an integration that the platform does not ship yet (see [17-webhooks-and-integrations.md](17-webhooks-and-integrations.md)). A product with any of them can be drafted and approved but **cannot be activated**. Keep **Credit bureau** at **NONE** or **OPTIONAL**, **KYC** at **MANUAL** and **Payments** at **MANUAL** unless your IT team confirms the integration is live.
 
-Note: The **Minimum credit score** field is a simple eligibility gate. Credit scoring itself is described in [scorecards-and-alternative-data.md](scorecards-and-alternative-data.md) (coming soon).
+Note: The **Minimum credit score** field is a simple eligibility gate: below it, approval is refused. How the product uses the credit score — which scorecard, a challenger, thin-file scoring, and what each grade leads to — is set on the **Scoring** step and described in [Scorecards and alternative data](24-scorecards-and-alternative-data.md), section 6.
 
 ---
 

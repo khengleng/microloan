@@ -135,9 +135,8 @@ Each borrower also has an anti-money-laundering (AML) status: **NOT_SCREENED** (
 The customer record does not hold consent fields today. Consent is recorded where it is needed for a specific action:
 
 - consent to a restructuring request — see [Servicing changes](08-servicing-changes.md);
-- the consent date on a direct-debit (auto-debit) mandate — see [Repayments and payments](07-repayments-and-payments.md).
-
-Consent for credit bureau and alternative-data checks is part of the scorecard work now being built — see [Scorecards and alternative data](scorecards-and-alternative-data.md) (being written).
+- the consent date on a direct-debit (auto-debit) mandate — see [Repayments and payments](07-repayments-and-payments.md);
+- consent to use alternative data in credit scoring (internal repayment behaviour, utility bills, telco statement, rent history, business cash flow and outside data providers) — recorded per source on the customer's **Alternative data & consent** page (the **Alternative data** button on the customer profile, or the **Alternative data & consent** link on the customer's documents page). When consent is given on a signed form, the form must first be uploaded to the customer's documents. See [Scorecards and alternative data](24-scorecards-and-alternative-data.md), section 7.
 
 ---
 

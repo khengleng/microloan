@@ -158,7 +158,7 @@ The system checks the application first. If anything is missing you see "The app
 
 ## Assessment and the credit score
 
-Each time an application is recommended or approved the system runs an **assessment** and stores it with the decision. It covers:
+Each time an application is submitted, recommended or approved the system runs an **assessment**. At recommendation and at each approval it is stored with the decision. It covers:
 
 - **Affordability** — the average monthly repayment and the **debt-service ratio** (repayment ÷ the borrower's monthly income). For a group loan, the combined income of all active members is used.
 - **Debt-service coverage** (business loans) — annual net operating income ÷ annual debt service.
@@ -167,26 +167,19 @@ Each time an application is recommended or approved the system runs an **assessm
 - **Credit score** — see below.
 - Any other checks the product needs (for example institutional counterparty limits).
 
-### The origination credit score
+### The credit score
 
-The current credit score is a simple, explainable score built only from what your organisation knows. It runs from 300 to 850 (starting at 450) and adds or subtracts points for named factors:
+Every application is scored on a **scorecard**: a set of plain rules that give or take away points for affordability, age, repayment history and conduct with you, security and (once connected) the credit bureau. The result is a **score**, a **grade** (A to D on the standard scorecard) and a suggested **outcome**: **Recommend approve**, **Refer** or **Recommend decline**. Which scorecard is used, and how grades turn into outcomes, is set on the product's **Scoring** step. Customers with little history with you can be scored on a separate thin-file scorecard that uses alternative data (utility bills, rent, mobile top-ups, business cash flow), with their consent.
 
-| Factor | Points |
-|---|---|
-| AFFORDABILITY | +120 if instalments take 30% of income or less; +80 up to 45%; +40 up to 60%; −40 above 60%; 0 if income is unknown |
-| AGE | +60 for age 25–55; +30 for other ages; +20 if unknown |
-| HISTORY | +25 per loan repaid with you (up to 3); −150 if a previous loan was written off or sold |
-| CONDUCT | +60 if no live loan is past due; +10 if up to 30 days past due; −80 if more |
-| SECURITY | +50 if loan-to-value is 60% or less; +25 up to 80%; +20 if there is at least one guarantor |
-| BUREAU | 0 — no bureau score is used today |
+Where to see it: the **Credit score** card on the application page, under **Application**. It shows the score, grade, outcome, a bar for each factor with its reason, the adverse reasons, what the customer may be told, the data the score used (**Input snapshot**), any challenger (shadow) score and the **History** of every evaluation. The application is scored at submission, so the card stays empty ("This application has not been scored yet.") while it is a draft. Credit analysts and approvers can click **Re-run score** while the application is **DRAFT**, **SUBMITTED** or **RECOMMENDED** — for example after adding collateral or after alternative data was verified.
 
-Grades: **A** 700 and above, **B** 620–699, **C** 550–619, **D** below 550.
+The figures are also stored in each decision's assessment (**Credit decisions** › **Detail**): `creditScore`, `creditGrade`, `creditScoreFactors`, `scorecard`, `scoreOutcome` and, where they apply, `scoreAdverseReasons`, `thinFile` and `riskRateAddOnBps`.
 
-Where to see it: in **Credit decisions**, open **assessment** in the **Detail** column of a recommendation or approval. The figures appear as `creditScore`, `creditGrade` and `creditScoreFactors` (each factor with its points and reason), next to `debtServiceRatio`, `loanToValue` and the other measures. The score is not shown before the first recommendation.
+Important: **Recommend approve** is only a recommendation. The application still needs the analyst's recommendation and every approval the workflow requires, each within the approver's limit.
 
-A product can set a minimum score; below it, approval is refused with "Credit score … (grade …) is below the minimum …".
+The score can block approval: below the product's minimum score, when the product's strategy says **DECLINE**, when the amount is above the grade's maximum, or (if the product enforces it) when the rate is below the grade's risk price. See the table under [Approve](#approve).
 
-Note: Configurable scorecards, decision strategies and the use of alternative data are being built now — see [Scorecards and alternative data](scorecards-and-alternative-data.md) (being written).
+The full explanation — how to read the card, the built-in scorecards, how scorecards are changed and approved, decision strategies, consent and alternative data, and monitoring — is in [Scorecards and alternative data](24-scorecards-and-alternative-data.md).
 
 ---
 
@@ -209,7 +202,7 @@ Note: Recommending does not stop on assessment problems — they are recorded fo
 
 For credit approvers, when an application is **RECOMMENDED**.
 
-1. Open the application and read the recommendation and its **assessment** in **Credit decisions**.
+1. Open the application and read the **Credit score** card, the recommendation and its **assessment** in **Credit decisions**.
 2. Click **Approve**.
 3. Write the **Rationale** and click **Approve application**.
 
@@ -232,6 +225,9 @@ The system re-runs the assessment. If a rule is not met you see "Approval requir
 | "At least … guarantor(s) required." | Add guarantees. |
 | "Missing document: …" | Required documents for the approval stage are missing. |
 | "Credit score … (grade …) is below the minimum …" | Below the product's minimum score. |
+| "The … scorecard strategy declines: …" | A knock-out, the score cut-off or the grade rule says decline. See [chapter 24](24-scorecards-and-alternative-data.md). |
+| "Grade … allows at most … on this product." | The amount is above the maximum for the customer's grade. |
+| "Grade … is priced at least … (default rate plus … bp); the terms say …" | The product requires a higher rate for this grade. |
 
 ### Multi-level approval
 

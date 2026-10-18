@@ -7,9 +7,11 @@ portal and in this guide, in alphabetical order.
 |---|---|
 | **Adapter** | The connector between the platform and an outside service (a bank, the credit bureau, an SMS provider). See *Mock*. |
 | **Advance (held on advance)** | Money the borrower paid beyond what was due, kept on the loan and applied automatically to the next instalments. |
+| **Adverse reason** | A plain sentence explaining what pulled a credit score down (for example "The repayments are high compared with the income declared"). The main ones may be given to the customer; points and weights are never shown to them. |
 | **Affordability assessment** | A calculation of what the borrower can afford: income minus living expenses and other debts. Used at application and in hardship cases. |
 | **Agreement / agreement version** | The frozen copy of the loan's terms and schedule. A change (for example a restructure or a prepayment that shortens the loan) creates a new version; old versions are kept. Product changes never alter an existing agreement. |
 | **Allocation** | How a payment is split across penalties, fees, interest and principal. The order is set by the product. |
+| **Alternative data** | Information other than a credit history used to score a customer with little history: utility bills, rent, mobile top-ups, business cash flow, or (once connected) outside providers. Used only with the customer's consent, and staff-captured data counts only after a second person verifies it. |
 | **AML status** | The anti-money-laundering screening result for a customer (not screened, clear or flagged). |
 | **Approval authority (approval limit)** | The largest amount a person may approve for a given action and currency. Above it, a person with a higher limit must approve. |
 | **Approval level** | In a workflow, the number of independent approvers required from a given amount upwards. |
@@ -21,13 +23,17 @@ portal and in this guide, in alphabetical order.
 | **Business date** | Your organisation's operating date. Every posting is dated by it. It is shown at the top of the screen and only moves forward when finance advances it. |
 | **Capability** | Something the lending engine can do. A product cannot be activated while it needs a capability that is not implemented or needs an outside connection. |
 | **Capitalize** | Add unpaid interest or charges to the principal, so they bear interest from then on. |
+| **Champion / challenger** | The champion is the scorecard that drives a product's credit decisions. A challenger is a second scorecard scored silently on the same data, stored for comparison, that never affects a decision. |
+| **Characteristic** | One item a scorecard looks at (for example affordability or age), cut into bands that each give points and a reason. |
 | **Collection stage / collections ladder** | The escalation steps a product defines for overdue loans (reminder, call, visit, notice, legal review) according to days past due. Each step can create a task for a collector. |
 | **Combined ledger** | Both loan books (the original module and the lending platform) shown side by side. |
 | **Conditions precedent** | Things that must be done before a loan can be paid out or a restructure executed (for example a signed mortgage). Each is satisfied with evidence or waived by someone with authority. |
+| **Consent (alternative data)** | The customer's permission to use one data source for credit assessment, recorded with its purpose, method and expiry. It must be in force each time the data is captured, verified or used; withdrawing it stops future use. |
 | **Control totals** | The count of loans and total principal per currency from the old system, used to prove a migration file is complete. |
 | **Counterparty** | An institution the organisation lends to or is exposed to (a bank, a ministry, a municipality), with a rating and an exposure limit. |
 | **Covenant** | A promise in the loan agreement that the borrower must keep (for example a minimum debt-service coverage ratio), tested on a schedule. |
 | **Cut-over date** | In a migration, the date at which balances are taken over from the old system. |
+| **Decision strategy** | The product's rules that turn a credit score and grade into an outcome — recommend approve, refer or recommend decline — with knock-outs, a cut-off, and a maximum amount and rate add-on per grade. Recommend approve is advice only; approvers still decide. |
 | **Delinquency bucket** | The days-past-due band a loan falls in (for example 31 to 60 days). |
 | **Delegation** | Temporary transfer of a person's approval authority to someone else, with an end date and possibly a cap. |
 | **Disbursement** | Paying out the loan money. It is prepared by one person, approved by another, and then executed with the bank or cash reference of the real payment. |
@@ -44,7 +50,9 @@ portal and in this guide, in alphabetical order.
 | **Facility** | A limit the borrower can draw on (credit line, overdraft, staged drawdown), rather than a single lump-sum loan. |
 | **Feature flag** | An on/off switch for a function. Some functions are off by default; switching one on is a change two administrators must agree to. A flag never gives anyone permission. |
 | **FX rate** | The exchange rate between USD and KHR used for cross-currency payments and approval limits. |
+| **Gini (and AUC)** | A measure of how well a score separates loans that were repaid from loans that went bad: 0 is no better than chance, 1 is perfect. Roughly, above 0.4 is good. |
 | **GL export** | A file of journal lines for the general ledger system. |
+| **Grade / grade band** | A letter (for example A to D) given to a range of credit scores, such as A for 700 and above. Products set what each grade leads to. |
 | **Guarantor demand** | A written call on a guarantor to pay under their guarantee when the borrower is in arrears. |
 | **Haircut** | The percentage taken off collateral's market value to get the value the lender relies on. |
 | **Idempotency** | A safety rule: if the same payment or payout is sent twice (for example after a double click or a lost connection), it is recorded only once. |
@@ -54,6 +62,8 @@ portal and in this guide, in alphabetical order.
 | **Joint liability** | In group lending, every member can be pursued for the whole group loan, not only their own share. |
 | **Journal** | The list of accounting entries. Every money movement creates balanced debit and credit lines. |
 | **KHQR** | Cambodia's standard payment QR code (Bakong). |
+| **Knock-out** | A rule in a decision strategy that recommends decline whatever the score, for example a previous write-off. |
+| **KS (Kolmogorov–Smirnov)** | A measure of how well a score separates good and bad loans: the largest gap between the two groups at any score. Roughly, above 0.4 is good. |
 | **KYC (know your customer)** | Checking a customer's identity documents. In the portal it is a manual review with the statuses pending, verified and rejected. |
 | **LTV (loan-to-value)** | The loan amount divided by the value of the collateral (after haircut). Combined LTV adds loans that rank ahead. |
 | **Maker-checker (four-eyes)** | One person prepares an action (the maker) and a different person approves or completes it (the checker). It protects against mistakes and fraud: no single person can move money or change a control alone. |
@@ -75,6 +85,7 @@ portal and in this guide, in alphabetical order.
 | **Prepayment: recast or shorten** | After an extra payment of principal, *recast* lowers the instalment and keeps the maturity date; *shorten* keeps the instalment and ends the loan earlier. |
 | **Probation** | After a restructure, the loan's delinquency status cannot improve until enough on-time payments have been made. |
 | **Product version** | One numbered, frozen set of a product's terms. Changing a product creates a new version that must be approved again. |
+| **PSI (population stability index)** | A measure of how much the mix of applicants' grades has changed between two periods. Below 0.1 stable; 0.1 to 0.25 watch; above 0.25 shifted. |
 | **Reconciliation break** | A difference between a loan's own balances and the accounting ledger, or between what a payment channel reported and what was posted. |
 | **Recovery** | Money collected on a loan after it was written off. It is income; the loan stays written off. Also the recovery desk's steps: repossession, pawn forfeiture, insurance claim, debt sale. |
 | **Refinance** | A new loan whose proceeds pay off an existing loan in the same step. |
@@ -82,13 +93,15 @@ portal and in this guide, in alphabetical order.
 | **Rescheduling / restructuring** | Changing a loan's terms because the borrower is in difficulty (longer term, deferral, interest-only period, rate reduction and so on), through a case with assessment, approval and customer acceptance. |
 | **Retained earnings** | The equity account that receives the year's profit or loss at year-end close. |
 | **Reversal** | A compensating entry that undoes an earlier posting. Nothing is deleted. Reversals are done newest first. |
+| **Scorecard** | A set of plain rules that give or take away points for facts about an application, producing a credit score and grade. Scorecards are versioned and changed under maker-checker. |
 | **Service account** | A login for another computer system (not a person), with a limited scope such as posting repayments. |
 | **Set-off** | Applying the borrower's own deposit to their overdue loan. |
 | **Sub-ledger** | Each loan's own balances (principal, interest, fees), which must agree with the general ledger. |
 | **Suspense (unidentified payment)** | Money received that cannot yet be linked to a loan. It is held until someone matches it or refunds it. |
 | **Syndication** | A loan shared between several lenders, with one acting as agent. |
-| **Template** | A ready-made starting configuration for a kind of loan, from which product makers create products. |
+| **Template** | A ready-made starting configuration for a kind of loan, from which product makers create products. Scorecards also have built-in templates (`STANDARD_RETAIL`, `THIN_FILE`), used until your organisation activates its own version. |
 | **Tenant** | One lending organisation on the platform. Each tenant sees only its own data. |
+| **Thin file** | A customer the lender knows little about: by default fewer than 6 months of history with you and no credit bureau score. Can be scored on a separate thin-file scorecard. |
 | **Trial balance** | The list of ledger accounts with debit and credit totals, which must be equal. |
 | **Value date** | The date the money actually moved. It may differ from the business date within limits set by the product. |
 | **Webhook** | An automatic message the platform sends to your organisation's own systems when something happens (for example a loan is disbursed). |
