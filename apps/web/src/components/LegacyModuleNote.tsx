@@ -10,7 +10,7 @@ import { useWorkspace } from '@/lib/workspace';
  * States plainly that a screen covers the original (legacy) loans module only,
  * and links to the lending-platform screens that cover the main book.
  */
-export function LegacyModuleNote({ extra }: { extra?: string }) {
+export function LegacyModuleNote({ mixedCurrency }: { mixedCurrency?: boolean }) {
     const { locale } = useParams();
     const o = useTranslations('Overview');
     const { can } = useWorkspace();
@@ -25,7 +25,7 @@ export function LegacyModuleNote({ extra }: { extra?: string }) {
             <Archive size={16} className="mt-0.5 shrink-0" />
             <div>
                 <p className="font-bold">{o('legacyModuleOnly')}</p>
-                <p>{o('legacyModuleOnlyBody')}{extra ? ` ${extra}` : ''}</p>
+                <p>{o('legacyModuleOnlyBody')}{mixedCurrency ? ` ${o('mixedCurrencyNote')}` : ''}</p>
                 {links.length > 0 && (
                     <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                         {links.map((l) => (

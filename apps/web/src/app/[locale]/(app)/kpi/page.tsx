@@ -66,7 +66,7 @@ export default function KpiPage() {
                 <h1 className="text-xl font-bold text-foreground">Portfolio Performance</h1>
                 <p className="text-sm text-muted-foreground mt-0.5">As of {new Date(k.asOf).toLocaleString()}</p>
             </div>
-            <LegacyModuleNote />
+            <LegacyModuleNote mixedCurrency />
 
             {/* Portfolio */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

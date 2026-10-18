@@ -20,6 +20,8 @@ export type ReportFilters = {
 
 export type ReportResponse = {
   filters: Record<string, unknown>;
+  /** Reporting currency every amount in the response is expressed in. */
+  currency?: string;
   kpis: Record<string, number | string>;
   charts: Record<string, unknown>;
   rows: Record<string, unknown>[];

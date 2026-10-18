@@ -834,6 +834,10 @@
     "confirmPlanPayment": "Confirm plan payment",
     "planRetired": "retired",
     "branch": "Branch",
-    "allBranches": "All branches"
+    "allBranches": "All branches",
+    "mixedCurrencyNote": "Amounts here are added up as recorded and are not converted between currencies; if you lend in more than one currency, use Reports, which converts with your FX rates.",
+    "journalCount": "{total} journal entries · page {page} of {pages}",
+    "previousPage": "Previous page",
+    "nextPage": "Next page"
   }
 }
