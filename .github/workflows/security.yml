@@ -35,6 +35,13 @@ jobs:
       - name: Memory-store scan
         run: pnpm run security:scan-memory-stores
 
+      - name: Configuration and in-process state audit
+        # Every env var read is documented; no literal secrets, URLs, e-mails,
+        # ids or phone numbers; ledger postings go through the account
+        # mappings; no unlisted module- or service-level mutable state.
+        # See docs/security/HARDCODING_AUDIT.md.
+        run: pnpm run security:config-audit
+
       - name: Production config check
         env:
           # Quote values: an unquoted 32-digit secret is parsed by YAML as a
