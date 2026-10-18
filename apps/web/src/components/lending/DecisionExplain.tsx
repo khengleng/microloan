@@ -1,21 +1,23 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { BlockedBy } from './useAsync';
 import type { DecisionCheck } from './types';
 import { th, td } from './ui';
 
 /** Renders either a list of blocking layers or a full decision check table. */
 export function DecisionExplain({ blockedBy, checks, compact }: { blockedBy?: BlockedBy[] | null; checks?: DecisionCheck[] | null; compact?: boolean }) {
+    const t = useTranslations('LendingShared.decision');
     if (checks && checks.length > 0) {
         return (
             <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse">
                     <thead>
                         <tr className="border-b border-[#E3E8EE]">
-                            <th className={th}>Layer</th>
-                            <th className={th}>Check</th>
-                            <th className={th}>Result</th>
-                            <th className={th}>Message</th>
-                            {!compact && <th className={th}>Detail</th>}
+                            <th className={th}>{t('layer')}</th>
+                            <th className={th}>{t('check')}</th>
+                            <th className={th}>{t('result')}</th>
+                            <th className={th}>{t('message')}</th>
+                            {!compact && <th className={th}>{t('detail')}</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -25,8 +27,8 @@ export function DecisionExplain({ blockedBy, checks, compact }: { blockedBy?: Bl
                                 <td className={td}><span className="font-mono text-[11px]">{c.code}</span></td>
                                 <td className={td}>
                                     {c.passed
-                                        ? <span className="inline-flex items-center gap-1 text-emerald-700 text-[12px] font-semibold"><CheckCircle2 size={13} /> pass</span>
-                                        : <span className="inline-flex items-center gap-1 text-red-700 text-[12px] font-semibold"><XCircle size={13} /> fail</span>}
+                                        ? <span className="inline-flex items-center gap-1 text-emerald-700 text-[12px] font-semibold"><CheckCircle2 size={13} /> {t('pass')}</span>
+                                        : <span className="inline-flex items-center gap-1 text-red-700 text-[12px] font-semibold"><XCircle size={13} /> {t('fail')}</span>}
                                 </td>
                                 <td className={td}>{c.message}</td>
                                 {!compact && (
@@ -55,5 +57,5 @@ export function DecisionExplain({ blockedBy, checks, compact }: { blockedBy?: Bl
             </ul>
         );
     }
-    return <p className="text-[12px] text-[#697386]">No blocking checks.</p>;
+    return <p className="text-[12px] text-[#697386]">{t('noBlocking')}</p>;
 }
