@@ -2633,5 +2633,794 @@
       "expiresDaysHint": "លំនាំដើម 90 អតិបរមា 365",
       "required": "ត្រូវការឈ្មោះ និងវិសាលភាពយ៉ាងហោចណាស់មួយ"
     }
+  },
+  "LendingProducts": {
+    "config": {
+      "invalidJsonNotApplied": "JSON មិនត្រឹមត្រូវ (មិនបានអនុវត្ត)៖ {error}",
+      "allocationHint": "ការទូទាត់ត្រូវបានបែងចែកតាមលំដាប់នេះ។",
+      "jsonHintWith": "{hint} — អនុវត្តនៅពេលអ្នកចាកចេញពីប្រអប់",
+      "jsonHint": "អនុវត្តនៅពេលអ្នកចាកចេញពីប្រអប់",
+      "none": "(គ្មាន)",
+      "select": "ជ្រើស…",
+      "rateHint": "ប្រភាគទសភាគ (0.12 = 12%)",
+      "rateHintValue": "ប្រភាគទសភាគ = {rate}",
+      "decimalRule": "ត្រូវតែជាលេខទសភាគ ដូចជា 1000 ឬ 0.125",
+      "review": "ពិនិត្យ / JSON",
+      "stepIssues": "{count, plural, other {បញ្ហាផ្ទៀងផ្ទាត់ # ក្នុងជំហាននេះ}}",
+      "issues": "{count, plural, other {បញ្ហាផ្ទៀងផ្ទាត់ #}}",
+      "reviewNote": "ការកំណត់រចនាសម្ព័ន្ធពេញលេញ។ អ្នកអាចកែ JSON ដោយផ្ទាល់; វានឹងត្រូវបានផ្ទៀងផ្ទាត់ដោយម៉ាស៊ីនមេនៅពេលអ្នករក្សាទុក។",
+      "invalidJson": "JSON មិនត្រឹមត្រូវ៖ {error}",
+      "applyJson": "អនុវត្ត JSON",
+      "discardEdits": "បោះបង់ការកែ",
+      "back": "← ថយក្រោយ",
+      "stepOf": "ជំហាន {n} នៃ {total}",
+      "next": "បន្ទាប់ →",
+      "steps": {
+        "identity": {
+          "label": "អត្តសញ្ញាណ"
+        },
+        "attributes": {
+          "label": "លក្ខណៈ"
+        },
+        "group": {
+          "label": "ឥណទានជាក្រុម",
+          "note": "សម្រាប់តែផលិតផលដែលការទទួលខុសត្រូវជា GROUP_JOINT ឬ GROUP_INDIVIDUAL ប៉ុណ្ណោះ។"
+        },
+        "specialised": {
+          "label": "កាត / BNPL / ភតិសន្យា",
+          "note": "លក្ខខណ្ឌកាតត្រូវការឥណទានបង្វិល (REVOLVING); លក្ខខណ្ឌ BNPL និងភតិសន្យាត្រូវការផលិតផល TERM (ភតិសន្យាក៏ត្រូវការការសងបែប BALLOON សម្រាប់តម្លៃនៅសល់ផងដែរ)។"
+        },
+        "limits": {
+          "label": "ដែនកំណត់"
+        },
+        "eligibility": {
+          "label": "លក្ខខណ្ឌសិទ្ធិ"
+        },
+        "pricing": {
+          "label": "ការកំណត់តម្លៃ"
+        },
+        "repayment": {
+          "label": "ការសងប្រាក់"
+        },
+        "security": {
+          "label": "ការធានា"
+        },
+        "operations": {
+          "label": "ប្រតិបត្តិការ"
+        },
+        "restructuring": {
+          "label": "ការរៀបចំឥណទានឡើងវិញ"
+        },
+        "policies": {
+          "label": "គោលការណ៍",
+          "note": "បង្កើតកិច្ចសន្យាពីបណ្ណាល័យគោលការណ៍៖ សម្រាប់ប្រភេទនីមួយៗ មានលំនាំដើម និងបញ្ជីជម្រើសដែលកិច្ចសន្យាអាចជ្រើសបាន។ គ្រប់កូដត្រូវមានកំណែដែលបានអនុម័ត មុនពេលផលិតផលអាចដំណើរការបាន។"
+        },
+        "scoring": {
+          "label": "ការដាក់ពិន្ទុ",
+          "note": "តារាងពិន្ទុដែលកំណត់ការសម្រេច (កំណែសកម្មរបស់ស្ថាប័នសម្រាប់កូដនោះ បើមិនដូច្នោះទេ គឺគំរូ) តារាងពិន្ទុប្រកួតប្រជែងស្ងាត់ (ស្រេចចិត្ត) ការកំណត់សម្រាប់អ្នកខ្ចីមានប្រវត្តិតិច និងយុទ្ធសាស្ត្រសម្រេច។ «ណែនាំឱ្យអនុម័ត» គ្រាន់តែណែនាំការអនុម័តប៉ុណ្ណោះ — អ្នកអនុម័តក្នុងលំហូរការងារនៅតែជាអ្នកអនុម័ត។ តាមលំនាំដើម គ្រប់ចំណាត់ថ្នាក់ត្រូវបញ្ជូនបន្តពិនិត្យ។"
+        },
+        "accounting": {
+          "label": "គណនេយ្យ",
+          "note": "កូដគណនីបញ្ជីដែលប្រើនៅពេលព្រឹត្តិការណ៍កត់ត្រាទិនានុប្បវត្តិ។"
+        }
+      },
+      "fields": {
+        "identity_familyCode": {
+          "label": "គ្រួសារផលិតផល"
+        },
+        "identity_templateCode": {
+          "label": "គំរូ"
+        },
+        "identity_name": {
+          "label": "ឈ្មោះផលិតផល"
+        },
+        "identity_description": {
+          "label": "ការពិពណ៌នា"
+        },
+        "identity_currency": {
+          "label": "រូបិយប័ណ្ណ",
+          "hint": "កូដ ISO ដែលបានកំណត់លើវេទិកានេះ ឧ. USD, KHR"
+        },
+        "identity_legalEntityCode": {
+          "label": "កូដនីតិបុគ្គល"
+        },
+        "identity_liability": {
+          "label": "ការទទួលខុសត្រូវ"
+        },
+        "identity_customerTypes": {
+          "label": "ប្រភេទអតិថិជន"
+        },
+        "identity_channels": {
+          "label": "ឆានែល"
+        },
+        "identity_segments": {
+          "label": "ផ្នែកអតិថិជន",
+          "hint": "កូដបំបែកដោយក្បៀស"
+        },
+        "identity_countries": {
+          "label": "ប្រទេស",
+          "hint": "កូដ ISO-2 បំបែកដោយក្បៀស"
+        },
+        "identity_eligibleBranchCodes": {
+          "label": "កូដសាខាដែលមានសិទ្ធិ (null = ទាំងអស់)"
+        },
+        "attributes_secured": {
+          "label": "មានការធានា"
+        },
+        "attributes_rateType": {
+          "label": "ប្រភេទអត្រា"
+        },
+        "attributes_greenPurpose": {
+          "label": "គោលបំណងបៃតង"
+        },
+        "attributes_digitalChannel": {
+          "label": "ឆានែលឌីជីថល"
+        },
+        "attributes_recourse": {
+          "label": "សិទ្ធិទាមទារ"
+        },
+        "attributes_structure": {
+          "label": "រចនាសម្ព័ន្ធ"
+        },
+        "facility_type": {
+          "label": "ប្រភេទឥណទាន",
+          "hint": "មានតែសមត្ថភាពដែលសម្គាល់ IMPLEMENTED ទេដែលអាចដំណើរការបាន — សូមពិនិត្យតារាងសមត្ថភាព។"
+        },
+        "facility_minLimit": {
+          "label": "ឥណទាន៖ ដែនកំណត់អប្បបរមា",
+          "hint": "សម្រាប់តែឥណទានផ្អែកលើដែនកំណត់ (មិនមែន TERM)"
+        },
+        "facility_maxLimit": {
+          "label": "ឥណទាន៖ ដែនកំណត់អតិបរមា"
+        },
+        "facility_availabilityMonths": {
+          "label": "ឥណទាន៖ រយៈពេលអាចដកប្រាក់ (ខែ)",
+          "hint": "រយៈពេលដែលអាចដកប្រាក់បានគិតពីថ្ងៃចាប់ផ្ដើម"
+        },
+        "facility_minimumDrawdown": {
+          "label": "ឥណទាន៖ ការដកប្រាក់អប្បបរមា"
+        },
+        "facility_maximumDrawdown": {
+          "label": "ឥណទាន៖ ការដកប្រាក់អតិបរមា"
+        },
+        "facility_commitmentFeeRate": {
+          "label": "ឥណទាន៖ កម្រៃប្ដេជ្ញាលើផ្នែកមិនទាន់ដក (ប្រចាំឆ្នាំ)"
+        },
+        "facility_minimumPaymentRate": {
+          "label": "ឥណទានលើសសមតុល្យ៖ អត្រាការទូទាត់អប្បបរមា"
+        },
+        "facility_minimumPaymentFloor": {
+          "label": "ឥណទានលើសសមតុល្យ៖ ការទូទាត់អប្បបរមាទាបបំផុត"
+        },
+        "facility_minimumPaymentDueDays": {
+          "label": "ឥណទានលើសសមតុល្យ៖ ចំនួនថ្ងៃពីរបាយការណ៍ដល់ថ្ងៃកំណត់ទូទាត់អប្បបរមា"
+        },
+        "facility_overlimitRate": {
+          "label": "ឥណទាន៖ អត្រាប្រចាំឆ្នាំលើសដែនកំណត់",
+          "hint": "ទុកទទេ នឹងបដិសេធសមតុល្យលើសដែនកំណត់ទាំងស្រុង"
+        },
+        "facility_termOutOnExpiry": {
+          "label": "ឥណទាន៖ បម្លែងជាឥណទានមានកាលកំណត់នៅពេលផុតរយៈពេលដកប្រាក់"
+        },
+        "facility_tranches": {
+          "label": "ការដកប្រាក់ជាដំណាក់កាល៖ ចំណែក"
+        },
+        "group": {
+          "label": "លក្ខខណ្ឌក្រុម"
+        },
+        "group_minMembers": {
+          "label": "សមាជិកអប្បបរមា"
+        },
+        "group_maxMembers": {
+          "label": "សមាជិកអតិបរមា"
+        },
+        "group_shareBasis": {
+          "label": "មូលដ្ឋានបែងចែក"
+        },
+        "group_minMembershipDays": {
+          "label": "រយៈពេលជាសមាជិកអប្បបរមា (ថ្ងៃ) មុនពេលខ្ចី"
+        },
+        "group_requireLeader": {
+          "label": "តម្រូវឱ្យមានប្រធានក្រុម"
+        },
+        "group_allowExitWithOutstanding": {
+          "label": "អនុញ្ញាតឱ្យចាកចេញពេលឥណទាននៅជំពាក់"
+        },
+        "card": {
+          "label": "លក្ខខណ្ឌកាតឥណទាន (LT-07)"
+        },
+        "card_cashAdvanceAnnualRate": {
+          "label": "អត្រាប្រចាំឆ្នាំលើការដកសាច់ប្រាក់ (ចាប់ពីថ្ងៃដំបូង)"
+        },
+        "card_cashAdvanceFeeRate": {
+          "label": "អត្រាកម្រៃដកសាច់ប្រាក់"
+        },
+        "card_cashAdvanceFeeMinimum": {
+          "label": "កម្រៃដកសាច់ប្រាក់អប្បបរមា"
+        },
+        "card_cashAdvanceLimitShare": {
+          "label": "ចំណែកដែនកំណត់សម្រាប់ដកសាច់ប្រាក់"
+        },
+        "card_minimumPaymentRate": {
+          "label": "ការទូទាត់អប្បបរមា៖ ចំណែកនៃប្រាក់ដើម"
+        },
+        "card_minimumPaymentFloor": {
+          "label": "ការទូទាត់អប្បបរមាទាបបំផុត"
+        },
+        "card_paymentDueDays": {
+          "label": "ចំនួនថ្ងៃពីរបាយការណ៍ដល់ថ្ងៃកំណត់"
+        },
+        "card_instalmentPlan": {
+          "label": "គម្រោងបង់រំលស់ (UC-44)"
+        },
+        "bnpl": {
+          "label": "ការទូទាត់ជាមួយឈ្មួញ BNPL (LT-11)"
+        },
+        "bnpl_merchantDiscountRate": {
+          "label": "អត្រាបញ្ចុះតម្លៃឈ្មួញ"
+        },
+        "lease": {
+          "label": "លក្ខខណ្ឌភតិសន្យា (LT-15)"
+        },
+        "lease_assetTypes": {
+          "label": "ប្រភេទទ្រព្យដែលអាចជួលបាន",
+          "hint": "កូដបំបែកដោយក្បៀស"
+        },
+        "lease_allowReturn": {
+          "label": "អ្នកជួលអាចប្រគល់ទ្រព្យវិញ ជំនួសការបង់តម្លៃនៅសល់"
+        },
+        "limits_minAmount": {
+          "label": "ចំនួនទឹកប្រាក់អប្បបរមា"
+        },
+        "limits_maxAmount": {
+          "label": "ចំនួនទឹកប្រាក់អតិបរមា"
+        },
+        "limits_minInstalments": {
+          "label": "ចំនួនដំណាក់កាលបង់អប្បបរមា"
+        },
+        "limits_maxInstalments": {
+          "label": "ចំនួនដំណាក់កាលបង់អតិបរមា"
+        },
+        "eligibility_minAgeYears": {
+          "label": "អាយុអប្បបរមា (ឆ្នាំ)"
+        },
+        "eligibility_maxAgeAtMaturityYears": {
+          "label": "អាយុអតិបរមានៅពេលផុតកំណត់ (ឆ្នាំ)"
+        },
+        "eligibility_minMonthlyIncome": {
+          "label": "ចំណូលប្រចាំខែអប្បបរមា"
+        },
+        "eligibility_minBusinessAgeMonths": {
+          "label": "អាយុអាជីវកម្មអប្បបរមា (ខែ)"
+        },
+        "eligibility_maxDebtServiceRatio": {
+          "label": "អនុបាតសងបំណុលអតិបរមា"
+        },
+        "eligibility_minCreditScore": {
+          "label": "ពិន្ទុឥណទានអប្បបរមា",
+          "hint": "300–850; ទទេ៖ មិនកំណត់"
+        },
+        "eligibility_minDscr": {
+          "label": "DSCR អប្បបរមា",
+          "hint": "ចំណូលប្រតិបត្តិការសុទ្ធ ÷ ការសងបំណុលប្រចាំឆ្នាំ ឧ. 1.25"
+        },
+        "eligibility_employmentTypes": {
+          "label": "ប្រភេទការងារ (គ្មាន = ណាមួយ)"
+        },
+        "pricing_fixed": {
+          "label": "តម្លៃអត្រាថេរ"
+        },
+        "pricing_fixed_defaultAnnualRate": {
+          "label": "អត្រាប្រចាំឆ្នាំលំនាំដើម"
+        },
+        "pricing_fixed_minAnnualRate": {
+          "label": "អត្រាប្រចាំឆ្នាំអប្បបរមា"
+        },
+        "pricing_fixed_maxAnnualRate": {
+          "label": "អត្រាប្រចាំឆ្នាំអតិបរមា"
+        },
+        "pricing_floating": {
+          "label": "តម្លៃអត្រាអណ្ដែត (JSON ឬ null)"
+        },
+        "pricing_rateConvention": {
+          "label": "អនុសញ្ញាអត្រា"
+        },
+        "pricing_interestMethod": {
+          "label": "វិធីសាស្ត្រគណនាការប្រាក់"
+        },
+        "pricing_accrualBasis": {
+          "label": "មូលដ្ឋានបង្គរ"
+        },
+        "pricing_dayCount": {
+          "label": "វិធីរាប់ថ្ងៃ"
+        },
+        "pricing_ratePrecision": {
+          "label": "ភាពជាក់លាក់នៃអត្រា (ខ្ទង់)"
+        },
+        "pricing_regulatoryCapAnnualRate": {
+          "label": "ពិដានអត្រាតាមបទប្បញ្ញត្តិ"
+        },
+        "pricing_rounding_increment": {
+          "label": "ឯកតាបង្គត់",
+          "hint": "ឧ. 0.01 សម្រាប់សេន, 100 សម្រាប់ KHR"
+        },
+        "pricing_rounding_mode": {
+          "label": "របៀបបង្គត់"
+        },
+        "pricing_capitalization_allowInterestGraceCapitalization": {
+          "label": "អនុញ្ញាតបញ្ចូលការប្រាក់អំឡុងពេលអនុគ្រោះទៅក្នុងប្រាក់ដើម"
+        },
+        "pricing_capitalization_basis": {
+          "label": "មូលដ្ឋានបញ្ចូលទៅប្រាក់ដើម",
+          "hint": "SIMPLE៖ ការប្រាក់អំឡុងពេលអនុគ្រោះលើប្រាក់ដើមដើមតែប៉ុណ្ណោះ — គ្មានការប្រាក់លើការប្រាក់"
+        },
+        "pricing_penalty_type": {
+          "label": "ប្រភេទប្រាក់ពិន័យ"
+        },
+        "pricing_penalty_flatAmount": {
+          "label": "ចំនួនពិន័យថេរ"
+        },
+        "pricing_penalty_percentOfOverdue": {
+          "label": "កម្រៃយឺតយ៉ាវ៖ % នៃចំនួនហួសកាលកំណត់",
+          "hint": "សម្រាប់ PERCENT_PER_INSTALMENT — គិតម្ដងក្នុងមួយដំណាក់កាលហួសកាលកំណត់"
+        },
+        "pricing_penalty_annualRate": {
+          "label": "អត្រាពិន័យប្រចាំឆ្នាំ"
+        },
+        "pricing_penalty_graceDays": {
+          "label": "ចំនួនថ្ងៃអនុគ្រោះមុនពិន័យ"
+        },
+        "pricing_penalty_capPerInstalment": {
+          "label": "ពិដានពិន័យក្នុងមួយដំណាក់កាល"
+        },
+        "pricing_penalty_capPerLoan": {
+          "label": "ពិដានពិន័យក្នុងមួយឥណទាន",
+          "hint": "ចំនួនសរុបអតិបរមាដែលកម្រៃយឺតយ៉ាវអាចមានលើឥណទានមួយ"
+        },
+        "pricing_returnedPaymentFee": {
+          "label": "កម្រៃការទូទាត់ត្រូវបានបង្វិល",
+          "hint": "គិតនៅពេលការសងប្រាក់ត្រូវបានបង្វិលវិញដោយសារមិនគ្រប់ ឬត្រូវបានប្រគល់វិញ"
+        },
+        "pricing_promotion": {
+          "label": "អត្រាប្រូម៉ូសិន (យុទ្ធនាការ)",
+          "hint": "អនុវត្តនៅពេលកិច្ចសន្យាបញ្ជាក់កូដយុទ្ធនាការ; បន្ទាប់មកអនុវត្តអត្រាកិច្ចសន្យា"
+        },
+        "pricing_promotion_code": {
+          "label": "កូដយុទ្ធនាការ"
+        },
+        "pricing_promotion_annualRate": {
+          "label": "អត្រាប្រចាំឆ្នាំប្រូម៉ូសិន"
+        },
+        "pricing_promotion_instalments": {
+          "label": "ចំនួនដំណាក់កាលប្រូម៉ូសិន"
+        },
+        "pricing_promotion_label": {
+          "label": "ការពិពណ៌នាប្រូម៉ូសិន"
+        },
+        "pricing_fees": {
+          "label": "កម្រៃ"
+        },
+        "repayment_method": {
+          "label": "វិធីសាស្ត្រ"
+        },
+        "repayment_frequency": {
+          "label": "ប្រេកង់"
+        },
+        "repayment_customFrequency": {
+          "label": "ប្រេកង់ផ្ទាល់ខ្លួន (JSON ឬ null)"
+        },
+        "repayment_maxPrincipalGraceInstalments": {
+          "label": "ចំនួនដំណាក់កាលអនុគ្រោះប្រាក់ដើមអតិបរមា"
+        },
+        "repayment_maxInterestGraceInstalments": {
+          "label": "ចំនួនដំណាក់កាលអនុគ្រោះការប្រាក់អតិបរមា"
+        },
+        "repayment_maxBalloonFraction": {
+          "label": "ចំណែក Balloon អតិបរមា"
+        },
+        "repayment_instalmentSteps": {
+          "label": "ដំណាក់កាលបង់ជាជំហាន"
+        },
+        "repayment_allowIrregularFirstPeriod": {
+          "label": "អនុញ្ញាតរយៈពេលដំបូងមិនទៀងទាត់"
+        },
+        "repayment_maxFirstPeriodDays": {
+          "label": "ចំនួនថ្ងៃអតិបរមានៃរយៈពេលដំបូង"
+        },
+        "repayment_businessDayConvention": {
+          "label": "អនុសញ្ញាថ្ងៃធ្វើការ"
+        },
+        "repayment_holidayCalendarCode": {
+          "label": "កូដប្រតិទិនថ្ងៃឈប់សម្រាក"
+        },
+        "repayment_accrualDateBasis": {
+          "label": "មូលដ្ឋានកាលបរិច្ឆេទបង្គរ"
+        },
+        "repayment_maxBackdateDays": {
+          "label": "ចំនួនថ្ងៃថយក្រោយអតិបរមា"
+        },
+        "repayment_prepayment_allowed": {
+          "label": "អនុញ្ញាតការបង់មុនកាលកំណត់"
+        },
+        "repayment_prepayment_minAmount": {
+          "label": "ការបង់មុនកាលកំណត់អប្បបរមា"
+        },
+        "repayment_prepayment_feeRate": {
+          "label": "អត្រាកម្រៃបង់មុនកាលកំណត់"
+        },
+        "repayment_prepayment_allowedStrategies": {
+          "label": "យុទ្ធសាស្ត្របង់មុនកាលកំណត់"
+        },
+        "repayment_prepayment_defaultStrategy": {
+          "label": "យុទ្ធសាស្ត្របង់មុនកាលកំណត់លំនាំដើម"
+        },
+        "repayment_earlySettlement_allowed": {
+          "label": "អនុញ្ញាតការទូទាត់ផ្ដាច់មុនកាលកំណត់"
+        },
+        "repayment_earlySettlement_feeRate": {
+          "label": "អត្រាកម្រៃទូទាត់ផ្ដាច់"
+        },
+        "repayment_earlySettlement_feeFixed": {
+          "label": "កម្រៃទូទាត់ផ្ដាច់ថេរ"
+        },
+        "repayment_earlySettlement_rebateMethod": {
+          "label": "ការប្រាក់ពេលទូទាត់ផ្ដាច់ (ឥណទានអត្រាថេរលើប្រាក់ដើម)",
+          "hint": "ACCRUED គិតការប្រាក់បង្គររហូតដល់ថ្ងៃទូទាត់ផ្ដាច់; ជម្រើសផ្សេងទៀតបង្វិលការប្រាក់ដែលបានគណនាជាមុន"
+        },
+        "repayment_earlyRepaymentCharges": {
+          "label": "កម្រិតជាប់កំណត់ (កម្រៃសងមុនកាលកំណត់)"
+        },
+        "repayment_allocation_order": {
+          "label": "លំដាប់បែងចែកការទូទាត់"
+        },
+        "repayment_allocation_strategy": {
+          "label": "យុទ្ធសាស្ត្របែងចែក"
+        },
+        "repayment_allocation_excessHandling": {
+          "label": "ប្រាក់លើសពីចំនួនត្រូវបង់",
+          "hint": "ADVANCE រក្សាទុកសម្រាប់ដំណាក់កាលបន្ទាប់; PREPAY កាត់បន្ថយប្រាក់ដើម"
+        },
+        "security_collateralRequired": {
+          "label": "តម្រូវឱ្យមានទ្រព្យធានា"
+        },
+        "security_acceptedCollateralTypes": {
+          "label": "ប្រភេទទ្រព្យធានាដែលទទួលយក",
+          "hint": "កូដបំបែកដោយក្បៀស"
+        },
+        "security_maxLtv": {
+          "label": "អនុបាតឥណទានធៀបនឹងតម្លៃអតិបរមា"
+        },
+        "security_valuationMaxAgeDays": {
+          "label": "អាយុអតិបរមានៃការវាយតម្លៃ (ថ្ងៃ)"
+        },
+        "security_guaranteeRequired": {
+          "label": "តម្រូវឱ្យមានអ្នកធានា"
+        },
+        "security_minGuarantors": {
+          "label": "ចំនួនអ្នកធានាអប្បបរមា"
+        },
+        "security_marginCallCureDays": {
+          "label": "រយៈពេលកែតម្រូវការហៅបន្ថែមធានា (ថ្ងៃ)",
+          "hint": "រយៈពេលដើម្បីសង ឬបន្ថែមទ្រព្យធានា បន្ទាប់ពីការវាយតម្លៃឡើងវិញលើស LTV អតិបរមា"
+        },
+        "security_haircuts": {
+          "label": "ការកាត់បន្ថយតម្លៃតាមប្រភេទទ្រព្យធានា"
+        },
+        "operations_workflowCode": {
+          "label": "កូដលំហូរការងារ",
+          "hint": "សូមមើលទំព័រលំហូរការងារ"
+        },
+        "operations_restructureAllowed": {
+          "label": "អនុញ្ញាតការរៀបចំឥណទានឡើងវិញ"
+        },
+        "operations_writeOffMinDpd": {
+          "label": "DPD អប្បបរមាសម្រាប់លុបចេញពីបញ្ជី"
+        },
+        "operations_downPayment_minFraction": {
+          "label": "ប្រាក់កក់អប្បបរមា",
+          "hint": "ចំណែកនៃតម្លៃទិញដែលបង់មុនការបញ្ចេញឥណទាន ឧ. 0.2"
+        },
+        "operations_nonAccrual_enabled": {
+          "label": "ឈប់បង្គរការប្រាក់",
+          "hint": "រក្សាការប្រាក់ក្នុងគណនីរង់ចាំ ជំនួសឱ្យចំណូល នៅពេលហួសកម្រិតថ្ងៃហួសកាលកំណត់"
+        },
+        "operations_nonAccrual_fromDpd": {
+          "label": "ឈប់បង្គរចាប់ពី DPD"
+        },
+        "operations_nonAccrual_cureAtDpd": {
+          "label": "ត្រឡប់មកបង្គរវិញនៅ DPD"
+        },
+        "operations_nonAccrual_reverseAccruedOnEntry": {
+          "label": "នៅពេលចូល ផ្ទេរការប្រាក់ដែលបានទទួលស្គាល់តែមិនទាន់បង់ទៅគណនីរង់ចាំ"
+        },
+        "operations_integrations_creditBureau": {
+          "label": "ការិយាល័យឥណទាន"
+        },
+        "operations_integrations_kyc": {
+          "label": "KYC"
+        },
+        "operations_integrations_payments": {
+          "label": "ការទូទាត់"
+        },
+        "operations_requiredDocuments": {
+          "label": "ឯកសារដែលត្រូវការ"
+        },
+        "operations_disbursementConditions": {
+          "label": "លក្ខខណ្ឌបញ្ចេញឥណទាន"
+        },
+        "operations_delinquencyBuckets": {
+          "label": "ក្រុមយឺតយ៉ាវ"
+        },
+        "operations_collectionStages": {
+          "label": "ដំណាក់កាលប្រមូលបំណុល"
+        },
+        "restructuring_allowedOptions": {
+          "label": "ជម្រើសដែលអនុញ្ញាត"
+        },
+        "restructuring_allowInterestCapitalization": {
+          "label": "អនុញ្ញាតបញ្ចូលការប្រាក់ទៅប្រាក់ដើម (ការប្រាក់លើការប្រាក់)"
+        },
+        "restructuring_allowFeeCapitalization": {
+          "label": "អនុញ្ញាតបញ្ចូលកម្រៃទៅប្រាក់ដើម"
+        },
+        "restructuring_allowPenaltyCapitalization": {
+          "label": "អនុញ្ញាតបញ្ចូលប្រាក់ពិន័យទៅប្រាក់ដើម"
+        },
+        "restructuring_allowedDeferredInterestTreatments": {
+          "label": "វិធីដោះស្រាយការប្រាក់ពន្យារ"
+        },
+        "restructuring_maxExtensionInstalments": {
+          "label": "ចំនួនដំណាក់កាលពន្យាររយៈពេលអតិបរមា"
+        },
+        "restructuring_maxDeferralInstalments": {
+          "label": "ចំនួនដំណាក់កាលពន្យារការបង់អតិបរមា"
+        },
+        "restructuring_escalateAfterRestructures": {
+          "label": "បញ្ជូនបន្តបន្ទាប់ពីរៀបចំឡើងវិញ N ដង"
+        },
+        "restructuring_probationInstalments": {
+          "label": "ចំនួនដំណាក់កាលសាកល្បង"
+        },
+        "restructuring_balloonReminderDays": {
+          "label": "តាមដាន Balloon៖ ចំនួនថ្ងៃមុនដល់កាលកំណត់"
+        },
+        "restructuring_materialityTolerance": {
+          "label": "កម្រិតអត់ឱនសារៈសំខាន់"
+        },
+        "restructuring_proposalValidityDays": {
+          "label": "សុពលភាពសំណើ (ថ្ងៃ)"
+        },
+        "restructuring_allowNegotiatedSettlement": {
+          "label": "អនុញ្ញាតការទូទាត់តាមការចរចា (តិចជាងចំនួនជំពាក់)"
+        },
+        "restructuring_settlementAllocationOrder": {
+          "label": "ការទូទាត់តាមការចរចា៖ លំដាប់ដែលចំនួនទឹកប្រាក់ទូទាត់"
+        },
+        "restructuring_allowPostWriteOffRecovery": {
+          "label": "អនុញ្ញាតការប្រមូលមកវិញបន្ទាប់ពីលុបចេញពីបញ្ជី"
+        },
+        "restructuring_allowRefinance": {
+          "label": "អនុញ្ញាតការផ្ដល់ហិរញ្ញប្បទានឡើងវិញ"
+        },
+        "restructuring_refinanceAllowDelinquent": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ អនុញ្ញាតឥណទានយឺតយ៉ាវ"
+        },
+        "restructuring_refinanceAllowArrearsRollIn": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ អនុញ្ញាតឱ្យប្រាក់ជំពាក់ហួសកាលកំណត់ត្រូវបានទូទាត់ដោយឥណទានថ្មី (ហានិភ័យបន្តឥណទានមិនចេះចប់)"
+        },
+        "restructuring_refinanceMaxDaysPastDue": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ DPD អតិបរមា"
+        },
+        "restructuring_refinanceMinInstalmentsPaid": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ ចំនួនដំណាក់កាលបានបង់អប្បបរមា"
+        },
+        "restructuring_maxRefinanceCount": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ ចំនួនដងអតិបរមាក្នុងខ្សែឥណទានមួយ"
+        },
+        "restructuring_allowRefinanceShortfall": {
+          "label": "ហិរញ្ញប្បទានឡើងវិញ៖ អ្នកខ្ចីអាចបង់ចំនួនខ្វះ"
+        },
+        "policies": {
+          "label": "បញ្ជីជម្រើសគោលការណ៍"
+        },
+        "scoring_championCode": {
+          "label": "កូដតារាងពិន្ទុមេ",
+          "hint": "STANDARD_RETAIL ឬមួយក្នុងចំណោម ឥណទាន › តារាងពិន្ទុ"
+        },
+        "scoring_challengerCode": {
+          "label": "កូដតារាងពិន្ទុប្រកួតប្រជែង (ស្រមោល មិនសម្រេចឡើយ)"
+        },
+        "scoring_thinFile_enabled": {
+          "label": "ដាក់ពិន្ទុអ្នកខ្ចីមានប្រវត្តិតិចលើតារាងពិន្ទុដាច់ដោយឡែក"
+        },
+        "scoring_thinFile_scorecardCode": {
+          "label": "កូដតារាងពិន្ទុសម្រាប់ប្រវត្តិតិច"
+        },
+        "scoring_thinFile_maxInternalHistoryMonths": {
+          "label": "ប្រវត្តិតិច៖ ប្រវត្តិជាមួយយើងតិចជាង (ខែ)"
+        },
+        "scoring_thinFile_requireNoBureauScore": {
+          "label": "ប្រវត្តិតិច៖ តែនៅពេលគ្មានពិន្ទុការិយាល័យឥណទាន"
+        },
+        "scoring_strategy_declineBelowScore": {
+          "label": "បដិសេធនៅក្រោមពិន្ទុ (រួមជាមួយអប្បបរមាលក្ខខណ្ឌសិទ្ធិ មួយណាតឹងជាងត្រូវអនុវត្ត)"
+        },
+        "scoring_strategy_defaultOutcome": {
+          "label": "លទ្ធផលសម្រាប់ចំណាត់ថ្នាក់ដែលគ្មានច្បាប់"
+        },
+        "scoring_strategy_gradeRules": {
+          "label": "ច្បាប់ចំណាត់ថ្នាក់",
+          "hint": "មួយជួរក្នុងមួយចំណាត់ថ្នាក់៖ លទ្ធផល ចំនួនទឹកប្រាក់ធំបំផុតដែលចំណាត់ថ្នាក់នោះអាចខ្ចី (ទទេ = ដែនកំណត់ផលិតផល) និងអត្រាបន្ថែមគិតជា basis points (100 bps = 1%)។"
+        },
+        "scoring_strategy_knockouts_writtenOff": {
+          "label": "លក្ខខណ្ឌបដិសេធ៖ ធ្លាប់ត្រូវលុបចេញពីបញ្ជី"
+        },
+        "scoring_strategy_knockouts_maxCurrentDpd": {
+          "label": "លក្ខខណ្ឌបដិសេធ៖ ចំនួនថ្ងៃហួសកាលកំណត់បច្ចុប្បន្នលើស"
+        },
+        "scoring_strategy_knockouts_minAgeYears": {
+          "label": "លក្ខខណ្ឌបដិសេធ៖ អាយុក្រោម"
+        },
+        "scoring_strategy_knockouts_maxAgeYears": {
+          "label": "លក្ខខណ្ឌបដិសេធ៖ អាយុលើស"
+        },
+        "scoring_strategy_knockouts_maxDebtServiceRatio": {
+          "label": "លក្ខខណ្ឌបដិសេធ៖ អនុបាតសងបំណុលលើស"
+        },
+        "scoring_strategy_enforceRateAddOn": {
+          "label": "តម្រូវឱ្យអនុវត្តអត្រាបន្ថែមតាមចំណាត់ថ្នាក់នៅពេលអនុម័ត"
+        },
+        "accounting_cash": {
+          "label": "សាច់ប្រាក់"
+        },
+        "accounting_loansReceivable": {
+          "label": "ឥណទានត្រូវទទួល"
+        },
+        "accounting_interestReceivable": {
+          "label": "ការប្រាក់ត្រូវទទួល"
+        },
+        "accounting_feesReceivable": {
+          "label": "កម្រៃត្រូវទទួល"
+        },
+        "accounting_penaltyReceivable": {
+          "label": "ប្រាក់ពិន័យត្រូវទទួល"
+        },
+        "accounting_interestIncome": {
+          "label": "ចំណូលការប្រាក់"
+        },
+        "accounting_feeIncome": {
+          "label": "ចំណូលកម្រៃ"
+        },
+        "accounting_penaltyIncome": {
+          "label": "ចំណូលប្រាក់ពិន័យ"
+        },
+        "accounting_taxPayable": {
+          "label": "ពន្ធត្រូវបង់"
+        },
+        "accounting_writeOffExpense": {
+          "label": "ចំណាយលុបចេញពីបញ្ជី"
+        },
+        "accounting_roundingDifferences": {
+          "label": "ភាពខុសគ្នាពីការបង្គត់"
+        },
+        "accounting_concessionsExpense": {
+          "label": "ចំណាយលើការអនុគ្រោះ"
+        },
+        "accounting_principalForgivenessExpense": {
+          "label": "ចំណាយលើការលើកលែងប្រាក់ដើម"
+        },
+        "accounting_recoveryIncome": {
+          "label": "ចំណូលពីការប្រមូលមកវិញ"
+        },
+        "accounting_customerAdvances": {
+          "label": "ប្រាក់បង់មុនរបស់អតិថិជន"
+        },
+        "accounting_interestSuspense": {
+          "label": "គណនីរង់ចាំការប្រាក់"
+        },
+        "accounting_merchantDiscountIncome": {
+          "label": "ចំណូលបញ្ចុះតម្លៃឈ្មួញ"
+        },
+        "accounting_merchantClawbackReceivable": {
+          "label": "ប្រាក់ទាមទារពីឈ្មួញត្រូវទទួល"
+        },
+        "accounting_cardCashAdvanceFeeIncome": {
+          "label": "ចំណូលកម្រៃដកសាច់ប្រាក់តាមកាត"
+        },
+        "accounting_returnedLeaseAssets": {
+          "label": "ទ្រព្យភតិសន្យាដែលបានប្រគល់វិញ"
+        }
+      }
+    },
+    "wizard": {
+      "created": "បានបង្កើតផលិតផលជាកំណែព្រាង",
+      "chooseTitle": "ផលិតផលថ្មី — ជ្រើសគំរូ",
+      "chooseSubtitle": "មានតែគំរូដែលសមត្ថភាពចាំបាច់ត្រូវបានអនុវត្តរួចប៉ុណ្ណោះ ដែលអាចកំណត់បាន។",
+      "cancel": "បោះបង់",
+      "missingList": "ខ្វះ៖ {list}",
+      "loading": "កំពុងផ្ទុក…",
+      "missingCount": "{count, plural, other {ខ្វះសមត្ថភាព #}}",
+      "codeRule": "A–Z, 0–9, _ និង -; 2–32 តួអក្សរ",
+      "fromTemplate": "ផលិតផលថ្មីពី {name}",
+      "changeTemplate": "ប្ដូរគំរូ",
+      "cannotActivate": "គំរូនេះមិនទាន់អាចដំណើរការបានទេ",
+      "code": "កូដផលិតផល",
+      "codeHint": "មិនស្ទួន; A–Z, 0–9, _ និង -",
+      "name": "ឈ្មោះផលិតផល",
+      "seeSteps": "{message} — សូមមើលជំហានដែលបានរំលេច។",
+      "create": "បង្កើតផលិតផលព្រាង"
+    },
+    "list": {
+      "newProduct": "ផលិតផលថ្មី",
+      "none": "មិនទាន់មានផលិតផលឥណទានទេ។ បង្កើតមួយពីគំរូដែលមាន។",
+      "activeVersion": "កំណែសកម្ម v{version}",
+      "colVersion": "កំណែ",
+      "colStatus": "ស្ថានភាព",
+      "colEffective": "មានប្រសិទ្ធភាព",
+      "colSummary": "សេចក្ដីសង្ខេបការផ្លាស់ប្ដូរ",
+      "colMakerChecker": "អ្នកធ្វើ / អ្នកពិនិត្យ",
+      "open": "បើក"
+    },
+    "version": {
+      "title": "កំណែផលិតផល",
+      "product": "ផលិតផល",
+      "activateTitle": "ដំណើរការកំណែនេះ?",
+      "retireTitle": "បញ្ឈប់កំណែនេះ?",
+      "activateBody": "ពាក្យស្នើថ្មីនឹងប្រើការកំណត់នេះ។ កំណែសកម្មបច្ចុប្បន្ន (ប្រសិនបើមាន) នឹងត្រូវបានជំនួស។",
+      "retireBody": "ផលិតផលនឹងលែងទទួលពាក្យស្នើថ្មីលើកំណែនេះ។ ឥណទានដែលមានស្រាប់រក្សាលក្ខខណ្ឌរបស់ខ្លួន។",
+      "actions": {
+        "submit": "ដាក់ស្នើដើម្បីអនុម័ត",
+        "approve": "អនុម័ត",
+        "reject": "បដិសេធ",
+        "activate": "ដំណើរការ",
+        "retire": "បញ្ឈប់"
+      },
+      "done": {
+        "submit": "បានដាក់ស្នើកំណែ",
+        "approve": "បានអនុម័តកំណែ",
+        "reject": "បានបដិសេធកំណែ",
+        "activate": "បានដំណើរការកំណែ",
+        "retire": "បានបញ្ឈប់កំណែ"
+      },
+      "draftSaved": "បានរក្សាទុកព្រាង",
+      "newDraftCreated": "បានបង្កើតកំណែព្រាងថ្មី",
+      "simulate": "ក្លែងធ្វើការកំណត់តម្លៃ →",
+      "newVersion": "កំណែថ្មី",
+      "refusedTitle": "ការដំណើរការត្រូវបានបដិសេធ៖ ម៉ាស៊ីនខ្វះសមត្ថភាពដែលការកំណត់នេះត្រូវការ",
+      "refusedBody": "ការដំណើរការតម្រូវឱ្យគ្រប់សមត្ថភាពចាំបាច់ស្ថិតក្នុងស្ថានភាព IMPLEMENTED។ សូមមើលបញ្ជីដែលខ្វះខាងក្រោម និង<link>តារាងសមត្ថភាព</link>។",
+      "rejectTitle": "បដិសេធកំណែនេះ",
+      "reason": "មូលហេតុ",
+      "confirmReject": "បញ្ជាក់ការបដិសេធ",
+      "reviewTitle": "ការផ្លាស់ប្ដូរដែលត្រូវពិនិត្យមុនការអនុម័ត",
+      "reviewDiff": "ភាពខុសគ្នាពីកំណែសកម្មបច្ចុប្បន្ន",
+      "reviewFirst": "មិនមានកំណែសកម្មទេ — នេះជាការកំណត់ដំបូង។",
+      "noActive": "គ្មានកំណែសកម្មសម្រាប់ប្រៀបធៀប; សូមពិនិត្យការកំណត់ពេញលេញខាងក្រោម។",
+      "versionCard": "កំណែ",
+      "status": "ស្ថានភាព",
+      "effective": "មានប្រសិទ្ធភាព",
+      "maker": "អ្នកធ្វើ",
+      "checker": "អ្នកពិនិត្យ",
+      "changeSummary": "សេចក្ដីសង្ខេបការផ្លាស់ប្ដូរ",
+      "activeVersion": "កំណែសកម្ម",
+      "open": "បើក",
+      "none": "គ្មាន",
+      "validation": "ការផ្ទៀងផ្ទាត់",
+      "valid": "ការកំណត់ត្រឹមត្រូវ",
+      "issues": "{count, plural, other {បញ្ហា #}}",
+      "capabilities": "សមត្ថភាព",
+      "required": "ត្រូវការ {count}",
+      "allImplemented": "សមត្ថភាពចាំបាច់ទាំងអស់ត្រូវបានអនុវត្តរួច",
+      "missing": "ខ្វះ {count} — ការដំណើរការនឹងត្រូវបដិសេធ",
+      "diffTitle": "ភាពខុសគ្នាពីកំណែសកម្ម",
+      "configuration": "ការកំណត់រចនាសម្ព័ន្ធ",
+      "draftEditable": "ព្រាងអាចកែសម្រួលបាន។ ការដាក់ស្នើនឹងបង្កកការកំណត់សម្រាប់ការពិនិត្យ។",
+      "readOnly": "អានតែប៉ុណ្ណោះ — បង្កើតកំណែថ្មីដើម្បីផ្លាស់ប្ដូរ។",
+      "editDraft": "កែព្រាង",
+      "seeSteps": "{message} — សូមមើលជំហានដែលបានរំលេច។",
+      "validationFailed": "ការផ្ទៀងផ្ទាត់បរាជ័យ",
+      "summaryPlaceholder": "អ្វីដែលបានផ្លាស់ប្ដូរ និងហេតុអ្វី",
+      "cancel": "បោះបង់",
+      "saveDraft": "រក្សាទុកព្រាង"
+    }
   }
 }

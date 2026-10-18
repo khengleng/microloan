@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AlertCircle, Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Issue, ProductConfig } from '../types';
 import { Btn, IssueList, Notice } from '../ui';
 import { ConfigField } from './ConfigField';
@@ -20,6 +21,8 @@ export function ConfigEditor({ config, onChange, issues = [], disabled }: {
     const [revision, setRevision] = useState(0);
     const [fullJson, setFullJson] = useState<string | null>(null);
     const [fullErr, setFullErr] = useState<string | null>(null);
+    const t = useTranslations('LendingProducts.config');
+    const stepText = (key: string, part: 'label' | 'note', fallback: string) => (t.has(`steps.${key}.${part}`) ? t(`steps.${key}.${part}`) : fallback);
 
     const issuesByStep = useMemo(() => {
         const m: Record<string, Issue[]> = {};
@@ -41,7 +44,7 @@ export function ConfigEditor({ config, onChange, issues = [], disabled }: {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
             <ol className="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar">
-                {[...STEPS.map((s) => ({ key: s.key, label: s.label })), { key: 'review', label: 'Review / JSON' }].map((s, i) => {
+                {[...STEPS.map((s) => ({ key: s.key, label: stepText(s.key, 'label', s.label) })), { key: 'review', label: t('review') }].map((s, i) => {
                     const n = issuesByStep[s.key]?.length ?? 0;
                     const active = s.key === step;
                     return (
@@ -60,14 +63,14 @@ export function ConfigEditor({ config, onChange, issues = [], disabled }: {
 
             <div className="space-y-4 min-w-0">
                 {issuesByStep[step]?.length ? (
-                    <Notice tone="danger" title={`${issuesByStep[step].length} validation issue(s) in this step`}>
+                    <Notice tone="danger" title={t('stepIssues', { count: issuesByStep[step].length })}>
                         <IssueList issues={issuesByStep[step]} />
                     </Notice>
                 ) : null}
 
                 {current && (
                     <>
-                        {current.note && <p className="text-[12px] text-[#697386]">{current.note}</p>}
+                        {current.note && <p className="text-[12px] text-[#697386]">{stepText(current.key, 'note', current.note)}</p>}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3.5">
                             {current.fields.map((f) => {
                                 if (f.when) {
@@ -83,16 +86,16 @@ export function ConfigEditor({ config, onChange, issues = [], disabled }: {
                 {step === 'review' && (
                     <div className="space-y-3">
                         {issues.length > 0 && (
-                            <Notice tone="danger" title={`${issues.length} validation issue(s)`}><IssueList issues={issues} /></Notice>
+                            <Notice tone="danger" title={t('issues', { count: issues.length })}><IssueList issues={issues} /></Notice>
                         )}
-                        <p className="text-[12px] text-[#697386]">The complete configuration. You can edit the JSON directly; it is validated by the server when you save.</p>
+                        <p className="text-[12px] text-[#697386]">{t('reviewNote')}</p>
                         <textarea
                             className="w-full rounded border border-[#E3E8EE] font-mono text-[12px] p-3 min-h-[420px]"
                             value={fullJson ?? JSON.stringify(config, null, 2)}
                             disabled={disabled}
                             onChange={(e) => setFullJson(e.target.value)}
                         />
-                        {fullErr && <p className="text-[12px] text-red-600">Invalid JSON: {fullErr}</p>}
+                        {fullErr && <p className="text-[12px] text-red-600">{t('invalidJson', { error: fullErr })}</p>}
                         {fullJson !== null && (
                             <div className="flex gap-2">
                                 <Btn variant="primary" size="sm" onClick={() => {
@@ -103,17 +106,17 @@ export function ConfigEditor({ config, onChange, issues = [], disabled }: {
                                         setFullErr(null);
                                         setRevision((r) => r + 1);
                                     } catch (e) { setFullErr((e as Error).message); }
-                                }}>Apply JSON</Btn>
-                                <Btn size="sm" onClick={() => { setFullJson(null); setFullErr(null); }}>Discard edits</Btn>
+                                }}>{t('applyJson')}</Btn>
+                                <Btn size="sm" onClick={() => { setFullJson(null); setFullErr(null); }}>{t('discardEdits')}</Btn>
                             </div>
                         )}
                     </div>
                 )}
 
                 <div className="flex justify-between pt-2 border-t border-[#F0F2F5]">
-                    <Btn size="sm" disabled={pos <= 0} onClick={() => setStep(allKeys[pos - 1])}>← Back</Btn>
-                    <span className="text-[11px] text-[#8792A2] self-center">Step {pos + 1} of {allKeys.length}</span>
-                    <Btn size="sm" disabled={pos >= allKeys.length - 1} onClick={() => setStep(allKeys[pos + 1])}>Next →</Btn>
+                    <Btn size="sm" disabled={pos <= 0} onClick={() => setStep(allKeys[pos - 1])}>{t('back')}</Btn>
+                    <span className="text-[11px] text-[#8792A2] self-center">{t('stepOf', { n: pos + 1, total: allKeys.length })}</span>
+                    <Btn size="sm" disabled={pos >= allKeys.length - 1} onClick={() => setStep(allKeys[pos + 1])}>{t('next')}</Btn>
                 </div>
             </div>
         </div>
