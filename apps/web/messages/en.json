@@ -1292,7 +1292,8 @@
       "ORGANISATIONS_PENDING": "Organisations pending activation",
       "ORGANISATIONS_SUSPENDED": "Suspended organisations",
       "MIGRATIONS_TO_APPROVE": "Migration files to approve",
-      "RETURNS_TO_SUBMIT": "Regulatory returns to submit"
+      "RETURNS_TO_SUBMIT": "Regulatory returns to submit",
+      "SERVICE_KEYS_TO_COLLECT": "Service account keys to collect"
     },
     "search": {
       "label": "Search",

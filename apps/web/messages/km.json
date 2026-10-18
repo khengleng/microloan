@@ -1292,7 +1292,8 @@
       "ORGANISATIONS_PENDING": "អង្គភាពរង់ចាំការដាក់ឱ្យដំណើរការ",
       "ORGANISATIONS_SUSPENDED": "អង្គភាពត្រូវបានផ្អាក",
       "MIGRATIONS_TO_APPROVE": "ឯកសារផ្ទេរទិន្នន័យដែលត្រូវអនុម័ត",
-      "RETURNS_TO_SUBMIT": "របាយការណ៍និយ័តកម្មដែលត្រូវដាក់ស្នើ"
+      "RETURNS_TO_SUBMIT": "របាយការណ៍និយ័តកម្មដែលត្រូវដាក់ស្នើ",
+      "SERVICE_KEYS_TO_COLLECT": "កូនសោគណនីសេវាកម្មដែលត្រូវទទួលយក"
     },
     "search": {
       "label": "ស្វែងរក",
