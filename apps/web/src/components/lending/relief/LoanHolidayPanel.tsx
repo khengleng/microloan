@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -17,13 +18,14 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function EnrolForm({ loanId, programme, eligibility, onEnrolled }: {
     loanId: string; programme: HolidayProgramme; eligibility: HolidayEligibility; onEnrolled: (r: HolidayEnrolResult) => void;
 }) {
+    const tr = useTranslations('LendingRelief');
     const confirm = useConfirm();
     const [instalments, setInstalments] = useState('1');
     const [effectiveDate, setEffectiveDate] = useState('');
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
     const n = /^\d+$/.test(instalments.trim()) ? Number.parseInt(instalments, 10) : NaN;
-    const nErr = Number.isNaN(n) || n < 1 || n > eligibility.maxInstalments ? `Whole number 1–${eligibility.maxInstalments}.` : undefined;
+    const nErr = Number.isNaN(n) || n < 1 || n > eligibility.maxInstalments ? tr('common.wholeNumber', { max: eligibility.maxInstalments }) : undefined;
     const dateErr = effectiveDate && !DATE_RE.test(effectiveDate) ? 'YYYY-MM-DD' : undefined;
     const t = treatmentOf(programme.interestTreatment);
     const term = termOf(programme.termTreatment);
@@ -31,9 +33,9 @@ function EnrolForm({ loanId, programme, eligibility, onEnrolled }: {
     const enrol = async () => {
         if (nErr || dateErr) return;
         const ok = await confirm({
-            title: `Grant payment holiday (${programme.code})`,
-            message: `Defer ${n} instalment(s)? ${t?.summary ?? ''} ${term?.summary ?? ''} The schedule is re-issued as a new agreement version.`,
-            confirmLabel: 'Grant holiday',
+            title: tr('loan.grantTitle', { code: programme.code }),
+            message: tr('loan.grantMessage', { count: n, interest: t ? tr(`treatment.${t.value}.summary`) : '', term: term ? tr(`term.${term.value}.summary`) : '' }),
+            confirmLabel: tr('loan.grantConfirm'),
             variant: t?.costsBorrower ? 'warning' : 'default',
         });
         if (!ok) return;
@@ -50,26 +52,28 @@ function EnrolForm({ loanId, programme, eligibility, onEnrolled }: {
     return (
         <div className="space-y-3 border-t border-[#E3E8EE] pt-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label={`Instalments to defer (max ${eligibility.maxInstalments})`} error={instalments ? nErr : undefined}>
+                <Field label={tr('loan.instalmentsToDefer', { max: eligibility.maxInstalments })} error={instalments ? nErr : undefined}>
                     <TextInput value={instalments} onChange={setInstalments} inputMode="numeric" />
                 </Field>
-                <Field label="Effective date" hint="Optional — defaults to the start of the next unpaid period" error={dateErr}>
+                <Field label={tr('loan.effectiveDate')} hint={tr('loan.effectiveDateHint')} error={dateErr}>
                     <TextInput type="date" value={effectiveDate} onChange={setEffectiveDate} />
                 </Field>
             </div>
             {t && (
-                <Notice tone={t.tone} title={t.costsBorrower ? (t.value === 'CAPITALIZE' ? 'This holiday increases what the borrower owes' : 'This holiday is not free for the borrower') : 'Free to the borrower'}>
-                    {t.summary} The exact interest amount is calculated when the holiday is granted.
+                <Notice tone={t.tone} title={t.costsBorrower ? (t.value === 'CAPITALIZE' ? tr('loan.noticeIncreases') : tr('create.noticeNotFree')) : tr('loan.noticeFree')}>
+                    {tr('loan.noticeBody', { summary: tr(`treatment.${t.value}.summary`) })}
                 </Notice>
             )}
-            <p className="text-[11px] text-[#697386]">Eligibility is re-checked when you grant. Retrying the same request reuses its idempotency key.</p>
+            <p className="text-[11px] text-[#697386]">{tr('loan.recheckNote')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={enrol} busy={busy === 'enrol'} disabled={!!nErr || !!dateErr}>Grant payment holiday</Btn>
+            <Btn variant="primary" onClick={enrol} busy={busy === 'enrol'} disabled={!!nErr || !!dateErr}>{tr('loan.grant')}</Btn>
         </div>
     );
 }
 
 function ProgrammeOffer({ loanId, programme, onEnrolled }: { loanId: string; programme: HolidayProgramme; onEnrolled: (r: HolidayEnrolResult) => void }) {
+    const tr = useTranslations('LendingRelief');
+    const ts = useTranslations('Status');
     const [checking, setChecking] = useState(false);
     const elig = useApi<HolidayEligibility>(checking ? `/lending/loans/${loanId}/payment-holidays/${programme.id}/eligibility` : null);
     const e = elig.data;
@@ -80,24 +84,24 @@ function ProgrammeOffer({ loanId, programme, onEnrolled }: { loanId: string; pro
                 <div className="min-w-0">
                     <p className="text-[13px] font-semibold text-[#1A1F36]"><span className="font-mono">{programme.code}</span> — {programme.name}</p>
                     <p className="text-[12px] text-[#697386] mt-0.5">
-                        up to {programme.maxInstalments} instalment(s) · {termOf(programme.termTreatment)?.label ?? programme.termTreatment} · enrol {programme.opensOn} → {programme.closesOn}
+                        {tr('loan.offerLine', { max: programme.maxInstalments, term: termOf(programme.termTreatment) ? tr(`term.${programme.termTreatment}.label`) : programme.termTreatment, opensOn: programme.opensOn, closesOn: programme.closesOn })}
                     </p>
                     <div className="mt-1"><TreatmentBadge treatment={programme.interestTreatment} /></div>
                 </div>
-                <Btn size="sm" onClick={() => (checking ? elig.reload() : setChecking(true))} busy={elig.loading}>{checking ? 'Re-check' : 'Check eligibility'}</Btn>
+                <Btn size="sm" onClick={() => (checking ? elig.reload() : setChecking(true))} busy={elig.loading}>{checking ? tr('loan.recheck') : tr('loan.checkEligibility')}</Btn>
             </div>
             <ErrorBox error={elig.error} />
             {e && (
                 e.eligible ? (
                     <>
                         <p className="flex items-center gap-1.5 text-[13px] font-semibold text-emerald-700">
-                            <CheckCircle2 size={15} /> Eligible for up to {e.maxInstalments} instalment(s)
+                            <CheckCircle2 size={15} /> {tr('loan.eligible', { max: e.maxInstalments })}
                         </p>
                         <EnrolForm loanId={loanId} programme={programme} eligibility={e} onEnrolled={onEnrolled} />
                     </>
                 ) : (
                     <div className="border border-red-200 bg-red-50 rounded-md px-4 py-3 text-[13px] text-red-900">
-                        <p className="font-semibold flex items-center gap-1.5"><XCircle size={14} /> Not eligible</p>
+                        <p className="font-semibold flex items-center gap-1.5"><XCircle size={14} /> {tr('loan.notEligible')}</p>
                         <ul className="mt-1.5 space-y-1">
                             {e.reasons.map((r) => (
                                 <li key={r.code} className="flex gap-2">
@@ -107,8 +111,11 @@ function ProgrammeOffer({ loanId, programme, onEnrolled }: { loanId: string; pro
                             ))}
                         </ul>
                         <p className="mt-2 text-[11px] text-red-800/80">
-                            Loan as assessed: {e.candidate.status.toLowerCase()}, {e.candidate.instalmentsPaid} paid, {e.candidate.instalmentsRemaining} remaining,
-                            {' '}{e.candidate.daysPastDue} DPD, {e.candidate.priorHolidays} prior holiday(s){e.candidate.isRestructured ? ', restructured' : ''}{e.candidate.holidayInProgress ? ', holiday in progress' : ''}.
+                            {tr('loan.assessed', {
+                                status: ts.has(e.candidate.status) ? ts(e.candidate.status) : e.candidate.status.toLowerCase(),
+                                paid: e.candidate.instalmentsPaid, remaining: e.candidate.instalmentsRemaining, dpd: e.candidate.daysPastDue, prior: e.candidate.priorHolidays,
+                                restructured: String(e.candidate.isRestructured), inProgress: String(e.candidate.holidayInProgress),
+                            })}
                         </p>
                     </div>
                 )
@@ -119,6 +126,7 @@ function ProgrammeOffer({ loanId, programme, onEnrolled }: { loanId: string; pro
 
 /** Payment holidays on one loan: holidays granted, open programmes, eligibility and enrolment. */
 export function LoanHolidayPanel({ loanId, onDone, onClose }: { loanId: string; onDone?: (msg: string) => void; onClose?: () => void }) {
+    const tr = useTranslations('LendingRelief');
     const { showToast } = useToast();
     const history = useApi<HolidayEnrolment[]>(`/lending/loans/${loanId}/payment-holidays`);
     const programmes = useApi<HolidayProgramme[]>('/lending/ops/payment-holiday-programmes?status=OPEN');
@@ -128,35 +136,35 @@ export function LoanHolidayPanel({ loanId, onDone, onClose }: { loanId: string; 
     const onEnrolled = (r: HolidayEnrolResult) => {
         setGranted(r);
         history.reload();
-        const msg = `Payment holiday granted: ${r.enrolment.instalments} instalment(s), resumes ${r.enrolment.resumesOn}. ${r.cost.summary}`;
+        const msg = tr('loan.grantedToast', { count: r.enrolment.instalments, resumesOn: r.enrolment.resumesOn, summary: r.cost.summary });
         if (onDone) onDone(msg);
         else showToast(msg, 'success');
     };
 
     return (
         <Card
-            title="Payment holidays"
-            subtitle="Relief under a published programme. Eligibility is judged from recorded loan state, and every refusal says why."
-            actions={onClose && <Btn size="sm" variant="ghost" onClick={onClose}>Close</Btn>}
+            title={tr('loan.title')}
+            subtitle={tr('loan.subtitle')}
+            actions={onClose && <Btn size="sm" variant="ghost" onClick={onClose}>{tr('common.close')}</Btn>}
             bodyClass="p-0"
         >
             {granted && (
                 <div className="p-4 border-b border-[#E3E8EE]">
-                    <Notice tone={granted.cost.costsBorrower ? 'warn' : 'success'} title={`Holiday granted — payments resume ${granted.enrolment.resumesOn}`}>
+                    <Notice tone={granted.cost.costsBorrower ? 'warn' : 'success'} title={tr('loan.grantedTitle', { resumesOn: granted.enrolment.resumesOn })}>
                         {granted.cost.summary}
                     </Notice>
                 </div>
             )}
 
             <div className="px-5 pt-3.5 pb-1">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Holidays granted on this loan</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{tr('loan.grantedHeading')}</p>
             </div>
-            {history.loading && !history.data ? <Spinner /> : history.error ? <div className="p-4"><ErrorBox error={history.error} /></div> : !history.data?.length ? <Empty>No payment holidays taken.</Empty> : (
+            {history.loading && !history.data ? <Spinner /> : history.error ? <div className="p-4"><ErrorBox error={history.error} /></div> : !history.data?.length ? <Empty>{tr('loan.noneTaken')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>Programme</th><th className={th}>Instalments</th><th className={th}>Effective</th><th className={th}>Resumes</th>
-                            <th className={th}>Interest</th><th className={thR}>Deferred interest</th><th className={th}>Agreement</th>
+                            <th className={th}>{tr('col.programme')}</th><th className={th}>{tr('col.instalments')}</th><th className={th}>{tr('col.effective')}</th><th className={th}>{tr('col.resumes')}</th>
+                            <th className={th}>{tr('col.interest')}</th><th className={thR}>{tr('col.deferredInterest')}</th><th className={th}>{tr('col.agreement')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -176,9 +184,9 @@ export function LoanHolidayPanel({ loanId, onDone, onClose }: { loanId: string; 
             )}
 
             <div className="px-5 pt-4 pb-1 border-t border-[#E3E8EE] mt-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Open programmes</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{tr('loan.openProgrammes')}</p>
             </div>
-            {programmes.loading && !programmes.data ? <Spinner /> : programmes.error ? <div className="p-4"><ErrorBox error={programmes.error} /></div> : !programmes.data?.length ? <Empty>No payment-holiday programme is open.</Empty> : (
+            {programmes.loading && !programmes.data ? <Spinner /> : programmes.error ? <div className="p-4"><ErrorBox error={programmes.error} /></div> : !programmes.data?.length ? <Empty>{tr('loan.noneOpen')}</Empty> : (
                 <div className="divide-y divide-[#F0F2F5]">
                     {programmes.data.map((p) => <ProgrammeOffer key={p.id} loanId={loanId} programme={p} onEnrolled={onEnrolled} />)}
                 </div>

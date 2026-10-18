@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -20,6 +21,7 @@ const BOUND_CLS: Record<string, string> = {
 
 /** Floating-rate resets on one loan: terms, reset calendar, history, and applying what is due. */
 export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; onDone?: (msg: string) => void; onClose?: () => void }) {
+    const tr = useTranslations('LendingRelief');
     const href = useLendingHref();
     const { showToast } = useToast();
     const confirm = useConfirm();
@@ -30,9 +32,9 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
     const apply = async () => {
         if (!data) return;
         const ok = await confirm({
-            title: 'Apply due rate resets',
-            message: `Re-price this loan at ${data.due.length} reset date(s) (${data.due.join(', ')}), oldest first, from the latest ${data.terms?.benchmarkCode ?? 'benchmark'} observation on or before each date? Remaining instalments are re-issued.`,
-            confirmLabel: 'Apply resets',
+            title: tr('rates.applyTitle'),
+            message: tr('rates.applyMessage', { count: data.due.length, dates: data.due.join(', '), benchmark: data.terms?.benchmarkCode ?? tr('rates.benchmarkFallback') }),
+            confirmLabel: tr('rates.applyConfirm'),
             variant: 'warning',
         });
         if (!ok) return;
@@ -42,7 +44,7 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
             reload();
             const n = res.data.applied?.length ?? 0;
             const last = n ? res.data.applied[n - 1] : null;
-            const msg = n ? `${n} rate reset(s) applied${last ? ` — now ${fmtRate(last.newAnnualRate)}` : ''}` : (res.data.message ?? 'No reset has fallen due on this loan.');
+            const msg = n ? (last ? tr('rates.appliedToastRate', { count: n, rate: fmtRate(last.newAnnualRate) }) : tr('rates.appliedToast', { count: n })) : (res.data.message ?? tr('rates.noneDueToast'));
             if (onDone && n) onDone(msg);
             else showToast(msg, n ? 'success' : 'info');
         }
@@ -55,35 +57,35 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
 
     return (
         <Card
-            title="Rate resets"
-            subtitle="Floating-rate re-pricing: benchmark + margin, bounded by any floor or cap."
+            title={tr('rates.title')}
+            subtitle={tr('rates.subtitle')}
             actions={
                 <>
                     {data?.floating && (
-                        <Btn variant="primary" size="sm" onClick={apply} busy={busy === 'apply'} disabled={!data.due.length} reason={!data.due.length ? 'No reset has fallen due' : undefined}>
-                            Apply {data.due.length || ''} due reset{data.due.length === 1 ? '' : 's'}
+                        <Btn variant="primary" size="sm" onClick={apply} busy={busy === 'apply'} disabled={!data.due.length} reason={!data.due.length ? tr('rates.noneDueReason') : undefined}>
+                            {tr('rates.applyButton', { count: data.due.length })}
                         </Btn>
                     )}
-                    {onClose && <Btn size="sm" variant="ghost" onClick={onClose}>Close</Btn>}
+                    {onClose && <Btn size="sm" variant="ghost" onClick={onClose}>{tr('common.close')}</Btn>}
                 </>
             }
         >
             {loading && !data ? <Spinner /> : error ? <ErrorBox error={error} /> : !data ? null : !data.floating ? (
-                <Empty>This loan is priced at a fixed rate; there is nothing to reset.</Empty>
+                <Empty>{tr('rates.fixedRate')}</Empty>
             ) : (
                 <div className="space-y-4">
                     {data.terms && (
                         <KV cols={4} items={[
-                            ['Benchmark', <span key="b" className="font-mono">{data.terms.benchmarkCode}</span>],
-                            ['Margin', fmtRate(data.terms.margin)],
-                            ['Reset frequency', data.terms.resetFrequency.replace(/_/g, ' ')],
-                            ['Floor / cap', `${data.terms.floor ? fmtRate(data.terms.floor) : 'none'} / ${data.terms.cap ? fmtRate(data.terms.cap) : 'none'}`],
+                            [tr('rates.benchmark'), <span key="b" className="font-mono">{data.terms.benchmarkCode}</span>],
+                            [tr('rates.margin'), fmtRate(data.terms.margin)],
+                            [tr('rates.resetFrequency'), tr.has(`frequency.${data.terms.resetFrequency}`) ? tr(`frequency.${data.terms.resetFrequency}`) : data.terms.resetFrequency.replace(/_/g, ' ')],
+                            [tr('rates.floorCap'), `${data.terms.floor ? fmtRate(data.terms.floor) : tr('rates.none')} / ${data.terms.cap ? fmtRate(data.terms.cap) : tr('rates.none')}`],
                         ]} />
                     )}
 
                     {data.due.length > 0 && (
-                        <Notice tone="warn" title={`${data.due.length} reset${data.due.length === 1 ? ' has' : 's have'} fallen due`}>
-                            {data.due.join(', ')}. The end-of-day batch applies them automatically; apply now to re-price immediately.
+                        <Notice tone="warn" title={tr('rates.dueTitle', { count: data.due.length })}>
+                            {tr('rates.dueBody', { dates: data.due.join(', ') })}
                         </Notice>
                     )}
 
@@ -92,8 +94,7 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
                             <ErrorBox error={applyError} onDismiss={clearError} />
                             {benchmarkMissing && (
                                 <p className="text-[12px] text-[#697386]">
-                                    Record the missing observation under{' '}
-                                    <Link href={href('/lending/operations')} className="text-[#635BFF] hover:underline">Operations → Benchmark rates</Link>, then apply again.
+                                    {tr.rich('rates.missingObservation', { link: (c) => <Link href={href('/lending/operations')} className="text-[#635BFF] hover:underline">{c}</Link> })}
                                 </p>
                             )}
                         </div>
@@ -101,7 +102,7 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
 
                     {result && result.applied.length === 0 && result.message && <Notice tone="info">{result.message}</Notice>}
                     {result && result.applied.some((r) => r.explanation?.length) && (
-                        <Disclosure summary="How the applied resets were calculated" defaultOpen>
+                        <Disclosure summary={tr('rates.howCalculated')} defaultOpen>
                             <div className="space-y-2">
                                 {result.applied.map((r) => (
                                     <div key={r.id} className="text-[12px]">
@@ -114,14 +115,14 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
                     )}
 
                     <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1.5">Applied resets</p>
-                        {!applied.length ? <p className="text-[13px] text-[#697386]">No reset applied yet.</p> : (
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1.5">{tr('rates.appliedHeading')}</p>
+                        {!applied.length ? <p className="text-[13px] text-[#697386]">{tr('rates.noneApplied')}</p> : (
                             <Table className="border border-[#E3E8EE] rounded">
                                 <thead>
                                     <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                        <th className={th}>Reset date</th><th className={th}>Effective from</th><th className={th}>Observation</th>
-                                        <th className={thR}>Benchmark</th><th className={thR}>Margin</th><th className={thR}>Indicated</th><th className={th}>Bound</th>
-                                        <th className={thR}>Previous</th><th className={thR}>New rate</th><th className={thR}>Instalment</th><th className={th}>Agr.</th>
+                                        <th className={th}>{tr('rates.col.resetDate')}</th><th className={th}>{tr('rates.col.effectiveFrom')}</th><th className={th}>{tr('rates.col.observation')}</th>
+                                        <th className={thR}>{tr('rates.col.benchmark')}</th><th className={thR}>{tr('rates.col.margin')}</th><th className={thR}>{tr('rates.col.indicated')}</th><th className={th}>{tr('rates.col.bound')}</th>
+                                        <th className={thR}>{tr('rates.col.previous')}</th><th className={thR}>{tr('rates.col.newRate')}</th><th className={thR}>{tr('rates.col.instalment')}</th><th className={th}>{tr('rates.col.agreement')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
@@ -134,7 +135,7 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
                                             <td className={tdR}>{fmtRate(r.margin)}</td>
                                             <td className={tdR}>{fmtRate(r.indicatedRate)}</td>
                                             <td className={td}>
-                                                <span className={`inline-flex px-1.5 py-0.5 rounded border text-[11px] font-bold ${BOUND_CLS[r.bound] ?? BOUND_CLS.BENCHMARK}`}>{r.bound}</span>
+                                                <span className={`inline-flex px-1.5 py-0.5 rounded border text-[11px] font-bold ${BOUND_CLS[r.bound] ?? BOUND_CLS.BENCHMARK}`}>{tr.has(`bound.${r.bound}`) ? tr(`bound.${r.bound}`) : r.bound}</span>
                                             </td>
                                             <td className={`${tdR} text-[#697386]`}>{fmtRate(r.previousAnnualRate)}</td>
                                             <td className={`${tdR} font-bold text-[#1A1F36]`}>{fmtRate(r.newAnnualRate)}</td>
@@ -148,18 +149,18 @@ export function RateResetsPanel({ loanId, onDone, onClose }: { loanId: string; o
                     </div>
 
                     {data.schedule.length > 0 && (
-                        <Disclosure summary={`Reset calendar (${data.schedule.length} dates over the life of the loan)`}>
+                        <Disclosure summary={tr('rates.calendar', { count: data.schedule.length })}>
                             <div className="flex flex-wrap gap-1.5">
                                 {data.schedule.map((d) => {
                                     const cls = appliedDates.has(d)
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                         : dueDates.has(d) ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' : 'bg-white text-[#697386] border-[#E3E8EE]';
                                     return (
-                                        <span key={d} className={`px-1.5 py-0.5 rounded border text-[11px] tabular-nums ${cls}`} title={appliedDates.has(d) ? 'Applied' : dueDates.has(d) ? 'Due' : 'Upcoming'}>{d}</span>
+                                        <span key={d} className={`px-1.5 py-0.5 rounded border text-[11px] tabular-nums ${cls}`} title={appliedDates.has(d) ? tr('rates.dayApplied') : dueDates.has(d) ? tr('rates.dayDue') : tr('rates.dayUpcoming')}>{d}</span>
                                     );
                                 })}
                             </div>
-                            <p className="text-[11px] text-[#8792A2] mt-1.5">Green: applied · Amber: due · Grey: upcoming</p>
+                            <p className="text-[11px] text-[#8792A2] mt-1.5">{tr('rates.legend')}</p>
                         </Disclosure>
                     )}
                 </div>
