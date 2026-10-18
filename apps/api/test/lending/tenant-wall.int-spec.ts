@@ -138,6 +138,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'consents/:consentId': 'altDataConsent',
       'alternative-data/:recordId': 'altDataRecord',
       'alternative-data-providers/:configId': 'altDataProviderConfig',
+      // Learning centre team report (learning.int-spec): a member of the victim tenant.
+      'users/:userId': 'user',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
@@ -179,6 +181,8 @@ const LITERALS: Record<string, string> = {
   ':year/:month': '1',
   'years/:year': '2026',
   'document-links/:token': 'not-a-signed-document-link',
+  // Learning centre lessons are content ids, not rows: the caller's own progress.
+  'lessons/:lessonId': 'portal-orientation',
 };
 
 /** Global (platform) rows: not tenant data, so no victim to name. */

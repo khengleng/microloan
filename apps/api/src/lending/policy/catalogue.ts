@@ -371,6 +371,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Audit',
     platformAllowed: true,
   },
+  // Learning centre (D-093): everyone keeps their own progress; this reads the team's.
+  {
+    code: 'learning.report.read',
+    description: "View the team's Learning centre progress report",
+    category: 'Learning',
+  },
   // Access governance
   {
     code: 'access_policy.read',
@@ -645,6 +651,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'audit.read',
       'policy.simulate',
       'business_date.manage',
+      'learning.report.read',
     ],
   },
   {
@@ -874,6 +881,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'access_policy.read',
       'policy.simulate',
       'loan_data.export',
+      'learning.report.read',
     ],
   },
   {

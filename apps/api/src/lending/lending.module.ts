@@ -64,6 +64,11 @@ import { MurabahaService } from './murabaha/murabaha.service';
 import { MurabahaController } from './murabaha/murabaha.controller';
 import { CatalogueSyncService } from './catalogue-sync.service';
 import { ScoringController } from './scoring/scoring.controller';
+import {
+  LearningMeController,
+  LearningTeamController,
+} from './learning/learning.controller';
+import { LearningService } from './learning/learning.service';
 import { ScorecardsService } from './scoring/scorecards.service';
 import { ScoringService } from './scoring/scoring.service';
 import { FeatureStoreService } from './scoring/feature-store.service';
@@ -155,6 +160,8 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     WorkspaceSearchController,
     WorkspacePortalController,
     ScoringController,
+    LearningMeController,
+    LearningTeamController,
   ],
   providers: [
     ReportingService,
@@ -217,6 +224,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     AlternativeDataService,
     AltDataProvidersService,
     ScoreMonitoringService,
+    LearningService,
   ],
   exports: [
     CustomerDocumentsService,

@@ -307,6 +307,9 @@ export const ACTIONS: ActionDefinition[] = [
   // Scorecards are risk models: one person drafts and tests a version,
   // another approves it and puts it in force.
   A('scorecard.read', 'TENANT', 'READ'),
+  // Learning centre (D-093): the team's progress report. Everyone reads and
+  // writes their own progress without a permission.
+  A('learning.report.read', 'TENANT', 'READ'),
   A('scorecard.manage', 'TENANT', 'CONFIG'),
   A('scorecard.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Solidarity groups
