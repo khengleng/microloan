@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ShieldAlert, UserCheck } from 'lucide-react';
 import { useWorkspace } from '@/lib/workspace';
+import { signOut } from '@/lib/api';
 import { compareDecimal, fmtMoney } from '@/components/lending/format';
 
 const chip = 'inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap';
@@ -70,9 +71,16 @@ export function ShellBanners() {
                     <ShieldAlert size={15} className="mt-0.5 flex-shrink-0" />
                     <p>
                         <b>{t('stepUpTitle')}</b> {t('stepUpBody')}{' '}
-                        <Link href={`/${locale}/settings`} className="font-bold underline">
-                            {access.assurance.mfaEnrolled ? t('stepUpSignIn') : t('stepUpEnrol')}
-                        </Link>
+                        {access.assurance.mfaEnrolled ? (
+                            // Enrolled already: a code-verified session only comes from signing in again.
+                            <button type="button" onClick={() => void signOut(String(locale))} className="font-bold underline">
+                                {t('stepUpSignIn')}
+                            </button>
+                        ) : (
+                            <Link href={`/${locale}/account`} className="font-bold underline">
+                                {t('stepUpEnrol')}
+                            </Link>
+                        )}
                     </p>
                 </div>
             )}

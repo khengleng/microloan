@@ -3,6 +3,7 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -12,8 +13,10 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
+import { PlanTierService } from '../plan-tiers/plan-tier.service';
 
-type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId' | 'branchId' | 'permissions'>;
+type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId' | 'branchId' | 'permissions'> &
+  Partial<Pick<JwtPayload, 'amr' | 'tenantPlan'>>;
 
 @Injectable()
 export class UsersService {
@@ -21,6 +24,7 @@ export class UsersService {
     private prisma: PrismaService,
     private audit: AuditService,
     private authz: AuthzService,
+    private planTiers: PlanTierService,
   ) { }
 
   async findOneByEmail(email: string): Promise<User | null> {
@@ -138,10 +142,18 @@ export class UsersService {
       return { success: true };
     }
 
-    const result = await this.prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    const [result] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { isActive: false },
+      }),
+      // A suspended account's sessions must not quietly resume if it is
+      // reactivated later: end them now.
+      this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
 
     await this.audit.logSecurityEvent({
       actorUserId: actor.sub,
@@ -201,6 +213,127 @@ export class UsersService {
       targetType: 'User',
       targetId: id,
       action: 'USER_PASSWORD_RESET',
+      result: 'SUCCESS',
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Undo a suspension (DELETE /users/:id). Same permission and the same
+   * who-may-manage-whom rules as suspending. A suspended account still counts
+   * toward the plan's seat ceiling (QuotaGuard counts every user row), but its
+   * seat is not in use: reactivation is refused only when the active seats are
+   * already full, which can happen after a downgrade.
+   */
+  async reactivate(actor: UserActor, id: string) {
+    this.authz.assertPermission(actor, Permission.USER_DISABLE);
+
+    const user = await this.prisma.user.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      select: { id: true, email: true, role: true, isActive: true, tenantId: true, branchId: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    this.authz.assertCanManageUser(actor, user);
+    if (this.authz.actorId(actor) === user.id) {
+      throw new BadRequestException('You cannot reactivate your own account.');
+    }
+    if (user.isActive) throw new ConflictException('This account is already active.');
+
+    if (!this.authz.isPlatform(actor) && user.tenantId) {
+      const { maxUsers } = await this.planTiers.ceilingsFor(actor.tenantPlan);
+      if (maxUsers !== null) {
+        const active = await this.prisma.user.count({
+          where: { tenantId: user.tenantId, isActive: true },
+        });
+        if (active >= maxUsers) {
+          throw new ForbiddenException(
+            `Your organization already has ${active} active team members, the most the ${actor.tenantPlan || 'current'} plan allows. Suspend someone else or upgrade the plan first.`,
+          );
+        }
+      }
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        // A fresh start: clear any lockout left over from before the suspension.
+        data: { isActive: true, loginAttempts: 0, lockedUntil: null },
+        select: { id: true, email: true, role: true, isActive: true },
+      }),
+      // Sessions issued before the suspension stay dead; the person signs in again.
+      this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: id,
+      action: 'USER_REACTIVATE',
+      oldValue: { isActive: false, role: user.role },
+      newValue: { isActive: true },
+      result: 'SUCCESS',
+    });
+
+    return updated;
+  }
+
+  /**
+   * Lost phone: remove a team member's authenticator so they can enrol a new
+   * one. The actor must have signed in with their own authenticator code
+   * (step-up), cannot reset their own factor (that would let a stolen password
+   * strip the second factor), and the target is signed out everywhere.
+   */
+  async resetMfa(actor: UserActor, id: string) {
+    this.authz.assertPermission(actor, Permission.USER_UPDATE);
+
+    const user = await this.prisma.user.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+      select: { id: true, email: true, role: true, tenantId: true, branchId: true, twoFactorEnabled: true, twoFactorSecret: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    this.authz.assertCanManageUser(actor, user);
+
+    if (this.authz.actorId(actor) === user.id) {
+      throw new BadRequestException(
+        'You cannot reset your own authenticator. Ask another administrator.',
+      );
+    }
+    if (actor.amr !== 'mfa') {
+      await this.authz.auditAuthzFailure(actor, 'USER_MFA_RESET', 'User', id, 'Actor session is not MFA-verified');
+      throw new ForbiddenException(
+        'Resetting an authenticator requires you to be signed in with your own authenticator code. Sign out and sign in again with your code.',
+      );
+    }
+    if (!user.twoFactorEnabled && !user.twoFactorSecret) {
+      throw new ConflictException('This team member has no authenticator to reset.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { twoFactorEnabled: false, twoFactorSecret: null },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actor.sub,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'User',
+      targetId: id,
+      action: 'USER_MFA_RESET',
+      oldValue: { twoFactorEnabled: user.twoFactorEnabled },
+      newValue: { twoFactorEnabled: false },
       result: 'SUCCESS',
     });
 

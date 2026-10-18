@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
+import { setAuthCookies } from '@/lib/auth-cookies';
 
 /**
  * POST /api/auth/login
@@ -36,29 +37,4 @@ export async function POST(req: NextRequest) {
     } catch (err) {
         return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
     }
-}
-
-/** Shared helper: write tokens as server-set HttpOnly cookies */
-export function setAuthCookies(data: { access_token: string; refresh_token: string }) {
-    const response = NextResponse.json({ ok: true });
-    const isProd = process.env.NODE_ENV === 'production';
-
-    const cookieBase = {
-        httpOnly: true,          // ← inaccessible to JS — XSS cannot steal these
-        secure: isProd,          // ← HTTPS only in production
-        sameSite: 'strict' as const,
-        path: '/',
-    };
-
-    response.cookies.set('access_token', data.access_token, {
-        ...cookieBase,
-        maxAge: 15 * 60,       // 15 minutes (matches JWT_ACCESS_TTL)
-    });
-
-    response.cookies.set('refresh_token', data.refresh_token, {
-        ...cookieBase,
-        maxAge: 30 * 24 * 60 * 60, // 30 days (matches JWT_REFRESH_TTL)
-    });
-
-    return response;
 }

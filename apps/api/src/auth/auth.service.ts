@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  GoneException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -129,7 +130,10 @@ export class AuthService {
    */
   @SystemContext('pre-auth: redeeming a reset token')
   async resetPassword(token: string, newPassword: string) {
-    if (!token) throw new UnauthorizedException('Invalid or expired reset link.');
+    // Not 401: the person resetting has no session, and a 401 reads to the web
+    // client as "your session expired" and bounces them to Sign in before the
+    // reset page can say the link is no good.
+    if (!token) throw new BadRequestException('Invalid or expired reset link.');
     if (!newPassword || newPassword.length < 12) {
       throw new BadRequestException('Password must be at least 12 characters.');
     }
@@ -137,7 +141,7 @@ export class AuthService {
       where: { tokenHash: this.hashResetToken(token) },
     });
     if (!rec || rec.usedAt || rec.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid or expired reset link.');
+      throw new GoneException('Invalid or expired reset link.');
     }
 
     const hash = await bcrypt.hash(newPassword, await bcrypt.genSalt());
@@ -759,14 +763,29 @@ export class AuthService {
     return { secret, qrCodeDataUrl };
   }
 
+  /** Whether the signed-in person already has an authenticator enrolled. */
+  async mfaStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorEnabled: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    return { enabled: user.twoFactorEnabled };
+  }
+
   async enableMfa(userId: string, code: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.twoFactorSecret) throw new UnauthorizedException('MFA not initiated');
+    if (!user) throw new UnauthorizedException();
+    // A wrong or missing setup code is a mistake in the form, not a failed
+    // session: answering 401 would sign the person out mid-setup.
+    if (!user.twoFactorSecret) {
+      throw new BadRequestException('Authenticator setup has not been started. Start it again.');
+    }
 
     if (user.twoFactorEnabled) throw new ConflictException('MFA is already enabled');
 
     const isValid = await totpCodeMatches(code, user.twoFactorSecret);
-    if (!isValid) throw new UnauthorizedException('Invalid verification code');
+    if (!isValid) throw new BadRequestException('Invalid verification code');
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -949,6 +968,84 @@ export class AuthService {
         payload.amr === 'mfa' ? 'mfa' : 'pwd',
       );
     });
+  }
+
+  /**
+   * Sign-out: revoke the presented refresh token. Idempotent and quiet — an
+   * unknown, expired, already-revoked or malformed token answers the same
+   * success, so the endpoint reveals nothing and a double sign-out is
+   * harmless. It is deliberately NOT treated as reuse: revoking a revoked
+   * token cannot mint anything, and tripping reuse detection here would let
+   * a stale tab's sign-out end every other session.
+   */
+  @SystemContext('pre-auth: revoking a refresh token at sign-out')
+  async logout(refreshToken: string | undefined, ip?: string) {
+    const done = { success: true };
+    if (!refreshToken) return done;
+    let payload: { sub?: string; jti?: string; typ?: string };
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET!,
+        // An expired token is still worth revoking (its row may outlive the JWT).
+        ignoreExpiration: true,
+      });
+    } catch {
+      return done;
+    }
+    if (!payload.jti || payload.typ !== REFRESH_TOKEN_TYPE) return done;
+
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: {
+        id: payload.jti,
+        hashedToken: this.hashRefreshToken(refreshToken),
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+    if (revoked.count === 1 && payload.sub) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, role: true, tenantId: true },
+      });
+      if (user) {
+        await this.audit.logSecurityEvent({
+          actorUserId: user.id,
+          actorRole: user.role,
+          actorTenantId: user.tenantId || null,
+          targetType: 'RefreshToken',
+          targetId: payload.jti,
+          action: 'LOGOUT',
+          ipAddress: ip || 'unknown',
+          result: 'SUCCESS',
+        });
+      }
+    }
+    return done;
+  }
+
+  /** "Sign out everywhere": revoke every refresh token the person holds. */
+  async revokeAllSessions(userId: string, ip?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, tenantId: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'SESSIONS_REVOKED_ALL',
+      newValue: { revoked: revoked.count },
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
+    });
+    return { success: true, revoked: revoked.count };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

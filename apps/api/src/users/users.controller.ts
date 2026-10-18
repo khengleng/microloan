@@ -52,6 +52,24 @@ export class UsersController {
         return this.usersService.updateRole(user, id, body.role);
     }
 
+    // Undo a suspension. Seat ceilings are checked in the service against
+    // active seats (a suspended account already counts toward QuotaGuard).
+    @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_DISABLE)
+    @Post(':id/reactivate')
+    reactivate(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.usersService.reactivate(user, id);
+    }
+
+    // Lost phone: clear a team member's authenticator. Requires the actor's
+    // own session to be MFA-verified (checked in the service).
+    @Roles('ADMIN', 'SUPERADMIN')
+    @RequirePermissions(Permission.USER_UPDATE)
+    @Post(':id/mfa/reset')
+    resetMfa(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.usersService.resetMfa(user, id);
+    }
+
     // Admin-initiated password reset (account recovery for the "Forgot password?"
     // flow, since there is no self-service email delivery configured).
     @Roles('ADMIN', 'SUPERADMIN')
