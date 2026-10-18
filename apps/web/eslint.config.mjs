@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Built from docs/user-guide by scripts/generate-user-guide.mjs.
+    "src/generated/**",
   ]),
 ]);
 

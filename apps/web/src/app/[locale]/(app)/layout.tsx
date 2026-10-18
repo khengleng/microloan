@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { LogOut, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, Menu, X, ChevronRight, CircleHelp } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
 import { clarityIdentify, claritySetTag } from '@/lib/clarity';
@@ -49,7 +49,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const navItem = (item: NavItem) => {
         const { href, icon: Icon } = item;
         const label = tw(`nav.${item.key}`);
-        const active = pathname === `/${locale}${href}` || (href.startsWith('/lending/') && pathname.startsWith(`/${locale}${href}/`));
+        const active = pathname === `/${locale}${href}` || ((href.startsWith('/lending/') || href === '/help') && pathname.startsWith(`/${locale}${href}/`));
         const count = queueCount(item.queues);
         return (
             <Link
@@ -164,6 +164,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                     <GlobalSearch platform={!!isPlatform} />
                     <ShellChips />
+                    <Link
+                        href={`/${locale}/help`}
+                        title={tw('nav.userGuide')}
+                        aria-label={tw('nav.userGuide')}
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                        <CircleHelp size={17} />
+                        <span className="hidden md:inline text-xs font-semibold">{tw('nav.help')}</span>
+                    </Link>
                     {/* Locale switcher */}
                     <div className="flex items-center gap-0.5 border border-border rounded p-0.5 bg-muted">
                         <Link

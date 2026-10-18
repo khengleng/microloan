@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Search, CreditCard, Loader2, Download, ChevronLeft, ChevronRight, Wallet, Activity, CheckCircle2 } from 'lucide-react';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { HelpLink } from '@/components/help/HelpLink';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 
 interface Repayment {
@@ -130,6 +131,7 @@ export default function RepaymentsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <HelpLink chapter="07-repayments-and-payments" anchor="2-posting-a-repayment" />
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
