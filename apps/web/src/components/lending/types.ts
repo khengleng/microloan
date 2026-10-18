@@ -465,7 +465,7 @@ export interface RestructureProposal {
 
 export interface RestructureCaseSummary {
     id: string; reference: string; status: string; trigger: string; hardshipCategory: string; difficultyType: string;
-    loanAccountId: string; previousRestructures: number; createdAt: string;
+    loanAccountId: string; loanReference?: string | null; previousRestructures: number; createdAt: string;
 }
 
 export interface RestructureCase extends RestructureCaseSummary {

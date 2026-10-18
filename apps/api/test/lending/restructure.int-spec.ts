@@ -121,6 +121,10 @@ d('Restructuring and hardship (integration)', () => {
   afterAll(async () => f?.app.close());
 
   it('the customer requests lower payments in the portal; only for their own loan', async () => {
+    // The portal lists the customer's own active loans to choose from.
+    const mine = expectOk(await portal(customerToken).get('/loans')) as any[];
+    expect(mine.map((l) => l.id)).toContain(A.loanId);
+    expect(mine.map((l) => l.id)).not.toContain(B.loanId);
     const other = await portal(customerToken).post(
       `/loans/${B.loanId}/restructure-requests`,
       {

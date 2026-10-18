@@ -772,7 +772,9 @@
       "AUDIT_DENIALS": "Refused actions this week",
       "PLAN_PAYMENTS_TO_CONFIRM": "Plan payments to confirm",
       "ORGANISATIONS_PENDING": "Organisations pending activation",
-      "ORGANISATIONS_SUSPENDED": "Suspended organisations"
+      "ORGANISATIONS_SUSPENDED": "Suspended organisations",
+      "MIGRATIONS_TO_APPROVE": "Migration files to approve",
+      "RETURNS_TO_SUBMIT": "Regulatory returns to submit"
     },
     "search": {
       "label": "Search",
@@ -1038,7 +1040,9 @@
     "records": "{count, plural, one {# record} other {# records}}",
     "recordsPage": "{count} records · page {page} of {pages}",
     "prev": "Prev",
-    "next": "Next"
+    "next": "Next",
+    "loanSearch": "Type a loan reference…",
+    "noLoans": "No matching loans"
   },
   "LendingClose": {
     "subtitle": "Month-end and year-end close of the lending books: checks, a frozen snapshot, and a lock approved by a second person.",

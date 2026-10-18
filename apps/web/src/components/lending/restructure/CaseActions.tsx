@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import type { RestructureCase } from '../types';
@@ -9,7 +10,12 @@ import { StatusBadge } from '../StatusBadge';
 import { fmtDateTime } from '../format';
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, JsonBlock, Notice, Table, TextArea, TextInput, td, th } from '../ui';
 import { clean, idem, useAction, useIdempotencyKey, type ApiErrorInfo } from '../useAsync';
-import { PRE_EXECUTION_STATUSES } from './labels';
+
+/** Case states in which the API accepts each action (policy/actions.ts). */
+const REJECTABLE = ['REQUESTED', 'MORE_INFO_REQUIRED', 'AFFORDABILITY_ASSESSED', 'SPECIALIST_REVIEW', 'OPTIONS_PROPOSED'];
+const WITHDRAWABLE = [...REJECTABLE, 'APPROVED'];
+const EXECUTABLE = ['CUSTOMER_ACCEPTED', 'CONDITIONS_SATISFIED'];
+const SATISFIABLE = ['APPROVED', 'CUSTOMER_ACCEPTED'];
 
 type Diff = { field: string; proposed: string; actual: string };
 
@@ -42,6 +48,7 @@ export function StaleProposalNotice({ error }: { error: ApiErrorInfo }) {
 export function CaseActions({ c, onChanged }: { c: RestructureCase; onChanged: () => void }) {
     const { showToast } = useToast();
     const confirm = useConfirm();
+    const { can } = useWorkspace();
     const { busy, error, run, clearError } = useAction();
     const execKey = useIdempotencyKey();
     const revKey = useIdempotencyKey();
@@ -51,7 +58,10 @@ export function CaseActions({ c, onChanged }: { c: RestructureCase; onChanged: (
 
     const hasAccepted = c.proposals.some((p) => p.status === 'ACCEPTED');
     const executedAmendment = (c.amendments ?? []).some((a) => (a.status ?? 'EXECUTED') === 'EXECUTED');
-    const open = PRE_EXECUTION_STATUSES.includes(c.status);
+    const canReject = can('restructure.approve') && REJECTABLE.includes(c.status);
+    const canWithdraw = can('restructure.request') && WITHDRAWABLE.includes(c.status);
+    const canExecute = can('restructure.execute') && EXECUTABLE.includes(c.status);
+    const canReverse = can('restructure.execute') && c.status === 'MONITORING';
     const outstanding = (c.conditions ?? []).filter((x) => x.status === 'OUTSTANDING').length;
     const noteOk = note.trim().length >= 3;
 
@@ -83,10 +93,11 @@ export function CaseActions({ c, onChanged }: { c: RestructureCase; onChanged: (
         <Card title="Case actions">
             <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
-                    <Btn variant="primary" disabled={!hasAccepted || outstanding > 0} reason={!hasAccepted ? 'No accepted proposal' : outstanding ? `${outstanding} condition(s) outstanding` : undefined} onClick={() => open_('execute')}>Execute…</Btn>
-                    <Btn variant="danger" disabled={!executedAmendment || c.status === 'REVERSED'} reason={!executedAmendment ? 'Nothing executed to reverse' : undefined} onClick={() => open_('reverse')}>Reverse…</Btn>
-                    <Btn variant="danger" disabled={!open} reason={!open ? 'Case is not open' : undefined} onClick={() => open_('reject')}>Reject case…</Btn>
-                    <Btn disabled={!open} reason={!open ? 'Case is not open' : undefined} onClick={() => open_('withdraw')}>Withdraw…</Btn>
+                    {canExecute && <Btn variant="primary" disabled={!hasAccepted || outstanding > 0} reason={!hasAccepted ? 'No accepted proposal' : outstanding ? `${outstanding} condition(s) outstanding` : undefined} onClick={() => open_('execute')}>Execute…</Btn>}
+                    {canReverse && <Btn variant="danger" disabled={!executedAmendment} reason={!executedAmendment ? 'Nothing executed to reverse' : undefined} onClick={() => open_('reverse')}>Reverse…</Btn>}
+                    {canReject && <Btn variant="danger" onClick={() => open_('reject')}>Reject case…</Btn>}
+                    {canWithdraw && <Btn onClick={() => open_('withdraw')}>Withdraw…</Btn>}
+                    {!canExecute && !canReverse && !canReject && !canWithdraw && <p className="text-[12px] text-[#697386]">No case action is open to you at this stage.</p>}
                 </div>
 
                 {panel === 'execute' && (
@@ -122,6 +133,8 @@ export function CaseActions({ c, onChanged }: { c: RestructureCase; onChanged: (
 /** Conditions precedent with "mark satisfied". */
 export function ConditionsPanel({ c, onChanged }: { c: RestructureCase; onChanged: () => void }) {
     const { showToast } = useToast();
+    const { can } = useWorkspace();
+    const canSatisfy = can('restructure.execute') && SATISFIABLE.includes(c.status);
     const { busy, error, run, clearError } = useAction();
     const [active, setActive] = useState<string | null>(null);
     const [note, setNote] = useState('');
@@ -145,7 +158,7 @@ export function ConditionsPanel({ c, onChanged }: { c: RestructureCase; onChange
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <StatusBadge status={x.status} />
-                                    {x.status === 'OUTSTANDING' && <Btn size="sm" onClick={() => { clearError(); setNote(''); setActive(active === x.code ? null : x.code); }}>Mark satisfied…</Btn>}
+                                    {x.status === 'OUTSTANDING' && canSatisfy && <Btn size="sm" onClick={() => { clearError(); setNote(''); setActive(active === x.code ? null : x.code); }}>Mark satisfied…</Btn>}
                                 </div>
                             </div>
                             {(x.evidence || x.note) && <p className="text-[12px] text-[#3C4257]">Evidence: {x.evidence ?? x.note}{x.resolvedBy ? ` — ${x.resolvedBy}` : ''}{x.resolvedAt ? `, ${fmtDateTime(x.resolvedAt)}` : ''}</p>}

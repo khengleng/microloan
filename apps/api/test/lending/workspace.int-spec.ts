@@ -535,6 +535,26 @@ d('Workspace: access, work queues and search (integration)', () => {
     expect(w.businessDate).toBe('2026-01-05');
   });
 
+  // ── /me/people ──────────────────────────────────────────────────────────
+
+  it('people resolves ids and email fragments to colleagues of the same organisation only', async () => {
+    const ro = f.users['ro'].id;
+    const foreign = f.users['t2admin'].id;
+    const byId = expectOk(
+      await f.as('analyst').get(`/me/people?ids=${ro},${foreign}`),
+    ) as any[];
+    expect(byId.map((p) => p.id)).toEqual([ro]);
+    expect(byId[0].email).toMatch(/^ro-/);
+    const found = expectOk(await f.as('analyst').get('/me/people?q=ro-')) as any[];
+    expect(found.map((p) => p.id)).toContain(ro);
+    expect(found.every((p) => p.id !== foreign)).toBe(true);
+    // Too short a fragment, and platform operators, get nothing.
+    expect(expectOk(await f.as('analyst').get('/me/people?q=r'))).toEqual([]);
+    expect(
+      expectOk(await f.as('platform').get(`/me/people?ids=${ro}`)),
+    ).toEqual([]);
+  });
+
   // ── /search ─────────────────────────────────────────────────────────────
 
   it('search finds by name, phone and reference within scope, and never across branches or tenants', async () => {
