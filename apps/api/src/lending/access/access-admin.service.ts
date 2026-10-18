@@ -34,9 +34,9 @@ import {
   parseConfig,
 } from '../policy/resources';
 import { serviceKeyHash } from '../policy/lending-action.guard';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 
 type Json = Prisma.InputJsonValue;
-const MAX_DELEGATION_DAYS = 30;
 
 /**
  * Access governance for lending: roles, scoped assignments, delegations,
@@ -52,6 +52,7 @@ export class AccessAdminService {
     private readonly lp: LendingPrisma,
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   private access(
@@ -156,6 +157,11 @@ export class AccessAdminService {
       })),
       users,
       policies,
+      /** The lender's limits the forms check before the API does. */
+      limits: {
+        maxDelegationDays: (await this.settings.get(tenantId)).access
+          .maxDelegationDays,
+      },
     };
   }
 
@@ -395,12 +401,12 @@ export class AccessAdminService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const from = new Date(body.validFrom);
       const to = new Date(body.validTo);
-      if (
-        !(to > from) ||
-        to.getTime() - from.getTime() > MAX_DELEGATION_DAYS * 86_400_000
-      )
+      // The lender's limit (lending settings access.maxDelegationDays, default 30).
+      const maxDays = (await this.settings.get(tenantId, tx)).access
+        .maxDelegationDays;
+      if (!(to > from) || to.getTime() - from.getTime() > maxDays * 86_400_000)
         throw new BadRequestException(
-          `A delegation must end after it starts and last at most ${MAX_DELEGATION_DAYS} days.`,
+          `A delegation must end after it starts and last at most ${maxDays} days.`,
         );
       if (body.toUserId === actor.id)
         throw new BadRequestException('You cannot delegate to yourself.');
@@ -1015,7 +1021,7 @@ export class AccessAdminService {
         },
       });
       if (res.count !== 1) throw concurrentModification('This platform rule');
-      this.policy.invalidateAll();
+      await this.policy.invalidateAll();
       await this.audit.write({
         actor,
         action: 'feature_flag.approve',

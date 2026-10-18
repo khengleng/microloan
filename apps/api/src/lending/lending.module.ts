@@ -32,6 +32,7 @@ import {
   PaymentChannelsController,
 } from './payments/payment-channels.controller';
 import { ImpairmentService } from './accounting/impairment.service';
+import { LendingSettingsService } from './accounting/lending-settings.service';
 import { FacilitiesService } from './facilities/facilities.service';
 import { BorrowingBaseService } from './facilities/borrowing-base.service';
 import { ProjectFinanceService } from './project-finance/project-finance.service';
@@ -174,6 +175,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     PaymentChannelsService,
     ChannelFilesService,
     ImpairmentService,
+    LendingSettingsService,
     FacilitiesService,
     BorrowingBaseService,
     ProjectFinanceService,

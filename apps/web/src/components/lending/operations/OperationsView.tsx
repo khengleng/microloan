@@ -7,12 +7,13 @@ import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatusBadge } from '../StatusBadge';
 import { ImpairmentTab } from './ImpairmentTab';
+import { LendingSettingsTab } from './LendingSettingsTab';
 import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Table, Tabs, TextInput, td, th } from '../ui';
 import { qs, useAction, useApi } from '../useAsync';
 import { fmtDateTime, fmtRate, percentToFraction } from '../format';
 import type { BatchResult, BusinessDate, CalendarHoliday, HolidayCalendar, IntegrationsStatus, RateObservation } from './types';
 
-type Tab = 'date' | 'rates' | 'calendars' | 'impairment' | 'integrations';
+type Tab = 'date' | 'rates' | 'calendars' | 'impairment' | 'settings' | 'integrations';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CODE_RE = /^[A-Z0-9_]{2,20}$/;
@@ -436,7 +437,7 @@ function IntegrationsTab() {
     );
 }
 
-/** Lending operations: business date / end of day, benchmark rates, calendars, integrations. */
+/** Lending operations: business date / end of day, benchmark rates, calendars, impairment, lending settings, integrations. */
 export function OperationsView() {
     const [tab, setTab] = useState<Tab>('date');
     return (
@@ -449,6 +450,7 @@ export function OperationsView() {
                     { value: 'rates', label: 'Benchmark rates' },
                     { value: 'calendars', label: 'Holiday calendars' },
                     { value: 'impairment', label: 'Impairment policy' },
+                    { value: 'settings', label: 'Lending settings' },
                     { value: 'integrations', label: 'Integrations' },
                 ]}
             />
@@ -456,6 +458,7 @@ export function OperationsView() {
             {tab === 'rates' && <RatesTab />}
             {tab === 'calendars' && <CalendarsTab />}
             {tab === 'impairment' && <ImpairmentTab />}
+            {tab === 'settings' && <LendingSettingsTab />}
             {tab === 'integrations' && <IntegrationsTab />}
         </div>
     );

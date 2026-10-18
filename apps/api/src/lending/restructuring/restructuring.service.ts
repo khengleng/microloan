@@ -1504,7 +1504,7 @@ export class RestructuringService implements OnModuleInit {
         c.id,
         tenantId,
         'BALLOON_MATURITY',
-        lending.addDays(calc.schedule.maturityDate, -30),
+        lending.addDays(calc.schedule.maturityDate, -cfg.balloonReminderDays),
         { balloon: options.balloonAmount },
         `balloon:${amendment.id}`,
       );

@@ -233,6 +233,13 @@ export const S = {
   approve: z
     .object({ approve: z.boolean(), comment: z.string().max(500).optional() })
     .strict(),
+  /** The settings themselves are checked by the shared schema in the service. */
+  tenantSettings: z
+    .object({
+      settings: z.record(z.unknown()),
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
   regulatoryGenerate: z
     .object({
       year: z.number().int().min(2000).max(2200),

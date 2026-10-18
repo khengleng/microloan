@@ -24,15 +24,13 @@ import { tenantResource } from '../policy/resources';
 import { ServicingService } from '../servicing/servicing.service';
 import { blindIndex } from '../../common/field-crypto';
 import { SuspenseService } from './suspense.service';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import type {
   PayrollFileBody,
   SettlementFileBody,
 } from './payment-channels.schemas';
 
 type Json = Prisma.InputJsonValue;
-
-/** How far back a file's value dates may go: the suspense account's own limit. */
-const MAX_FILE_BACKDATE_DAYS = 30;
 
 /** Suspense knows fewer channels than files do. */
 const SUSPENSE_CHANNEL = {
@@ -87,6 +85,7 @@ export class ChannelFilesService {
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
     private readonly suspense: SuspenseService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   importSettlement(actor: LendingActor, body: SettlementFileBody) {
@@ -97,7 +96,7 @@ export class ChannelFilesService {
       content: body.content,
       employer: null,
       period: null,
-      parse: (text) => lending.parseSettlementFile(text),
+      parse: (text, maxLines) => lending.parseSettlementFile(text, maxLines),
     });
   }
 
@@ -116,7 +115,7 @@ export class ChannelFilesService {
       employer: meta.employer,
       period: meta.period,
       meta,
-      parse: (text) => lending.parsePayrollFile(text, meta),
+      parse: (text, maxLines) => lending.parsePayrollFile(text, meta, maxLines),
     });
   }
 
@@ -130,7 +129,7 @@ export class ChannelFilesService {
       employer: string | null;
       period: string | null;
       meta?: Record<string, string>;
-      parse: (text: string) => lending.ParsedChannelFile;
+      parse: (text: string, maxLines: number) => lending.ParsedChannelFile;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -159,7 +158,10 @@ export class ChannelFilesService {
             ...(await this.fileView(tx, tenantId, already.id)),
           };
 
-        const parsed = engineCall(() => f.parse(text));
+        // The lender's limits (lending settings): lines per file, and how far
+        // back a line may be dated — the suspense account's own limit.
+        const { payments } = await this.settings.get(tenantId, tx);
+        const parsed = engineCall(() => f.parse(text, payments.maxFileLines));
         const businessDate = await this.businessDate.get(tenantId, tx);
         const errors = [...parsed.errors];
         for (const l of parsed.lines) {
@@ -167,7 +169,7 @@ export class ChannelFilesService {
             BusinessDateService.checkValueDate(
               l.valueDate,
               businessDate,
-              MAX_FILE_BACKDATE_DAYS,
+              payments.maxBackdateDays,
             );
           } catch (e) {
             errors.push({ lineNo: l.lineNo, message: (e as Error).message });

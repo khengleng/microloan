@@ -5,9 +5,10 @@ import { AuditService } from '../audit/audit.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { LedgerService } from '../ledger/ledger.service';
-import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
 import { LoanStatus, JournalSource, Currency, LoanClassification as PrismaClassification } from '@microloan/db';
-import { classifyByDaysOverdue, provisionAmount } from '@microloan/shared';
+import { classifyByDaysOverdue, provisionAmount, LoanClassification } from '@microloan/shared';
+import type { ClassificationTier } from '@microloan/shared';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CENTS = (n: number) => Math.round(n * 100) / 100;
@@ -19,6 +20,8 @@ export class ProvisioningService {
         private readonly authz: AuthzService,
         private readonly audit: AuditService,
         private readonly ledger: LedgerService,
+        /** The lender's classes, rates and ledger accounts (lending settings). */
+        private readonly settings: TenantSettingsService,
     ) { }
 
     /**
@@ -30,6 +33,14 @@ export class ProvisioningService {
         this.authz.assertPermission(actor, Permission.PROVISION_RUN);
         const tenantId = this.requireTenant(actor);
         const now = new Date();
+        const settings = await this.settings.get(tenantId);
+        const tiers: ClassificationTier[] = settings.regulatory.classes.map((c) => ({
+            classification: c.code as LoanClassification,
+            minDaysOverdue: c.minDpd,
+            provisionRate: Number(c.rate),
+            label: c.label,
+        }));
+        const legacyAcc = settings.accounting.legacy;
 
         // Active exposures: disbursed or defaulted loans (closed loans carry no risk).
         const loans = await this.prisma.loan.findMany({
@@ -52,7 +63,7 @@ export class ProvisioningService {
                 }
             }
             outstandingPrincipal = CENTS(outstandingPrincipal);
-            const { classification, provisionRate, daysOverdue } = classifyByDaysOverdue(maxDaysOverdue);
+            const { classification, provisionRate, daysOverdue } = classifyByDaysOverdue(maxDaysOverdue, tiers);
             const amount = provisionAmount(outstandingPrincipal, provisionRate);
             return {
                 loanId: loan.id,
@@ -129,12 +140,12 @@ export class ProvisioningService {
                 const lines =
                     movement > 0
                         ? [
-                            { accountCode: ACCOUNT_CODES.PROVISION_EXPENSE, debit: amt },
-                            { accountCode: ACCOUNT_CODES.ALLOWANCE_FOR_LOAN_LOSSES, credit: amt },
+                            { accountCode: legacyAcc.provisionExpense, debit: amt },
+                            { accountCode: legacyAcc.loanLossAllowance, credit: amt },
                         ]
                         : [
-                            { accountCode: ACCOUNT_CODES.ALLOWANCE_FOR_LOAN_LOSSES, debit: amt },
-                            { accountCode: ACCOUNT_CODES.PROVISION_EXPENSE, credit: amt },
+                            { accountCode: legacyAcc.loanLossAllowance, debit: amt },
+                            { accountCode: legacyAcc.provisionExpense, credit: amt },
                         ];
                 await this.ledger.postEntry(
                     {

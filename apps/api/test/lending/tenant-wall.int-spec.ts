@@ -90,6 +90,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'advance-refunds/:taskId': 'approvalTask',
       'fee-waivers/:taskId': 'approvalTask',
       'impairment-policy/:id': 'impairmentPolicy',
+      'settings/:id': 'tenantLendingSettings',
       'collateral/:collateralId': 'collateralAsset',
       'collateral-releases/:taskId': 'approvalTask',
       'payoff-quotes/:quoteId': 'payoffQuote',

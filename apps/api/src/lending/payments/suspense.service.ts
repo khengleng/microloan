@@ -22,7 +22,7 @@ import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { PostingLine, PostingService } from '../accounting/posting.service';
 import { ServicingService } from '../servicing/servicing.service';
-import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -53,6 +53,7 @@ export class SuspenseService {
     private readonly businessDate: BusinessDateService,
     private readonly posting: PostingService,
     private readonly servicing: ServicingService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   /** Open and settled receipts, oldest first, with their age in days. */
@@ -170,7 +171,14 @@ export class SuspenseService {
       throw new BadRequestException('Amount must be positive.');
     const businessDate = await this.businessDate.get(tenantId, tx);
     const valueDate = body.valueDate ?? businessDate;
-    BusinessDateService.checkValueDate(valueDate, businessDate, 30);
+    // The lender's settings: how far back a receipt may be dated, and the
+    // cash and suspense accounts it posts to.
+    const { payments, accounting } = await this.settings.get(tenantId, tx);
+    BusinessDateService.checkValueDate(
+      valueDate,
+      businessDate,
+      payments.maxBackdateDays,
+    );
     const event = await this.tenantEvent(tx, actor, {
       type: 'SUSPENSE_RECEIPT',
       amount,
@@ -186,9 +194,9 @@ export class SuspenseService {
         payerName: body.payerName ?? null,
       },
       lines: [
-        { accountCode: ACCOUNT_CODES.CASH, debit: amount.toString() },
+        { accountCode: accounting.cash, debit: amount.toString() },
         {
-          accountCode: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
+          accountCode: accounting.unidentifiedSuspense,
           credit: amount.toString(),
         },
       ],
@@ -280,7 +288,10 @@ export class SuspenseService {
         },
         idempotencyKey,
         hash,
-        { fundingAccount: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE },
+        {
+          fundingAccount: (await this.settings.get(tenantId, tx)).accounting
+            .unidentifiedSuspense,
+        },
       );
       await this.settle(tx, p, amount, {
         kind: 'MATCH',
@@ -413,6 +424,7 @@ export class SuspenseService {
           'Less is now held than this refund; it was matched in the meantime.',
         );
       const businessDate = await this.businessDate.get(tenantId, tx);
+      const { accounting } = await this.settings.get(tenantId, tx);
       const event = await this.tenantEvent(tx, actor, {
         type: 'SUSPENSE_REFUND',
         amount,
@@ -430,10 +442,10 @@ export class SuspenseService {
         },
         lines: [
           {
-            accountCode: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
+            accountCode: accounting.unidentifiedSuspense,
             debit: amount.toString(),
           },
-          { accountCode: ACCOUNT_CODES.CASH, credit: amount.toString() },
+          { accountCode: accounting.cash, credit: amount.toString() },
         ],
       });
       await this.settle(tx, p, amount, {

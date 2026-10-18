@@ -1,3 +1,4 @@
+import { lending } from '@microloan/shared';
 // otplib (pulled in transitively via the bot/auth graph) is ESM-only under jest.
 jest.mock('otplib', () => ({ verify: jest.fn(), generateSecret: jest.fn() }));
 jest.mock('../bot/bot.service', () => ({ BotService: class {} }));
@@ -34,6 +35,7 @@ function serviceFor(status: LoanStatus) {
     authz as any,
     {} as any,
     {} as any,
+    { get: async () => lending.defaultTenantLendingSettings() } as any,
   );
   // Credit-bureau gate is out of scope here.
   (svc as any).assertCreditCheckForApproval = jest.fn();

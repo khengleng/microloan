@@ -26,7 +26,8 @@ import { ProductsService } from '../products/products.service';
 import { LendingPoliciesService } from '../products/lending-policies.service';
 import { ServicingService } from '../servicing/servicing.service';
 import { loadLoanState } from '../servicing/loan-state';
-import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
+import { operationalConfig } from '../../config/operational-config';
 import { LedgerService } from '../../ledger/ledger.service';
 import { blindIndex } from '../../common/field-crypto';
 
@@ -60,7 +61,8 @@ interface ProductInfo {
   base: lending.ScheduleInput;
 }
 
-const MAX_ROWS = 10_000;
+/** Most loans one migration file may carry: LENDING_MIGRATION_MAX_ROWS (default 10,000). */
+const maxRows = () => operationalConfig().migration.maxRows;
 
 /**
  * Taking over a loan book from another system.
@@ -90,6 +92,7 @@ export class LoanMigrationService {
     private readonly policies: LendingPoliciesService,
     private readonly servicing: ServicingService,
     private readonly ledger: LedgerService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   template() {
@@ -335,9 +338,9 @@ export class LoanMigrationService {
     );
     lending.parseDate(body.cutOverDate, 'cutOverDate');
     const parsed = lending.parseMigrationFile(body.content);
-    if (parsed.rows.length > MAX_ROWS)
+    if (parsed.rows.length > maxRows())
       throw new BadRequestException(
-        `A file holds at most ${MAX_ROWS} loans; split it.`,
+        `A file holds at most ${maxRows()} loans; split it.`,
       );
     const fileIssues = [...parsed.fileErrors];
     if (parsed.unknownColumns.length)
@@ -1204,6 +1207,9 @@ export class LoanMigrationService {
 
     const state = await loadLoanState(tx, tenantId, account.id);
     const acc = c.accounting;
+    // Tenant-level accounts (lending settings): migration clearing (default
+    // 3900) and, for loans leaving the legacy book, its receivables account.
+    const tenantAcc = (await this.settings.get(tenantId, tx)).accounting;
     const interest = D(m.interestOpening);
     const assets = D(m.principalOutstanding)
       .plus(interest)
@@ -1245,11 +1251,11 @@ export class LoanMigrationService {
         { accountCode: acc.loanLossAllowance, credit: m.allowance },
         clearing.gte(0)
           ? {
-              accountCode: ACCOUNT_CODES.MIGRATION_CLEARING,
+              accountCode: tenantAcc.migrationClearing,
               credit: clearing.toString(),
             }
           : {
-              accountCode: ACCOUNT_CODES.MIGRATION_CLEARING,
+              accountCode: tenantAcc.migrationClearing,
               debit: clearing.negated().toString(),
             },
       ],
@@ -1295,7 +1301,7 @@ export class LoanMigrationService {
         const lines = await tx.journalLine.findMany({
           where: {
             entry: { tenantId, loanId: legacy.id },
-            account: { code: ACCOUNT_CODES.LOANS_RECEIVABLE },
+            account: { code: tenantAcc.legacy.loansReceivable },
           },
           select: { debit: true, credit: true },
         });
@@ -1315,11 +1321,11 @@ export class LoanMigrationService {
               createdByUserId: actor.type === 'USER' ? actor.id : null,
               lines: [
                 {
-                  accountCode: ACCOUNT_CODES.MIGRATION_CLEARING,
+                  accountCode: tenantAcc.migrationClearing,
                   debit: balance.toNumber(),
                 },
                 {
-                  accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE,
+                  accountCode: tenantAcc.legacy.loansReceivable,
                   credit: balance.toNumber(),
                 },
               ],

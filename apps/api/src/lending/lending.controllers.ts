@@ -34,6 +34,7 @@ import { CollectionsService } from './collections/collections.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
+import { LendingSettingsService } from './accounting/lending-settings.service';
 import { RateResetService } from './servicing/rate-reset.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import { AccessAdminService } from './access/access-admin.service';
@@ -1445,7 +1446,35 @@ export class LendingOperationsController {
     private readonly impairment: ImpairmentService,
     private readonly reporting: ReportingService,
     private readonly periods: PeriodCloseService,
+    private readonly lendingSettings: LendingSettingsService,
   ) {}
+
+  // ── The lender's own operating parameters (D-071) ─────────────────────────
+
+  @LendingAction('tenant_settings.read')
+  @Get('settings')
+  tenantSettings(@Req() req: Req_) {
+    return this.lendingSettings.list(actor(req));
+  }
+
+  @LendingAction('tenant_settings.manage')
+  @Post('settings')
+  proposeTenantSettings(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.tenantSettings)) body: never,
+  ) {
+    return this.lendingSettings.propose(actor(req), body);
+  }
+
+  @LendingAction('tenant_settings.approve')
+  @Post('settings/:id/decision')
+  decideTenantSettings(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+  ) {
+    return this.lendingSettings.decide(actor(req), id, body);
+  }
 
   // ── Month-end and year-end close (OPS-6) ──────────────────────────────────
 

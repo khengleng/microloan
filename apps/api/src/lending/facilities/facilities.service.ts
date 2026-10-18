@@ -793,7 +793,12 @@ export class FacilitiesService {
           chargesRaised: statement.chargesRaised,
           minimumPayment: statement.minimumPayment?.amount ?? null,
           minimumPaymentDue: statement.minimumPayment
-            ? fromLocalDate(lending.addDays(periodEnd, 21))
+            ? fromLocalDate(
+                lending.addDays(
+                  periodEnd,
+                  state.config.facility.minimumPaymentDueDays,
+                ),
+              )
             : null,
           calculation: {
             ...statement,

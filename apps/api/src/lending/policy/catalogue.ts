@@ -202,6 +202,17 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Operations',
   },
   {
+    code: 'tenant_settings.manage',
+    description:
+      'Propose the lending settings: regulatory return bands, tenant-level ledger accounts, payment-file and delegation limits',
+    category: 'Operations',
+  },
+  {
+    code: 'tenant_settings.approve',
+    description: 'Approve lending settings proposed by someone else',
+    category: 'Operations',
+  },
+  {
     code: 'loan.migration.manage',
     description:
       'Load and check a loan book taken over from another system (migration file)',
@@ -772,6 +783,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'business_date.manage',
       'rate_observation.manage',
       'impairment.manage',
+      'tenant_settings.manage',
       'servicing.batch.run',
       'loan_data.export',
       'accounting.period.close',
@@ -789,6 +801,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'audit.read',
       'accounting.read',
       'impairment.approve',
+      'tenant_settings.approve',
       'accounting.period.approve',
       'loan.migration.approve',
       'regulatory.submit',

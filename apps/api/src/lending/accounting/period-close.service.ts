@@ -22,7 +22,7 @@ import { publicExplanation } from '../policy/decision';
 import { tenantResource } from '../policy/resources';
 import { PostingService, PostingLine } from './posting.service';
 import { LendingOperationsService } from './operations.service';
-import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import { MONTH_NAMES, periodLabel } from './period-lock';
 
 type Json = Prisma.InputJsonValue;
@@ -105,6 +105,7 @@ export class PeriodCloseService {
     private readonly businessDate: BusinessDateService,
     private readonly posting: PostingService,
     private readonly ops: LendingOperationsService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -1030,6 +1031,9 @@ export class PeriodCloseService {
       select: { code: true, name: true, type: true },
     });
     const meta = new Map(accounts.map((a) => [a.code, a]));
+    // Where the year's result is carried (lending settings, default 3100).
+    const retainedEarnings = (await this.settings.get(tenantId, tx)).accounting
+      .retainedEarnings;
     const currencies = await tx.lendingJournalEntry.groupBy({
       by: ['currency'],
       where: {
@@ -1100,12 +1104,9 @@ export class PeriodCloseService {
       if (!net.isZero())
         lines.push(
           net.gt(0)
-            ? {
-                accountCode: ACCOUNT_CODES.RETAINED_EARNINGS,
-                credit: net.toString(),
-              }
+            ? { accountCode: retainedEarnings, credit: net.toString() }
             : {
-                accountCode: ACCOUNT_CODES.RETAINED_EARNINGS,
+                accountCode: retainedEarnings,
                 debit: net.negated().toString(),
               },
         );

@@ -217,6 +217,10 @@ export const ACTIONS: ActionDefinition[] = [
   A('impairment.read', 'TENANT', 'READ', { permission: 'accounting.read' }),
   A('impairment.manage', 'TENANT', 'CONFIG'),
   A('impairment.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
+  // The lender's own operating parameters (TenantLendingSettings, D-071).
+  A('tenant_settings.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('tenant_settings.manage', 'TENANT', 'CONFIG'),
+  A('tenant_settings.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Month-end and year-end close (OPS-6): finance prepares, someone else locks.
   A('accounting.period.close', 'TENANT', 'CONFIG'),
   // Loan-book migration: one person loads and checks the file,

@@ -12,8 +12,6 @@ import { fmtDateTime, localToIso } from '../format';
 import type { Delegation } from '../types';
 import { Chip, MONEY_RE, PermissionPicker, useMyId, useUserName, userOptions, type TabProps } from './common';
 
-const MAX_DAYS = 30;
-
 type DelegationRow = Delegation & { createdBy?: string };
 
 export function DelegationsTab({ data, reload }: TabProps) {
@@ -102,13 +100,15 @@ function DelegationForm({ data, reload }: TabProps) {
     const [currency, setCurrency] = useState('');
     const [reason, setReason] = useState('');
 
+    // The lender's limit from the API (lending settings); the API enforces it too.
+    const maxDays = data.limits?.maxDelegationDays;
     const fromIso = localToIso(from);
     const toIso = localToIso(to);
     let windowErr: string | undefined;
     if (fromIso && toIso) {
         const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
         if (ms <= 0) windowErr = 'Valid to must be after valid from';
-        else if (ms > MAX_DAYS * 86_400_000) windowErr = `Delegations may last at most ${MAX_DAYS} days`;
+        else if (maxDays && ms > maxDays * 86_400_000) windowErr = `Delegations may last at most ${maxDays} days`;
     }
     const amountErr = maxAmount && !MONEY_RE.test(maxAmount.trim()) ? 'Decimal with up to 4 places, e.g. 5000.00' : undefined;
     const ccyErr = currency && !/^[A-Z]{3}$/.test(currency) ? '3-letter code' : maxAmount && !currency ? 'Currency recommended with a max amount' : undefined;

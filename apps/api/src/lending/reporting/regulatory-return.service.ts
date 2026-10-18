@@ -24,6 +24,8 @@ import { tenantResource } from '../policy/resources';
 import { monthBounds } from '../accounting/period-close.service';
 import { periodLabel } from '../accounting/period-lock';
 import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { operationalConfig } from '../../config/operational-config';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import {
   LedgerFact,
   LoanPosition,
@@ -79,6 +81,7 @@ export class RegulatoryReturnService {
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   private validMonth(year: number, month: number) {
@@ -412,7 +415,10 @@ export class RegulatoryReturnService {
       start,
       end,
       attributesAsOf,
-      rateCapPct: D(tenant?.maxAnnualInterestRatePct ?? 18).toString(),
+      rateCapPct: D(
+        tenant?.maxAnnualInterestRatePct ??
+          operationalConfig().regulatoryMaxAnnualRatePct,
+      ).toString(),
       positions,
       movements,
       ledger,
@@ -432,8 +438,10 @@ export class RegulatoryReturnService {
     endExclusive: Date,
     branchName: Map<string, string>,
   ) {
-    const RECEIVABLE = ACCOUNT_CODES.LOANS_RECEIVABLE;
-    const ALLOWANCE = ACCOUNT_CODES.ALLOWANCE_FOR_LOAN_LOSSES;
+    // The legacy book's accounts (lending settings accounting.legacy).
+    const legacyAcc = (await this.settings.get(tenantId, tx)).accounting.legacy;
+    const RECEIVABLE = legacyAcc.loansReceivable;
+    const ALLOWANCE = legacyAcc.loanLossAllowance;
     const entries = await tx.journalEntry.findMany({
       where: { tenantId, date: { lt: endExclusive } },
       select: {
@@ -718,9 +726,12 @@ export class RegulatoryReturnService {
       month,
       closed ? (period.snapshot as unknown as CloseSnapshot) : null,
     );
+    // The lender's classes and bands (lending settings `regulatory`).
+    const { regulatory } = await this.settings.get(tenantId, tx);
     return {
       content: buildReturn({
         ...input,
+        regulatory,
         basis: closed ? 'CLOSED_PERIOD' : 'LIVE_PREVIEW',
       }),
       period: period ? { id: period.id, status: period.status } : null,

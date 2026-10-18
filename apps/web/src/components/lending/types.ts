@@ -223,6 +223,8 @@ export interface AccessOverview {
     authorities: Authority[];
     users: LendingUser[];
     policies: Policy[];
+    /** The lender's limits (lending settings), checked again by the API. */
+    limits?: { maxDelegationDays: number };
 }
 
 export interface FlagEvaluation { enabled: boolean; source: string; ruleId: string | null; scope: string | null }

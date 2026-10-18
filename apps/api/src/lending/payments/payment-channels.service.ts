@@ -34,7 +34,7 @@ import {
   BankDebitAdapter,
   FxRateAdapter,
 } from '../integrations/adapters';
-import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import { SuspenseService } from './suspense.service';
 import type {
   FxRepaymentBody,
@@ -97,6 +97,7 @@ export class PaymentChannelsService {
     private readonly servicing: ServicingService,
     private readonly suspense: SuspenseService,
     private readonly adapters: AdapterRegistry,
+    private readonly tenantSettings: TenantSettingsService,
   ) {
     // Collect what falls due today before the batch accrues, charges
     // penalties and ages arrears, so a collected instalment is never late.
@@ -928,6 +929,10 @@ export class PaymentChannelsService {
         body,
       );
       const gain = D(conversion.gainLoss);
+      // The lender's FX position, FX gain/loss and cash accounts (lending settings).
+      const { fxPosition, fxGainLoss, cash } = (
+        await this.tenantSettings.get(tenantId, tx)
+      ).accounting;
       const event = await this.servicing.repayInTx(
         tx,
         actor,
@@ -943,30 +948,18 @@ export class PaymentChannelsService {
         idempotencyKey,
         hash,
         {
-          fundingAccount: ACCOUNT_CODES.FX_POSITION,
+          fundingAccount: fxPosition,
           components: { fx: { ...conversion, rate } },
           extraLines: gain.isZero()
             ? []
             : gain.gt(0)
               ? [
-                  {
-                    accountCode: ACCOUNT_CODES.FX_POSITION,
-                    debit: gain.toString(),
-                  },
-                  {
-                    accountCode: ACCOUNT_CODES.FX_GAIN_LOSS,
-                    credit: gain.toString(),
-                  },
+                  { accountCode: fxPosition, debit: gain.toString() },
+                  { accountCode: fxGainLoss, credit: gain.toString() },
                 ]
               : [
-                  {
-                    accountCode: ACCOUNT_CODES.FX_GAIN_LOSS,
-                    debit: gain.abs().toString(),
-                  },
-                  {
-                    accountCode: ACCOUNT_CODES.FX_POSITION,
-                    credit: gain.abs().toString(),
-                  },
+                  { accountCode: fxGainLoss, debit: gain.abs().toString() },
+                  { accountCode: fxPosition, credit: gain.abs().toString() },
                 ],
         },
       );
@@ -1003,8 +996,8 @@ export class PaymentChannelsService {
         currency: conversion.from,
         description: narrative,
         lines: [
-          { accountCode: ACCOUNT_CODES.CASH, debit: conversion.amount },
-          { accountCode: ACCOUNT_CODES.FX_POSITION, credit: conversion.amount },
+          { accountCode: cash, debit: conversion.amount },
+          { accountCode: fxPosition, credit: conversion.amount },
         ],
       });
       await this.audit.write(

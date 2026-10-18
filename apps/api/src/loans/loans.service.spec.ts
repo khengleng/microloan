@@ -1,3 +1,4 @@
+import { lending } from '@microloan/shared';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { LoanStatus } from '@microloan/db';
 import { LoansService } from './loans.service';
@@ -15,9 +16,15 @@ describe('LoansService maker-checker', () => {
     logAction: jest.fn(),
   };
   const bot: any = { sendDisbursementAlert: jest.fn() };
-  const ledger: any = { postEntry: jest.fn(), ensureChartOfAccounts: jest.fn() };
+  const ledger: any = {
+    postEntry: jest.fn(),
+    ensureChartOfAccounts: jest.fn(),
+  };
   const authz = new AuthzService(audit);
-  const service = new LoansService(prisma, audit, authz, ledger, bot);
+  const settings: any = {
+    get: async () => lending.defaultTenantLendingSettings(),
+  };
+  const service = new LoansService(prisma, audit, authz, ledger, bot, settings);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -88,7 +95,13 @@ describe('LoansService maker-checker', () => {
 
     await expect(
       service.changeStatus(
-        { sub: 'disburser', role: 'ACCOUNTANT', tenantId: 't1', branchId: 'b1', permissions: [] } as any,
+        {
+          sub: 'disburser',
+          role: 'ACCOUNTANT',
+          tenantId: 't1',
+          branchId: 'b1',
+          permissions: [],
+        } as any,
         'l1',
         { status: LoanStatus.DISBURSED } as any,
       ),
@@ -105,14 +118,38 @@ describe('LoansService maker-checker', () => {
       currency: 'USD',
       schedules: [
         // due (accrued): principal 100, interest 10, penalty 5 — all unpaid
-        { isPaid: false, dueDate: past, principalAmount: 100, paidPrincipal: 0, interestAmount: 10, paidInterest: 0, penaltyAmount: 5, paidPenalty: 0 },
+        {
+          isPaid: false,
+          dueDate: past,
+          principalAmount: 100,
+          paidPrincipal: 0,
+          interestAmount: 10,
+          paidInterest: 0,
+          penaltyAmount: 5,
+          paidPenalty: 0,
+        },
         // future: principal 100, interest 10 — interest should be waived
-        { isPaid: false, dueDate: future, principalAmount: 100, paidPrincipal: 0, interestAmount: 10, paidInterest: 0, penaltyAmount: 0, paidPenalty: 0 },
+        {
+          isPaid: false,
+          dueDate: future,
+          principalAmount: 100,
+          paidPrincipal: 0,
+          interestAmount: 10,
+          paidInterest: 0,
+          penaltyAmount: 0,
+          paidPenalty: 0,
+        },
       ],
     });
 
     const q = await service.payoffQuote(
-      { sub: 'u1', role: 'ACCOUNTANT', tenantId: 't1', branchId: null, permissions: [] } as any,
+      {
+        sub: 'u1',
+        role: 'ACCOUNTANT',
+        tenantId: 't1',
+        branchId: null,
+        permissions: [],
+      } as any,
       'l1',
     );
 
@@ -123,4 +160,3 @@ describe('LoansService maker-checker', () => {
     expect(q.payoffAmount).toBe(215); // 200 principal + 10 accrued interest + 5 penalty
   });
 });
-

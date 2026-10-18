@@ -13,7 +13,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { LedgerService } from '../ledger/ledger.service';
-import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { formatCurrency, Currency as SharedCurrency } from '@microloan/shared';
 
@@ -25,6 +25,8 @@ export class RepaymentsService {
     private authz: AuthzService,
     private ledger: LedgerService,
     private notifications: NotificationsService,
+    /** The lender's settings: which ledger accounts this book posts to. */
+    private settings: TenantSettingsService,
   ) { }
 
   /**
@@ -88,12 +90,13 @@ export class RepaymentsService {
           },
         });
       }
+      const acc = (await this.settings.get(loan.tenantId, tx)).accounting;
       const lines: { accountCode: string; debit?: number; credit?: number }[] = [
-        { accountCode: ACCOUNT_CODES.CASH, debit: q.payoffAmount },
+        { accountCode: acc.cash, debit: q.payoffAmount },
       ];
-      if (q.outstandingPrincipal > 0) lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: q.outstandingPrincipal });
-      if (q.accruedInterestDue > 0) lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, credit: q.accruedInterestDue });
-      if (q.outstandingPenalty > 0) lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, credit: q.outstandingPenalty });
+      if (q.outstandingPrincipal > 0) lines.push({ accountCode: acc.legacy.loansReceivable, credit: q.outstandingPrincipal });
+      if (q.accruedInterestDue > 0) lines.push({ accountCode: acc.legacy.interestIncome, credit: q.accruedInterestDue });
+      if (q.outstandingPenalty > 0) lines.push({ accountCode: acc.legacy.penaltyIncome, credit: q.outstandingPenalty });
       if (q.payoffAmount > 0) {
         await this.ledger.postEntry(
           {
@@ -260,15 +263,16 @@ export class RepaymentsService {
       // Feature #3: GL posting — Dr Cash; Cr Loans Receivable (principal),
       // Interest Income (interest), Penalty Income (penalty). Skip if nothing applied.
       if (appliedAmount > 0) {
-        const lines = [{ accountCode: ACCOUNT_CODES.CASH, debit: appliedAmount }];
+        const acc = (await this.settings.get(loan.tenantId, tx)).accounting;
+        const lines = [{ accountCode: acc.cash, debit: appliedAmount }];
         if (totalPrincipalPaid > 0) {
-          lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: totalPrincipalPaid } as any);
+          lines.push({ accountCode: acc.legacy.loansReceivable, credit: totalPrincipalPaid } as any);
         }
         if (totalInterestPaid > 0) {
-          lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, credit: totalInterestPaid } as any);
+          lines.push({ accountCode: acc.legacy.interestIncome, credit: totalInterestPaid } as any);
         }
         if (totalPenaltyPaid > 0) {
-          lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, credit: totalPenaltyPaid } as any);
+          lines.push({ accountCode: acc.legacy.penaltyIncome, credit: totalPenaltyPaid } as any);
         }
         await this.ledger.postEntry(
           {
@@ -441,10 +445,11 @@ export class RepaymentsService {
 
       // GL contra-entry: reverse the original repayment postings.
       if (cashReversed > 0) {
-        const lines: any[] = [{ accountCode: ACCOUNT_CODES.CASH, credit: cashReversed }];
-        if (principalReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principalReversed });
-        if (interestReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.INTEREST_INCOME, debit: interestReversed });
-        if (penaltyReversed > 0) lines.push({ accountCode: ACCOUNT_CODES.PENALTY_INCOME, debit: penaltyReversed });
+        const acc = (await this.settings.get(repayment.tenantId, tx)).accounting;
+        const lines: any[] = [{ accountCode: acc.cash, credit: cashReversed }];
+        if (principalReversed > 0) lines.push({ accountCode: acc.legacy.loansReceivable, debit: principalReversed });
+        if (interestReversed > 0) lines.push({ accountCode: acc.legacy.interestIncome, debit: interestReversed });
+        if (penaltyReversed > 0) lines.push({ accountCode: acc.legacy.penaltyIncome, debit: penaltyReversed });
         await this.ledger.postEntry(
           {
             tenantId: repayment.tenantId,

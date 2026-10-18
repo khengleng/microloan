@@ -85,6 +85,8 @@ export interface ReturnInput {
   /** When the loan attributes (days past due, class) were captured. */
   attributesAsOf: string;
   rateCapPct: string;
+  /** The lender's regulatory settings (classes and bands); the NBC defaults when absent. */
+  regulatory?: RegulatorySettings;
   positions: LoanPosition[];
   movements: Movement[];
   ledger: LedgerFact[];
@@ -150,8 +152,20 @@ export interface ReturnContent {
   warnings: string[];
 }
 
-/** NBC loan classes (Prakas on credit risk grading), worst last. */
+/** NBC loan classes (Prakas on credit risk grading), worst last: the default when a lender has set none. */
 export const REGULATORY_CLASSES = lending.NBC_IMPAIRMENT_CLASSES;
+
+/** The parts of the lender's settings the return uses (lending settings `regulatory`). */
+export type RegulatorySettings = lending.TenantLendingSettings['regulatory'];
+type RegulatoryClassDef = {
+  code: string;
+  label: string;
+  minDpd: number;
+  rate: string;
+};
+
+const DEFAULT_REGULATORY: RegulatorySettings =
+  lending.defaultTenantLendingSettings().regulatory;
 
 const MONTHS = [
   'January',
@@ -186,24 +200,34 @@ const ratio = (part: Dec, whole: Dec) =>
  * the class the tenant's own policy recorded (a restructured loan held at a
  * worse class by its probation floor stays there).
  */
-export function regulatoryClass(dpd: number, recorded: string | null) {
+export function regulatoryClass(
+  dpd: number,
+  recorded: string | null,
+  classes: RegulatoryClassDef[] = REGULATORY_CLASSES,
+) {
   let idx = 0;
-  REGULATORY_CLASSES.forEach((c, i) => {
+  classes.forEach((c, i) => {
     if (dpd >= c.minDpd) idx = i;
   });
-  const rec = recorded
-    ? REGULATORY_CLASSES.findIndex((c) => c.code === recorded)
-    : -1;
+  const rec = recorded ? classes.findIndex((c) => c.code === recorded) : -1;
   if (rec > idx) idx = rec;
-  return REGULATORY_CLASSES[idx];
+  return classes[idx];
 }
 
-/** Loan size bands on the booked amount; KHR bands are the USD bands × 4,000. */
+/**
+ * Loan size bands on the booked amount; KHR bands are the USD bands × the
+ * lender's fixed band conversion (default 500 / 1,000 / 5,000 / 10,000 /
+ * 50,000 USD and 4,000 KHR per USD).
+ */
 export function sizeBands(
   currency: string,
+  reg: Pick<
+    RegulatorySettings,
+    'sizeBandEdgesUsd' | 'sizeBandKhrPerUsd'
+  > = DEFAULT_REGULATORY,
 ): { label: string; upTo: Dec | null }[] {
-  const f = currency === 'KHR' ? 4000 : 1;
-  const edges = [500, 1_000, 5_000, 10_000, 50_000].map((e) => e * f);
+  const f = currency === 'KHR' ? D(reg.sizeBandKhrPerUsd).toNumber() : 1;
+  const edges = reg.sizeBandEdgesUsd.map((e) => e * f);
   const fmt = (n: number) => n.toLocaleString('en-US');
   const out: { label: string; upTo: Dec | null }[] = [];
   let prev = 0;
@@ -221,9 +245,10 @@ export function sizeBands(
 /** Interest-rate bands against the regulatory cap. */
 export function rateBands(
   capPct: string,
+  edgesPct: string[] = DEFAULT_REGULATORY.rateBandEdgesPct,
 ): { label: string; upTo: Dec | null; aboveCap: boolean }[] {
   const cap = D(capPct);
-  const edges = [D(12), D(15)].filter((e) => e.lt(cap));
+  const edges = edgesPct.map((e) => D(e)).filter((e) => e.lt(cap));
   const out: { label: string; upTo: Dec | null; aboveCap: boolean }[] = [];
   let prev: Dec | null = null;
   for (const e of [...edges, cap]) {
@@ -246,6 +271,7 @@ export function rateBands(
 }
 
 class Acc {
+  constructor(private readonly classes: RegulatoryClassDef[]) {}
   count = 0;
   principal = D(0);
   allowance = D(0);
@@ -261,7 +287,9 @@ class Acc {
     this.allowance = this.allowance.plus(D(p.allowance));
     this.interest = this.interest.plus(D(p.interestReceivable));
     this.required = this.required.plus(
-      pr.times(regulatoryClass(p.daysPastDue, p.recordedClass).rate),
+      pr.times(
+        regulatoryClass(p.daysPastDue, p.recordedClass, this.classes).rate,
+      ),
     );
     if (p.daysPastDue >= 1) this.par1 = this.par1.plus(pr);
     if (p.daysPastDue >= 30) this.par30 = this.par30.plus(pr);
@@ -272,11 +300,12 @@ class Acc {
 function group<K extends string>(
   positions: LoanPosition[],
   key: (p: LoanPosition) => K,
+  newAcc: () => Acc,
 ): Map<K, Acc> {
   const m = new Map<K, Acc>();
   for (const p of positions) {
     const k = key(p);
-    const a = m.get(k) ?? new Acc();
+    const a = m.get(k) ?? newAcc();
     a.add(p);
     m.set(k, a);
   }
@@ -290,6 +319,11 @@ const STACK_LABEL: Record<string, string> = {
 };
 
 export function buildReturn(input: ReturnInput): ReturnContent {
+  const reg = input.regulatory ?? DEFAULT_REGULATORY;
+  const classes: RegulatoryClassDef[] = reg.classes;
+  const newAcc = () => new Acc(classes);
+  const classOf = (p: LoanPosition) =>
+    regulatoryClass(p.daysPastDue, p.recordedClass, classes);
   const positions = input.positions.filter((p) => !D(p.principal).isZero());
   const currencies = [
     ...new Set([
@@ -313,9 +347,9 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const rows: Row[] = [];
     const totals: Row[] = [];
     for (const c of currencies) {
-      const all = new Acc();
+      const all = newAcc();
       for (const stack of ['LENDING', 'LEGACY'] as Stack[]) {
-        const a = new Acc();
+        const a = newAcc();
         byCur(c)
           .filter((p) => p.stack === stack)
           .forEach((p) => {
@@ -376,18 +410,12 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const rows: Row[] = [];
     const totals: Row[] = [];
     for (const c of currencies) {
-      const g = group(
-        byCur(c),
-        (p) => regulatoryClass(p.daysPastDue, p.recordedClass).code,
-      );
-      const all = new Acc();
-      for (const k of REGULATORY_CLASSES) {
-        const a = g.get(k.code) ?? new Acc();
+      const g = group(byCur(c), (p) => classOf(p).code, newAcc);
+      const all = newAcc();
+      for (const k of classes) {
+        const a = g.get(k.code) ?? newAcc();
         byCur(c)
-          .filter(
-            (p) =>
-              regulatoryClass(p.daysPastDue, p.recordedClass).code === k.code,
-          )
+          .filter((p) => classOf(p).code === k.code)
           .forEach((p) => all.add(p));
         rows.push({
           currency: c,
@@ -446,9 +474,9 @@ export function buildReturn(input: ReturnInput): ReturnContent {
       par90Ratio: ratio(a.par90, a.principal),
     });
     for (const c of currencies) {
-      const all = new Acc();
+      const all = newAcc();
       for (const stack of ['LENDING', 'LEGACY'] as Stack[]) {
-        const a = new Acc();
+        const a = newAcc();
         byCur(c)
           .filter((p) => p.stack === stack)
           .forEach((p) => {
@@ -504,14 +532,18 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const totals: Row[] = [];
     for (const c of currencies) {
       const sep = '\u0001';
-      const g = group(byCur(c), (p) => dims.map((d) => d.of(p)).join(sep));
+      const g = group(
+        byCur(c),
+        (p) => dims.map((d) => d.of(p)).join(sep),
+        newAcc,
+      );
       const keys = order
         ? order(c)
         : [...g.keys()].sort((a, b) => a.localeCompare(b));
-      const all = new Acc();
+      const all = newAcc();
       byCur(c).forEach((p) => all.add(p));
       for (const k of keys) {
-        const a = g.get(k) ?? new Acc();
+        const a = g.get(k) ?? newAcc();
         const parts = k.split(sep);
         const row: Row = { currency: c };
         dims.forEach((d, i) => (row[d.key] = parts[i]));
@@ -605,14 +637,14 @@ export function buildReturn(input: ReturnInput): ReturnContent {
         key: 'band',
         label: 'Loan size',
         of: (p) => {
-          const b = sizeBands(p.currency).find(
+          const b = sizeBands(p.currency, reg).find(
             (x) => x.upTo === null || D(p.bookedPrincipal).lte(x.upTo),
           )!;
           return b.label;
         },
       },
     ],
-    (c) => sizeBands(c).map((b) => b.label),
+    (c) => sizeBands(c, reg).map((b) => b.label),
   );
 
   // 9. Restructured loans.
@@ -621,14 +653,15 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const totals: Row[] = [];
     for (const c of currencies) {
       const rs = byCur(c).filter((p) => p.restructured);
-      const all = new Acc();
+      const all = newAcc();
       rs.forEach((p) => all.add(p));
       for (const stack of ['LENDING', 'LEGACY'] as Stack[]) {
         const g = group(
           rs.filter((p) => p.stack === stack),
-          (p) => regulatoryClass(p.daysPastDue, p.recordedClass).code,
+          (p) => classOf(p).code,
+          newAcc,
         );
-        for (const k of REGULATORY_CLASSES) {
+        for (const k of classes) {
           const a = g.get(k.code);
           if (!a) continue;
           rows.push({
@@ -727,7 +760,7 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const rows: Row[] = [];
     const totals: Row[] = [];
     for (const c of currencies) {
-      const all = new Acc();
+      const all = newAcc();
       byCur(c).forEach((p) => all.add(p));
       const byBorrower = new Map<
         string,
@@ -736,16 +769,13 @@ export function buildReturn(input: ReturnInput): ReturnContent {
       for (const p of byCur(c)) {
         const e = byBorrower.get(p.borrowerId) ?? {
           name: p.borrowerName,
-          a: new Acc(),
+          a: newAcc(),
           worst: 0,
         };
         e.a.add(p);
         e.worst = Math.max(
           e.worst,
-          REGULATORY_CLASSES.findIndex(
-            (k) =>
-              k.code === regulatoryClass(p.daysPastDue, p.recordedClass).code,
-          ),
+          classes.findIndex((k) => k.code === classOf(p).code),
         );
         byBorrower.set(p.borrowerId, e);
       }
@@ -768,7 +798,7 @@ export function buildReturn(input: ReturnInput): ReturnContent {
           loans: e.a.count,
           principal: money(e.a.principal, c),
           share: ratio(e.a.principal, all.principal),
-          class: REGULATORY_CLASSES[e.worst].label,
+          class: classes[e.worst].label,
           relatedParty: 'Not recorded',
         });
       });
@@ -812,16 +842,16 @@ export function buildReturn(input: ReturnInput): ReturnContent {
   {
     const rows: Row[] = [];
     const totals: Row[] = [];
-    const bands = rateBands(input.rateCapPct);
+    const bands = rateBands(input.rateCapPct, reg.rateBandEdgesPct);
     for (const c of currencies) {
-      const all = new Acc();
+      const all = newAcc();
       byCur(c).forEach((p) => all.add(p));
       const bandOf = (p: LoanPosition) => {
         if (p.annualRatePct === null) return 'Not recorded';
         const r = D(p.annualRatePct);
         return bands.find((b) => b.upTo === null || r.lte(b.upTo))!.label;
       };
-      const g = group(byCur(c), bandOf);
+      const g = group(byCur(c), bandOf, newAcc);
       for (const label of [...bands.map((b) => b.label), 'Not recorded']) {
         const a = g.get(label);
         if (!a && label === 'Not recorded') continue;
