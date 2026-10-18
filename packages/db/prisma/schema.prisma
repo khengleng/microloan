@@ -259,6 +259,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   identities          FederatedIdentity[]
   roleAssignments     RoleAssignment[]
+  learningProgress    LearningProgress[]
 
   @@unique([tenantId, id])
   @@index([tenantId])
@@ -4652,4 +4653,34 @@ model AltDataProviderConfig {
 
   @@unique([tenantId, id])
   @@index([tenantId, source, status])
+}
+
+/// One person's progress on one Learning centre lesson (D-092). Lessons are
+/// content (packages/shared/src/learning), identified by id; the API grades
+/// quizzes, so a pass is never the browser's word. The orientation lesson's
+/// row also remembers that the first-login tour prompt was dismissed.
+/// Only the person writes their own rows; a team report reads them with
+/// learning.report.read.
+model LearningProgress {
+  id                String    @id @default(uuid())
+  tenantId          String
+  userId            String
+  user              User      @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  lessonId          String
+  startedAt         DateTime  @default(now())
+  tourCompletedAt   DateTime?
+  quizAttempts      Int       @default(0)
+  /// Best score so far and the question count it was out of.
+  quizBestScore     Int?
+  quizTotal         Int?
+  quizPassedAt      DateTime?
+  /// The lesson is complete once its quiz is passed.
+  completedAt       DateTime?
+  promptDismissedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([tenantId, userId, lessonId])
+  @@unique([tenantId, id])
+  @@index([tenantId, lessonId])
 }
