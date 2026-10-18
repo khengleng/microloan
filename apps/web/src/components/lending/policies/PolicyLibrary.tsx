@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast';
 import { useWorkspace } from '@/lib/workspace';
 import { LendingShell, useLendingHref } from '../LendingShell';
@@ -22,6 +23,7 @@ export function liveVersion(p: LendingPolicy): LendingPolicyVersion | undefined 
 }
 
 export function PolicyLibrary() {
+    const t = useTranslations('LendingPolicies');
     const href = useLendingHref();
     const router = useRouter();
     const { showToast } = useToast();
@@ -34,16 +36,16 @@ export function PolicyLibrary() {
 
     return (
         <LendingShell
-            title="Policy library"
-            subtitle="Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker."
-            actions={!creating && can('loan_product.create') && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> New policy</Btn>}
+            title={t('library.title')}
+            subtitle={t('library.subtitle')}
+            actions={!creating && can('loan_product.create') && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> {t('newPolicy.title')}</Btn>}
         >
             {creating && (
                 <NewPolicyForm
                     defaultKind={kind || undefined}
                     onClose={() => setCreating(false)}
                     onCreated={(p) => {
-                        showToast(`Policy ${p.code} created as v1 draft`, 'success');
+                        showToast(t('library.created', { code: p.code }), 'success');
                         setCreating(false);
                         router.push(href(`/lending/policies/${p.id}`));
                     }}
@@ -53,7 +55,7 @@ export function PolicyLibrary() {
             <Tabs<KindFilter>
                 value={kind}
                 onChange={setKind}
-                tabs={[{ value: '', label: 'All kinds' }, ...POLICY_KINDS.map((k) => ({ value: k as KindFilter, label: KIND_INFO[k].label }))]}
+                tabs={[{ value: '', label: t('library.allKinds') }, ...POLICY_KINDS.map((k) => ({ value: k as KindFilter, label: t(`kind.${k}`) }))]}
             />
 
             {error && <ErrorBox error={error} />}
@@ -64,19 +66,19 @@ export function PolicyLibrary() {
                         return (
                             <Card
                                 key={k}
-                                title={<span className="flex items-center gap-2">{KIND_INFO[k].label} <span className="font-mono text-[11px] font-semibold text-[#8792A2]">{k}</span></span>}
-                                subtitle={<>Replaces <span className="font-mono">{KIND_INFO[k].path}</span> · {rows.length} polic{rows.length === 1 ? 'y' : 'ies'}</>}
-                                actions={<Btn size="sm" variant="ghost" onClick={reload}>Refresh</Btn>}
+                                title={<span className="flex items-center gap-2">{t(`kind.${k}`)} <span className="font-mono text-[11px] font-semibold text-[#8792A2]">{k}</span></span>}
+                                subtitle={t.rich('library.cardSubtitle', { path: () => <span className="font-mono">{KIND_INFO[k].path}</span>, count: rows.length })}
+                                actions={<Btn size="sm" variant="ghost" onClick={reload}>{t('library.refresh')}</Btn>}
                                 bodyClass="p-0"
                             >
-                                {rows.length === 0 ? <Empty>No {KIND_INFO[k].label.toLowerCase()} policies yet.</Empty> : (
+                                {rows.length === 0 ? <Empty>{t('library.none', { kind: t(`kindLower.${k}`) })}</Empty> : (
                                     <Table>
                                         <thead>
                                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                                <th className={th}>Code</th>
-                                                <th className={th}>Name</th>
-                                                <th className={th}>Live</th>
-                                                <th className={th}>Versions</th>
+                                                <th className={th}>{t('library.colCode')}</th>
+                                                <th className={th}>{t('col.name')}</th>
+                                                <th className={th}>{t('library.colLive')}</th>
+                                                <th className={th}>{t('detail.versions')}</th>
                                                 <th className={th}></th>
                                             </tr>
                                         </thead>
@@ -93,7 +95,7 @@ export function PolicyLibrary() {
                                                             {p.description && <div className="text-[12px] text-[#697386] line-clamp-2">{p.description}</div>}
                                                         </td>
                                                         <td className={`${td} whitespace-nowrap`}>
-                                                            {live ? <span className="font-semibold">v{live.version}</span> : <span className="text-[12px] text-amber-700">none approved</span>}
+                                                            {live ? <span className="font-semibold">v{live.version}</span> : <span className="text-[12px] text-amber-700">{t('noneApproved')}</span>}
                                                         </td>
                                                         <td className={td}>
                                                             <div className="flex flex-wrap gap-1.5">
@@ -106,7 +108,7 @@ export function PolicyLibrary() {
                                                             </div>
                                                         </td>
                                                         <td className={`${td} text-right`}>
-                                                            <Link href={href(`/lending/policies/${p.id}`)} className="text-[12px] font-semibold text-[#635BFF] hover:underline">Open</Link>
+                                                            <Link href={href(`/lending/policies/${p.id}`)} className="text-[12px] font-semibold text-[#635BFF] hover:underline">{t('library.open')}</Link>
                                                         </td>
                                                     </tr>
                                                 );
