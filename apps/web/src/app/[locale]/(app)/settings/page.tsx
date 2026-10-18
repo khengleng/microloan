@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { HelpLink } from '@/components/help/HelpLink';
 import { PlanChangeCard } from '@/components/billing/plan-change-card';
 import { useAuth } from '@/lib/auth-context';
 import { useWorkspace } from '@/lib/workspace';
@@ -26,11 +27,14 @@ function PlatformSettings() {
     const t = useTranslations('Settings');
     return (
         <div className="max-w-4xl space-y-6">
-            <div>
-                <h1 className="text-xl font-bold text-foreground">{t('platformTitle')}</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                    {t('platformSubtitle')}
-                </p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-xl font-bold text-foreground">{t('platformTitle')}</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {t('platformSubtitle')}
+                    </p>
+                </div>
+                <HelpLink chapter="20-platform-administration" />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -160,9 +164,12 @@ function TenantSettings() {
 
     return (
         <div className="max-w-4xl space-y-6">
-            <div>
-                <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                </div>
+                <HelpLink chapter="18-tenant-administration" anchor="4-settings-administration--settings" />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">

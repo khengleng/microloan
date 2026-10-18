@@ -254,3 +254,78 @@
     background: #C1C7D0;
   }
 }
+/* ─────────────────────────────────────────
+   User guide (in-app help) — rendered Markdown
+   ───────────────────────────────────────── */
+@layer components {
+  .guide-prose {
+    color: #3C4257;
+    font-size: 14.5px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+  .guide-prose > :first-child { margin-top: 0; }
+  .guide-prose h1, .guide-prose h2, .guide-prose h3, .guide-prose h4 {
+    color: #1A1F36;
+    font-weight: 700;
+    line-height: 1.3;
+    scroll-margin-top: 5rem;
+  }
+  .guide-prose h1 { font-size: 1.75rem; letter-spacing: -0.01em; margin: 0 0 1rem; }
+  .guide-prose h2 { font-size: 1.3rem; margin: 2.25rem 0 0.75rem; padding-top: 1.25rem; border-top: 1px solid #E3E8EE; }
+  .guide-prose h3 { font-size: 1.08rem; margin: 1.75rem 0 0.5rem; }
+  .guide-prose h4 { font-size: 0.95rem; margin: 1.25rem 0 0.4rem; }
+  .guide-prose .guide-anchor { margin-left: 0.4rem; color: #AAB7C4; text-decoration: none; opacity: 0; font-weight: 400; }
+  .guide-prose h2:hover .guide-anchor, .guide-prose h3:hover .guide-anchor, .guide-prose h4:hover .guide-anchor { opacity: 1; }
+  .guide-prose p { margin: 0.75rem 0; }
+  .guide-prose ul, .guide-prose ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+  .guide-prose ul { list-style: disc; }
+  .guide-prose ol { list-style: decimal; }
+  .guide-prose li { margin: 0.3rem 0; }
+  .guide-prose li > ul, .guide-prose li > ol { margin: 0.3rem 0; }
+  .guide-prose a { color: #635BFF; font-weight: 600; text-decoration: none; }
+  .guide-prose a:hover { text-decoration: underline; }
+  .guide-prose strong { color: #1A1F36; font-weight: 700; }
+  .guide-prose code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+    background: #F6F8FA;
+    border: 1px solid #E3E8EE;
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+  }
+  .guide-prose pre {
+    background: #F6F8FA;
+    border: 1px solid #E3E8EE;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .guide-prose pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+  .guide-prose blockquote {
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    border-left: 3px solid #C9D7FF;
+    background: #F8F9FF;
+    color: #3A4161;
+    border-radius: 0 6px 6px 0;
+  }
+  .guide-prose blockquote > :first-child { margin-top: 0; }
+  .guide-prose blockquote > :last-child { margin-bottom: 0; }
+  .guide-prose hr { border: 0; border-top: 1px solid #E3E8EE; margin: 1.5rem 0; }
+  .guide-prose .guide-table {
+    overflow-x: auto;
+    margin: 1rem 0;
+    border: 1px solid #E3E8EE;
+    border-radius: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .guide-prose table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.45; }
+  .guide-prose th, .guide-prose td { padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; border-bottom: 1px solid #E3E8EE; }
+  .guide-prose th { background: #F6F8FA; color: #1A1F36; font-weight: 700; white-space: nowrap; }
+  .guide-prose td { min-width: 8rem; }
+  .guide-prose tr:last-child td { border-bottom: 0; }
+}

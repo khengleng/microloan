@@ -25,7 +25,7 @@ chapters for your role (see the table below). To practise safely, follow the
 - 04 [Products and policies](04-products-and-policies.md) — the product catalogue, creating and approving products, versions, the policy library, workflows and the simulator.
 - 05 [Applications and credit decisions](05-applications-and-credit-decisions.md) — creating an application, assessment (affordability, collateral, guarantors, credit score), recommendation, approval and booking.
 - 06 [Disbursement](06-disbursement.md) — down payments, payees, preparing, approving and paying out a loan.
-- [Scorecards and alternative data](scorecards-and-alternative-data.md) — *coming soon*.
+- 24 [Scorecards and alternative data](24-scorecards-and-alternative-data.md) — the credit score on an application, scorecards and their approval, testing, decision strategies (champion, challenger, thin-file, grade rules), customer consent, alternative data and scorecard monitoring.
 
 **Servicing**
 
@@ -65,17 +65,17 @@ glossary (23) at hand. Then:
 
 | Your role (as shown in Access & policy) | Main chapters | Also useful |
 |---|---|---|
-| Relationship officer / loan officer | 03, 05, 10, 07 | 06, 08, 11, 13, 21 |
-| Credit analyst | 05, 03, 13 | 08, 10, 12, scorecards |
-| Credit approver | 05, 02 | 08, 12, 13 |
+| Relationship officer / loan officer | 03, 05, 10, 07 | 24 (consent and alternative data), 06, 08, 11, 13, 21 |
+| Credit analyst | 05, 24, 03, 13 | 08, 10, 12 |
+| Credit approver | 05, 02 | 24, 08, 12, 13 |
 | Loan operations maker | 06, 07, 08 | 05, 09, 11, 12, 13 |
 | Loan operations checker | 06, 07, 08 | 02, 09, 11, 12 |
 | Collections officer | 11, 07 | 08, 13 |
 | Restructure committee | 08 | 02, 11 |
 | Finance officer | 14, 15, 07 | 16, 09, 12 |
-| Product maker / product checker | 04 | 02, 12, 09 |
-| Risk / compliance reviewer | 02, 15, 19 | 04, 14, 11 |
-| Auditor | 19, 15 | 02, 14 |
+| Product maker / product checker | 04 | 24 (Scoring step), 02, 12, 09 |
+| Risk / compliance reviewer | 02, 15, 19, 24 | 04, 14, 11 |
+| Auditor | 19, 15 | 02, 14, 24 |
 | Tenant administrator | 18, 02, 17 | 01, 16, 19 |
 | Platform super-admin | 20 | 01 |
 

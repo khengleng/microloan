@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import api from '@/lib/api';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { HelpLink } from '@/components/help/HelpLink';
 import { ActionPanel, Btn, ErrorBox, Field, SelectInput, TextInput } from '../ui';
 import { clean, idem, useAction, useIdempotencyKey } from '../useAsync';
 import { Money } from '../MoneyCell';
@@ -108,7 +109,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     };
 
     return (
-        <ActionPanel title="Disbursement" onClose={onClose}>
+        <ActionPanel title={<span className="flex items-center gap-2">Disbursement <HelpLink chapter="06-disbursement" anchor="step-1--prepare-the-disbursement" /></span>} onClose={onClose}>
             {pending.length === 0 && approved.length === 0 && (
                 <div className="flex flex-wrap items-end gap-2">
                     <Field label="Value date" hint="Optional — defaults to the business date">

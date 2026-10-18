@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
+import { HelpLink } from '@/components/help/HelpLink';
 import { useToast } from '@/components/ui/toast';
 import {
     Shield, Search, Download, LogIn, RefreshCcw,
@@ -99,9 +100,12 @@ export default function AuditPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5">Immutable activity log for compliance and security.</p>
                 </div>
-                <button onClick={handleExport} className="btn-ghost">
-                    <Download size={14} /> Export CSV
-                </button>
+                <div className="flex items-center gap-2">
+                    <HelpLink chapter="19-audit-trail" anchor="2-audit-log-risk--audit--audit-log" />
+                    <button onClick={handleExport} className="btn-ghost">
+                        <Download size={14} /> Export CSV
+                    </button>
+                </div>
             </div>
 
             {/* Summary KPIs */}

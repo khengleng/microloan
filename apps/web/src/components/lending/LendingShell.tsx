@@ -6,6 +6,8 @@ import { ReactNode } from 'react';
 import { useWorkspace } from '@/lib/workspace';
 import { hrefVisible, navKeyFor } from '@/lib/nav';
 import { useTranslations } from 'next-intl';
+import { HelpLink } from '@/components/help/HelpLink';
+import { helpForPath, type HelpTarget } from '@/lib/user-guide';
 
 export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/catalogue', label: 'Catalogue' },
@@ -42,9 +44,14 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/access', label: 'Access & policy' },
 ];
 
-/** Page frame for the lending module: sub-navigation, title and actions. */
-export function LendingShell({ title, subtitle, actions, children, back }: {
+/**
+ * Page frame for the lending module: sub-navigation, title and actions, plus a
+ * "Help" link to the user-guide chapter for the page (from HELP_BY_PATH unless
+ * `help` names one; `help={false}` hides it).
+ */
+export function LendingShell({ title, subtitle, actions, children, back, help }: {
     title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode; back?: { href: string; label: string };
+    help?: HelpTarget | false;
 }) {
     const { locale } = useParams();
     const pathname = usePathname() || '';
@@ -65,6 +72,7 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
     const backKey = back ? navKeyFor(back.href) : null;
     const backLabel = back ? (backKey && tw.has(backKey) ? tw(backKey) : back.label) : '';
     // Tabs follow the same permission rules as the menu; until access loads, all show.
+    const helpTarget = help === false ? null : help ?? helpForPath(pathname.slice(base.length) || '/');
     const tabs = ws.ready && ws.access ? LENDING_TABS.filter((t) => hrefVisible(t.href, ws)) : LENDING_TABS;
     return (
         <div className="max-w-[1280px] mx-auto space-y-5 pb-10">
@@ -90,7 +98,12 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
                     <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{shownTitle}</h1>
                     {shownSubtitle && <p className="text-[#697386] text-[14px] mt-0.5">{shownSubtitle}</p>}
                 </div>
-                {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+                {(actions || helpTarget) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {helpTarget && <HelpLink chapter={helpTarget.chapter} anchor={helpTarget.anchor} />}
+                        {actions}
+                    </div>
+                )}
             </div>
             {children}
         </div>

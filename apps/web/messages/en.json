@@ -1196,7 +1196,9 @@
       "organisations": "Organisations",
       "planPayments": "Plan payments",
       "plans": "Subscription plans",
-      "platformTeam": "Platform team"
+      "platformTeam": "Platform team",
+      "help": "Help",
+      "userGuide": "User guide"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -2017,5 +2019,23 @@
     "simulator": "Price a loan against any product version. Side-effect free: nothing is booked.",
     "auditTrail": "Every lending action and policy decision, with the configuration versions in force at the time.",
     "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled."
+  },
+  "Help": {
+    "title": "User guide",
+    "link": "Help",
+    "openGuide": "Open the user guide for this page (opens in a new tab)",
+    "contents": "Contents",
+    "allChapters": "All chapters",
+    "searchPlaceholder": "Search the guide…",
+    "searchLabel": "Search the user guide",
+    "searching": "Searching…",
+    "results": "{count, plural, one {# section} other {# sections}}",
+    "noResults": "No sections match “{query}”.",
+    "onThisPage": "On this page",
+    "previous": "Previous",
+    "next": "Next",
+    "englishOnly": "The user guide is currently available in English only.",
+    "unavailable": "The user guide is not available in this build.",
+    "clear": "Clear"
   }
 }
