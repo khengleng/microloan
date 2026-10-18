@@ -44,6 +44,20 @@ export class WorkspaceMeController {
   myWork(@Req() req: Request) {
     return this.work.work(actor(req));
   }
+
+  /** Colleagues by id (`?ids=a,b`) or email fragment (`?q=`), own organisation only. */
+  @AnyAuthenticated()
+  @Get('people')
+  people(
+    @Req() req: Request,
+    @Query('ids') ids?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.access.people(actor(req), {
+      ids: typeof ids === 'string' && ids ? ids.split(',') : [],
+      search: typeof q === 'string' ? q : '',
+    });
+  }
 }
 
 /** Global search across borrowers, loans, applications, facilities, cards and cases. */
