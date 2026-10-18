@@ -17,8 +17,6 @@ type Dec = ReturnType<typeof D>;
 const COLLECTION_EVENTS = ['REPAYMENT', 'PREPAYMENT', 'SETTLEMENT'];
 /** Months of history in the collections-versus-disbursements trend. */
 const TREND_MONTHS = 6;
-/** The forward window for "due in the next days". */
-const DUE_WINDOW_DAYS = 7;
 
 export interface CurrencyFigures {
   currency: string;
@@ -50,8 +48,13 @@ export class LendingOverviewService {
     private readonly businessDate: BusinessDateService,
   ) {}
 
-  async summary(actor: LendingActor) {
+  /**
+   * `days`: the forward window for "due in the next days" — the same
+   * default and bounds as the due-soon notices (OPS-7).
+   */
+  async summary(actor: LendingActor, q: { days?: number } = {}) {
     const tenantId = requireTenant(actor);
+    const dueWindowDays = Math.min(Math.max(Number(q.days ?? 7) || 7, 1), 60);
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
     return this.lp.tenantTx(tenantId, async (tx) => {
       const businessDate = await this.businessDate.get(tenantId, tx);
@@ -61,7 +64,7 @@ export class LendingOverviewService {
       });
       const reportingCurrency = String(tenant?.baseCurrency ?? 'USD');
       if (!scope)
-        return this.empty(businessDate, reportingCurrency);
+        return this.empty(businessDate, reportingCurrency, dueWindowDays);
       const loanWhere = {
         tenantId,
         ...(scope as Prisma.LoanAccountWhereInput),
@@ -70,7 +73,7 @@ export class LendingOverviewService {
       const monthStart = `${businessDate.slice(0, 7)}-01`;
       const lastMonthStart = lending.addMonths(monthStart, -1);
       const trendStart = lending.addMonths(monthStart, -(TREND_MONTHS - 1));
-      const windowEnd = lending.addDays(businessDate, DUE_WINDOW_DAYS);
+      const windowEnd = lending.addDays(businessDate, dueWindowDays);
 
       const active = { ...loanWhere, status: 'ACTIVE' };
       const [book, overdue, borrowers, dueLines, events] = await Promise.all([
@@ -276,7 +279,7 @@ export class LendingOverviewService {
       return {
         businessDate,
         reportingCurrency,
-        dueWindowDays: DUE_WINDOW_DAYS,
+        dueWindowDays,
         month: thisMonth,
         totals: {
           activeLoans: totals.activeLoans,
@@ -318,12 +321,16 @@ export class LendingOverviewService {
     return map;
   }
 
-  private empty(businessDate: string, reportingCurrency: string) {
+  private empty(
+    businessDate: string,
+    reportingCurrency: string,
+    dueWindowDays: number,
+  ) {
     const zero = '0.00';
     return {
       businessDate,
       reportingCurrency,
-      dueWindowDays: DUE_WINDOW_DAYS,
+      dueWindowDays,
       month: businessDate.slice(0, 7),
       totals: {
         activeLoans: 0,

@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { LendingAction, lendingActorOf } from '../policy/lending-action.guard';
 import { LendingOverviewService } from './overview.service';
@@ -10,7 +10,9 @@ export class LendingOverviewController {
 
   @LendingAction('loan.read')
   @Get()
-  summary(@Req() req: Request) {
-    return this.overview.summary(lendingActorOf(req as never));
+  summary(@Req() req: Request, @Query('days') days?: string) {
+    return this.overview.summary(lendingActorOf(req as never), {
+      days: days ? Number(days) : undefined,
+    });
   }
 }

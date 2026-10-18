@@ -83,6 +83,13 @@ d('Lending overview for the dashboard (integration)', () => {
     );
     // Both loans' second instalment falls due on 2026-03-05, inside the 7-day window.
     expect(Number(o.totals.dueNextDays)).toBeGreaterThan(0);
+    expect(o.dueWindowDays).toBe(7);
+    // A shorter window (to 2026-03-03) holds nothing; the window is bounded.
+    const short = expectOk(await f.as('opsMaker').get('/lending/overview?days=3'));
+    expect(short.dueWindowDays).toBe(3);
+    expect(short.totals.dueNextDays).toBe('0.00');
+    const capped = expectOk(await f.as('opsMaker').get('/lending/overview?days=9999'));
+    expect(capped.dueWindowDays).toBe(60);
     expect(o.totals.collectedThisMonth).toBe(paid.toFixed(2));
     expect(o.totals.collectedLastMonth).toBe('0.00');
     expect(o.trend).toHaveLength(6);
