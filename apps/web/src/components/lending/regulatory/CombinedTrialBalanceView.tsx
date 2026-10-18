@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { LendingShell } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -25,12 +26,14 @@ const amt = (v: string) => (zero(v) ? <span className="text-[#AAB7C4]">—</span
 const bal = (v: string) => (zero(v) ? <span className="text-[#AAB7C4]">0</span> : v.startsWith('-') ? <>{fmtMoney(v.slice(1))} <span className="text-[10px] text-[#8792A2]">Cr</span></> : <>{fmtMoney(v)} <span className="text-[10px] text-[#8792A2]">Dr</span></>);
 
 function Balanced({ ok, label }: { ok: boolean; label: string }) {
+    const t = useTranslations('LendingRegulatory.tb');
     return ok
-        ? <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700"><CheckCircle2 size={14} /> {label} balances</span>
-        : <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-600"><XCircle size={14} /> {label} does not balance</span>;
+        ? <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700"><CheckCircle2 size={14} /> {t('balances', { book: label })}</span>
+        : <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-red-600"><XCircle size={14} /> {t('notBalanced', { book: label })}</span>;
 }
 
 export function CombinedTrialBalanceView() {
+    const t = useTranslations('LendingRegulatory.tb');
     const [draft, setDraft] = useState('');
     const [asOf, setAsOf] = useState('');
     const { data, error, loading } = useApi<Combined>(`/lending/regulatory/combined-trial-balance${qs({ asOf })}`);
@@ -40,36 +43,36 @@ export function CombinedTrialBalanceView() {
             subtitle="One trial balance for both loan books: the legacy journal and the lending journal side by side, on the shared chart of accounts."
             actions={
                 <div className="flex items-end gap-2">
-                    <Field label="As of">
+                    <Field label={t('asOf')}>
                         <TextInput type="date" value={draft} onChange={setDraft} />
                     </Field>
-                    <Btn onClick={() => setAsOf(draft)}>Show</Btn>
-                    {asOf && <Btn variant="ghost" onClick={() => { setDraft(''); setAsOf(''); }}>Business date</Btn>}
+                    <Btn onClick={() => setAsOf(draft)}>{t('show')}</Btn>
+                    {asOf && <Btn variant="ghost" onClick={() => { setDraft(''); setAsOf(''); }}>{t('businessDate')}</Btn>}
                 </div>
             }
         >
             <ErrorBox error={error} />
             <Notice tone="info">
-                Each book must balance on its own; the combined column is what a single general ledger would show. Loans receivable (1200) and the allowance (1300) here are what the regulatory return reconciles to.
+                {t('notice')}
             </Notice>
             {loading && !data ? <Spinner /> : data && (
                 <>
-                    <p className="text-[13px] text-[#697386]">Balances at the end of <b className="text-[#1A1F36]">{data.asOf}</b>.</p>
-                    {data.currencies.length === 0 && <Card><Empty>No postings in either book yet.</Empty></Card>}
+                    <p className="text-[13px] text-[#697386]">{t.rich('balancesAt', { b: (chunks) => <b className="text-[#1A1F36]">{chunks}</b>, date: data.asOf })}</p>
+                    {data.currencies.length === 0 && <Card><Empty>{t('noPostings')}</Empty></Card>}
                     {data.currencies.map((c) => (
-                        <Card key={c.currency} title={`${c.currency} trial balance`} bodyClass="p-0"
-                            actions={<div className="flex flex-wrap gap-3"><Balanced ok={c.totals.legacyBalanced} label="Legacy" /><Balanced ok={c.totals.lendingBalanced} label="Lending" /><Balanced ok={c.totals.balanced} label="Combined" /></div>}>
+                        <Card key={c.currency} title={t('trialBalance', { currency: c.currency })} bodyClass="p-0"
+                            actions={<div className="flex flex-wrap gap-3"><Balanced ok={c.totals.legacyBalanced} label={t('legacy')} /><Balanced ok={c.totals.lendingBalanced} label={t('lending')} /><Balanced ok={c.totals.balanced} label={t('combined')} /></div>}>
                             <Table>
                                 <thead className="bg-[#F7FAFC] border-b border-[#E3E8EE]">
                                     <tr>
-                                        <th className={th} rowSpan={2}>Account</th>
-                                        <th className={`${th} text-center border-l border-[#E3E8EE]`} colSpan={2}>Legacy loans</th>
-                                        <th className={`${th} text-center border-l border-[#E3E8EE]`} colSpan={2}>Lending platform</th>
-                                        <th className={`${thR} border-l border-[#E3E8EE]`} rowSpan={2}>Combined balance</th>
+                                        <th className={th} rowSpan={2}>{t('colAccount')}</th>
+                                        <th className={`${th} text-center border-l border-[#E3E8EE]`} colSpan={2}>{t('colLegacy')}</th>
+                                        <th className={`${th} text-center border-l border-[#E3E8EE]`} colSpan={2}>{t('colLending')}</th>
+                                        <th className={`${thR} border-l border-[#E3E8EE]`} rowSpan={2}>{t('colCombined')}</th>
                                     </tr>
                                     <tr>
-                                        <th className={`${thR} border-l border-[#E3E8EE]`}>Debit</th><th className={thR}>Credit</th>
-                                        <th className={`${thR} border-l border-[#E3E8EE]`}>Debit</th><th className={thR}>Credit</th>
+                                        <th className={`${thR} border-l border-[#E3E8EE]`}>{t('colDebit')}</th><th className={thR}>{t('colCredit')}</th>
+                                        <th className={`${thR} border-l border-[#E3E8EE]`}>{t('colDebit')}</th><th className={thR}>{t('colCredit')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
@@ -86,7 +89,7 @@ export function CombinedTrialBalanceView() {
                                 </tbody>
                                 <tfoot className="border-t-2 border-[#E3E8EE] bg-[#F7FAFC] font-bold">
                                     <tr>
-                                        <td className={td}>Total</td>
+                                        <td className={td}>{t('total')}</td>
                                         <td className={`${tdR} border-l border-[#F0F2F5]`}>{fmtMoney(c.totals.legacyDebit)}</td>
                                         <td className={tdR}>{fmtMoney(c.totals.legacyCredit)}</td>
                                         <td className={`${tdR} border-l border-[#F0F2F5]`}>{fmtMoney(c.totals.lendingDebit)}</td>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import api from '@/lib/api';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LendingShell } from '../LendingShell';
@@ -19,9 +20,9 @@ import type { LendingPolicy, LendingPolicyVersion } from './types';
 import { NewVersionForm } from './NewVersionForm';
 
 type Act = 'submit' | 'approve' | 'reject' | 'retire';
-const PAST: Record<Act, string> = { submit: 'submitted for approval', approve: 'approved', reject: 'rejected', retire: 'retired' };
 
 export function PolicyDetailView({ id, initialVersionId }: { id: string; initialVersionId?: string | null }) {
+    const t = useTranslations('LendingPolicies');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const myId = useMyId();
@@ -32,8 +33,8 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const [rejecting, setRejecting] = useState(false);
     const [reason, setReason] = useState('');
 
-    if (loading && !policy) return <LendingShell title="Policy" back={{ href: '/lending/policies', label: 'Policy library' }}><Spinner /></LendingShell>;
-    if (!policy) return <LendingShell title="Policy" back={{ href: '/lending/policies', label: 'Policy library' }}><ErrorBox error={loadError} /></LendingShell>;
+    if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><Spinner /></LendingShell>;
+    if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><ErrorBox error={loadError} /></LendingShell>;
 
     const versions = policy.versions;
     const selected = versions.find((v) => v.id === selectedId) ?? versions[0];
@@ -51,16 +52,16 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const transition = async (v: LendingPolicyVersion, act: Act, body?: { reason: string }) => {
         if (act === 'retire') {
             const ok = await confirm({
-                title: `Retire ${policy.code} v${v.version}?`,
-                message: 'New contracts can no longer be composed from this version. Contracts already booked keep the terms they were frozen with.',
-                confirmLabel: 'Retire',
+                title: t('detail.retireTitle', { code: policy.code, version: v.version }),
+                message: t('detail.retireMessage'),
+                confirmLabel: t('detail.retire'),
                 variant: 'danger',
             });
             if (!ok) return;
         }
         const r = await run(act, () => api.post(`/lending/policy-versions/${v.id}/${act}`, body ?? {}));
         if (r) {
-            showToast(`${policy.code} v${v.version} ${PAST[act]}`, 'success');
+            showToast(t(`detail.past.${act}`, { code: policy.code, version: v.version }), 'success');
             setRejecting(false);
             setReason('');
             reload();
@@ -71,10 +72,10 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
         <LendingShell
             back={{ href: '/lending/policies', label: 'Policy library' }}
             title={<span className="flex items-center gap-2"><span className="font-mono">{policy.code}</span> {policy.name}</span>}
-            subtitle={<>{KIND_INFO[policy.kind]?.label ?? policy.kind} · replaces <span className="font-mono text-[12px]">{KIND_INFO[policy.kind]?.path}</span></>}
+            subtitle={<>{KIND_INFO[policy.kind] ? t(`kind.${policy.kind}`) : policy.kind} · {t.rich('detail.replaces', { path: () => <span className="font-mono text-[12px]">{KIND_INFO[policy.kind]?.path}</span> })}</>}
             actions={!adding && canDraft && (
-                <Btn variant="primary" onClick={() => { setAdding(true); clearError(); }} reason={hasOpenDraft ? 'A version is already in draft or awaiting approval' : undefined}>
-                    <Plus size={15} /> New version
+                <Btn variant="primary" onClick={() => { setAdding(true); clearError(); }} reason={hasOpenDraft ? t('detail.openDraft') : undefined}>
+                    <Plus size={15} /> {t('detail.newVersion')}
                 </Btn>
             )}
         >
@@ -85,7 +86,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                     policy={policy}
                     onClose={() => setAdding(false)}
                     onCreated={(v) => {
-                        showToast(`Draft v${v.version} created`, 'success');
+                        showToast(t('detail.draftCreated', { version: v.version }), 'success');
                         setAdding(false);
                         setSelectedId(v.id);
                         reload();
@@ -94,25 +95,25 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <Card title="Policy" className="lg:col-span-1">
+                <Card title={t('detail.policy')} className="lg:col-span-1">
                     <KV cols={2} items={[
-                        ['Kind', <span key="k" className="font-mono text-[12px]">{policy.kind}</span>],
-                        ['Live version', live ? `v${live.version}` : <span key="n" className="text-amber-700">none approved</span>],
-                        ['Created', fmtDateTime(policy.createdAt)],
-                        ['Created by', <Person key="c" id={policy.createdBy} />],
+                        [t('detail.kind'), <span key="k" className="font-mono text-[12px]">{policy.kind}</span>],
+                        [t('detail.liveVersion'), live ? `v${live.version}` : <span key="n" className="text-amber-700">{t('noneApproved')}</span>],
+                        [t('detail.created'), fmtDateTime(policy.createdAt)],
+                        [t('detail.createdBy'), <Person key="c" id={policy.createdBy} />],
                     ]} />
                     {policy.description && <p className="mt-3 text-[13px] text-[#3C4257] whitespace-pre-wrap">{policy.description}</p>}
-                    {!live && <div className="mt-3"><Notice tone="warn">Products cannot go live with this policy on a menu until a version is approved.</Notice></div>}
+                    {!live && <div className="mt-3"><Notice tone="warn">{t('detail.notLive')}</Notice></div>}
                 </Card>
-                <Card title="Versions" subtitle="Approved versions are immutable — running contracts reference them." bodyClass="p-0" className="lg:col-span-2">
+                <Card title={t('detail.versions')} subtitle={t('detail.versionsSubtitle')} bodyClass="p-0" className="lg:col-span-2">
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Version</th>
-                                <th className={th}>Status</th>
-                                <th className={th}>Change summary</th>
-                                <th className={th}>Maker / checker</th>
-                                <th className={thR}>Created</th>
+                                <th className={th}>{t('detail.colVersion')}</th>
+                                <th className={th}>{t('detail.colStatus')}</th>
+                                <th className={th}>{t('changeSummary')}</th>
+                                <th className={th}>{t('detail.colMakerChecker')}</th>
+                                <th className={thR}>{t('detail.created')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -133,59 +134,59 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
 
             {selected && (
                 <Card
-                    title={<span className="flex items-center gap-2">Version {selected.version} <StatusBadge status={selected.status} /></span>}
+                    title={<span className="flex items-center gap-2">{t('detail.versionN', { version: selected.version })} <StatusBadge status={selected.status} /></span>}
                     subtitle={selected.changeSummary || undefined}
                     className={selected.status === 'SUBMITTED' ? 'border-[#635BFF] ring-1 ring-[#635BFF]/20' : ''}
                     actions={<>
-                        {selected.status === 'DRAFT' && canSubmit && <Btn variant="primary" busy={busy === 'submit'} onClick={() => transition(selected, 'submit')}>Submit for approval</Btn>}
+                        {selected.status === 'DRAFT' && canSubmit && <Btn variant="primary" busy={busy === 'submit'} onClick={() => transition(selected, 'submit')}>{t('detail.submit')}</Btn>}
                         {selected.status === 'SUBMITTED' && canApprove && <>
                             <Btn variant="primary" busy={busy === 'approve'} onClick={() => transition(selected, 'approve')}
-                                title={iAmMaker ? 'You made this version; the server requires a different user to approve it.' : undefined}>Approve</Btn>
-                            <Btn variant="danger" onClick={() => setRejecting(true)}>Reject</Btn>
+                                title={iAmMaker ? t('detail.youMadeTitle') : undefined}>{t('detail.approve')}</Btn>
+                            <Btn variant="danger" onClick={() => setRejecting(true)}>{t('detail.reject')}</Btn>
                         </>}
-                        {selected.status === 'APPROVED' && canRetire && <Btn variant="danger" busy={busy === 'retire'} onClick={() => transition(selected, 'retire')}>Retire</Btn>}
+                        {selected.status === 'APPROVED' && canRetire && <Btn variant="danger" busy={busy === 'retire'} onClick={() => transition(selected, 'retire')}>{t('detail.retire')}</Btn>}
                     </>}
                 >
                     <div className="space-y-4">
                         {selected.status === 'SUBMITTED' && iAmMaker && (
-                            <Notice tone="info" title="Maker-checker">You made this version. A different user must approve or reject it.</Notice>
+                            <Notice tone="info" title={t('detail.makerChecker')}>{t('detail.youMade')}</Notice>
                         )}
                         <ErrorBox error={error} onDismiss={clearError} />
                         {rejecting && selected.status === 'SUBMITTED' && (
-                            <ActionPanel title={`Reject v${selected.version}`} onClose={() => setRejecting(false)}>
-                                <Field label="Reason" hint="Required — the maker sees it on the version">
+                            <ActionPanel title={t('detail.rejectTitle', { version: selected.version })} onClose={() => setRejecting(false)}>
+                                <Field label={t('detail.reason')} hint={t('detail.reasonHint')}>
                                     <TextArea value={reason} onChange={setReason} rows={2} maxLength={500} />
                                 </Field>
-                                <Btn variant="danger" busy={busy === 'reject'} disabled={!reason.trim()} onClick={() => transition(selected, 'reject', { reason: reason.trim() })}>Confirm rejection</Btn>
+                                <Btn variant="danger" busy={busy === 'reject'} disabled={!reason.trim()} onClick={() => transition(selected, 'reject', { reason: reason.trim() })}>{t('detail.confirmReject')}</Btn>
                             </ActionPanel>
                         )}
                         {selected.status === 'REJECTED' && selected.rejectionReason && (
-                            <Notice tone="danger" title="Rejected">{selected.rejectionReason}</Notice>
+                            <Notice tone="danger" title={t('detail.rejected')}>{selected.rejectionReason}</Notice>
                         )}
 
                         <KV cols={4} items={[
-                            ['Maker', <Person key="m" id={selected.makerId} />],
-                            ['Submitted', fmtDateTime(selected.submittedAt)],
-                            ['Checker', selected.checkerId ? <Person key="k" id={selected.checkerId} /> : '—'],
-                            ['Approved', fmtDateTime(selected.approvedAt)],
-                            ['Retired', fmtDateTime(selected.retiredAt)],
-                            ['Body hash', <span key="h" className="font-mono text-[11px] break-all" title={selected.bodyHash}>{selected.bodyHash?.slice(0, 16)}…</span>],
+                            [t('detail.maker'), <Person key="m" id={selected.makerId} />],
+                            [t('detail.submitted'), fmtDateTime(selected.submittedAt)],
+                            [t('detail.checker'), selected.checkerId ? <Person key="k" id={selected.checkerId} /> : '—'],
+                            [t('detail.approved'), fmtDateTime(selected.approvedAt)],
+                            [t('detail.retired'), fmtDateTime(selected.retiredAt)],
+                            [t('detail.bodyHash'), <span key="h" className="font-mono text-[11px] break-all" title={selected.bodyHash}>{selected.bodyHash?.slice(0, 16)}…</span>],
                         ]} />
 
                         <div>
-                            <p className="text-[12px] font-semibold text-[#3C4257] mb-1.5">Parameters</p>
+                            <p className="text-[12px] font-semibold text-[#3C4257] mb-1.5">{t('parameters')}</p>
                             {Object.keys(selected.parameters ?? {}).length === 0 ? (
-                                <p className="text-[12px] text-[#697386]">No parameters — the body is used as written.</p>
+                                <p className="text-[12px] text-[#697386]">{t('detail.noParameters')}</p>
                             ) : (
                                 <Table className="border border-[#E3E8EE] rounded">
                                     <thead>
                                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                            <th className={th}>Name</th>
-                                            <th className={th}>Label</th>
-                                            <th className={th}>Type</th>
-                                            <th className={thR}>Default</th>
-                                            <th className={thR}>Min</th>
-                                            <th className={thR}>Max</th>
+                                            <th className={th}>{t('col.name')}</th>
+                                            <th className={th}>{t('col.label')}</th>
+                                            <th className={th}>{t('col.type')}</th>
+                                            <th className={thR}>{t('col.default')}</th>
+                                            <th className={thR}>{t('col.min')}</th>
+                                            <th className={thR}>{t('col.max')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -205,20 +206,20 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                         </div>
 
                         <div>
-                            <p className="text-[12px] font-semibold text-[#3C4257] mb-1.5">Body</p>
+                            <p className="text-[12px] font-semibold text-[#3C4257] mb-1.5">{t('detail.body')}</p>
                             <JsonBlock value={selected.body} />
                         </div>
 
                         <div>
                             <p className="text-[12px] font-semibold text-[#3C4257] mb-1.5">
-                                {previous ? `Changes from v${previous.version}` : 'Changes'}
+                                {previous ? t('changesFrom', { version: previous.version }) : t('detail.changes')}
                             </p>
                             {previous ? (
                                 <JsonDiff
                                     diff={jsonDiff({ parameters: previous.parameters ?? {}, body: previous.body }, { parameters: selected.parameters ?? {}, body: selected.body })}
-                                    emptyLabel={`Identical to v${previous.version}.`}
+                                    emptyLabel={t('detail.identical', { version: previous.version })}
                                 />
-                            ) : <p className="text-[13px] text-[#697386]">First version — nothing to compare against.</p>}
+                            ) : <p className="text-[13px] text-[#697386]">{t('detail.firstVersion')}</p>}
                         </div>
                     </div>
                 </Card>

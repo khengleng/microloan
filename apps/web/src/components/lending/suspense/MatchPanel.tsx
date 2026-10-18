@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import api from '@/lib/api';
+import { useTranslations } from 'next-intl';
 import { ActionPanel, Btn, Empty, ErrorBox, Field, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { clean, idem, qs, useAction, useApi, useIdempotencyKey } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
@@ -14,6 +15,7 @@ const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 
 /** Apply some or all of a held receipt to a loan — posted as an ordinary repayment funded from suspense. */
 export function MatchPanel({ payment, onDone, onClose }: { payment: SuspensePayment; onDone: (msg: string) => void; onClose: () => void }) {
+    const t = useTranslations('LendingSuspense.match');
     const [search, setSearch] = useState(payment.externalReference && /^LN-/i.test(payment.externalReference) ? payment.externalReference : '');
     const [query, setQuery] = useState<string | null>(null);
     const [loan, setLoan] = useState<LoanSummary | null>(null);
@@ -29,42 +31,42 @@ export function MatchPanel({ payment, onDone, onClose }: { payment: SuspensePaym
     const doSearch = () => { setQuery(search.trim()); setLoan(null); };
 
     const post = async () => {
-        if (!loan) { setProblem('Choose a loan.'); return; }
+        if (!loan) { setProblem(t('chooseLoan')); return; }
         const a = amount.trim();
-        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
-        if (compareDecimal(a, payment.remaining) > 0) { setProblem(`At most ${payment.remaining} ${payment.currency} is still held.`); return; }
+        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem(t('positiveAmount')); return; }
+        if (compareDecimal(a, payment.remaining) > 0) { setProblem(t('atMost', { amount: payment.remaining, currency: payment.currency })); return; }
         setProblem('');
         const body = clean({ loanId: loan.id, amount: a, applyExcessAs, prepaymentStrategy: strategy });
         const k = key.keyFor({ id: payment.id, ...body });
         const res = await run('match', () => api.post(`/lending/suspense/${payment.id}/matches`, body, idem(k)));
         if (res) {
             key.reset();
-            onDone(`${a} ${payment.currency} from ${payment.reference} applied to ${loan.reference}`);
+            onDone(t('applied', { amount: a, currency: payment.currency, receipt: payment.reference, loan: loan.reference }));
         }
     };
 
     return (
-        <ActionPanel title={`Match ${payment.reference} to a loan`} onClose={onClose}>
+        <ActionPanel title={t('title', { reference: payment.reference })} onClose={onClose}>
             <div className="flex flex-wrap items-end gap-2">
-                <Field label="Find loan by reference" className="flex-1 min-w-[220px]">
-                    <TextInput value={search} onChange={setSearch} placeholder="e.g. LN-2026-00412" onKeyDown={(e) => { if (e.key === 'Enter') doSearch(); }} />
+                <Field label={t('findLoan')} className="flex-1 min-w-[220px]">
+                    <TextInput value={search} onChange={setSearch} placeholder={t('findPlaceholder')} onKeyDown={(e) => { if (e.key === 'Enter') doSearch(); }} />
                 </Field>
-                <Btn onClick={doSearch}>Search</Btn>
+                <Btn onClick={doSearch}>{t('search')}</Btn>
             </div>
 
             {query !== null && (
                 <div className="border border-[#E3E8EE] rounded bg-white max-h-64 overflow-auto">
                     {loans.error && <div className="p-3"><ErrorBox error={loans.error} /></div>}
-                    {loans.loading && !loans.data ? <Spinner label="Searching…" /> : rows.length === 0 ? (
-                        !loans.error && <Empty>No loans match “{query}”.</Empty>
+                    {loans.loading && !loans.data ? <Spinner label={t('searching')} /> : rows.length === 0 ? (
+                        !loans.error && <Empty>{t('noMatch', { query })}</Empty>
                     ) : (
                         <Table>
                             <thead>
                                 <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                    <th className={th}>Reference</th>
-                                    <th className={th}>Status</th>
-                                    <th className={thR}>Principal o/s</th>
-                                    <th className={thR}>DPD</th>
+                                    <th className={th}>{t('colReference')}</th>
+                                    <th className={th}>{t('colStatus')}</th>
+                                    <th className={thR}>{t('colPrincipal')}</th>
+                                    <th className={thR}>{t('colDpd')}</th>
                                     <th className={th}></th>
                                 </tr>
                             </thead>
@@ -80,9 +82,9 @@ export function MatchPanel({ payment, onDone, onClose }: { payment: SuspensePaym
                                             <td className={`${tdR} ${l.daysPastDue > 0 ? 'text-red-600 font-semibold' : ''}`}>{l.daysPastDue}</td>
                                             <td className={`${td} text-right`}>
                                                 <Btn size="sm" variant={chosen ? 'primary' : 'secondary'} disabled={wrongCcy}
-                                                    reason={wrongCcy ? `The receipt is in ${payment.currency}; this loan is in ${l.currency}.` : undefined}
+                                                    reason={wrongCcy ? t('wrongCurrency', { receipt: payment.currency, loan: l.currency }) : undefined}
                                                     onClick={() => { setLoan(l); setProblem(''); }}>
-                                                    {chosen ? 'Selected' : 'Select'}
+                                                    {chosen ? t('selected') : t('select')}
                                                 </Btn>
                                             </td>
                                         </tr>
@@ -95,24 +97,24 @@ export function MatchPanel({ payment, onDone, onClose }: { payment: SuspensePaym
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Field label="Loan">
-                    <div className={`${loan ? 'font-mono font-semibold text-[#1A1F36]' : 'text-[#AAB7C4]'} text-[13px] py-1.5`}>{loan?.reference ?? 'none selected'}</div>
+                <Field label={t('loan')}>
+                    <div className={`${loan ? 'font-mono font-semibold text-[#1A1F36]' : 'text-[#AAB7C4]'} text-[13px] py-1.5`}>{loan?.reference ?? t('noneSelected')}</div>
                 </Field>
-                <Field label={`Amount (${payment.currency})`} hint={`Up to ${payment.remaining} held`} error={problem || undefined}>
+                <Field label={t('amount', { currency: payment.currency })} hint={t('upTo', { amount: payment.remaining })} error={problem || undefined}>
                     <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
                 </Field>
-                <Field label="Apply excess as" hint="Money above what is currently due">
-                    <SelectInput value={applyExcessAs} onChange={setApplyExcessAs} placeholder="Product default"
-                        options={[{ value: 'ADVANCE', label: 'ADVANCE — hold for next due dates' }, { value: 'PREPAY', label: 'PREPAY — reduce principal now' }]} />
+                <Field label={t('applyExcessAs')} hint={t('applyExcessHint')}>
+                    <SelectInput value={applyExcessAs} onChange={setApplyExcessAs} placeholder={t('productDefault')}
+                        options={[{ value: 'ADVANCE', label: t('excessAdvance') }, { value: 'PREPAY', label: t('excessPrepay') }]} />
                 </Field>
-                <Field label="Prepayment strategy" hint="If the excess prepays">
-                    <SelectInput value={strategy} onChange={setStrategy} placeholder="Product default"
-                        options={[{ value: 'RECAST', label: 'RECAST — lower instalment' }, { value: 'SHORTEN', label: 'SHORTEN — earlier maturity' }]} />
+                <Field label={t('strategy')} hint={t('strategyHint')}>
+                    <SelectInput value={strategy} onChange={setStrategy} placeholder={t('productDefault')}
+                        options={[{ value: 'RECAST', label: t('strategyRecast') }, { value: 'SHORTEN', label: t('strategyShorten') }]} />
                 </Field>
             </div>
-            <p className="text-[11px] text-[#697386]">Posted at the receipt&apos;s value date ({payment.valueDate}) with the loan&apos;s normal allocation rules.</p>
+            <p className="text-[11px] text-[#697386]">{t('postedNote', { date: payment.valueDate })}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={post} busy={busy === 'match'} disabled={!loan}>Apply to loan</Btn>
+            <Btn variant="primary" onClick={post} busy={busy === 'match'} disabled={!loan}>{t('applyToLoan')}</Btn>
         </ActionPanel>
     );
 }
