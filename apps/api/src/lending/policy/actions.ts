@@ -296,6 +296,19 @@ export const ACTIONS: ActionDefinition[] = [
     workflowStates: ['APPROVED'],
     requiresActiveProduct: true,
   }),
+  // Scoring (D-075…D-077): a score is read with the application; credit
+  // staff may re-run it while the application is undecided.
+  A('credit_score.read', 'APPLICATION', 'READ', {
+    permission: 'loan_application.read',
+  }),
+  A('credit_score.run', 'APPLICATION', 'ORIGINATION', {
+    workflowStates: ['DRAFT', 'SUBMITTED', 'RECOMMENDED'],
+  }),
+  // Scorecards are risk models: one person drafts and tests a version,
+  // another approves it and puts it in force.
+  A('scorecard.read', 'TENANT', 'READ'),
+  A('scorecard.manage', 'TENANT', 'CONFIG'),
+  A('scorecard.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Solidarity groups
   A('borrower_group.read', 'BORROWER_GROUP', 'READ'),
   A('borrower_group.manage', 'BORROWER_GROUP', 'ORIGINATION', {
@@ -816,6 +829,30 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('document.expiry.run', 'TENANT', 'DOCUMENT', {
     permission: 'document.manage',
+  }),
+  // Alternative data (D-078): the resource is the customer, like documents.
+  // Consent is recorded by front-line staff; officer-captured data counts
+  // only once someone else has verified it.
+  A('alt_data.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('alt_data.consent.manage', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    scoped: true,
+  }),
+  A('alt_data.record', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('alt_data.verify', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    scoped: true,
+    makerChecker: true,
+  }),
+  // External alternative-data providers hold credentials: governed like
+  // webhooks, one administrator configures, another activates.
+  A('alt_data.provider.read', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.read',
+  }),
+  A('alt_data.provider.manage', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.manage',
+  }),
+  A('alt_data.provider.approve', 'ACCESS', 'ACCESS', {
+    permission: 'access_policy.approve',
+    makerChecker: true,
   }),
   // The borrower, in the portal, on their own documents only.
   A('document.read_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),

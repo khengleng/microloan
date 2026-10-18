@@ -114,6 +114,52 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Book an approved application as a loan agreement',
     category: 'Operations',
   },
+  // Scoring and alternative data (D-075…D-080)
+  {
+    code: 'credit_score.run',
+    description: 'Re-run the credit score of an undecided application',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.read',
+    description:
+      'View scorecards, try inputs on them and read the scorecard monitoring report',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.manage',
+    description: 'Draft scorecards and versions and submit them for approval',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.approve',
+    description:
+      'Approve, reject, activate and retire scorecard versions drafted by someone else',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.read',
+    description:
+      'View a customer’s consents and alternative data (utility, telco, rent, cash flow)',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.consent.manage',
+    description:
+      'Record and withdraw a customer’s consent to an alternative data source',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.record',
+    description:
+      'Capture document-backed alternative data for a customer (counts once verified)',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.verify',
+    description: 'Verify or reject alternative data captured by someone else',
+    category: 'Credit',
+  },
   // Servicing
   {
     code: 'loan.read',
@@ -606,6 +652,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Product maker',
     description: 'Drafts products, versions and workflows.',
     permissions: [
+      'scorecard.read',
       'loan_product.read',
       'loan_product.create',
       'loan_product.update',
@@ -620,6 +667,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Approves, activates and retires product and workflow versions.',
     permissions: [
+      'scorecard.read',
       'loan_product.read',
       'loan_product.approve',
       'loan_product.activate',
@@ -633,6 +681,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Originates applications and runs solidarity groups for borrowers in their scope.',
     permissions: [
+      'alt_data.read',
+      'alt_data.consent.manage',
+      'alt_data.record',
       'document.read',
       'document.upload',
       'borrower_group.read',
@@ -654,6 +705,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit analyst',
     description: 'Assesses applications and recommends decisions.',
     permissions: [
+      'scorecard.read',
+      'scorecard.manage',
+      'credit_score.run',
+      'alt_data.read',
+      'alt_data.consent.manage',
+      'alt_data.record',
+      'alt_data.verify',
       'document.read',
       'document.upload',
       'document.review',
@@ -673,6 +731,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit approver',
     description: 'Approves or rejects credit within approval authority.',
     permissions: [
+      'scorecard.read',
+      'credit_score.run',
+      'alt_data.read',
       'document.read',
       'loan_application.read',
       'credit_decision.approve',
@@ -796,6 +857,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Risk / compliance reviewer',
     description: 'Read access across lending with the policy simulator.',
     permissions: [
+      'scorecard.read',
+      'scorecard.approve',
+      'alt_data.read',
+      'alt_data.verify',
       'document.manage',
       ...READ_ALL,
       'audit.read',
@@ -816,6 +881,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Auditor',
     description: 'Read-only access including the audit trail.',
     permissions: [
+      'scorecard.read',
+      'alt_data.read',
       ...READ_ALL,
       'audit.read',
       'accounting.read',

@@ -63,6 +63,13 @@ import { IncomeContingentController } from './income-contingent/income-contingen
 import { MurabahaService } from './murabaha/murabaha.service';
 import { MurabahaController } from './murabaha/murabaha.controller';
 import { CatalogueSyncService } from './catalogue-sync.service';
+import { ScoringController } from './scoring/scoring.controller';
+import { ScorecardsService } from './scoring/scorecards.service';
+import { ScoringService } from './scoring/scoring.service';
+import { FeatureStoreService } from './scoring/feature-store.service';
+import { AlternativeDataService } from './scoring/alternative-data.service';
+import { AltDataProvidersService } from './scoring/providers';
+import { ScoreMonitoringService } from './scoring/score-monitoring.service';
 import { RestructuringService } from './restructuring/restructuring.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
 import { RecoveryService } from './recovery/recovery.service';
@@ -147,6 +154,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     WorkspaceMeController,
     WorkspaceSearchController,
     WorkspacePortalController,
+    ScoringController,
   ],
   providers: [
     ReportingService,
@@ -203,6 +211,12 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     WorkspaceAccessService,
     WorkspaceWorkService,
     WorkspaceSearchService,
+    ScorecardsService,
+    ScoringService,
+    FeatureStoreService,
+    AlternativeDataService,
+    AltDataProvidersService,
+    ScoreMonitoringService,
   ],
   exports: [
     CustomerDocumentsService,

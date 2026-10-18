@@ -32,6 +32,7 @@ import { LendingPoliciesService } from '../products/lending-policies.service';
 import { GroupsService } from './groups.service';
 import { CustomerDocumentsService } from '../documents/customer-documents.service';
 import { createConfiguredCovenants } from '../covenants/covenant-setup';
+import { ScoringService, type ScoreStage } from '../scoring/scoring.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -93,6 +94,7 @@ export class ApplicationsService {
     private readonly groups: GroupsService,
     private readonly policies: LendingPoliciesService,
     private readonly library: CustomerDocumentsService,
+    private readonly scoring: ScoringService,
   ) {}
 
   private assessmentChecks: AssessmentCheck[] = [];
@@ -476,6 +478,7 @@ export class ApplicationsService {
         config!,
         'APPLICATION',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       if (assessment.blocking.length) {
         throw new BadRequestException({
@@ -782,6 +785,96 @@ export class ApplicationsService {
     );
   }
 
+  // ── Scores (D-075…D-077) ──────────────────────────────────────────────────
+
+  /** Every stored scoring of the application, newest first, with the customer-facing explanation of the latest. */
+  async scores(actor: LendingActor, id: string) {
+    const tenantId = requireTenant(actor);
+    const app = await this.load(this.prisma, tenantId, id);
+    const { version, product } = await this.versionOf(this.prisma, app);
+    await this.policy.enforce(
+      actor,
+      'credit_score.read',
+      applicationResource(app, version, product, []),
+    );
+    const evaluations = await this.lp.tenantTx(tenantId, (tx) =>
+      tx.scoreEvaluation.findMany({
+        where: { tenantId, applicationId: id },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    const latest = evaluations.find((e) => e.role === 'CHAMPION') ?? null;
+    return {
+      evaluations,
+      latest,
+      challenger:
+        evaluations.find(
+          (e) =>
+            e.role === 'CHALLENGER' &&
+            latest &&
+            e.createdAt.getTime() === latest.createdAt.getTime(),
+        ) ??
+        evaluations.find((e) => e.role === 'CHALLENGER') ??
+        null,
+      customerExplanation: latest
+        ? ((latest.strategy as { explanation?: unknown }).explanation ?? null)
+        : null,
+    };
+  }
+
+  /**
+   * Re-run the score on the application as it stands (credit staff, before
+   * a decision). Stored like any other evaluation; the full assessment comes
+   * back for information — nothing is decided here.
+   */
+  async rescore(actor: LendingActor, id: string) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const app = await this.load(tx, tenantId, id);
+      const { version, product, config } = await this.versionOf(tx, app);
+      await this.policy.enforce(
+        actor,
+        'credit_score.run',
+        applicationResource(app, version, product, []),
+        tx,
+      );
+      const workflow = await this.workflows.effective(
+        tenantId,
+        config!.operations.workflowCode,
+        tx,
+      );
+      const assessment = await this.assess(
+        tx,
+        app,
+        config!,
+        'APPROVAL',
+        workflow.definition.steps,
+        { actorId: actor.id, scoreStage: 'RESCORE' },
+      );
+      await this.audit.write(
+        {
+          actor,
+          action: 'credit_score.run',
+          resourceType: 'Application',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            evaluationId: assessment.metrics.scoreEvaluationId,
+            score: assessment.metrics.creditScore,
+          },
+        },
+        tx,
+      );
+      const evaluation = await tx.scoreEvaluation.findFirst({
+        where: {
+          tenantId,
+          id: String(assessment.metrics.scoreEvaluationId),
+        },
+      });
+      return { evaluation, assessment };
+    });
+  }
+
   // ── Credit decisions ──────────────────────────────────────────────────────
 
   async recommend(
@@ -812,6 +905,7 @@ export class ApplicationsService {
         config!,
         'APPROVAL',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       await tx.creditDecision.create({
         data: {
@@ -888,6 +982,7 @@ export class ApplicationsService {
         config!,
         'APPROVAL',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       if (assessment.blocking.length) {
         throw new BadRequestException({
@@ -1543,6 +1638,8 @@ export class ApplicationsService {
       borrowerId: string;
       /** Set on a group application; null for individual lending. */
       groupId?: string | null;
+      productId: string;
+      productVersionId: string;
       requestedAmount: unknown;
       currency: string;
       terms: unknown;
@@ -1550,6 +1647,7 @@ export class ApplicationsService {
     config: lending.ProductConfig,
     stage: 'APPLICATION' | 'APPROVAL',
     steps: readonly string[],
+    opts: { actorId: string; scoreStage?: ScoreStage },
   ) {
     const blocking: { code: string; message: string }[] = [];
     const metrics: Record<string, string | number | null> = {};
@@ -1825,34 +1923,15 @@ export class ApplicationsService {
       });
     }
 
-    // OPS-2: an explainable origination score from what the lender knows.
-    const history = await tx.loanAccount.findMany({
-      where: { tenantId: app.tenantId, borrowerId: app.borrowerId },
-      select: { status: true, daysPastDue: true },
-    });
-    const guaranteeCount = await tx.guarantee.count({
-      where: { tenantId: app.tenantId, applicationId: app.id },
-    });
-    const score = lending.creditScore({
-      debtServiceRatio:
-        typeof metrics.debtServiceRatio === 'string'
-          ? metrics.debtServiceRatio
-          : null,
-      ageYears: typeof metrics.ageYears === 'number' ? metrics.ageYears : null,
-      closedLoans: history.filter((h) => h.status === 'CLOSED').length,
-      worstCurrentDpd: Math.max(
-        0,
-        ...history
-          .filter((h) => h.status === 'ACTIVE')
-          .map((h) => h.daysPastDue),
-      ),
-      writtenOff: history.some((h) =>
-        ['WRITTEN_OFF', 'SOLD'].includes(h.status),
-      ),
-      loanToValue:
-        typeof metrics.loanToValue === 'string' ? metrics.loanToValue : null,
-      guarantees: guaranteeCount,
-      bureauScore: null,
+    // OPS-2: an explainable origination score on the product's scorecard
+    // (D-075…D-077), stored with its inputs on every assessment.
+    const score = await this.scoring.score(tx, {
+      app,
+      config,
+      stage: opts.scoreStage ?? stage,
+      actorId: opts.actorId,
+      metrics,
+      monthlyPayment: monthlyPayment.toDecimalPlaces(4).toString(),
     });
     // Checks other modules own (institutional counterparty limits, …).
     for (const check of this.assessmentChecks) {
@@ -1860,23 +1939,27 @@ export class ApplicationsService {
       blocking.push(...r.blocking);
       Object.assign(metrics, r.metrics ?? {});
     }
-    metrics.creditScore = score.score;
-    metrics.creditGrade = score.grade;
-    metrics.creditScoreFactors = score.factors
+    metrics.creditScore = score.result.score;
+    metrics.creditGrade = score.result.grade;
+    metrics.creditScoreFactors = score.result.factors
       .map(
         (f) =>
           `${f.factor} ${f.points >= 0 ? '+' : ''}${f.points}: ${f.reason}`,
       )
       .join(' | ');
-    if (
-      stage === 'APPROVAL' &&
-      config.eligibility.minCreditScore !== null &&
-      score.score < config.eligibility.minCreditScore
-    )
-      blocking.push({
-        code: 'CREDIT_SCORE',
-        message: `Credit score ${score.score} (grade ${score.grade}) is below the minimum ${config.eligibility.minCreditScore}.`,
-      });
+    metrics.scorecard = `${score.scorecard.code}@${score.scorecard.source === 'TEMPLATE' ? 'template' : `v${score.scorecard.version}`}`;
+    metrics.scoreEvaluationId = score.evaluationId;
+    // AUTO_APPROVE is a recommendation only: approval still needs the
+    // workflow's approvers within their authority.
+    metrics.scoreOutcome = score.strategy.outcome;
+    metrics.scoreAdverseReasons = score.result.adverseReasons
+      .map((a) => a.code)
+      .join(', ');
+    if (score.thinFile) metrics.thinFile = 'yes';
+    if (score.strategy.rateAddOnBps)
+      metrics.riskRateAddOnBps = score.strategy.rateAddOnBps;
+    if (stage === 'APPROVAL')
+      blocking.push(...ScoringService.approvalBlocking(score, config, terms));
     return { stage, blocking, metrics };
   }
 

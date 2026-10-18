@@ -132,6 +132,12 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'exposure-limits/:limitId': 'exposureLimit',
       'income-assessments/:assessmentId': 'incomeAssessment',
       'returns/:returnId': 'regulatoryReturn',
+      // Scorecards and alternative data (scoring.int-spec, alternative-data.int-spec create the victims).
+      'scorecards/:scorecardId': 'scorecard',
+      'scorecard-versions/:versionId': 'scorecardVersion',
+      'consents/:consentId': 'altDataConsent',
+      'alternative-data/:recordId': 'altDataRecord',
+      'alternative-data-providers/:configId': 'altDataProviderConfig',
       ':resourceType/:id': 'loanAccount',
     };
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';

@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 60 · 🧪 Simulation only: 0 · 🔌 Requires integration: 5 · ⛔ Not implemented: 2
+✅ Fully implemented: 67 · 🧪 Simulation only: 0 · 🔌 Requires integration: 8 · ⛔ Not implemented: 2
 
 ## Capabilities
 
@@ -122,6 +122,26 @@ A product version can be activated only when every capability it requires is **F
 | `integration.kyc` | 🔌 Requires integration | 2 | External identity / KYC verification | Manual KYC status only. |
 | `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | The existing CBC provider is used when configured; products requiring a bureau cannot activate without it. |
 | `integration.notifications` | 🔌 Requires integration | 2 | Borrower notifications (SMS / Telegram) |  |
+
+### Scoring
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `scoring.scorecards` | ✅ Fully implemented | 2 | Configurable, versioned tenant scorecards (bins, categories, linear terms, grade bands) under maker-checker, with explainable factors and adverse reasons; defaults are templates | Tests: `packages/shared/test/scorecard.test.ts, apps/api/test/lending/scoring.int-spec.ts` |
+| `scoring.decision_strategy` | ✅ Fully implemented | 2 | Per-product strategy: grade → AUTO_APPROVE (recommendation only) / REFER / DECLINE, knock-outs, maximum amount and rate add-on by grade; every evaluation stored with its input snapshot | Tests: `packages/shared/test/scorecard.test.ts, apps/api/test/lending/scoring.int-spec.ts` |
+| `scoring.champion_challenger` | ✅ Fully implemented | 2 | A challenger scorecard evaluated silently on the same inputs and stored; it never drives the decision | Tests: `apps/api/test/lending/scoring.int-spec.ts` |
+| `scoring.monitoring` | ✅ Fully implemented | 2 | Scorecard monitoring on own data: distribution and approval rate by grade, bad rate on mature loans, Gini/AUC, KS and population stability | Tests: `packages/shared/test/score-monitoring.test.ts, apps/api/test/lending/scoring.int-spec.ts` |
+
+### Alternative data
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `altdata.consent` | ✅ Fully implemented | 2 | Per-borrower, per-source consent with purpose, scope, expiry and append-only revocation; nothing is used without a consent in force | Tests: `packages/shared/test/score-monitoring.test.ts, apps/api/test/lending/alternative-data.int-spec.ts` |
+| `altdata.internal_behaviour` | ✅ Fully implemented | 2 | Features from the lender’s own data: on-time ratio, lateness, history length, KHQR/wallet/mobile repayment share, group contributions | Tests: `apps/api/test/lending/alternative-data.int-spec.ts` |
+| `altdata.officer_verified` | ✅ Fully implemented | 2 | Officer-captured, document-backed utility (EDC, water), telco, rent and business cash-flow data, counted once a second person verifies it; cash flow converted to the loan currency | Tests: `apps/api/test/lending/alternative-data.int-spec.ts` |
+| `altdata.provider_smartphone` | 🔌 Requires integration | 3 | Smartphone-data scoring provider (CredoLab-style) | Adapter interface and encrypted tenant configuration only; no provider adapter ships, so the source reports "not configured" and its inputs are missing. |
+| `altdata.provider_telco` | 🔌 Requires integration | 3 | Mobile-operator data (Smart / Cellcard / Metfone-style) | Adapter interface and encrypted tenant configuration only; no operator adapter ships. |
+| `altdata.provider_ewallet` | 🔌 Requires integration | 3 | E-wallet transaction data | Adapter interface and encrypted tenant configuration only; no wallet adapter ships. |
 
 ### Specialized
 
