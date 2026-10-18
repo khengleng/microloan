@@ -427,6 +427,70 @@ describe('lending decision engine', () => {
     ).toEqual(['FLAG:lending.repayment.balloon']);
   });
 
+  describe('drawdowns and card postings are flag-gated', () => {
+    const facility = (over: Partial<Resource> = {}): Resource => ({
+      ...loanAccount(),
+      type: 'FACILITY',
+      id: 'fac-1',
+      familyCode: 'PERSONAL',
+      workflowState: 'ACTIVE',
+      requiredFlags: ['lending.revolving.drawdown'],
+      ...over,
+    });
+    const holder = subject({
+      grants: [
+        grant('facility.drawdown.request'),
+        grant('loan.repayment.post'),
+      ],
+    });
+    // The facility type flag is off by default: switch it on for the baseline.
+    const on = snapshot([
+      { flagKey: 'lending.revolving.drawdown', enabled: true },
+    ]);
+    const without = (key: string) =>
+      snapshot([
+        { flagKey: 'lending.revolving.drawdown', enabled: true },
+        { flagKey: key, enabled: false },
+      ]);
+
+    it('allowed only when the family, facility type, posting and servicing flags are on', () => {
+      for (const action of [
+        'facility.drawdown.request',
+        'card.purchase.post',
+        'card.cash_advance.post',
+      ]) {
+        const at = (flags: FlagSnapshot) =>
+          decide(
+            input(action, { subject: holder, resource: facility(), flags }),
+          );
+        expect(at(on).allowed).toBe(true);
+        expect(failed(at(snapshot()))).toEqual([
+          'FLAG:lending.revolving.drawdown',
+        ]);
+        for (const key of [
+          'lending.family.personal.enabled',
+          'lending.accounting.posting',
+          'lending.servicing',
+        ])
+          expect(failed(at(without(key)))).toEqual([`FLAG:${key}`]);
+        // Closing new business does not freeze committed limits.
+        expect(at(without('lending.origination')).allowed).toBe(true);
+      }
+    });
+
+    it('a pending drawdown can still be cancelled when the facility type is off', () => {
+      expect(
+        decide(
+          input('facility.drawdown.cancel', {
+            subject: holder,
+            resource: facility({ workflowState: 'REQUESTED' }),
+            flags: snapshot(),
+          }),
+        ).allowed,
+      ).toBe(true);
+    });
+  });
+
   describe('tenant ABAC policies', () => {
     const policy = (rules: unknown): CompiledPolicy[] => [
       { code: 'P1', version: 1, rules: policyRulesSchema.parse(rules) },

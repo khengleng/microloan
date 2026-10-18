@@ -180,8 +180,11 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.covenant.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  // Whoever recorded the breaching test may not waive it (covenants.service
+  // passes the test recorders as the makers).
   A('loan.covenant.waive', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.reverse',
+    makerChecker: true,
   }),
   // Project finance (LT-17): applying a period's receipts through the cash
   // waterfall posts debt service, reserve and lock-up movements — money on a

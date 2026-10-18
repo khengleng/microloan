@@ -146,7 +146,7 @@ export const NAV: NavSection[] = [
             { key: 'auditTrail', href: '/lending/audit', icon: ScrollText, lending: ['audit.read'] },
             { key: 'legacyAudit', href: '/audit', icon: Shield, legacy: ['AUDIT_VIEW'], legacyRoles: LEGACY_ADMIN },
             {
-                key: 'access', href: '/lending/access', icon: KeyRound, lending: ['access_policy.read', 'policy.simulate', 'feature_flag.read'],
+                key: 'access', href: '/lending/access', icon: KeyRound, lending: ['access_policy.read'],
                 queues: ['ACCESS_TO_APPROVE', 'FLAGS_TO_APPROVE'],
             },
         ],
@@ -168,6 +168,8 @@ export const PLATFORM_NAV: NavSection[] = [
             { key: 'organisations', href: '/tenants', icon: Building, everyone: true, queues: ['ORGANISATIONS_PENDING'] },
             { key: 'planPayments', href: '/platform-payments', icon: QrCode, everyone: true, queues: ['PLAN_PAYMENTS_TO_CONFIRM'] },
             { key: 'plans', href: '/plan-tiers', icon: Layers, everyone: true },
+            { key: 'platformCatalogue', href: '/lending/catalogue', icon: LibraryBig, lending: ['loan_product.read'] },
+            { key: 'platformFlags', href: '/platform-flags', icon: SlidersHorizontal, lending: ['feature_flag.read'] },
             { key: 'help', href: '/help', icon: CircleHelp, everyone: true },
         ],
     },

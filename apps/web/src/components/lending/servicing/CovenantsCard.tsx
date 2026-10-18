@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Btn, Card, Empty, ErrorBox, Field, SelectInput, Table, TextInput, td, th } from '../ui';
 import { useAction, useApi } from '../useAsync';
 import { StatusBadge } from '../StatusBadge';
+import { useWorkspace } from '@/lib/workspace';
 
-interface CovenantTest { id: string; testedOn: string; periodEnd: string; value: string | null; passed: boolean; kind: string; evidence: string }
+interface CovenantTest { id: string; testedOn: string; periodEnd: string; value: string | null; passed: boolean; kind: string; evidence: string; createdBy?: string }
 interface Covenant {
     id: string; type: 'MIN_DSCR' | 'MAX_LTV' | 'FINANCIAL_STATEMENTS' | 'MAX_LEVERAGE' | 'MIN_INTEREST_COVER'; threshold: string | null; frequencyMonths: number;
     nextTestOn: string; status: string; description: string; testOverdue: boolean; tests: CovenantTest[];
@@ -28,6 +30,8 @@ export function CovenantsCard({ loanId, can }: { loanId: string; can: (code: str
     const { busy, error, run, clearError } = useAction();
     const manage = can('loan.repayment.post');
     const waive = can('loan.repayment.reverse');
+    const tg = useTranslations('Governance');
+    const me = useWorkspace().access?.principal.id;
 
     const add = async () => {
         const body = {
@@ -75,7 +79,7 @@ export function CovenantsCard({ loanId, can }: { loanId: string; can: (code: str
                                         <td className={td}><StatusBadge status={c.status} /></td>
                                         <td className={`${td} whitespace-nowrap space-x-1`}>
                                             <Btn size="sm" onClick={() => setTesting({ id: c.id, periodEnd: '', noi: '', ds: '', received: 'yes', evidence: '', ebitda: '', debt: '', cash: '', interest: '' })} disabled={!manage.allowed} reason={manage.reason}>Record test</Btn>
-                                            {c.status === 'BREACHED' && <Btn size="sm" variant="ghost" onClick={() => setWaiving({ id: c.id, reason: '' })} disabled={!waive.allowed} reason={waive.reason}>Waive</Btn>}
+                                            {c.status === 'BREACHED' && <Btn size="sm" variant="ghost" onClick={() => setWaiving({ id: c.id, reason: '' })} disabled={!waive.allowed || (!!me && last?.createdBy === me)} reason={!waive.allowed ? waive.reason : last?.createdBy === me ? tg('covenant.ownTest') : undefined}>Waive</Btn>}
                                             {testing?.id === c.id && (
                                                 <div className="mt-2 space-y-1">
                                                     <TextInput type="date" value={testing.periodEnd} onChange={(v) => setTesting({ ...testing, periodEnd: v })} />

@@ -48,10 +48,12 @@ export class ProductsService {
   // ── Catalogue ─────────────────────────────────────────────────────────────
 
   async catalogue(actor: LendingActor) {
+    // The catalogue is the platform's, not tenant data: platform
+    // administrators read it as well as the lender's product staff.
     await this.policy.enforce(
       actor,
-      'loan_product.read',
-      tenantResource(actor.tenantId, 'PRODUCT', 'catalogue'),
+      'catalogue.read',
+      tenantResource(actor.tenantId, 'CATALOGUE', 'catalogue'),
     );
     const families = await this.prisma.loanFamily.findMany({
       orderBy: { sortOrder: 'asc' },
@@ -77,10 +79,12 @@ export class ProductsService {
   }
 
   async capabilityMatrix(actor: LendingActor) {
+    // The catalogue is the platform's, not tenant data: platform
+    // administrators read it as well as the lender's product staff.
     await this.policy.enforce(
       actor,
-      'loan_product.read',
-      tenantResource(actor.tenantId, 'PRODUCT', 'capabilities'),
+      'catalogue.read',
+      tenantResource(actor.tenantId, 'CATALOGUE', 'capabilities'),
     );
     return {
       engineVersion: lending.LENDING_ENGINE_VERSION,

@@ -39,6 +39,44 @@ const MANDATORY_STEPS = [
   'DISBURSEMENT_APPROVAL',
 ];
 
+/**
+ * Steps a new version may not drop although stored versions may lack them.
+ * Conditions precedent come from the product configuration and are always
+ * enforced before disbursement, so unticking the step would change nothing:
+ * it is kept on rather than offered as a switch that does not work.
+ */
+export const ALWAYS_ON_STEPS = ['CONDITIONS_PRECEDENT'] as const;
+
+/**
+ * Rules a *new* version must meet on top of the schema. They are not part of
+ * the schema itself so that a version stored before them still parses and
+ * stays in force rather than silently falling back to the built-in.
+ */
+export function draftIssues(d: WorkflowDefinition): string[] {
+  const issues: string[] = [];
+  for (const s of ALWAYS_ON_STEPS)
+    if (!d.steps.includes(s))
+      issues.push(
+        `step ${s} cannot be removed: conditions come from the product and are always checked before disbursement`,
+      );
+  d.approvalLevels.forEach((l, i) => {
+    // Amounts in different currencies are not comparable, so a level that
+    // applies to every currency can only start at zero.
+    if (l.currency === '*' && Number(l.minAmount) !== 0)
+      issues.push(
+        `approvalLevels.${i}: a level for every currency (*) must start at 0; give a threshold above 0 a currency`,
+      );
+    if (l.currency !== '*') {
+      try {
+        lending.getCurrency(l.currency);
+      } catch {
+        issues.push(`approvalLevels.${i}: unknown currency ${l.currency}`);
+      }
+    }
+  });
+  return issues;
+}
+
 export const workflowDefinitionSchema = z
   .object({
     steps: z.array(z.enum(SUPPORTED_STEPS)).min(4),
@@ -183,6 +221,7 @@ export class WorkflowsService {
     return {
       supportedSteps: SUPPORTED_STEPS,
       mandatorySteps: MANDATORY_STEPS,
+      alwaysOnSteps: ALWAYS_ON_STEPS,
       builtIn: BUILT_IN_WORKFLOWS,
       versions,
     };
@@ -206,6 +245,12 @@ export class WorkflowsService {
           path: i.path.join('.'),
           message: i.message,
         })),
+      });
+    const extra = draftIssues(parsed.data);
+    if (extra.length)
+      throw new BadRequestException({
+        message: 'Invalid workflow definition',
+        issues: extra.map((message) => ({ path: 'definition', message })),
       });
     if (!/^[A-Z0-9_]{2,40}$/.test(body.code ?? ''))
       throw new BadRequestException('Workflow code must be A–Z, 0–9 or _.');

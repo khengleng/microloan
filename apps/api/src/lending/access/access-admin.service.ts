@@ -1,10 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { Prisma } from '@microloan/db';
 import { lending } from '@microloan/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -37,6 +38,12 @@ import { serviceKeyHash } from '../policy/lending-action.guard';
 import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 
 type Json = Prisma.InputJsonValue;
+
+/** Maker-checker requests kept in the generic ApprovalTask table. */
+export const SERVICE_ACCOUNT_SUBJECT = 'SERVICE_ACCOUNT';
+export const SERVICE_ACCOUNT_ACTION = 'SERVICE_ACCOUNT_ISSUE';
+export const COHORT_SUBJECT = 'COHORT';
+export const COHORT_ACTION = 'COHORT_MEMBERSHIP';
 
 /**
  * Access governance for lending: roles, scoped assignments, delegations,
@@ -106,42 +113,66 @@ export class AccessAdminService {
       this.access(tenantId),
     );
     await this.ensureSystemRoles(tenantId);
-    const [roles, assignments, delegations, authorities, users, policies] =
-      await Promise.all([
-        this.prisma.accessRole.findMany({
-          where: { tenantId },
-          include: { permissions: true },
-          orderBy: { code: 'asc' },
-        }),
-        this.prisma.roleAssignment.findMany({
-          where: { tenantId },
-          include: { role: { select: { code: true, name: true } } },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.delegation.findMany({
-          where: { tenantId },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.approvalAuthority.findMany({
-          where: { tenantId },
-          include: { role: { select: { code: true } } },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.user.findMany({
-          where: { tenantId },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            branchId: true,
-            isActive: true,
-          },
-        }),
-        this.prisma.accessPolicy.findMany({
-          where: { tenantId },
-          include: { versions: { orderBy: { version: 'desc' } } },
-        }),
-      ]);
+    const [
+      roles,
+      assignments,
+      delegations,
+      authorities,
+      users,
+      policies,
+      branches,
+      portfolios,
+    ] = await Promise.all([
+      this.prisma.accessRole.findMany({
+        where: { tenantId },
+        include: { permissions: true },
+        orderBy: { code: 'asc' },
+      }),
+      this.prisma.roleAssignment.findMany({
+        where: { tenantId },
+        include: { role: { select: { code: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.delegation.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.approvalAuthority.findMany({
+        where: { tenantId },
+        include: { role: { select: { code: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          branchId: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.accessPolicy.findMany({
+        where: { tenantId },
+        include: { versions: { orderBy: { version: 'desc' } } },
+      }),
+      this.prisma.branch.findMany({
+        where: { tenantId },
+        select: { id: true, name: true, code: true, isActive: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.portfolio.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          branchId: true,
+          isActive: true,
+        },
+        orderBy: { code: 'asc' },
+      }),
+    ]);
     return {
       permissions: PERMISSIONS,
       roles: roles.map((r) => ({
@@ -157,12 +188,169 @@ export class AccessAdminService {
       })),
       users,
       policies,
+      /** Pickers for assignment scope; branch ids are never typed by hand. */
+      branches,
+      portfolios,
       /** The lender's limits the forms check before the API does. */
       limits: {
         maxDelegationDays: (await this.settings.get(tenantId)).access
           .maxDelegationDays,
       },
     };
+  }
+
+  // ── Branches ──────────────────────────────────────────────────────────────
+
+  /**
+   * The organisation's branches. Creating or renaming one widens nobody's
+   * access by itself (scope is granted by approved assignments), so it needs
+   * access_policy.manage but no second person; every change is audited.
+   */
+  async branches(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'access_policy.read',
+      this.access(tenantId),
+    );
+    const rows = await this.prisma.branch.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isActive: true,
+        createdAt: true,
+        _count: { select: { users: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map(({ _count, ...b }) => ({ ...b, users: _count.users }));
+  }
+
+  async createBranch(
+    actor: LendingActor,
+    body: { name: string; code?: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    const name = (body.name ?? '').trim();
+    const code = body.code?.trim().toUpperCase() || null;
+    if (name.length < 2)
+      throw new BadRequestException('A branch needs a name.');
+    if (code && !/^[A-Z0-9_-]{2,12}$/.test(code))
+      throw new BadRequestException(
+        'Branch code must be 2–12 of A–Z, 0–9, - or _.',
+      );
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.policy.enforce(
+        actor,
+        'access_policy.manage',
+        this.access(tenantId),
+        tx,
+      );
+      await this.uniqueBranch(tx, tenantId, name, code, null);
+      const b = await tx.branch.create({
+        data: { tenantId, name: name.slice(0, 80), code },
+        select: { id: true, name: true, code: true, isActive: true },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.branch_create',
+          resourceType: 'Branch',
+          resourceId: b.id,
+          outcome: 'SUCCESS',
+          details: { name: b.name, code: b.code },
+        },
+        tx,
+      );
+      return b;
+    });
+  }
+
+  async updateBranch(
+    actor: LendingActor,
+    id: string,
+    body: { name?: string; code?: string | null; isActive?: boolean },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.policy.enforce(
+        actor,
+        'access_policy.manage',
+        this.access(tenantId, [], id),
+        tx,
+      );
+      const before = await tx.branch.findFirst({ where: { id, tenantId } });
+      if (!before) throw new NotFoundException('Branch not found');
+      const name = body.name === undefined ? before.name : body.name.trim();
+      const code =
+        body.code === undefined
+          ? before.code
+          : body.code?.trim().toUpperCase() || null;
+      if (name.length < 2)
+        throw new BadRequestException('A branch needs a name.');
+      if (code && !/^[A-Z0-9_-]{2,12}$/.test(code))
+        throw new BadRequestException(
+          'Branch code must be 2–12 of A–Z, 0–9, - or _.',
+        );
+      await this.uniqueBranch(tx, tenantId, name, code, id);
+      const res = await tx.branch.updateMany({
+        where: { id, tenantId, updatedAt: before.updatedAt },
+        data: {
+          name: name.slice(0, 80),
+          code,
+          ...(body.isActive === undefined ? {} : { isActive: body.isActive }),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This branch');
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.branch_update',
+          resourceType: 'Branch',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            before: {
+              name: before.name,
+              code: before.code,
+              isActive: before.isActive,
+            },
+            after: { name, code, isActive: body.isActive ?? before.isActive },
+          },
+        },
+        tx,
+      );
+      return tx.branch.findFirst({
+        where: { id, tenantId },
+        select: { id: true, name: true, code: true, isActive: true },
+      });
+    });
+  }
+
+  private async uniqueBranch(
+    tx: Tx,
+    tenantId: string,
+    name: string,
+    code: string | null,
+    except: string | null,
+  ) {
+    const clash = await tx.branch.findFirst({
+      where: {
+        tenantId,
+        ...(except ? { id: { not: except } } : {}),
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          ...(code ? [{ code }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (clash)
+      throw new ConflictException(
+        'Another branch already has that name or code.',
+      );
   }
 
   async createRole(
@@ -1083,14 +1271,22 @@ export class AccessAdminService {
     });
   }
 
-  /** Cohort membership changes who a pilot flag applies to, so it needs checker-level rights. */
-  async setCohortMembership(
+  // ── Cohorts ───────────────────────────────────────────────────────────────
+
+  /**
+   * Cohort membership changes who a pilot flag applies to, so it is
+   * maker-checker controlled like the flag rules themselves: one person
+   * proposes the change (feature_flag.manage), a second person approves it
+   * (feature_flag.approve), and only then is it applied.
+   */
+  async proposeCohortChange(
     actor: LendingActor,
     body: {
       cohortCode: string;
       subjectType: 'BRANCH' | 'USER' | 'BORROWER';
       subjectId: string;
       member: boolean;
+      reason?: string;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -1101,73 +1297,213 @@ export class AccessAdminService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       await this.policy.enforce(
         actor,
-        'feature_flag.approve',
+        'feature_flag.manage',
         tenantResource(tenantId, 'FLAG', body.cohortCode),
         tx,
       );
-      // The subject must be one of this tenant's own branches, users or borrowers.
-      const where = { id: body.subjectId, tenantId };
-      const subject =
-        body.subjectType === 'BRANCH'
-          ? await tx.branch.findFirst({ where, select: { id: true } })
-          : body.subjectType === 'USER'
-            ? await tx.user.findFirst({ where, select: { id: true } })
-            : await tx.borrower.findFirst({ where, select: { id: true } });
-      if (!subject)
-        throw new NotFoundException(
-          `${body.subjectType.toLowerCase()} not found`,
+      await this.cohortSubject(tx, tenantId, body.subjectType, body.subjectId);
+      const open = await tx.approvalTask.findMany({
+        where: {
+          tenantId,
+          subjectType: COHORT_SUBJECT,
+          subjectId: body.cohortCode,
+          status: 'PENDING',
+        },
+      });
+      if (
+        open.some((t) => {
+          const p = t.payload as { subjectType?: string; subjectId?: string };
+          return (
+            p.subjectType === body.subjectType && p.subjectId === body.subjectId
+          );
+        })
+      )
+        throw new ConflictException(
+          'A change for this cohort member is already awaiting approval.',
         );
-      if (body.member) {
-        await tx.cohortMembership.upsert({
-          where: {
-            tenantId_cohortCode_subjectType_subjectId: {
-              tenantId,
-              cohortCode: body.cohortCode,
-              subjectType: body.subjectType,
-              subjectId: body.subjectId,
-            },
-          },
-          create: {
-            tenantId,
-            cohortCode: body.cohortCode,
-            subjectType: body.subjectType,
-            subjectId: body.subjectId,
-            addedBy: actor.id,
-          },
-          update: {},
-        });
-      } else {
-        await tx.cohortMembership.deleteMany({
-          where: {
-            tenantId,
-            cohortCode: body.cohortCode,
-            subjectType: body.subjectType,
-            subjectId: body.subjectId,
-          },
-        });
+      const payload = {
+        cohortCode: body.cohortCode,
+        subjectType: body.subjectType,
+        subjectId: body.subjectId,
+        member: !!body.member,
+      };
+      const task = await tx.approvalTask.create({
+        data: {
+          tenantId,
+          subjectType: COHORT_SUBJECT,
+          subjectId: body.cohortCode,
+          action: COHORT_ACTION,
+          requiredPermission: 'feature_flag.approve',
+          payload: payload as Json,
+          makerId: actor.id,
+          comment: (body.reason ?? '').slice(0, 300) || null,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'feature_flag.cohort_request',
+          resourceType: 'Cohort',
+          resourceId: body.cohortCode,
+          outcome: 'SUCCESS',
+          details: { ...payload, taskId: task.id },
+        },
+        tx,
+      );
+      return this.cohortChangeView(task);
+    });
+  }
+
+  /** A second person applies or refuses a proposed cohort change. */
+  async decideCohortChange(
+    actor: LendingActor,
+    taskId: string,
+    approve: boolean,
+    comment?: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const task = await tx.approvalTask.findFirst({
+        where: { id: taskId, tenantId, subjectType: COHORT_SUBJECT },
+      });
+      if (!task) throw new NotFoundException('Cohort change not found');
+      const p = task.payload as {
+        cohortCode: string;
+        subjectType: 'BRANCH' | 'USER' | 'BORROWER';
+        subjectId: string;
+        member: boolean;
+      };
+      // Neither the proposer nor a user being placed in the cohort may approve it.
+      await this.policy.enforce(
+        actor,
+        'feature_flag.approve',
+        tenantResource(tenantId, 'FLAG', task.id, [
+          task.makerId,
+          ...(p.subjectType === 'USER' ? [p.subjectId] : []),
+        ]),
+        tx,
+      );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'PENDING' },
+        data: {
+          status: approve ? 'EXECUTED' : 'REJECTED',
+          decidedBy: actor.id,
+          decidedAt: new Date(),
+          ...(comment ? { comment: comment.slice(0, 300) } : {}),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This cohort change');
+      if (approve) {
+        await this.cohortSubject(tx, tenantId, p.subjectType, p.subjectId);
+        const key = {
+          tenantId,
+          cohortCode: p.cohortCode,
+          subjectType: p.subjectType,
+          subjectId: p.subjectId,
+        };
+        if (p.member)
+          await tx.cohortMembership.upsert({
+            where: { tenantId_cohortCode_subjectType_subjectId: key },
+            create: { ...key, addedBy: task.makerId },
+            update: {},
+          });
+        else await tx.cohortMembership.deleteMany({ where: key });
+        await this.policy.bumpVersion(tenantId, tx);
       }
-      await this.policy.bumpVersion(tenantId, tx);
       await this.audit.write(
         {
           actor,
           action: 'feature_flag.cohort',
           resourceType: 'Cohort',
-          resourceId: body.cohortCode,
+          resourceId: p.cohortCode,
           outcome: 'SUCCESS',
-          details: body,
+          details: { ...p, approve, taskId, maker: task.makerId },
         },
         tx,
       );
       return tx.cohortMembership.findMany({
-        where: { tenantId, cohortCode: body.cohortCode },
+        where: { tenantId, cohortCode: p.cohortCode },
       });
     });
   }
 
+  /** Cohort members and the changes proposed to them. */
+  async cohorts(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'feature_flag.read',
+      tenantResource(tenantId, 'FLAG', 'cohorts'),
+    );
+    const [members, changes] = await Promise.all([
+      this.prisma.cohortMembership.findMany({
+        where: { tenantId },
+        orderBy: [{ cohortCode: 'asc' }, { createdAt: 'asc' }],
+      }),
+      this.prisma.approvalTask.findMany({
+        where: { tenantId, subjectType: COHORT_SUBJECT },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+    ]);
+    return { members, changes: changes.map((t) => this.cohortChangeView(t)) };
+  }
+
+  private cohortChangeView(t: {
+    id: string;
+    status: string;
+    payload: unknown;
+    makerId: string;
+    decidedBy: string | null;
+    decidedAt: Date | null;
+    comment: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: t.id,
+      status: t.status,
+      ...(t.payload as {
+        cohortCode: string;
+        subjectType: string;
+        subjectId: string;
+        member: boolean;
+      }),
+      makerId: t.makerId,
+      decidedBy: t.decidedBy,
+      decidedAt: t.decidedAt,
+      reason: t.comment,
+      createdAt: t.createdAt,
+    };
+  }
+
+  /** The subject must be one of this tenant's own branches, users or borrowers. */
+  private async cohortSubject(
+    tx: Tx,
+    tenantId: string,
+    type: 'BRANCH' | 'USER' | 'BORROWER',
+    id: string,
+  ) {
+    const where = { id, tenantId };
+    const subject =
+      type === 'BRANCH'
+        ? await tx.branch.findFirst({ where, select: { id: true } })
+        : type === 'USER'
+          ? await tx.user.findFirst({ where, select: { id: true } })
+          : await tx.borrower.findFirst({ where, select: { id: true } });
+    if (!subject)
+      throw new NotFoundException(`${type.toLowerCase()} not found`);
+  }
+
   // ── Service accounts ──────────────────────────────────────────────────────
 
-  /** Issuing a credential is approval-level; the key is shown once and only its hash is stored. */
-  async createServiceAccount(
+  /**
+   * Issuing a credential is maker-checker controlled: one person requests the
+   * account (access_policy.manage), a second person approves it
+   * (access_policy.approve), and then the requester collects the key once.
+   * The key is generated at collection, shown once, and only its hash stored —
+   * nothing secret exists while the request waits.
+   */
+  async requestServiceAccount(
     actor: LendingActor,
     body: { name: string; scopes: string[]; expiresInDays?: number },
   ) {
@@ -1185,21 +1521,137 @@ export class AccessAdminService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       await this.policy.enforce(
         actor,
-        'access_policy.approve',
+        'access_policy.manage',
         this.access(tenantId),
         tx,
       );
+      const payload = {
+        name: body.name.slice(0, 80),
+        scopes: [...new Set(body.scopes)],
+        expiresInDays: days,
+      };
+      const task = await tx.approvalTask.create({
+        data: {
+          tenantId,
+          subjectType: SERVICE_ACCOUNT_SUBJECT,
+          // The id the account will carry once its key is issued.
+          subjectId: randomUUID(),
+          action: SERVICE_ACCOUNT_ACTION,
+          requiredPermission: 'access_policy.approve',
+          payload: payload as Json,
+          makerId: actor.id,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.service_account_request',
+          resourceType: 'ServiceAccount',
+          resourceId: task.subjectId,
+          outcome: 'SUCCESS',
+          details: { ...payload, taskId: task.id },
+        },
+        tx,
+      );
+      return this.serviceAccountRequestView(task);
+    });
+  }
+
+  async decideServiceAccountRequest(
+    actor: LendingActor,
+    taskId: string,
+    approve: boolean,
+    comment?: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const task = await tx.approvalTask.findFirst({
+        where: { id: taskId, tenantId, subjectType: SERVICE_ACCOUNT_SUBJECT },
+      });
+      if (!task)
+        throw new NotFoundException('Service account request not found');
+      await this.policy.enforce(
+        actor,
+        'access_policy.approve',
+        this.access(tenantId, [task.makerId], taskId),
+        tx,
+      );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'PENDING' },
+        data: {
+          status: approve ? 'APPROVED' : 'REJECTED',
+          decidedBy: actor.id,
+          decidedAt: new Date(),
+          ...(comment ? { comment: comment.slice(0, 300) } : {}),
+        },
+      });
+      if (res.count !== 1)
+        throw concurrentModification('This service account request');
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.service_account_decide',
+          resourceType: 'ServiceAccount',
+          resourceId: task.subjectId,
+          outcome: 'SUCCESS',
+          details: { approve, taskId, maker: task.makerId },
+        },
+        tx,
+      );
+      return this.serviceAccountRequestView(
+        (await tx.approvalTask.findFirst({ where: { id: taskId, tenantId } }))!,
+      );
+    });
+  }
+
+  /** The requester collects the key of an approved account, exactly once. */
+  async issueServiceAccountKey(actor: LendingActor, taskId: string) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const task = await tx.approvalTask.findFirst({
+        where: { id: taskId, tenantId, subjectType: SERVICE_ACCOUNT_SUBJECT },
+      });
+      if (!task)
+        throw new NotFoundException('Service account request not found');
+      await this.policy.enforce(
+        actor,
+        'access_policy.manage',
+        this.access(tenantId, [], taskId),
+        tx,
+      );
+      if (task.makerId !== actor.id)
+        throw new ForbiddenException(
+          'Only the person who requested this service account can collect its key.',
+        );
+      if (task.status !== 'APPROVED')
+        throw new ConflictException(
+          task.status === 'EXECUTED'
+            ? 'This key has already been collected; it cannot be shown again.'
+            : 'This request has not been approved.',
+        );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'APPROVED' },
+        data: { status: 'EXECUTED' },
+      });
+      if (res.count !== 1)
+        throw concurrentModification('This service account request');
+      const p = task.payload as {
+        name: string;
+        scopes: string[];
+        expiresInDays: number;
+      };
       const prefix = randomBytes(8).toString('hex');
       const secret = randomBytes(32).toString('base64url');
       const sa = await tx.serviceAccount.create({
         data: {
+          id: task.subjectId,
           tenantId,
-          name: body.name.slice(0, 80),
+          name: p.name,
           keyPrefix: prefix,
           keyHash: serviceKeyHash(secret),
-          scopes: body.scopes,
-          expiresAt: new Date(Date.now() + days * 86_400_000),
-          createdBy: actor.id,
+          scopes: p.scopes,
+          expiresAt: new Date(Date.now() + p.expiresInDays * 86_400_000),
+          createdBy: task.makerId,
         },
       });
       await this.audit.write(
@@ -1213,6 +1665,8 @@ export class AccessAdminService {
             name: sa.name,
             scopes: sa.scopes,
             expiresAt: sa.expiresAt,
+            taskId,
+            approvedBy: task.decidedBy,
           },
         },
         tx,
@@ -1226,6 +1680,74 @@ export class AccessAdminService {
         warning: 'Store this key now; it cannot be shown again.',
       };
     });
+  }
+
+  async listServiceAccountRequests(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'access_policy.read',
+      this.access(tenantId),
+    );
+    const tasks = await this.prisma.approvalTask.findMany({
+      where: { tenantId, subjectType: SERVICE_ACCOUNT_SUBJECT },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const people = await this.prisma.user.findMany({
+      where: {
+        tenantId,
+        id: {
+          in: [
+            ...new Set(
+              tasks.flatMap((t) => [
+                t.makerId,
+                ...(t.decidedBy ? [t.decidedBy] : []),
+              ]),
+            ),
+          ],
+        },
+      },
+      select: { id: true, email: true },
+    });
+    const email = new Map(people.map((u) => [u.id, u.email]));
+    return tasks.map((t) => ({
+      ...this.serviceAccountRequestView(t),
+      makerEmail: email.get(t.makerId) ?? null,
+      decidedByEmail: t.decidedBy ? (email.get(t.decidedBy) ?? null) : null,
+    }));
+  }
+
+  private serviceAccountRequestView(t: {
+    id: string;
+    subjectId: string;
+    status: string;
+    payload: unknown;
+    makerId: string;
+    decidedBy: string | null;
+    decidedAt: Date | null;
+    comment: string | null;
+    createdAt: Date;
+  }) {
+    const p = t.payload as {
+      name: string;
+      scopes: string[];
+      expiresInDays: number;
+    };
+    return {
+      id: t.id,
+      serviceAccountId: t.subjectId,
+      name: p.name,
+      scopes: p.scopes,
+      expiresInDays: p.expiresInDays,
+      /** PENDING → APPROVED (key not yet collected) → EXECUTED (key issued), or REJECTED. */
+      status: t.status,
+      makerId: t.makerId,
+      decidedBy: t.decidedBy,
+      decidedAt: t.decidedAt,
+      comment: t.comment,
+      createdAt: t.createdAt,
+    };
   }
 
   async listServiceAccounts(actor: LendingActor) {

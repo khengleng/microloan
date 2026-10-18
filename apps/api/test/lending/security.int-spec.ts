@@ -12,6 +12,7 @@ import {
   expectOk,
   grant,
   key,
+  serviceAccount,
 } from './harness';
 import {
   activeProduct,
@@ -822,12 +823,10 @@ d('Lending security and lifecycle (integration)', () => {
     });
 
     it('integration service accounts are tenant-bound and narrowly scoped', async () => {
-      const sa = expectOk(
-        await f.as('admin2').post('/lending/access/service-accounts', {
-          name: 'Bank feed',
-          scopes: ['loan.repayment.post'],
-        }),
-      );
+      const sa = await serviceAccount(f, 'admin2', 'admin1', {
+        name: 'Bank feed',
+        scopes: ['loan.repayment.post'],
+      });
       const call = (k: string, id: string, amount = '7.00') =>
         f
           .http()
@@ -840,12 +839,10 @@ d('Lending security and lifecycle (integration)', () => {
         (await call('deadbeefdeadbeef.notarealsecretnotarealsecret00', loanId))
           .status,
       ).toBe(401);
-      const readOnly = expectOk(
-        await f.as('admin2').post('/lending/access/service-accounts', {
-          name: 'Reporting',
-          scopes: ['loan.read'],
-        }),
-      );
+      const readOnly = await serviceAccount(f, 'admin2', 'admin1', {
+        name: 'Reporting',
+        scopes: ['loan.read'],
+      });
       expect((await call(readOnly.key, loanId)).status).toBe(403);
       // A tenant-1 key cannot reach another tenant's loan.
       await grant(f, f.t2, 't2ops', 'LOAN_OPS_MAKER');

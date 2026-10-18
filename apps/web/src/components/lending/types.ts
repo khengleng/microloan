@@ -187,6 +187,8 @@ export interface WorkflowVersion { id: string; code: string; version: number; na
 export interface WorkflowsResponse {
     supportedSteps: string[];
     mandatorySteps: string[];
+    /** Steps a new version cannot drop (e.g. CONDITIONS_PRECEDENT, enforced from the product). */
+    alwaysOnSteps?: string[];
     builtIn: Record<string, { name: string; definition: WorkflowDefinition }>;
     versions: WorkflowVersion[];
 }
@@ -217,6 +219,9 @@ export interface PolicyRule { id: string; effect: 'DENY' | 'REQUIRE'; actions: s
 export interface PolicyVersion { id: string; version: number; rules: PolicyRule[]; status: string; makerId: string | null }
 export interface Policy { id: string; code: string; name: string; description?: string | null; versions: PolicyVersion[] }
 
+export interface BranchRef { id: string; name: string; code: string | null; isActive: boolean }
+export interface PortfolioRef { id: string; code: string; name: string; branchId: string | null; isActive: boolean }
+
 export interface AccessOverview {
     permissions: Permission[];
     roles: Role[];
@@ -225,6 +230,9 @@ export interface AccessOverview {
     authorities: Authority[];
     users: LendingUser[];
     policies: Policy[];
+    /** Scope pickers (absent on an older API). */
+    branches?: BranchRef[];
+    portfolios?: PortfolioRef[];
     /** The lender's limits (lending settings), checked again by the API. */
     limits?: { maxDelegationDays: number };
 }

@@ -1400,10 +1400,57 @@ export class LendingAccessController {
     return this.access.decideFlagChange(actor(req), id, body.approve);
   }
 
-  @LendingAction('feature_flag.approve')
+  @LendingAction('feature_flag.read')
+  @Get('cohorts')
+  cohorts(@Req() req: Req_) {
+    return this.access.cohorts(actor(req));
+  }
+
+  /** Proposes a membership change; a second person applies it. */
+  @LendingAction('feature_flag.manage')
   @Post('cohorts')
   cohort(@Req() req: Req_, @Body(new ZodPipe(S.cohort)) body: never) {
-    return this.access.setCohortMembership(actor(req), body);
+    return this.access.proposeCohortChange(actor(req), body);
+  }
+
+  @LendingAction('feature_flag.approve')
+  @Post('cohort-changes/:taskId/decision')
+  decideCohortChange(
+    @Req() req: Req_,
+    @Param('taskId', ID) id: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.access.decideCohortChange(
+      actor(req),
+      id,
+      body.approve,
+      body.comment,
+    );
+  }
+
+  @LendingAction('access_policy.read')
+  @Get('branches')
+  branches(@Req() req: Req_) {
+    return this.access.branches(actor(req));
+  }
+
+  @LendingAction('access_policy.manage')
+  @Post('branches')
+  createBranch(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.branchCreate)) body: never,
+  ) {
+    return this.access.createBranch(actor(req), body);
+  }
+
+  @LendingAction('access_policy.manage')
+  @Put('branches/:id')
+  updateBranch(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.branchUpdate)) body: never,
+  ) {
+    return this.access.updateBranch(actor(req), id, body);
   }
 
   @LendingAction('access_policy.read')
@@ -1412,13 +1459,42 @@ export class LendingAccessController {
     return this.access.listServiceAccounts(actor(req));
   }
 
-  @LendingAction('access_policy.approve')
+  /** Requests a service account; a second person approves it before the requester collects the key. */
+  @LendingAction('access_policy.manage')
   @Post('service-accounts')
   createServiceAccount(
     @Req() req: Req_,
     @Body(new ZodPipe(S.serviceAccount)) body: never,
   ) {
-    return this.access.createServiceAccount(actor(req), body);
+    return this.access.requestServiceAccount(actor(req), body);
+  }
+
+  @LendingAction('access_policy.read')
+  @Get('service-account-requests')
+  serviceAccountRequests(@Req() req: Req_) {
+    return this.access.listServiceAccountRequests(actor(req));
+  }
+
+  @LendingAction('access_policy.approve')
+  @Post('service-account-requests/:taskId/decision')
+  decideServiceAccountRequest(
+    @Req() req: Req_,
+    @Param('taskId', ID) id: string,
+    @Body(new ZodPipe(S.approve)) body: { approve: boolean; comment?: string },
+  ) {
+    return this.access.decideServiceAccountRequest(
+      actor(req),
+      id,
+      body.approve,
+      body.comment,
+    );
+  }
+
+  /** The requester collects the key of an approved request, exactly once. */
+  @LendingAction('access_policy.manage')
+  @Post('service-account-requests/:taskId/issue')
+  issueServiceAccountKey(@Req() req: Req_, @Param('taskId', ID) id: string) {
+    return this.access.issueServiceAccountKey(actor(req), id);
   }
 
   @LendingAction('access_policy.manage')
@@ -1496,6 +1572,21 @@ export class LendingOperationsController {
     @Body(new ZodPipe(S.approve)) body: never,
   ) {
     return this.lendingSettings.decide(actor(req), id, body);
+  }
+
+  @LendingAction('accounting.read')
+  @Get('ledger-accounts')
+  ledgerAccounts(@Req() req: Req_) {
+    return this.lendingSettings.accounts(actor(req));
+  }
+
+  @LendingAction('tenant_settings.manage')
+  @Post('ledger-accounts')
+  createLedgerAccount(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.ledgerAccount)) body: never,
+  ) {
+    return this.lendingSettings.createAccount(actor(req), body);
   }
 
   // ── Month-end and year-end close (OPS-6) ──────────────────────────────────
