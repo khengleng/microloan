@@ -14,7 +14,8 @@ export type FieldKind =
     | 'multi' | 'list'
     | 'order'
     | 'toggleObject'
-    | 'json';
+    | 'json'
+    | 'outcome' | 'gradeRules';
 
 export interface FieldSpec {
     path: string;
@@ -271,7 +272,7 @@ export const STEPS: StepSpec[] = [
     },
     {
         key: 'scoring', label: 'Scoring', roots: ['scoring'],
-        note: 'The scorecard that drives the decision (the organisation’s active version of the code, else the template), an optional silent challenger, the thin-file switch and the decision strategy. AUTO_APPROVE only recommends approval — the workflow’s approvers still approve. Defaults refer every grade.',
+        note: 'The scorecard that drives the decision (the organisation’s active version of the code, else the template), an optional silent challenger, the thin-file switch and the decision strategy. “Recommend approve” only recommends approval — the workflow’s approvers still approve. Defaults refer every grade.',
         fields: [
             { path: 'scoring.championCode', label: 'Champion scorecard code', kind: 'text', hint: 'STANDARD_RETAIL or one of Lending › Scorecards' },
             { path: 'scoring.challengerCode', label: 'Challenger scorecard code (shadow, never decides)', kind: 'ntext' },
@@ -280,8 +281,8 @@ export const STEPS: StepSpec[] = [
             { path: 'scoring.thinFile.maxInternalHistoryMonths', label: 'Thin file: fewer months of history with us than', kind: 'int' },
             { path: 'scoring.thinFile.requireNoBureauScore', label: 'Thin file: only when there is no bureau score', kind: 'bool' },
             { path: 'scoring.strategy.declineBelowScore', label: 'Decline below score (with the eligibility minimum, the stricter applies)', kind: 'nint' },
-            { path: 'scoring.strategy.defaultOutcome', label: 'Outcome for grades without a rule', kind: 'enum', options: ['AUTO_APPROVE', 'REFER', 'DECLINE'] },
-            { path: 'scoring.strategy.gradeRules', label: 'Grade rules', kind: 'json', hint: '[{ "grade": "A", "outcome": "AUTO_APPROVE", "maxAmount": "5000", "rateAddOnBps": 0 }, { "grade": "C", "outcome": "REFER", "maxAmount": null, "rateAddOnBps": 150 }]' },
+            { path: 'scoring.strategy.defaultOutcome', label: 'Outcome for grades without a rule', kind: 'outcome' },
+            { path: 'scoring.strategy.gradeRules', label: 'Grade rules', kind: 'gradeRules', hint: 'One row per grade: the outcome, the largest amount that grade may borrow (blank = the product limit) and the rate add-on in basis points (100 bps = 1%).' },
             { path: 'scoring.strategy.knockouts.writtenOff', label: 'Knock-out: earlier write-off', kind: 'bool' },
             { path: 'scoring.strategy.knockouts.maxCurrentDpd', label: 'Knock-out: current days past due above', kind: 'nint' },
             { path: 'scoring.strategy.knockouts.minAgeYears', label: 'Knock-out: age below', kind: 'nint' },

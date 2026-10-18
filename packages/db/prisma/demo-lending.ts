@@ -35,6 +35,8 @@ const PASSWORD_FROM_ENV = !!process.env.DEMO_PASSWORD?.trim();
 /** Emails of the users this run created (and so gave PASSWORD). */
 const created = new Set<string>();
 const TENANT = 'Demo Lending Co';
+/** Demo tenant's published USD/KHR rate (riel per dollar). Demo data only; real tenants enter their own under FX rates. */
+const DEMO_USD_KHR_RATE = '4100';
 /** The authenticator label, as the API names itself (PLATFORM_NAME). */
 const ISSUER = encodeURIComponent((process.env.PLATFORM_NAME?.trim() || 'Magic Money').replace(/\s+/g, ''));
 /** A fresh authenticator secret: 20 random bytes, base32 (RFC 4648), as authenticator apps expect. */
@@ -372,6 +374,13 @@ async function demoScoring(t: string, users: Record<string, string>) {
   const storage = new DocumentStorageService().storage();
   const pdf = Buffer.from('%PDF-1.4\n% Demo document: stands in for a scanned statement in the demo tenant only.\n');
   const year = new Date().getUTCFullYear() - 1;
+  // Demo only: the tenant's own published USD/KHR rate, as an administrator
+  // would enter it under FX rates. Srey Mom's cash flow is observed in riel;
+  // scoring converts it at this rate (D-079) — with no rate the cash-flow
+  // variables would be missing. Effective from the end of the observed period.
+  const fxFrom = new Date(`${year}-12-31T00:00:00Z`);
+  if (!(await prisma.exchangeRate.findFirst({ where: { tenantId: t, fromCurrency: 'USD', toCurrency: 'KHR' } })))
+    await prisma.exchangeRate.create({ data: { tenantId: t, fromCurrency: 'USD', toCurrency: 'KHR', rate: DEMO_USD_KHR_RATE, effectiveDate: fxFrom } });
   const file = async (borrowerId: string, typeCode: string, title: string, officer: string) => {
     const existing = await prisma.customerDocument.findFirst({ where: { tenantId: t, borrowerId, typeCode } });
     if (existing) return existing.id;

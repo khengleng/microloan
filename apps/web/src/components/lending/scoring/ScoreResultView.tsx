@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { Checkbox, Empty } from '../ui';
-import { OUTCOME_CLS, OUTCOME_LABELS, displayValue } from './types';
+import { useScoringText } from './i18n';
+import { OUTCOME_CLS, displayValue } from './types';
 import type { CharacteristicResult, ScoreOutcome, ScoreResult } from './types';
 
 export function OutcomeBadge({ outcome }: { outcome: ScoreOutcome | string | null | undefined }) {
+    const { outcome: label } = useScoringText();
     if (!outcome) return <span className="text-[#AAB7C4]">—</span>;
     const cls = OUTCOME_CLS[outcome as ScoreOutcome] ?? 'bg-slate-100 text-slate-600 border-slate-200';
     return (
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide whitespace-nowrap ${cls}`}>
-            {OUTCOME_LABELS[outcome as ScoreOutcome] ?? outcome.replace(/_/g, ' ')}
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide whitespace-nowrap ${cls}`} title={outcome}>
+            {label(outcome)}
         </span>
     );
 }
@@ -26,10 +28,11 @@ export function GradePill({ grade, label }: { grade: string; label?: string }) {
 
 /** Points earned against the characteristic's maximum, with the reason the scorecard gave. */
 export function FactorBars({ items }: { items: CharacteristicResult[] }) {
+    const { t } = useScoringText();
     const [showAll, setShowAll] = useState(false);
     const hidden = items.filter((c) => c.skipped || c.omitted).length;
     const list = showAll ? items : items.filter((c) => !c.skipped && !c.omitted);
-    if (items.length === 0) return <Empty>No characteristics.</Empty>;
+    if (items.length === 0) return <Empty>{t('result.noCharacteristics')}</Empty>;
     return (
         <div className="space-y-2.5">
             {list.map((c) => {
@@ -41,9 +44,9 @@ export function FactorBars({ items }: { items: CharacteristicResult[] }) {
                             <p className="text-[13px] font-semibold text-[#1A1F36]">
                                 {c.label}
                                 <span className="ml-1.5 font-mono text-[10px] font-normal text-[#8792A2]">{c.code}{c.group ? ` · ${c.group}` : ''}</span>
-                                {c.missing && <span className="ml-1.5 text-[11px] font-normal text-amber-700">missing</span>}
-                                {c.skipped && <span className="ml-1.5 text-[11px] font-normal text-[#697386]">skipped</span>}
-                                {c.omitted && <span className="ml-1.5 text-[11px] font-normal text-[#697386]">omitted</span>}
+                                {c.missing && <span className="ml-1.5 text-[11px] font-normal text-amber-700">{t('result.missing')}</span>}
+                                {c.skipped && <span className="ml-1.5 text-[11px] font-normal text-[#697386]">{t('result.skipped')}</span>}
+                                {c.omitted && <span className="ml-1.5 text-[11px] font-normal text-[#697386]">{t('result.omitted')}</span>}
                             </p>
                             <span className="text-[12px] tabular-nums text-[#3C4257] whitespace-nowrap">{c.points} / {c.maxPoints}</span>
                         </div>
@@ -57,13 +60,14 @@ export function FactorBars({ items }: { items: CharacteristicResult[] }) {
                     </div>
                 );
             })}
-            {hidden > 0 && <Checkbox checked={showAll} onChange={setShowAll} label={`Show ${hidden} skipped or omitted`} />}
+            {hidden > 0 && <Checkbox checked={showAll} onChange={setShowAll} label={t('result.showHidden', { count: hidden })} />}
         </div>
     );
 }
 
 export function AdverseReasons({ items }: { items: ScoreResult['adverseReasons'] }) {
-    if (!items.length) return <p className="text-[13px] text-[#697386]">No adverse reasons.</p>;
+    const { t } = useScoringText();
+    if (!items.length) return <p className="text-[13px] text-[#697386]">{t('result.noAdverse')}</p>;
     return (
         <ol className="space-y-1 list-decimal list-inside">
             {items.map((r) => (
@@ -78,25 +82,26 @@ export function AdverseReasons({ items }: { items: ScoreResult['adverseReasons']
 
 /** Score, grade, factor bars and adverse reasons for one result. */
 export function ScoreResultView({ result }: { result: ScoreResult }) {
+    const { t } = useScoringText();
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-6">
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Score</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{t('result.score')}</p>
                     <p className="text-[28px] font-bold text-[#1A1F36] tabular-nums leading-tight">{result.score}</p>
-                    {result.rawScore !== result.score && <p className="text-[11px] text-[#697386]">raw {result.rawScore} (clamped)</p>}
+                    {result.rawScore !== result.score && <p className="text-[11px] text-[#697386]">{t('result.rawClamped', { raw: result.rawScore })}</p>}
                 </div>
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Grade</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{t('result.grade')}</p>
                     <div className="mt-1"><GradePill grade={result.grade} label={result.gradeLabel} /></div>
                 </div>
             </div>
             <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Factors</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">{t('result.factors')}</p>
                 <FactorBars items={result.characteristics} />
             </div>
             <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Adverse reasons</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">{t('result.adverseReasons')}</p>
                 <AdverseReasons items={result.adverseReasons} />
             </div>
         </div>

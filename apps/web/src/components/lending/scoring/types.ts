@@ -303,12 +303,12 @@ export function shortId(id: string | null | undefined): string {
 }
 
 /** Stability label for a population stability index (decimal string). */
-export function psiLabel(psi: string | null): { label: string; cls: string } {
-    if (psi === null || psi === undefined) return { label: 'not enough data', cls: 'text-[#697386]' };
+export function psiLabel(psi: string | null): { key: 'noData' | 'stable' | 'watch' | 'shifted'; label: string; cls: string } {
+    if (psi === null || psi === undefined) return { key: 'noData', label: 'not enough data', cls: 'text-[#697386]' };
     const v = Number(psi);
-    if (v < 0.1) return { label: 'stable', cls: 'text-emerald-700' };
-    if (v <= 0.25) return { label: 'watch', cls: 'text-amber-700' };
-    return { label: 'shifted', cls: 'text-red-700' };
+    if (v < 0.1) return { key: 'stable', label: 'stable', cls: 'text-emerald-700' };
+    if (v <= 0.25) return { key: 'watch', label: 'watch', cls: 'text-amber-700' };
+    return { key: 'shifted', label: 'shifted', cls: 'text-red-700' };
 }
 
 /** Server validation issues arrive as {path, message} or {code, message}; ErrorBox shows paths. */
