@@ -682,7 +682,9 @@
       "organisations": "Organisations",
       "planPayments": "Plan payments",
       "plans": "Subscription plans",
-      "platformTeam": "Platform team"
+      "platformTeam": "Platform team",
+      "platformCatalogue": "Product catalogue",
+      "platformFlags": "Platform flags"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -1330,6 +1332,39 @@
       "json": "JSON",
       "notNumber": "Enter a number",
       "jsonHint": "JSON — a list [ … ] or table { … }"
+    },
+    "platformFlags": {
+      "title": "Platform feature flags",
+      "subtitle": "Platform defaults for every organisation, and the emergency switch above all organisation rules.",
+      "notice": "A platform rule is proposed by one platform administrator and takes effect only when another approves it. An emergency rule switches a flag off everywhere, overriding organisation rules.",
+      "rulesTitle": "Platform rules",
+      "noRules": "No platform rules.",
+      "flagsTitle": "Flags",
+      "flagsSubtitle": "The value at platform level: an organisation's own rules still apply below an emergency switch.",
+      "flag": "Flag",
+      "category": "Category",
+      "default": "Default",
+      "platformValue": "Platform value",
+      "value": "Value",
+      "status": "Status",
+      "reason": "Reason",
+      "reasonShort": "At least 3 characters",
+      "proposed": "Proposed — another platform administrator must approve it",
+      "approved": "Rule approved",
+      "rejected": "Rule rejected",
+      "approve": "Approve",
+      "reject": "Reject",
+      "on": "On",
+      "off": "Off",
+      "emergencyOff": "Emergency off",
+      "emergency": "Emergency switch-off (overrides every organisation)",
+      "needApprove": "Needs feature_flag.approve",
+      "ownRule": "You proposed this rule — another platform administrator must decide",
+      "proposeTitle": "Propose a platform rule",
+      "proposeSubtitle": "Takes effect once another platform administrator approves it.",
+      "pickFlag": "Select a flag…",
+      "propose": "Propose rule",
+      "when": "Proposed on"
     }
   }
 }

@@ -167,6 +167,8 @@ export const PLATFORM_NAV: NavSection[] = [
             { key: 'organisations', href: '/tenants', icon: Building, everyone: true, queues: ['ORGANISATIONS_PENDING'] },
             { key: 'planPayments', href: '/platform-payments', icon: QrCode, everyone: true, queues: ['PLAN_PAYMENTS_TO_CONFIRM'] },
             { key: 'plans', href: '/plan-tiers', icon: Layers, everyone: true },
+            { key: 'platformCatalogue', href: '/lending/catalogue', icon: LibraryBig, lending: ['loan_product.read'] },
+            { key: 'platformFlags', href: '/platform-flags', icon: SlidersHorizontal, lending: ['feature_flag.read'] },
         ],
     },
     {

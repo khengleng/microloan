@@ -443,4 +443,37 @@ d('Access governance maker-checker (integration)', () => {
       );
     });
   });
+
+  describe('platform screens', () => {
+    it('platform administrators read the catalogue and govern platform flags, never alone', async () => {
+      const cat = expectOk(await f.as('platform').get('/lending/catalogue'));
+      expect(cat.length).toBeGreaterThan(0);
+      expectOk(await f.as('platform').get('/lending/capability-matrix'));
+      // Tenant staff still read it too.
+      expectOk(await f.as('maker').get('/lending/catalogue'));
+
+      const flags = expectOk(
+        await f.as('platform').get('/lending/access/flags'),
+      );
+      expect(flags.flags.length).toBeGreaterThan(0);
+      const rule = expectOk(
+        await f.as('platform').post('/lending/access/flags/rules', {
+          flagKey: 'lending.repayment.balloon',
+          scopeType: 'PLATFORM',
+          enabled: true,
+          reason: 'Platform screens test',
+        }),
+      );
+      const own = await f
+        .as('platform')
+        .post(`/lending/access/flags/changes/${rule.id}/decision`, {
+          approve: true,
+        });
+      expect(own.status).toBe(403);
+      // Leave nothing pending for other suites.
+      await f.system(() =>
+        f.prisma.platformFlagRule.delete({ where: { id: rule.id } }),
+      );
+    });
+  });
 });
