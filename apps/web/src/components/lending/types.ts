@@ -185,6 +185,8 @@ export interface WorkflowVersion { id: string; code: string; version: number; na
 export interface WorkflowsResponse {
     supportedSteps: string[];
     mandatorySteps: string[];
+    /** Steps a new version cannot drop (e.g. CONDITIONS_PRECEDENT, enforced from the product). */
+    alwaysOnSteps?: string[];
     builtIn: Record<string, { name: string; definition: WorkflowDefinition }>;
     versions: WorkflowVersion[];
 }

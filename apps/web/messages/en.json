@@ -1289,6 +1289,16 @@
         "USER": "User",
         "BORROWER": "Borrower"
       }
+    },
+    "workflow": {
+      "currencyInvalid": "Currency must be * or a 3-letter ISO code",
+      "amountInvalid": "From amount must be a decimal",
+      "starAboveZero": "A level for every currency (*) must start at 0 — amounts in different currencies are not comparable. Give a threshold above 0 a currency.",
+      "currencyPlaceholder": "USD, KHR… (* only from 0)",
+      "levelsHelp": "Each level applies from its amount upwards in its currency; the highest matching level decides how many approvers are needed. * applies to every currency and only from 0.",
+      "alwaysOn": "always on",
+      "cpExplain": "Conditions precedent come from the product configuration and are always checked before disbursement, so this step cannot be switched off.",
+      "awaitingOther": "Awaiting another approver"
     }
   }
 }

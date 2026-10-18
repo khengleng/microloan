@@ -22,6 +22,8 @@ d('Access governance maker-checker (integration)', () => {
   beforeAll(async () => {
     f = await bootstrap();
     await grant(f, f.t1, 'nobody', 'AUDITOR');
+    await grant(f, f.t1, 'maker', 'PRODUCT_MAKER');
+    await grant(f, f.t1, 'checker', 'PRODUCT_CHECKER');
   }, 60_000);
   afterAll(async () => f?.app.close());
 
@@ -336,6 +338,61 @@ d('Access governance maker-checker (integration)', () => {
         member: true,
       });
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('workflow builder', () => {
+    const steps = [
+      'DOCUMENT_CHECK',
+      'KYC_CHECK',
+      'CREDIT_RECOMMENDATION',
+      'CREDIT_APPROVAL',
+      'CONDITIONS_PRECEDENT',
+      'AGREEMENT_BOOKING',
+      'DISBURSEMENT_APPROVAL',
+    ];
+    const draft = (approvalLevels: unknown[], s = steps) =>
+      f.as('maker').post('/lending/workflows', {
+        code: 'GOV_TEST',
+        name: 'Governance test',
+        definition: { steps: s, approvalLevels },
+      });
+
+    it('refuses levels and steps that would be silently ignored, and accepts the builder default', async () => {
+      const star = await draft([
+        { currency: '*', minAmount: '0', approvalsRequired: 1 },
+        { currency: '*', minAmount: '50000', approvalsRequired: 2 },
+      ]);
+      expect(star.status).toBe(400);
+      expect(JSON.stringify(star.body)).toMatch(/must start at 0/);
+      const noCp = await draft(
+        [{ currency: '*', minAmount: '0', approvalsRequired: 1 }],
+        steps.filter((x) => x !== 'CONDITIONS_PRECEDENT'),
+      );
+      expect(noCp.status).toBe(400);
+      const v = expectOk(
+        await draft([
+          { currency: '*', minAmount: '0', approvalsRequired: 1 },
+          { currency: 'USD', minAmount: '50000', approvalsRequired: 2 },
+        ]),
+      );
+      expect(
+        (
+          await f
+            .as('maker')
+            .post(`/lending/workflows/${v.id}/decision`, { approve: true })
+        ).status,
+      ).toBe(403);
+      expectOk(
+        await f
+          .as('checker')
+          .post(`/lending/workflows/${v.id}/decision`, { approve: true }),
+      );
+      const list = expectOk(await f.as('maker').get('/lending/workflows'));
+      expect(list.alwaysOnSteps).toEqual(['CONDITIONS_PRECEDENT']);
+      expect(list.versions.find((x: any) => x.id === v.id).status).toBe(
+        'ACTIVE',
+      );
     });
   });
 });

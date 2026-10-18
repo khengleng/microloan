@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
 import { Lock, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -31,11 +33,13 @@ function Builder({ wf, onCreated }: { wf: WorkflowsResponse; onCreated: () => vo
     const [steps, setSteps] = useState<string[]>(() => [...wf.supportedSteps]);
     const [levels, setLevels] = useState<ApprovalLevel[]>([{ currency: '*', minAmount: '0', approvalsRequired: 1 }]);
     const { busy, error, run } = useAction();
+    const t = useTranslations('Governance.workflow');
+    const alwaysOn = wf.alwaysOnSteps ?? [];
 
     const loadBuiltIn = (key: string) => {
         const b = wf.builtIn[key];
         if (!b) return;
-        setSteps(wf.supportedSteps.filter((s) => b.definition.steps.includes(s)));
+        setSteps(wf.supportedSteps.filter((s) => b.definition.steps.includes(s) || alwaysOn.includes(s)));
         setLevels(b.definition.approvalLevels.map((l) => ({ ...l })));
         if (!name) setName(b.name);
     };
@@ -46,14 +50,16 @@ function Builder({ wf, onCreated }: { wf: WorkflowsResponse; onCreated: () => vo
     const setLevel = (i: number, patch: Partial<ApprovalLevel>) => setLevels((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
     const levelErrors = levels.map((l) =>
-        !/^([A-Z]{3}|\*)$/.test(l.currency) ? "Currency must be '*' or a 3-letter ISO code"
-            : !isDecimalString(l.minAmount) ? 'Minimum amount must be a decimal'
-                : null);
+        !/^([A-Z]{3}|\*)$/.test(l.currency) ? { field: 'currency', msg: t('currencyInvalid') }
+            : !isDecimalString(l.minAmount) ? { field: 'amount', msg: t('amountInvalid') }
+                // Amounts in different currencies are not comparable: the API refuses '*' above 0.
+                : l.currency === '*' && Number(l.minAmount) !== 0 ? { field: 'currency', msg: t('starAboveZero') }
+                    : null);
     const hasZero = levels.some((l) => /^0(\.0+)?$/.test(l.minAmount));
     const valid = CODE_RE.test(code) && name.trim().length >= 2 && levelErrors.every((e) => !e) && hasZero;
 
     const submit = async () => {
-        const definition: WorkflowDefinition = { steps, approvalLevels: levels };
+        const definition: WorkflowDefinition = { steps: wf.supportedSteps.filter((s) => steps.includes(s) || alwaysOn.includes(s)), approvalLevels: levels };
         const r = await run('create', () => api.post('/lending/workflows', { code, name: name.trim(), definition }));
         if (r) {
             showToast('Workflow version submitted for approval', 'success');
@@ -80,11 +86,13 @@ function Builder({ wf, onCreated }: { wf: WorkflowsResponse; onCreated: () => vo
                     <ol className="space-y-1.5">
                         {wf.supportedSteps.map((s, i) => {
                             const mandatory = wf.mandatorySteps.includes(s);
+                            const locked = !mandatory && alwaysOn.includes(s);
                             return (
                                 <li key={s} className="flex items-center gap-3 border border-[#E3E8EE] rounded px-3 py-2 bg-white">
                                     <span className="text-[11px] text-[#8792A2] w-4">{i + 1}</span>
-                                    <Checkbox checked={mandatory || steps.includes(s)} disabled={mandatory} onChange={(on) => toggle(s, on)} label={<span className="font-mono text-[12px]">{s}</span>} />
+                                    <Checkbox checked={mandatory || locked || steps.includes(s)} disabled={mandatory || locked} onChange={(on) => toggle(s, on)} label={<span className="font-mono text-[12px]">{s}</span>} />
                                     {mandatory && <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#697386]"><Lock size={11} /> mandatory</span>}
+                                    {locked && <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-[#697386]" title={t('cpExplain')}><Lock size={11} /> {t('alwaysOn')}</span>}
                                 </li>
                             );
                         })}
@@ -96,10 +104,10 @@ function Builder({ wf, onCreated }: { wf: WorkflowsResponse; onCreated: () => vo
                     <div className="space-y-2">
                         {levels.map((l, i) => (
                             <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-                                <Field label="Currency" error={levelErrors[i]?.startsWith('Currency') ? levelErrors[i]! : undefined}>
-                                    <TextInput value={l.currency} onChange={(v) => setLevel(i, { currency: v.toUpperCase() })} placeholder="* or USD" />
+                                <Field label="Currency" error={levelErrors[i]?.field === 'currency' ? levelErrors[i]!.msg : undefined}>
+                                    <TextInput value={l.currency} onChange={(v) => setLevel(i, { currency: v.toUpperCase() })} placeholder={t('currencyPlaceholder')} />
                                 </Field>
-                                <Field label="From amount" error={levelErrors[i]?.startsWith('Minimum') ? levelErrors[i]! : undefined}>
+                                <Field label="From amount" error={levelErrors[i]?.field === 'amount' ? levelErrors[i]!.msg : undefined}>
                                     <TextInput inputMode="decimal" value={l.minAmount} onChange={(v) => setLevel(i, { minAmount: v.trim() })} />
                                 </Field>
                                 <Field label="Approvals required">
@@ -108,11 +116,13 @@ function Builder({ wf, onCreated }: { wf: WorkflowsResponse; onCreated: () => vo
                                 <Btn variant="ghost" disabled={levels.length === 1} onClick={() => setLevels((ls) => ls.filter((_, j) => j !== i))}><Trash2 size={14} /></Btn>
                             </div>
                         ))}
-                        <Btn size="sm" onClick={() => setLevels((ls) => [...ls, { currency: '*', minAmount: '', approvalsRequired: 2 }])}><Plus size={13} /> Add level</Btn>
+                        <Btn size="sm" onClick={() => setLevels((ls) => [...ls, { currency: '', minAmount: '', approvalsRequired: 2 }])}><Plus size={13} /> Add level</Btn>
                         {!hasZero && <p className="text-[11px] text-red-600">One approval level must start at 0.</p>}
+                        <p className="text-[11px] text-[#697386]">{t('levelsHelp')}</p>
                     </div>
                 </div>
 
+                {alwaysOn.length > 0 && <p className="text-[11px] text-[#697386]">{t('cpExplain')}</p>}
                 <ErrorBox error={error} />
                 <div className="flex justify-end">
                     <Btn variant="primary" busy={busy === 'create'} disabled={!valid} onClick={submit}>Submit workflow version</Btn>
@@ -126,6 +136,10 @@ export default function WorkflowsPage() {
     const { showToast } = useToast();
     const { data, error, loading, reload } = useApi<WorkflowsResponse>('/lending/workflows');
     const act = useAction();
+    const { can, access } = useWorkspace();
+    const t = useTranslations('Governance.workflow');
+    const me = access?.principal.id;
+    const canApprove = can('workflow.approve');
 
     const decide = async (id: string, approve: boolean) => {
         const r = await act.run(`${id}:${approve}`, () => api.post(`/lending/workflows/${id}/decision`, { approve }));
@@ -164,12 +178,13 @@ export default function WorkflowsPage() {
                                                 <td className={td}><DefinitionSummary def={v.definition} /></td>
                                                 <td className={td}><StatusBadge status={v.status} /></td>
                                                 <td className={`${td} whitespace-nowrap`}>
-                                                    {v.status === 'SUBMITTED' && (
+                                                    {v.status === 'SUBMITTED' && canApprove && v.makerId !== me && (
                                                         <div className="flex gap-1.5">
                                                             <Btn size="sm" variant="primary" busy={act.busy === `${v.id}:true`} onClick={() => decide(v.id, true)} title="A different user from the maker must approve">Approve</Btn>
                                                             <Btn size="sm" variant="danger" busy={act.busy === `${v.id}:false`} onClick={() => decide(v.id, false)}>Reject</Btn>
                                                         </div>
                                                     )}
+                                                    {v.status === 'SUBMITTED' && !!me && v.makerId === me && <p className="text-[11px] text-amber-800">{t('awaitingOther')}</p>}
                                                 </td>
                                             </tr>
                                         ))}
@@ -178,7 +193,7 @@ export default function WorkflowsPage() {
                             )}
                         </Card>
                     </div>
-                    <Builder wf={data} onCreated={reload} />
+                    {can('workflow.manage') && <Builder wf={data} onCreated={reload} />}
                 </>
             )}
         </LendingShell>
