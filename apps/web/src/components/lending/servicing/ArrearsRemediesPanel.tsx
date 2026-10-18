@@ -25,7 +25,9 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
     const payKey = useIdempotencyKey();
     const decideKey = useIdempotencyKey();
     const post = can('loan.repayment.post');
-    const approve = can('loan.repayment.reverse');
+    const issueDemand = can('loan.guarantor_demand.issue');
+    const proposeSetOff = can('loan.set_off.propose');
+    const approve = can('loan.set_off.approve');
     const pending = tasks.filter((t) => t.action === 'SET_OFF' && t.status === 'PENDING');
 
     const issue = async () => {
@@ -66,7 +68,7 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
                         </Field>
                         <Field label="Amount" hint="Blank: all the guarantee still covers"><TextInput value={demand.amount} onChange={(v) => setDemand({ ...demand, amount: v })} inputMode="decimal" className="w-32" /></Field>
                         <Field label="Pay within (days)"><TextInput value={demand.payWithinDays} onChange={(v) => setDemand({ ...demand, payWithinDays: v })} inputMode="numeric" className="w-20" /></Field>
-                        <Btn variant="primary" onClick={issue} busy={busy === 'demand'} disabled={!post.allowed || !demand.guaranteeId} reason={post.reason}>Issue demand</Btn>
+                        <Btn variant="primary" onClick={issue} busy={busy === 'demand'} disabled={!issueDemand.allowed || !demand.guaranteeId} reason={issueDemand.reason}>Issue demand</Btn>
                     </div>
                 )}
                 {!!data.data?.demands.length && (
@@ -83,7 +85,7 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
                                     <td className={`${td} space-x-1 whitespace-nowrap`}>
                                         <Btn size="sm" variant="ghost" onClick={() => setLetter(d.letter)}>Letter</Btn>
                                         {d.status === 'OPEN' && <Btn size="sm" onClick={() => setPayment({ id: d.id, amount: '', ref: '' })} disabled={!post.allowed} reason={post.reason}>Record payment</Btn>}
-                                        {d.status === 'OPEN' && <Btn size="sm" variant="ghost" onClick={() => withdraw(d)}>Withdraw</Btn>}
+                                        {d.status === 'OPEN' && issueDemand.allowed && <Btn size="sm" variant="ghost" onClick={() => withdraw(d)}>Withdraw</Btn>}
                                     </td>
                                 </tr>
                             ))}
@@ -108,11 +110,12 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
                     <Field label="Amount"><TextInput value={setOff.amount} onChange={(v) => setSetOff({ ...setOff, amount: v })} inputMode="decimal" className="w-32" /></Field>
                     <Field label="Deposit account"><TextInput value={setOff.sourceAccount} onChange={(v) => setSetOff({ ...setOff, sourceAccount: v })} maxLength={60} className="w-40" /></Field>
                     <Field label="Reason"><TextInput value={setOff.reason} onChange={(v) => setSetOff({ ...setOff, reason: v })} maxLength={500} className="w-64" /></Field>
-                    <Btn onClick={propose} busy={busy === 'setoff'} disabled={!post.allowed} reason={post.reason}>Propose set-off</Btn>
+                    <Btn onClick={propose} busy={busy === 'setoff'} disabled={!proposeSetOff.allowed} reason={proposeSetOff.reason}>Propose set-off</Btn>
                 </div>
                 {pending.map((t) => (
                     <div key={t.id} className="flex flex-wrap items-center gap-2 text-[13px]">
                         <StatusBadge status={t.status} /> <span>Set-off {currency} {t.amount}</span>
+                        <span className="text-[11px] text-[#697386]">{t.makerEmail ?? t.makerId.slice(0, 8)}</span>
                         <Btn size="sm" variant="primary" onClick={() => decide(t, true)} busy={busy === `so-${t.id}`} disabled={!approve.allowed} reason={approve.reason}>Approve</Btn>
                         <Btn size="sm" variant="danger" onClick={() => decide(t, false)} disabled={!approve.allowed} reason={approve.reason}>Reject</Btn>
                     </div>

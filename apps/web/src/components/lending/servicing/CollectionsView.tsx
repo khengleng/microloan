@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
+import { Pager } from '../Pager';
+import { addDaysIso } from '../useBusinessDate';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
-import { toApiError, useAction, useApi, type ApiErrorInfo } from '../useAsync';
+import { qs, useAction, useApi } from '../useAsync';
 import { addDecimal } from '../format';
 import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
@@ -17,38 +21,6 @@ import { NoticesCard } from './NoticesCard';
 import { WorkQueueCard } from './WorkQueueCard';
 
 const PAGE_SIZE = 50;
-const MAX_PAGES = 40;
-
-/** The loans API pages at 50 with no limit parameter, so walk every page (capped). */
-function useAllLoans() {
-    const [version, setVersion] = useState(0);
-    const [state, setState] = useState<{ v: number; rows?: LoanSummary[]; total?: number; truncated?: boolean; error?: ApiErrorInfo }>({ v: -1 });
-
-    useEffect(() => {
-        let cancelled = false;
-        const load = async () => {
-            const rows: LoanSummary[] = [];
-            let total = 0;
-            let page = 1;
-            for (; page <= MAX_PAGES; page++) {
-                const r = await api.get<Paged<LoanSummary>>(`/lending/loans?page=${page}`);
-                rows.push(...r.data.data);
-                total = r.data.total;
-                if (r.data.data.length < PAGE_SIZE || rows.length >= total) break;
-            }
-            return { rows, total, truncated: rows.length < total };
-        };
-        load().then(
-            (res) => { if (!cancelled) setState({ v: version, ...res }); },
-            (e) => { if (!cancelled) setState((s) => ({ ...s, v: version, error: toApiError(e) })); },
-        );
-        return () => { cancelled = true; };
-    }, [version]);
-
-    const reload = useCallback(() => setVersion((v) => v + 1), []);
-    const settled = state.v === version;
-    return { ...state, error: settled ? state.error : undefined, loading: !settled, reload };
-}
 
 function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
     const { showToast } = useToast();
@@ -57,6 +29,9 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
     const [next, setNext] = useState('');
     const [result, setResult] = useState<{ businessDate: string; processed: number; failed: { id: string; error: string }[] | number } | null>(null);
     const { busy, error, run, clearError } = useAction();
+    const { can } = useWorkspace();
+    const canDate = can('business_date.manage');
+    const canBatch = can('servicing.batch.run');
 
     const advance = async () => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
@@ -100,11 +75,13 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Current business date</p>
                     <p className="text-xl font-bold text-[#1A1F36] tabular-nums">{bd.loading && !bd.data ? '…' : bd.data?.businessDate ?? '—'}</p>
                 </div>
-                <Field label="New business date">
-                    <TextInput type="date" value={next} onChange={setNext} className="w-44" />
-                </Field>
-                <Btn onClick={advance} busy={busy === 'date'} disabled={!next} reason={!next ? 'Pick a date first' : undefined}>Set business date</Btn>
-                <Btn variant="primary" onClick={batch} busy={busy === 'batch'}>Run end-of-day batch</Btn>
+                {canDate && (
+                    <Field label="New business date">
+                        <TextInput type="date" value={next} onChange={setNext} min={bd.data?.businessDate ? addDaysIso(bd.data.businessDate, 1) : undefined} className="w-44" />
+                    </Field>
+                )}
+                {canDate && <Btn onClick={advance} busy={busy === 'date'} disabled={!next} reason={!next ? 'Pick a date first' : undefined}>Set business date</Btn>}
+                {canBatch && <Btn variant="primary" onClick={batch} busy={busy === 'batch'}>Run end-of-day batch</Btn>}
             </div>
             <div className="mt-3 space-y-2">
                 <ErrorBox error={bd.error} />
@@ -125,8 +102,12 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
 
 export function CollectionsView() {
     const href = useLendingHref();
-    const loans = useAllLoans();
-    const overdue = (loans.rows ?? []).filter((l) => l.daysPastDue > 0).sort((a, b) => b.daysPastDue - a.daysPastDue);
+    const t = useTranslations('Servicing.collections');
+    // Paged and filtered on the server, worst first: the whole book is never loaded.
+    const [page, setPage] = useState(1);
+    const loans = useApi<Paged<LoanSummary>>(`/lending/loans${qs({ pastDue: 1, page })}`);
+    const overdue = loans.data?.data ?? [];
+    const total = loans.data?.total ?? 0;
 
     return (
         <LendingShell title="Collections" subtitle="Loans past due, worst first. Run the end-of-day batch to refresh delinquency.">
@@ -135,15 +116,15 @@ export function CollectionsView() {
             <NoticesCard />
             <Card
                 title="Past-due loans"
-                subtitle={loans.rows ? `${overdue.length} of ${loans.rows.length} loan${loans.rows.length === 1 ? '' : 's'} past due` : undefined}
+                subtitle={loans.data ? t('pastDueCount', { count: total }) : undefined}
                 actions={<Btn variant="ghost" onClick={loans.reload}>Refresh</Btn>}
                 bodyClass="p-0"
             >
                 {loans.error && <div className="p-4"><ErrorBox error={loans.error} /></div>}
-                {loans.truncated && <div className="p-4"><Notice tone="warn">Only the first {loans.rows?.length} of {loans.total} loans were scanned.</Notice></div>}
-                {loans.loading && !loans.rows ? <Spinner /> : overdue.length === 0 ? (
+                {loans.loading && !loans.data ? <Spinner /> : overdue.length === 0 ? (
                     !loans.error && <Empty>No loans are past due.</Empty>
                 ) : (
+                    <>
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
@@ -180,6 +161,8 @@ export function CollectionsView() {
                             })}
                         </tbody>
                     </Table>
+                    <div className="p-3 border-t border-[#E3E8EE]"><Pager page={page} total={total} pageSize={PAGE_SIZE} onPage={setPage} /></div>
+                    </>
                 )}
             </Card>
         </LendingShell>

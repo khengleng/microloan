@@ -3,6 +3,8 @@
 import { type ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/toast';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, ErrorBox, KV, Notice, Spinner, Table, td, tdR, th, thR } from '../ui';
 import { useApi, useCapabilities } from '../useAsync';
@@ -52,6 +54,8 @@ export function FacilityDetailView({ id }: { id: string }) {
     const loanCaps = useCapabilities('LOAN_ACCOUNT', d?.loanAccountId ?? null);
     const borrower = useApi<{ firstName?: string | null; lastName?: string | null }>(d ? `/borrowers/${d.facility.borrowerId}` : null);
     const [panel, setPanel] = useState<Panel | null>(null);
+    const { can } = useWorkspace();
+    const tf = useTranslations('Servicing.facility');
 
     if (!d) {
         return (
@@ -77,12 +81,17 @@ export function FacilityDetailView({ id }: { id: string }) {
     const close = () => setPanel(null);
     const toggle = (pn: Panel) => setPanel((cur2) => (cur2 === pn ? null : pn));
 
-    const canDraw = status === 'ACTIVE';
-    const canRepay = !['CLOSED', 'CANCELLED'].includes(status);
-    const canStatement = ['ACTIVE', 'SUSPENDED', 'EXPIRED'].includes(status);
-    const canLimit = ['PENDING', 'ACTIVE', 'SUSPENDED'].includes(status);
-    const statusMoves = availableStatusMoves(status);
-    const canTermOut = ['ACTIVE', 'EXPIRED'].includes(status);
+    // Mirror what the API accepts: a card moves money, statements and term-out
+    // through the card; a receivables line draws and is repaid through its
+    // register; each action needs its permission (the server re-checks).
+    const card = !!d.card;
+    const receivables = !!d.receivablesKind;
+    const canDraw = status === 'ACTIVE' && !card && !receivables && can('facility.drawdown.request');
+    const canRepay = !['CLOSED', 'CANCELLED'].includes(status) && !card && !receivables && can('loan.repayment.post');
+    const canStatement = ['ACTIVE', 'SUSPENDED', 'EXPIRED'].includes(status) && !card && can('facility.statement.generate');
+    const canLimit = ['PENDING', 'ACTIVE', 'SUSPENDED'].includes(status) && can('facility.limit.request');
+    const statusMoves = can('facility.manage') ? availableStatusMoves(status) : [];
+    const canTermOut = ['ACTIVE', 'EXPIRED'].includes(status) && !card && can('facility.manage');
     // Statement periods never overlap: the next one starts where the last ended.
     const nextPeriodStart = d.statements[0]?.periodEnd ?? f.availabilityFrom ?? '';
     const repayCap = loanCaps.can('loan.repayment.post');
@@ -147,11 +156,12 @@ export function FacilityDetailView({ id }: { id: string }) {
                         {canStatement && <Btn onClick={() => toggle('statement')}>Generate statement</Btn>}
                         {canLimit && <Btn onClick={() => toggle('limit')}>Request limit change</Btn>}
                         {statusMoves.length > 0 && <Btn variant="danger" onClick={() => toggle('status')}>Change status</Btn>}
-                        {(canTermOut || (d.project && status !== 'TERMED_OUT')) && <Btn variant="danger" onClick={() => toggle('termout')}>{d.project ? 'Sculpted term-out' : 'Term out'}</Btn>}
+                        {(canTermOut || (d.project && status !== 'TERMED_OUT' && can('facility.manage'))) && <Btn variant="danger" onClick={() => toggle('termout')}>{d.project ? 'Sculpted term-out' : 'Term out'}</Btn>}
                     </div>
                     {!canDraw && !canRepay && !canStatement && !canLimit && statusMoves.length === 0 && (
-                        <p className="text-[12px] text-[#697386]">This facility is {status.replace(/_/g, ' ').toLowerCase()}; no actions are available.</p>
+                        <p className="text-[12px] text-[#697386]">{tf('noActions')}</p>
                     )}
+                    {receivables && <p className="text-[12px] text-[#697386]">{tf('receivablesNote')} <Link href={href(`/lending/trade/invoices/${id}`)} className="font-semibold text-[#635BFF] hover:underline">{tf('openRegister')}</Link></p>}
                     {openDrawdowns.length > 0 && (
                         <p className="text-[12px] text-[#697386]">{openDrawdowns.length} drawdown{openDrawdowns.length === 1 ? ' is' : 's are'} awaiting approval or release — see Drawdowns below.</p>
                     )}

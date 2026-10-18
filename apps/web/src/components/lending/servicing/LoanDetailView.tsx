@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
+import { useTranslations } from 'next-intl';
+import { Person } from '../People';
 import { RequestRestructureForm } from '@/components/lending/restructure/RequestRestructureForm';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Disclosure, Empty, ErrorBox, KV, Notice, Spinner, Table, td, tdR, th, thR } from '../ui';
@@ -63,6 +65,9 @@ export function LoanDetailView({ id }: { id: string }) {
     const caps = useCapabilities('LOAN_ACCOUNT', id);
     // Group loans take one repayment split by member (UC-22).
     const groupInfo = useApi<{ group: boolean }>(`/lending/loans/${id}/group-members`);
+    // A guarantor demand can stay open after the loan cures; it must stay reachable.
+    const demands = useApi<{ demands: { status: string }[] }>(`/lending/loans/${id}/guarantor-demands`);
+    const ts = useTranslations('Servicing.loan');
     const [panel, setPanel] = useState<Panel | null>(null);
 
     const d = loan.data;
@@ -93,6 +98,10 @@ export function LoanDetailView({ id }: { id: string }) {
     const isWrittenOff = acc.status === 'WRITTEN_OFF';
     const advanceHeld = Number(acc.advanceBalance ?? 0) > 0;
     const advanceTasks = d.tasks.filter((t) => t.action === 'ADVANCE_REFUND' && t.status === 'PENDING');
+    const openSetOff = d.tasks.some((t) => t.action === 'SET_OFF' && t.status === 'PENDING');
+    const openDemand = (demands.data?.demands ?? []).some((x) => x.status === 'OPEN');
+    // A facility's account is drawn through the facility, never disbursed.
+    const facilityAccount = !!d.facility;
 
     const actionBtn = (label: string, p: Panel, codes: string[], variant: 'primary' | 'secondary' | 'danger' = 'secondary') => {
         const blocked = codes.map((code) => c(code)).filter((r) => !r.allowed);
@@ -152,21 +161,24 @@ export function LoanDetailView({ id }: { id: string }) {
             <Card title="Servicing actions" subtitle="Buttons reflect your permissions, policies and limits. The server re-checks every action.">
                 <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
-                        {(isBooked || disbTasks.length > 0) && actionBtn('Disbursement', 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
+                        {(isBooked || disbTasks.length > 0) && !facilityAccount && actionBtn('Disbursement', 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
                         {isActive && actionBtn('Post repayment', 'repay', ['loan.repayment.post'], 'primary')}
                         {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}
                         {isActive && actionBtn('Early settlement', 'settle', ['loan.repayment.post'])}
                         {isActive && actionBtn('Payoff letters', 'payoff', ['loan.repayment.post'])}
-                        {isActive && (acc.daysPastDue > 0 || d.tasks.some((t) => t.action === 'SET_OFF' && t.status === 'PENDING')) && actionBtn('Guarantor / set-off', 'remedies', ['loan.repayment.post', 'loan.repayment.reverse'])}
+                        {((isActive && acc.daysPastDue > 0) || openSetOff || openDemand) && actionBtn('Guarantor / set-off', 'remedies', ['loan.guarantor_demand.issue', 'loan.repayment.post', 'loan.set_off.propose', 'loan.set_off.approve'])}
                         {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? 'Write-off decision' : 'Propose write-off', 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
                         {isActive && actionBtn('Request restructure', 'restructure', ['restructure.request'])}
                         {isActive && actionBtn('Negotiated settlement', 'negotiated', ['loan.settlement.negotiate'])}
                         {(advanceHeld || advanceTasks.length > 0) && actionBtn(advanceTasks.length ? 'Advance refund decision' : 'Refund advance', 'advance-refund', ['loan.advance_refund.propose', 'loan.advance_refund.approve'])}
                         {isWrittenOff && actionBtn('Record recovery', 'recovery', ['loan.recovery.post'], 'primary')}
                         {isActive && actionBtn('Fee waiver', 'fee-waiver', ['loan.fee_waiver.propose', 'loan.fee_waiver.approve'])}
-                        {isActive && <Btn onClick={() => setPanel('holiday')}>Payment holiday</Btn>}
-                        {isActive && <Btn onClick={() => setPanel('rate-resets')}>Rate resets</Btn>}
+                        {isActive && c('payment_holiday.grant').allowed && actionBtn('Payment holiday', 'holiday', ['payment_holiday.grant'])}
+                        {isActive && c('loan.rate_reset.apply').allowed && actionBtn('Rate resets', 'rate-resets', ['loan.rate_reset.apply'])}
                     </div>
+                    {facilityAccount && d.facility && (
+                        <p className="text-[12px] text-[#697386]">{ts('facilityAccount', { reference: d.facility.reference })} <Link href={href(`/lending/facilities/${d.facility.id}`)} className="font-semibold text-[#635BFF] hover:underline">{ts('openFacility')}</Link></p>
+                    )}
                     {!isBooked && !isActive && !isWrittenOff && !advanceHeld && <p className="text-[12px] text-[#697386]">This account is {acc.status.replace(/_/g, ' ').toLowerCase()}; no servicing actions are available.</p>}
                     <WhyBlocked caps={caps.caps} actions={ACTIONS} />
 
@@ -174,7 +186,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'settle' && <SettlementPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'payoff' && <PayoffLettersPanel loanId={id} can={c} onDone={done} onClose={close} />}
-                    {panel === 'remedies' && <ArrearsRemediesPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'remedies' && <ArrearsRemediesPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={(m) => { demands.reload(); done(m); }} onClose={() => { demands.reload(); close(); }} />}
                     {panel === 'writeoff' && <WriteOffPanel loanId={id} currency={cur} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'group-repay' && (
                         <div className="space-y-2">
@@ -216,7 +228,7 @@ export function LoanDetailView({ id }: { id: string }) {
                 </Card>
             )}
 
-            <LoanCollateralCard loanId={id} currency={cur} status={acc.status} />
+            <LoanCollateralCard loanId={id} currency={cur} status={acc.status} can={c} />
             <LoanRecoveryCard loanId={id} currency={cur} can={c} onChanged={() => { loan.reload(); caps.reload(); }} />
 
             <LoanMandatesCard loanId={id} status={acc.status} can={c} />
@@ -231,7 +243,7 @@ export function LoanDetailView({ id }: { id: string }) {
                                     <td className={td}><span className="font-mono text-[12px]">{t.action}</span></td>
                                     <td className={td}><StatusBadge status={t.status} /></td>
                                     <td className={tdR}>{t.amount ? <MoneyCell value={t.amount} currency={t.currency ?? cur} /> : '—'}</td>
-                                    <td className={td}><span className="font-mono text-[11px]">{t.makerId.slice(0, 8)}</span></td>
+                                    <td className={td}>{t.makerEmail ? <span className="text-[12px]">{t.makerEmail}</span> : <Person id={t.makerId} className="text-[12px]" />}</td>
                                     <td className={`${td} whitespace-nowrap`}>{fmtDateTime(t.createdAt)}</td>
                                 </tr>
                             ))}
@@ -284,7 +296,7 @@ export function LoanDetailView({ id }: { id: string }) {
                                     <td className={td}><span className="font-mono text-[11px]">{v.engineVersion}</span></td>
                                     <td className={td}><span className="font-mono text-[11px]" title={v.configHash}>{v.configHash?.slice(0, 12)}</span></td>
                                     <td className={`${td} whitespace-nowrap`}>{fmtDateTime(v.createdAt)}</td>
-                                    <td className={td}><span className="font-mono text-[11px]">{v.createdBy?.slice(0, 8)}</span></td>
+                                    <td className={td}><Person id={v.createdBy} className="text-[12px]" /></td>
                                 </tr>
                             ))}
                         </tbody>

@@ -8,6 +8,7 @@ import { clean, idem, useAction, useIdempotencyKey } from '../useAsync';
 import { Money } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
 import type { ApprovalTask, LoanAccount } from '../types';
+import { useMyId } from '../access/common';
 
 type Can = (code: string) => { allowed: boolean; reason?: string };
 
@@ -33,6 +34,8 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
     const [problem, setProblem] = useState('');
+    // Down-payment problems show next to the down-payment form, which is used before approval.
+    const [dpProblem, setDpProblem] = useState('');
     const { busy, error, run, clearError } = useAction();
     const execKey = useIdempotencyKey();
     const dpKey = useIdempotencyKey();
@@ -47,12 +50,13 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     const prep = can('loan.disbursement.prepare');
     const appr = can('loan.disbursement.approve');
     const exec = can('loan.disbursement.execute');
-    const post = can('loan.repayment.post');
+    const recordDp = can('loan.down_payment.record');
+    const me = useMyId();
 
     const recordDownPayment = async () => {
-        if (!/^\d+(\.\d{1,4})?$/.test(dp.amount.trim())) { setProblem('Down payment must be a decimal amount.'); return; }
-        if (dp.externalReference.trim().length < 2) { setProblem('Receipt reference must be at least 2 characters.'); return; }
-        setProblem('');
+        if (!/^\d+(\.\d{1,4})?$/.test(dp.amount.trim()) || !/[1-9]/.test(dp.amount)) { setDpProblem('Down payment must be a positive decimal amount.'); return; }
+        if (dp.externalReference.trim().length < 2) { setDpProblem('Receipt reference must be at least 2 characters.'); return; }
+        setDpProblem('');
         const body = { amount: dp.amount.trim(), collectedBy: dp.collectedBy, externalReference: dp.externalReference.trim() };
         const res = await run('dp', () => api.post(`/lending/loans/${loanId}/down-payments`, body, idem(dpKey.keyFor(body))));
         if (res) {
@@ -118,9 +122,9 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
                 <div key={t.id} className="flex flex-wrap items-center gap-2 text-[13px]">
                     <StatusBadge status={t.status} />
                     <span>Disbursement task {t.amount && <Money value={t.amount} currency={t.currency ?? currency} />}</span>
-                    <span className="font-mono text-[11px] text-[#8792A2]">maker {t.makerId.slice(0, 8)}</span>
-                    <Btn size="sm" variant="primary" onClick={() => decide(t, true)} busy={busy === `decide-${t.id}`} disabled={!appr.allowed} reason={appr.reason}>Approve</Btn>
-                    <Btn size="sm" variant="danger" onClick={() => decide(t, false)} disabled={!appr.allowed || busy === `decide-${t.id}`} reason={appr.reason}>Reject</Btn>
+                    <span className="text-[11px] text-[#8792A2]">maker {t.makerEmail ?? t.makerId.slice(0, 8)}</span>
+                    {t.makerId !== me && <Btn size="sm" variant="primary" onClick={() => decide(t, true)} busy={busy === `decide-${t.id}`} disabled={!appr.allowed} reason={appr.reason}>Approve</Btn>}
+                    {t.makerId !== me && <Btn size="sm" variant="danger" onClick={() => decide(t, false)} disabled={!appr.allowed || busy === `decide-${t.id}`} reason={appr.reason}>Reject</Btn>}
                 </div>
             ))}
 
@@ -132,12 +136,12 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
                         The disbursement is refused until the agreed down payment has been received; what we hold is paid out with the proceeds.
                     </div>
                     <div className="flex flex-wrap items-end gap-2">
-                        <Field label="Amount"><TextInput value={dp.amount} onChange={(v) => setDp({ ...dp, amount: v })} inputMode="decimal" className="w-32" /></Field>
+                        <Field label="Amount" error={dpProblem || undefined}><TextInput value={dp.amount} onChange={(v) => setDp({ ...dp, amount: v })} inputMode="decimal" className="w-32" /></Field>
                         <Field label="Collected by">
                             <SelectInput value={dp.collectedBy} onChange={(v) => setDp({ ...dp, collectedBy: v })} options={[{ value: 'LENDER', label: 'Us (held until payout)' }, { value: 'SELLER', label: 'Seller directly' }]} />
                         </Field>
                         <Field label="Receipt reference"><TextInput value={dp.externalReference} onChange={(v) => setDp({ ...dp, externalReference: v })} maxLength={120} className="w-44" /></Field>
-                        <Btn onClick={recordDownPayment} busy={busy === 'dp'} disabled={!post.allowed} reason={post.reason}>Record down payment</Btn>
+                        <Btn onClick={recordDownPayment} busy={busy === 'dp'} disabled={!recordDp.allowed} reason={recordDp.reason}>Record down payment</Btn>
                     </div>
                 </div>
             )}

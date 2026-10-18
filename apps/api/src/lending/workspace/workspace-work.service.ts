@@ -141,9 +141,10 @@ const QUEUE_HREF: Record<string, string> = {
   DISBURSEMENTS_TO_APPROVE: '/lending/loans',
   DISBURSEMENTS_TO_EXECUTE: '/lending/loans',
   WRITE_OFFS_TO_APPROVE: '/lending/loans',
-  FEE_WAIVERS_TO_APPROVE: '/lending/loans',
-  REFUNDS_TO_APPROVE: '/lending/suspense',
-  SET_OFFS_TO_APPROVE: '/lending/collections',
+  FEE_WAIVERS_TO_APPROVE: '/lending/approvals?action=FEE_WAIVER',
+  // Advance refunds are listed there; unidentified-payment refunds link on to Suspense.
+  REFUNDS_TO_APPROVE: '/lending/approvals?action=ADVANCE_REFUND',
+  SET_OFFS_TO_APPROVE: '/lending/approvals?action=SET_OFF',
   COLLATERAL_RELEASES_TO_APPROVE: '/lending/loans',
   RECOVERY_TO_APPROVE: '/lending/recovery',
   PAYOUTS_TO_APPROVE: '/lending/trade',

@@ -12,6 +12,7 @@ import { AcceptanceTimeline } from './AcceptanceTimeline';
 import { ApprovalTimeline } from './ApprovalTimeline';
 import { SimulationView, WarningsView, ComparisonTable } from './SimulationView';
 import { shortHash } from './labels';
+import { useBusinessDate } from '../useBusinessDate';
 
 /** One proposal version: terms, approval and acceptance timelines, and its actions. */
 export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
@@ -23,12 +24,14 @@ export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
     const [note, setNote] = useState('');
     const [method, setMethod] = useState('SIGNED_FORM');
     const [evidence, setEvidence] = useState('');
-    const [now] = useState(() => Date.now());
+    // Expiry is a business date, as the API measures it: expired once the business date is past it.
+    const businessDate = useBusinessDate();
 
     const approvals = p.approvals ?? [];
     const acceptances = p.acceptances ?? [];
     const approvedCount = approvals.filter((a) => (a.decision ?? 'APPROVE') === 'APPROVE').length;
-    const expired = !!p.expiresAt && new Date(p.expiresAt).getTime() < now;
+    const expiresOn = p.expiresAt ? p.expiresAt.slice(0, 10) : null;
+    const expired = !!expiresOn && expiresOn < businessDate;
     const canApprove = p.status === 'PROPOSED' && !expired;
     const canAccept = p.status === 'APPROVED' && !expired;
     const exceptions = p.policyExceptions ?? [];
@@ -58,7 +61,7 @@ export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
                 <KV cols={4} items={[
                     ['Status', <StatusBadge key="s" status={p.status} />],
                     ['Effective date', p.effectiveDate],
-                    ['Expires', p.expiresAt ? <span key="e" className={expired ? 'text-red-700 font-semibold' : ''}>{fmtDateTime(p.expiresAt)}</span> : '—'],
+                    ['Expires', p.expiresAt ? <span key="e" className={expired ? 'text-red-700 font-semibold' : ''}>{expiresOn}</span> : '—'],
                     ['Approvals', <span key="a" className={approvedCount >= (p.approvalsRequired ?? 1) ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>{approvedCount} of {p.approvalsRequired ?? 1} required</span>],
                     ['Proposed by', p.makerId ?? (p as { proposedBy?: string }).proposedBy ?? '—'],
                     ['Created', fmtDateTime(p.createdAt)],

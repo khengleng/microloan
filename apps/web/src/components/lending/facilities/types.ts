@@ -129,8 +129,10 @@ export interface FacilityLimitChange {
     id: string;
     previousLimit: string;
     newLimit: string;
-    /** INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT */
+    /** INCREASE, DECREASE, RENEWAL (older rows may carry EXTENSION, SUSPENSION, REINSTATEMENT) */
     changeType: string;
+    /** RENEWAL: months the availability end and maturity move by. */
+    renewalMonths?: number | null;
     reason: string;
     effectiveDate: string | null;
     /** REQUESTED, APPROVED, REJECTED */
@@ -144,6 +146,8 @@ export interface FacilityLimitChange {
 }
 
 export interface FacilityDetail {
+    /** Set on invoice finance, factoring, supply-chain finance and forfaiting lines. */
+    receivablesKind?: string | null;
     facility: FacilitySummary;
     /** Set when this line is a credit card's (LT-07): card money moves on the card. */
     card?: { id: string; reference: string; status: string } | null;
@@ -176,7 +180,13 @@ export interface TermOutPlan {
     months: number;
 }
 
-export const LIMIT_CHANGE_TYPES = ['INCREASE', 'DECREASE', 'EXTENSION', 'SUSPENSION', 'REINSTATEMENT'];
+/**
+ * Kinds of limit change a maker can request. The API applies every kind as a
+ * new limit amount; only a RENEWAL also moves the availability end and
+ * maturity (by `renewalMonths`). Suspending or reinstating a line is a status
+ * change (POST /status), not a limit change, so it is not offered here.
+ */
+export const LIMIT_CHANGE_TYPES = ['INCREASE', 'DECREASE', 'RENEWAL'];
 
 export const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 export const CODE_RE = /^[A-Z0-9][A-Z0-9_.-]{1,47}$/;

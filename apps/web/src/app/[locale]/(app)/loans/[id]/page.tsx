@@ -17,6 +17,7 @@ import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { RiskDecisionPanel } from '@/components/RiskDecisionPanel';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
+import { LegacyDocumentsCard, LegacyLoanDangerZone, LegacyRepaymentsCard, PromisesToPayCard } from '@/components/LegacyLoanTools';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -45,8 +46,10 @@ interface Loan {
     startDate: string;
     interestMethod: string;
     status: string;
+    currency?: string;
     schedules: ScheduleItem[];
     repayments: any[];
+    documents?: { id: string; name: string; content: string; type: string; createdAt: string }[];
     collaterals: any[];
     guarantors: any[];
     interactions: any[];
@@ -369,6 +372,12 @@ export default function LoanDetailsPage() {
                             )}
                         </div>
                     </div>
+
+                    {/* Promises to pay (UC-59), repayment reversal, documents, write-off / delete */}
+                    <PromisesToPayCard loanId={loan.id} open={loan.status === 'DISBURSED' || loan.status === 'DEFAULTED'} />
+                    <LegacyRepaymentsCard repayments={loan.repayments} currency={loan.currency ?? 'USD'} onChanged={fetchLoan} />
+                    <LegacyDocumentsCard loanId={loan.id} documents={loan.documents ?? []} onChanged={fetchLoan} />
+                    <LegacyLoanDangerZone loanId={loan.id} status={loan.status} onChanged={fetchLoan} onDeleted={() => router.push(`/${locale}/loans`)} />
 
                     {/* Guarantors */}
                     {loan.guarantors?.length > 0 && (

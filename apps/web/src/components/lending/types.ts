@@ -307,7 +307,7 @@ export interface FinancialEvent {
     journal: { lines: JournalLine[] } | null; allocations: unknown[];
 }
 
-export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; payload?: unknown; createdAt?: string }
+export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; makerEmail?: string | null; payload?: unknown; createdAt?: string }
 
 /** A policy the contract was composed from, frozen at booking (POLICY_MODEL.md). */
 export interface ContractPolicy { kind: string; code: string; version: number; policyVersionId: string; parameters: Record<string, number> }
@@ -323,6 +323,8 @@ export interface LoanDetail {
     schedule: LoanScheduleLine[];
     events: FinancialEvent[];
     tasks: ApprovalTask[];
+    /** Set when this account carries a facility's drawn balance (money goes out by drawdown, never a disbursement). */
+    facility?: { id: string; reference: string; facilityType: string } | null;
     /** Card, BNPL or lease behaviour on this loan (LT-07, LT-11, LT-15). */
     specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | { kind: 'PROJECT_FINANCE' } | { kind: 'TRADE'; direction: 'IMPORT' | 'EXPORT' } | { kind: 'MURABAHA' } | { kind: 'INCOME_CONTINGENT' } | { kind: 'INSTITUTIONAL' } | null;
 }

@@ -41,7 +41,7 @@ export function FeeWaiverPanel({ loanId, tasks, can, onDone, onClose }: {
         <ActionPanel title="Fee waiver" onClose={onClose}>
             {waivers.map((t) => (
                 <Notice key={t.id} tone={t.status === 'APPROVED' ? 'success' : 'warn'} title={`${KINDS.find((k) => k.value === kindOf(t))?.label ?? kindOf(t)} — ${t.status === 'APPROVED' ? 'approved, not yet used' : 'awaiting approval'}`}>
-                    <p>Proposed by <span className="font-mono">{t.makerId.slice(0, 8)}</span>.</p>
+                    <p>Proposed by <span>{t.makerEmail ?? t.makerId.slice(0, 8)}</span>.</p>
                     {t.status === 'PENDING' && (
                         <div className="flex gap-2 mt-2">
                             <Btn size="sm" variant="primary" onClick={() => decide(t.id, true)} busy={busy === `${t.id}:true`} disabled={!approve.allowed} reason={approve.reason}>Approve</Btn>

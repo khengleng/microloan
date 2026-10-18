@@ -644,11 +644,22 @@ export class LendingLoansController {
     @Query('status') status?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
+    @Query('pastDue') pastDue?: string,
   ) {
     return this.servicing.list(actor(req), {
       status,
       search,
       page: page ? Number(page) : 1,
+      pastDue: pastDue === 'true' || pastDue === '1',
+    });
+  }
+
+  /** Fee waivers, advance refunds and set-offs awaiting a second person. */
+  @LendingAction('loan.read')
+  @Get('pending-approvals')
+  pendingApprovals(@Req() req: Req_, @Query('action') action?: string) {
+    return this.servicing.pendingApprovals(actor(req), {
+      action: typeof action === 'string' ? action : undefined,
     });
   }
 
