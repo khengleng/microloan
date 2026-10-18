@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import { Disclosure } from '../ui';
 import { DecisionExplain } from '../DecisionExplain';
 import type { Capabilities } from '../useAsync';
@@ -9,11 +10,12 @@ import type { Capabilities } from '../useAsync';
  * with the policy layers responsible. Server enforcement remains authoritative.
  */
 export function WhyBlocked({ caps, actions }: { caps: Capabilities | undefined; actions: { code: string; label: string }[] }) {
+    const t = useTranslations('LendingOrigination');
     if (!caps) return null;
     const blocked = actions.filter((a) => caps[a.code] && !caps[a.code].allowed);
     if (blocked.length === 0) return null;
     return (
-        <Disclosure summary={`Why can't I… (${blocked.length} action${blocked.length === 1 ? '' : 's'} blocked)`}>
+        <Disclosure summary={t('whyBlocked.summary', { count: blocked.length })}>
             <div className="space-y-3 border border-[#E3E8EE] rounded-md p-3 bg-[#F7FAFC]">
                 {blocked.map((a) => (
                     <div key={a.code}>

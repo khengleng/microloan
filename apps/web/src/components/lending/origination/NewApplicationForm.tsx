@@ -19,6 +19,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initialRefinance = '', groupId: initialGroup = '' }: { onCreated: (id: string) => void; onClose: () => void; refinancesLoanId?: string; groupId?: string }) {
     const tc = useTranslations('Customers');
+    const t = useTranslations('LendingOrigination');
     const { can } = useWorkspace();
     const [search, setSearch] = useState('');
     const [query, setQuery] = useState('');
@@ -60,18 +61,18 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
 
     const borrowerOptions = (borrowers.data?.data ?? []).map((b) => ({
         value: b.id,
-        label: `${[b.firstName, b.lastName].filter(Boolean).join(' ') || '(no name)'}${b.phone ? ` · ${b.phone}` : ''} · ${b.id.slice(0, 8)}`,
+        label: `${[b.firstName, b.lastName].filter(Boolean).join(' ') || t('new.noName')}${b.phone ? ` · ${b.phone}` : ''} · ${b.id.slice(0, 8)}`,
     }));
     // Keep a pasted UUID selectable even when it is not in the search results.
     if (borrowerId && UUID_RE.test(borrowerId) && !borrowerOptions.some((o) => o.value === borrowerId)) {
-        borrowerOptions.unshift({ value: borrowerId, label: `${borrowerId} (pasted)` });
+        borrowerOptions.unshift({ value: borrowerId, label: t('new.pasted', { id: borrowerId }) });
     }
 
     const submit = async () => {
-        const errs = validateTerms(terms);
-        if (!UUID_RE.test(borrowerId.trim())) errs.unshift('Select a borrower or paste a valid borrower UUID.');
-        if (!productId) errs.unshift('Select a product.');
-        if (refinancesLoanId.trim() && !UUID_RE.test(refinancesLoanId.trim())) errs.unshift('The loan to refinance must be a loan account id.');
+        const errs = validateTerms(terms, t);
+        if (!UUID_RE.test(borrowerId.trim())) errs.unshift(t('new.errBorrower'));
+        if (!productId) errs.unshift(t('new.errProduct'));
+        if (refinancesLoanId.trim() && !UUID_RE.test(refinancesLoanId.trim())) errs.unshift(t('new.errRefinance'));
         if (groupProduct === true && !groupId) errs.unshift(tc('groupApp.errNoGroup'));
         if (groupId && groupProduct !== false && group.data && !activeMembers.some((m) => m.borrowerId === borrowerId.trim())) errs.unshift(tc('groupApp.errNotMember'));
         errs.push(...policyProblems(policies, menus, tc));
@@ -92,7 +93,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
     };
 
     return (
-        <ActionPanel title="New application" onClose={onClose}>
+        <ActionPanel title={t('new.title')} onClose={onClose}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="space-y-2">
                     {showGroup && (
@@ -121,35 +122,35 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                         </>
                     )}
                     {!(showGroup && groupId) && (<>
-                    <Field label="Find borrower" hint="Search the borrower register, then pick one below">
+                    <Field label={t('new.findBorrower')} hint={t('new.findBorrowerHint')}>
                         <div className="flex gap-2">
                             <TextInput
                                 value={search}
                                 onChange={setSearch}
-                                placeholder="Name, phone, ID…"
+                                placeholder={t('new.findPlaceholder')}
                                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setQuery(search.trim()); } }}
                             />
-                            <Btn onClick={() => setQuery(search.trim())} busy={borrowers.loading}>Search</Btn>
+                            <Btn onClick={() => setQuery(search.trim())} busy={borrowers.loading}>{t('common.search')}</Btn>
                         </div>
                     </Field>
-                    <Field label="Borrower" error={borrowers.error ? `Could not load borrowers: ${borrowers.error.message}` : undefined}>
+                    <Field label={t('new.borrower')} error={borrowers.error ? t('new.borrowersError', { message: borrowers.error.message }) : undefined}>
                         <SelectInput
                             value={borrowerOptions.some((o) => o.value === borrowerId) ? borrowerId : ''}
                             onChange={setBorrowerId}
                             options={borrowerOptions}
-                            placeholder={borrowers.loading ? 'Loading…' : borrowerOptions.length ? 'Select a borrower' : 'No borrowers found'}
+                            placeholder={borrowers.loading ? tc('loading') : borrowerOptions.length ? t('new.selectBorrower') : t('new.noBorrowers')}
                         />
                     </Field>
-                    <Field label="…or paste borrower UUID">
+                    <Field label={t('new.pasteUuid')}>
                         <TextInput value={borrowerId} onChange={setBorrowerId} placeholder="00000000-0000-0000-0000-000000000000" className="font-mono" />
                     </Field>
                     </>)}
                 </div>
                 <div className="space-y-2">
                     <Field
-                        label="Product"
-                        hint="Only products with an active version can take applications"
-                        error={products.error ? `Could not load products: ${products.error.message}` : undefined}
+                        label={t('new.product')}
+                        hint={t('new.productHint')}
+                        error={products.error ? t('new.productsError', { message: products.error.message }) : undefined}
                     >
                         <SelectInput
                             value={productId}
@@ -158,28 +159,28 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                                 value: p.id,
                                 label: `${p.name} (${p.code})${p.activeVersion && typeof p.activeVersion === 'object' ? ` · v${p.activeVersion.version}` : ''}`,
                             }))}
-                            placeholder={products.loading ? 'Loading…' : activeProducts.length ? 'Select a product' : 'No active products'}
+                            placeholder={products.loading ? tc('loading') : activeProducts.length ? t('new.selectProduct') : t('new.noProducts')}
                         />
                     </Field>
-                    <Field label="Purpose" hint="Optional">
+                    <Field label={t('common.purpose')} hint={t('common.optional')}>
                         <TextArea value={purpose} onChange={setPurpose} rows={2} maxLength={500} />
                     </Field>
-                    <Field label="Refinances loan" hint="Optional — the new loan pays this loan off at disbursement (same borrower; the product must allow refinancing)">
-                        <TextInput value={refinancesLoanId} onChange={setRefinancesLoanId} placeholder="Loan account id" className="font-mono" />
+                    <Field label={t('new.refinances')} hint={t('new.refinancesHint')}>
+                        <TextInput value={refinancesLoanId} onChange={setRefinancesLoanId} placeholder={t('new.loanAccountId')} className="font-mono" />
                     </Field>
                 </div>
             </div>
             <TermsFields value={terms} onChange={setTerms} />
             <PolicyChoices productVersionId={versionId} value={policies} onChange={setPolicies} />
             {localErrors.length > 0 && (
-                <Notice tone="warn" title="Please fix">
+                <Notice tone="warn" title={t('common.pleaseFix')}>
                     <ul className="list-disc pl-4">{localErrors.map((e) => <li key={e}>{e}</li>)}</ul>
                 </Notice>
             )}
             <ErrorBox error={error} onDismiss={clearError} />
             <div className="flex gap-2">
-                <Btn variant="primary" onClick={submit} busy={busy === 'create'}>Create draft application</Btn>
-                <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+                <Btn variant="primary" onClick={submit} busy={busy === 'create'}>{t('new.create')}</Btn>
+                <Btn variant="ghost" onClick={onClose}>{tc('cancel')}</Btn>
             </div>
         </ActionPanel>
     );

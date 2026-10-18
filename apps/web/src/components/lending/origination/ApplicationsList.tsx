@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -16,6 +17,7 @@ export const APPLICATION_STATUSES = ['DRAFT', 'SUBMITTED', 'RECOMMENDED', 'APPRO
 const PAGE_SIZE = 50;
 
 export function ApplicationsList() {
+    const t = useTranslations('LendingOrigination');
     const href = useLendingHref();
     const router = useRouter();
     const [status, setStatus] = useState('');
@@ -38,7 +40,7 @@ export function ApplicationsList() {
         <LendingShell
             title="Applications"
             subtitle="Origination pipeline: draft → submitted → recommended → approved → booked."
-            actions={<Btn variant="primary" onClick={() => setCreating(true)} disabled={creating}>New application</Btn>}
+            actions={<Btn variant="primary" onClick={() => setCreating(true)} disabled={creating}>{t('list.newApplication')}</Btn>}
         >
             {creating && (
                 <NewApplicationForm
@@ -49,42 +51,42 @@ export function ApplicationsList() {
                 />
             )}
             <Card
-                title="Applications"
-                subtitle={data ? `${total} application${total === 1 ? '' : 's'}` : undefined}
+                title={t('list.title')}
+                subtitle={data ? t('list.count', { count: total }) : undefined}
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
                         <SelectInput
                             value={status}
                             onChange={(v) => { setStatus(v); setPage(1); }}
                             options={APPLICATION_STATUSES}
-                            placeholder="All statuses"
+                            placeholder={t('list.allStatuses')}
                             className="w-40"
                         />
                         <TextInput
                             value={search}
                             onChange={setSearch}
-                            placeholder="Search reference…"
+                            placeholder={t('list.searchPlaceholder')}
                             className="w-48"
                             onKeyDown={(e) => { if (e.key === 'Enter') { setQuery(search.trim()); setPage(1); } }}
                         />
-                        <Btn onClick={() => { setQuery(search.trim()); setPage(1); }}>Search</Btn>
-                        <Btn variant="ghost" onClick={reload}>Refresh</Btn>
+                        <Btn onClick={() => { setQuery(search.trim()); setPage(1); }}>{t('common.search')}</Btn>
+                        <Btn variant="ghost" onClick={reload}>{t('common.refresh')}</Btn>
                     </div>
                 }
                 bodyClass="p-0"
             >
                 {error && <div className="p-4"><ErrorBox error={error} /></div>}
                 {loading && !data ? <Spinner /> : rows.length === 0 ? (
-                    !error && <Empty>No applications match these filters.</Empty>
+                    !error && <Empty>{t('list.empty')}</Empty>
                 ) : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Reference</th>
-                                <th className={th}>Borrower</th>
-                                <th className={th}>Status</th>
-                                <th className={thR}>Requested</th>
-                                <th className={th}>Created</th>
+                                <th className={th}>{t('list.colReference')}</th>
+                                <th className={th}>{t('list.colBorrower')}</th>
+                                <th className={th}>{t('list.colStatus')}</th>
+                                <th className={thR}>{t('list.colRequested')}</th>
+                                <th className={th}>{t('list.colCreated')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -104,9 +106,9 @@ export function ApplicationsList() {
                 )}
                 {pages > 1 && (
                     <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#E3E8EE] text-[12px] text-[#697386]">
-                        <Btn size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Btn>
-                        Page {page} of {pages}
-                        <Btn size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Btn>
+                        <Btn size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('list.previous')}</Btn>
+                        {t('list.pageOf', { page, pages })}
+                        <Btn size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>{t('list.next')}</Btn>
                     </div>
                 )}
             </Card>

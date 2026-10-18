@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import { Field, TextInput } from '../ui';
 import { isDecimalString, percentToFraction, shiftDecimal } from '../format';
 import type { Terms } from '../types';
@@ -35,15 +36,15 @@ export function draftFromTerms(t: Partial<Terms> | null | undefined): TermsDraft
     };
 }
 
-/** Client-side checks; returns a list of problems (empty = OK). */
-export function validateTerms(d: TermsDraft): string[] {
+/** Client-side checks; returns a list of problems (empty = OK). `t` is the LendingOrigination translator. */
+export function validateTerms(d: TermsDraft, t: (k: string, v?: Record<string, string | number>) => string): string[] {
     const errs: string[] = [];
-    if (!/^\d+(\.\d{1,4})?$/.test(d.principal.trim())) errs.push('Principal must be a decimal amount (up to 4 decimals).');
-    if (d.numberOfInstalments && !/^\d+$/.test(d.numberOfInstalments.trim())) errs.push('Number of instalments must be a whole number.');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.disbursementDate)) errs.push('Disbursement date is required.');
-    if (d.annualRatePct && !isDecimalString(d.annualRatePct)) errs.push('Annual rate must be a decimal percent, e.g. 12.5.');
-    if (d.downPayment && !/^\d+(\.\d{1,4})?$/.test(d.downPayment.trim())) errs.push('Down payment must be a decimal amount.');
-    if (d.declaredAnnualIncome && !/^\d+(\.\d{1,4})?$/.test(d.declaredAnnualIncome.trim())) errs.push('Declared annual income must be a decimal amount.');
+    if (!/^\d+(\.\d{1,4})?$/.test(d.principal.trim())) errs.push(t('terms.errPrincipal'));
+    if (d.numberOfInstalments && !/^\d+$/.test(d.numberOfInstalments.trim())) errs.push(t('terms.errInstalments'));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.disbursementDate)) errs.push(t('terms.errDisbursementDate'));
+    if (d.annualRatePct && !isDecimalString(d.annualRatePct)) errs.push(t('terms.errRate'));
+    if (d.downPayment && !/^\d+(\.\d{1,4})?$/.test(d.downPayment.trim())) errs.push(t('terms.errDownPayment'));
+    if (d.declaredAnnualIncome && !/^\d+(\.\d{1,4})?$/.test(d.declaredAnnualIncome.trim())) errs.push(t('terms.errDeclaredIncome'));
     return errs;
 }
 
@@ -66,34 +67,35 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
 }
 
 export function TermsFields({ value, onChange, currency }: { value: TermsDraft; onChange: (v: TermsDraft) => void; currency?: string }) {
+    const t = useTranslations('LendingOrigination');
     const set = (k: keyof TermsDraft) => (v: string) => onChange({ ...value, [k]: v });
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <Field label={`Principal${currency ? ` (${currency})` : ''}`}>
+            <Field label={currency ? t('terms.principalIn', { currency }) : t('terms.principal')}>
                 <TextInput value={value.principal} onChange={set('principal')} inputMode="decimal" placeholder="10000.00" />
             </Field>
-            <Field label="Number of instalments" hint="Optional — product default if blank">
+            <Field label={t('terms.instalments')} hint={t('terms.instalmentsHint')}>
                 <TextInput value={value.numberOfInstalments} onChange={set('numberOfInstalments')} inputMode="numeric" />
             </Field>
-            <Field label="Annual rate (%)" hint="Optional — e.g. 12.5 for 12.5%">
+            <Field label={t('terms.annualRate')} hint={t('terms.annualRateHint')}>
                 <TextInput value={value.annualRatePct} onChange={set('annualRatePct')} inputMode="decimal" />
             </Field>
-            <Field label="Disbursement date">
+            <Field label={t('terms.disbursementDate')}>
                 <TextInput type="date" value={value.disbursementDate} onChange={set('disbursementDate')} />
             </Field>
-            <Field label="First due date" hint="Optional">
+            <Field label={t('terms.firstDueDate')} hint={t('common.optional')}>
                 <TextInput type="date" value={value.firstDueDate} onChange={set('firstDueDate')} />
             </Field>
-            <Field label={`Down payment${currency ? ` (${currency})` : ''}`} hint="Optional — paid by the borrower before disbursement">
+            <Field label={currency ? t('terms.downPaymentIn', { currency }) : t('terms.downPayment')} hint={t('terms.downPaymentHint')}>
                 <TextInput value={value.downPayment} onChange={set('downPayment')} inputMode="decimal" />
             </Field>
-            <Field label="Promotion code" hint="Optional — the product's campaign code for its promotional rate">
+            <Field label={t('terms.promotionCode')} hint={t('terms.promotionCodeHint')}>
                 <TextInput value={value.promotionCode} onChange={set('promotionCode')} maxLength={40} />
             </Field>
-            <Field label="Annual net operating income" hint="Optional — business loans: for debt-service coverage (DSCR)">
+            <Field label={t('terms.noi')} hint={t('terms.noiHint')}>
                 <TextInput value={value.annualNetOperatingIncome} onChange={set('annualNetOperatingIncome')} inputMode="decimal" />
             </Field>
-            <Field label="Declared annual income" hint="Income-contingent loans only — sets the first instalment; leave blank (nil) while studying">
+            <Field label={t('terms.declaredIncome')} hint={t('terms.declaredIncomeHint')}>
                 <TextInput value={value.declaredAnnualIncome} onChange={set('declaredAnnualIncome')} inputMode="decimal" />
             </Field>
         </div>
