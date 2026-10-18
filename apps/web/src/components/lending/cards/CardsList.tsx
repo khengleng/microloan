@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, SelectInput, Spinner, Table, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -14,6 +15,8 @@ const PAGE_SIZE = 50;
 
 /** Credit cards (LT-07): each one rides on a revolving facility booked from a card product. */
 export function CardsList() {
+    const tc = useTranslations('LendingCards');
+    const ts = useTranslations('Status');
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const [page, setPage] = useState(1);
@@ -25,32 +28,32 @@ export function CardsList() {
     return (
         <LendingShell title="Cards" subtitle="Credit cards: purchases, cash advances and instalment plans on a revolving line.">
             <Card
-                title="Cards"
-                subtitle={data ? `${total} card${total === 1 ? '' : 's'}` : undefined}
+                title={tc('common.cards')}
+                subtitle={data ? tc('list.count', { count: total }) : undefined}
                 bodyClass="p-0"
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
-                        <SelectInput value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={['ACTIVE', 'BLOCKED', 'CLOSED']} placeholder="All statuses" className="w-40" />
-                        <Btn variant="ghost" onClick={reload}>Refresh</Btn>
+                        <SelectInput value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={['ACTIVE', 'BLOCKED', 'CLOSED'].map((v) => ({ value: v, label: ts.has(v) ? ts(v) : tc(`list.status.${v}`) }))} placeholder={tc('list.allStatuses')} className="w-40" />
+                        <Btn variant="ghost" onClick={reload}>{tc('common.refresh')}</Btn>
                     </div>
                 }
             >
                 {error && <div className="p-4"><ErrorBox error={error} /></div>}
                 {loading && !data ? <Spinner /> : rows.length === 0 ? (
-                    !error && <Empty>No cards yet. Book an application on a credit-card product to issue one.</Empty>
+                    !error && <Empty>{tc('list.empty')}</Empty>
                 ) : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Card</th>
-                                <th className={th}>Number</th>
-                                <th className={th}>Line</th>
-                                <th className={th}>Status</th>
-                                <th className={thR}>Limit</th>
-                                <th className={thR}>Purchases</th>
-                                <th className={thR}>Cash advances</th>
-                                <th className={thR}>Plans</th>
-                                <th className={th}>Stated to</th>
+                                <th className={th}>{tc('list.col.card')}</th>
+                                <th className={th}>{tc('list.col.number')}</th>
+                                <th className={th}>{tc('list.col.line')}</th>
+                                <th className={th}>{tc('list.col.status')}</th>
+                                <th className={thR}>{tc('list.col.limit')}</th>
+                                <th className={thR}>{tc('list.col.purchases')}</th>
+                                <th className={thR}>{tc('list.col.cashAdvances')}</th>
+                                <th className={thR}>{tc('list.col.plans')}</th>
+                                <th className={th}>{tc('list.col.statedTo')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -76,9 +79,9 @@ export function CardsList() {
                 )}
                 {pages > 1 && (
                     <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#E3E8EE] text-[12px] text-[#697386]">
-                        <Btn size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Btn>
-                        Page {page} of {pages}
-                        <Btn size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next</Btn>
+                        <Btn size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tc('list.previous')}</Btn>
+                        {tc('list.page', { page, pages })}
+                        <Btn size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>{tc('list.next')}</Btn>
                     </div>
                 )}
             </Card>

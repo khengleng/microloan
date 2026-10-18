@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Btn, Card, Empty, ErrorBox, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { idem, useAction, useApi, useIdempotencyKey } from '../useAsync';
@@ -20,6 +21,7 @@ const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 export function GroupContributionsPanel({ loanId, onDone, currency }: {
     loanId: string; onDone?: (msg: string) => void; currency?: string;
 }) {
+    const t = useTranslations('LendingGroups');
     const pos = useApi<LoanGroupMembers>(`/lending/loans/${loanId}/group-members`);
     const [amounts, setAmounts] = useState<Record<string, string>>({});
     const [problem, setProblem] = useState('');
@@ -34,15 +36,15 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
 
     if (!d) {
         return (
-            <Card title="Group members">
+            <Card title={t('contrib.title')}>
                 {pos.error ? <ErrorBox error={pos.error} /> : <Spinner />}
             </Card>
         );
     }
     if (!d.group) {
         return (
-            <Card title="Group members">
-                <Empty>This is not a group loan.</Empty>
+            <Card title={t('contrib.title')}>
+                <Empty>{t('contrib.notGroupLoan')}</Empty>
             </Card>
         );
     }
@@ -55,9 +57,9 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
     const fillShare = (borrowerId: string, value: string) => setAmounts((a) => ({ ...a, [borrowerId]: value }));
 
     const post = async () => {
-        if (!validLines) { setProblem('Each amount must be a decimal with up to 4 places.'); return; }
+        if (!validLines) { setProblem(t('contrib.errAmount')); return; }
         const contributions = filled.filter((l) => isPositive(l.amount));
-        if (!contributions.length || !total || !isPositive(total)) { setProblem('Enter at least one member contribution.'); return; }
+        if (!contributions.length || !total || !isPositive(total)) { setProblem(t('contrib.errNone')); return; }
         setProblem('');
         const body: GroupRepaymentBody = { amount: total, contributions };
         const k = key.keyFor(body);
@@ -66,7 +68,7 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
             key.reset();
             setAmounts({});
             pos.reload();
-            onDone?.(`Group repayment of ${fmtMoney(total)} posted`);
+            onDone?.(t('contrib.posted', { amount: fmtMoney(total) }));
         }
     };
 
@@ -80,21 +82,21 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
 
     return (
         <Card
-            title="Group members"
-            subtitle={<>Liability <StatusBadge status={d.liability} className="ml-1" /> · principal outstanding <MoneyCell value={d.outstanding} currency={currency} /></>}
+            title={t('contrib.title')}
+            subtitle={<>{t('common.liability')} <StatusBadge status={d.liability} className="ml-1" /> · {t('contrib.principalOutstanding')} <MoneyCell value={d.outstanding} currency={currency} /></>}
             bodyClass="p-0"
-            actions={<Btn variant="ghost" size="sm" onClick={pos.reload}>Refresh</Btn>}
+            actions={<Btn variant="ghost" size="sm" onClick={pos.reload}>{t('common.refresh')}</Btn>}
         >
             <Table>
                 <thead>
                     <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                        <th className={th}>Member</th>
-                        <th className={thR}>Share</th>
-                        <th className={thR}>Fraction</th>
-                        <th className={thR}>Liable for</th>
-                        <th className={thR}>Exposure today</th>
-                        <th className={thR}>Contributed</th>
-                        <th className={thR}>This payment</th>
+                        <th className={th}>{t('common.member')}</th>
+                        <th className={thR}>{t('common.share')}</th>
+                        <th className={thR}>{t('common.fraction')}</th>
+                        <th className={thR}>{t('common.liableFor')}</th>
+                        <th className={thR}>{t('contrib.exposureToday')}</th>
+                        <th className={thR}>{t('contrib.contributed')}</th>
+                        <th className={thR}>{t('contrib.thisPayment')}</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F0F2F5]">
@@ -106,7 +108,7 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
                             <tr key={m.borrowerId} className="hover:bg-[#F7FAFC]">
                                 <td className={td}>
                                     <span className="font-semibold text-[#1A1F36]">{nameOf(m.borrowerId)}</span>
-                                    {m.role === 'LEADER' && <span className="ml-1.5 text-[11px] font-semibold text-amber-700">Leader</span>}
+                                    {m.role === 'LEADER' && <span className="ml-1.5 text-[11px] font-semibold text-amber-700">{t('common.leader')}</span>}
                                 </td>
                                 <td className={tdR}><MoneyCell value={m.shareAmount} /></td>
                                 <td className={tdR}>{fmtRate(m.shareFraction)}</td>
@@ -123,7 +125,7 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
                                     />
                                     {isPositive(remaining) && (
                                         <button type="button" onClick={() => fillShare(m.borrowerId, remaining)} className="mt-0.5 text-[11px] text-[#635BFF] hover:underline">
-                                            Rest of share: {fmtMoney(remaining)}
+                                            {t('contrib.restOfShare', { amount: fmtMoney(remaining) })}
                                         </button>
                                     )}
                                 </td>
@@ -133,7 +135,7 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
                 </tbody>
                 <tfoot>
                     <tr className="border-t border-[#E3E8EE] bg-[#F7FAFC]">
-                        <td className={`${td} font-bold`} colSpan={6}>Repayment amount (sum of contributions)</td>
+                        <td className={`${td} font-bold`} colSpan={6}>{t('contrib.totalRow')}</td>
                         <td className={tdR}><MoneyCell value={total ?? '0'} currency={currency} strong /></td>
                     </tr>
                 </tfoot>
@@ -142,7 +144,7 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
             <div className="p-4 space-y-3 border-t border-[#E3E8EE]">
                 {problem && <p className="text-[12px] text-red-600">{problem}</p>}
                 <p className="text-[11px] text-[#697386]">
-                    Posts one repayment for the total; the split records who paid. Retrying the same split reuses its idempotency key, so a network retry never posts twice.
+                    {t('contrib.note')}
                 </p>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex items-center gap-2">
@@ -151,23 +153,23 @@ export function GroupContributionsPanel({ loanId, onDone, currency }: {
                         onClick={post}
                         busy={busy === 'repay'}
                         disabled={!total || compareDecimal(total, '0') <= 0}
-                        reason={!total ? 'Fix the highlighted amounts' : undefined}
+                        reason={!total ? t('contrib.fixAmounts') : undefined}
                     >
-                        Post group repayment{total && isPositive(total) ? ` of ${fmtMoney(total)}` : ''}
+                        {total && isPositive(total) ? t('contrib.postAmount', { amount: fmtMoney(total) }) : t('contrib.post')}
                     </Btn>
-                    {filled.length > 0 && <Btn variant="ghost" onClick={() => { setAmounts({}); setProblem(''); }}>Clear</Btn>}
+                    {filled.length > 0 && <Btn variant="ghost" onClick={() => { setAmounts({}); setProblem(''); }}>{t('contrib.clear')}</Btn>}
                 </div>
             </div>
 
             <div className="border-t border-[#E3E8EE]">
-                <p className="px-5 pt-3.5 text-[13px] font-bold text-[#1A1F36]">Past contributions</p>
-                {byEvent.size === 0 ? <Empty>No contributions recorded yet.</Empty> : (
+                <p className="px-5 pt-3.5 text-[13px] font-bold text-[#1A1F36]">{t('contrib.pastTitle')}</p>
+                {byEvent.size === 0 ? <Empty>{t('contrib.pastNone')}</Empty> : (
                     <Table className="mt-2">
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Repayment event</th>
-                                <th className={th}>Member</th>
-                                <th className={thR}>Amount</th>
+                                <th className={th}>{t('contrib.colEvent')}</th>
+                                <th className={th}>{t('common.member')}</th>
+                                <th className={thR}>{t('contrib.colAmount')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">

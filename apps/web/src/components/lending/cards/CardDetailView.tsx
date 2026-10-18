@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, KV, Notice, Spinner, Table, td, tdR, th, thR } from '../ui';
@@ -24,16 +25,10 @@ function Kpi({ label, children, hint }: { label: string; children: ReactNode; hi
     );
 }
 
-const TXN_LABEL: Record<string, string> = {
-    PURCHASE: 'Purchase',
-    CASH_ADVANCE: 'Cash advance',
-    PAYMENT: 'Payment',
-    PLAN_CONVERSION: 'Converted to plan',
-    PLAN_BILLING: 'Plan instalment billed',
-};
 
 /** A credit card (LT-07): balances by kind, statements with the grace period, plans. */
 export function CardDetailView({ id }: { id: string }) {
+    const tc = useTranslations('LendingCards');
     const href = useLendingHref();
     const { showToast } = useToast();
     const res = useApi<CardDetail>(`/lending/cards/${id}`);
@@ -42,7 +37,7 @@ export function CardDetailView({ id }: { id: string }) {
 
     if (!d) {
         return (
-            <LendingShell title="Card" back={{ href: '/lending/cards', label: 'Cards' }}>
+            <LendingShell title={tc('detail.title')} back={{ href: '/lending/cards', label: tc('common.cards') }}>
                 {res.error ? <ErrorBox error={res.error} /> : <Spinner />}
             </LendingShell>
         );
@@ -66,46 +61,46 @@ export function CardDetailView({ id }: { id: string }) {
     return (
         <LendingShell
             title={<span className="flex items-center gap-2">{d.card.reference} <span className="font-mono text-[14px] text-[#697386]">{d.card.maskedNumber}</span> <StatusBadge status={d.card.status} /></span>}
-            subtitle={`Purchases ${fmtRate(d.terms.purchaseAnnualRate)} · cash advances ${fmtRate(d.terms.cashAdvanceAnnualRate)} from day one · payment due ${d.terms.paymentDueDays} days after each statement`}
-            back={{ href: '/lending/cards', label: 'Cards' }}
+            subtitle={tc('detail.subtitle', { purchaseRate: fmtRate(d.terms.purchaseAnnualRate), cashRate: fmtRate(d.terms.cashAdvanceAnnualRate), days: d.terms.paymentDueDays })}
+            back={{ href: '/lending/cards', label: tc('common.cards') }}
             actions={
                 <>
-                    <Link href={href(`/lending/facilities/${d.facility.id}`)} className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">Credit line →</Link>
-                    <Link href={href(`/lending/loans/${d.loanAccountId}`)} className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">Ledger account →</Link>
-                    <Btn variant="ghost" onClick={res.reload}>Refresh</Btn>
+                    <Link href={href(`/lending/facilities/${d.facility.id}`)} className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">{tc('detail.creditLine')} →</Link>
+                    <Link href={href(`/lending/loans/${d.loanAccountId}`)} className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">{tc('detail.ledgerAccount')} →</Link>
+                    <Btn variant="ghost" onClick={res.reload}>{tc('common.refresh')}</Btn>
                 </>
             }
         >
             {res.error && <ErrorBox error={res.error} />}
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                <Kpi label="Limit"><Money value={d.facility.limitAmount} currency={cur} /></Kpi>
-                <Kpi label="Available" hint={`Cash available ${cur} ${p.cashAvailable}`}><Money value={p.available} currency={cur} /></Kpi>
-                <Kpi label="Purchases"><Money value={p.purchaseBalance} currency={cur} /></Kpi>
-                <Kpi label="Cash advances"><Money value={p.cashBalance} currency={cur} /></Kpi>
-                <Kpi label="Instalment plans"><Money value={p.planBalance} currency={cur} /></Kpi>
-                <Kpi label="Total owed" hint={`Interest ${p.interestOwed} · fees ${p.feesOwed}`}><Money value={p.totalOwed} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.limit')}><Money value={d.facility.limitAmount} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.available')} hint={tc('kpi.cashAvailable', { amount: `${cur} ${p.cashAvailable}` })}><Money value={p.available} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.purchases')}><Money value={p.purchaseBalance} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.cashAdvances')}><Money value={p.cashBalance} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.instalmentPlans')}><Money value={p.planBalance} currency={cur} /></Kpi>
+                <Kpi label={tc('kpi.totalOwed')} hint={tc('kpi.totalOwedHint', { interest: p.interestOwed, fees: p.feesOwed })}><Money value={p.totalOwed} currency={cur} /></Kpi>
             </div>
 
-            {p.daysPastDue > 0 && <Notice tone="danger" title={`${p.daysPastDue} days past due`}>A minimum payment was not received by its due date.</Notice>}
+            {p.daysPastDue > 0 && <Notice tone="danger" title={tc('detail.daysPastDue', { days: p.daysPastDue })}>{tc('detail.minimumMissed')}</Notice>}
             {last && (
-                <Notice tone={isPositive(last.toPayInFull) ? 'info' : 'success'} title={`Last statement: ${cur} ${last.statementBalance}, due ${last.dueDate}`}>
-                    Minimum payment {cur} {last.minimumPayment}. Paid since the statement: {cur} {last.paidSinceStatement}.{' '}
+                <Notice tone={isPositive(last.toPayInFull) ? 'info' : 'success'} title={tc('detail.lastStatement', { amount: `${cur} ${last.statementBalance}`, dueDate: last.dueDate })}>
+                    {tc('detail.lastStatementBody', { minimum: `${cur} ${last.minimumPayment}`, paid: `${cur} ${last.paidSinceStatement}` })}{' '}
                     {isPositive(last.toPayInFull)
-                        ? <>Pay {cur} {last.toPayInFull} more by {last.dueDate} to keep the purchase grace period.</>
-                        : <>Paid in full — purchases stay interest-free next cycle.</>}
+                        ? <>{tc('detail.payToKeepGrace', { amount: `${cur} ${last.toPayInFull}`, dueDate: last.dueDate })}</>
+                        : <>{tc('detail.paidInFull')}</>}
                 </Notice>
             )}
 
-            <Card title="Card actions" subtitle="The server re-checks limits, policy and idempotency on every action.">
+            <Card title={tc('actions.title')} subtitle={tc('actions.subtitle')}>
                 <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
-                        {active && <Btn variant="primary" onClick={() => toggle('purchase')}>Purchase</Btn>}
-                        {active && <Btn onClick={() => toggle('cash')}>Cash advance</Btn>}
-                        {open && <Btn variant="primary" onClick={() => toggle('pay')} disabled={!isPositive(p.totalOwed)}>Payment</Btn>}
-                        {open && <Btn onClick={() => toggle('statement')}>Generate statement</Btn>}
-                        {active && offer && <Btn onClick={() => toggle('plan')} disabled={convertible.length === 0} reason={convertible.length ? undefined : `No purchase of ${cur} ${offer.minAmount} or more in the current cycle`}>Instalment plan</Btn>}
-                        {open && <Btn variant="danger" onClick={() => toggle('close')} disabled={isPositive(p.totalOwed)} reason={isPositive(p.totalOwed) ? 'Repay everything owed first' : undefined}>Close card</Btn>}
+                        {active && <Btn variant="primary" onClick={() => toggle('purchase')}>{tc('actions.purchase')}</Btn>}
+                        {active && <Btn onClick={() => toggle('cash')}>{tc('actions.cashAdvance')}</Btn>}
+                        {open && <Btn variant="primary" onClick={() => toggle('pay')} disabled={!isPositive(p.totalOwed)}>{tc('actions.payment')}</Btn>}
+                        {open && <Btn onClick={() => toggle('statement')}>{tc('actions.generateStatement')}</Btn>}
+                        {active && offer && <Btn onClick={() => toggle('plan')} disabled={convertible.length === 0} reason={convertible.length ? undefined : tc('actions.noConvertible', { amount: `${cur} ${offer.minAmount}` })}>{tc('actions.instalmentPlan')}</Btn>}
+                        {open && <Btn variant="danger" onClick={() => toggle('close')} disabled={isPositive(p.totalOwed)} reason={isPositive(p.totalOwed) ? tc('actions.repayFirst') : undefined}>{tc('actions.closeCard')}</Btn>}
                     </div>
                     {panel === 'purchase' && <SpendPanel cardId={id} currency={cur} kind="PURCHASE" available={p.available} onDone={done} onClose={close} />}
                     {panel === 'cash' && <SpendPanel cardId={id} currency={cur} kind="CASH_ADVANCE" available={p.cashAvailable} onDone={done} onClose={close} />}
@@ -116,15 +111,15 @@ export function CardDetailView({ id }: { id: string }) {
                 </div>
             </Card>
 
-            <Card title="Statements" subtitle="Purchase interest is computed every cycle and waived when the previous statement was paid in full by its due date." bodyClass="p-0">
-                {d.statements.length === 0 ? <Empty>No statements yet.</Empty> : (
+            <Card title={tc('statements.title')} subtitle={tc('statements.subtitle')} bodyClass="p-0">
+                {d.statements.length === 0 ? <Empty>{tc('statements.empty')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>#</th><th className={th}>Period</th><th className={th}>Due</th>
-                                <th className={thR}>Statement balance</th><th className={thR}>Minimum</th>
-                                <th className={thR}>Purchase interest</th><th className={thR}>Waived</th><th className={thR}>Cash interest</th>
-                                <th className={thR}>Plan billed</th><th className={th}>Grace</th>
+                                <th className={th}>#</th><th className={th}>{tc('statements.col.period')}</th><th className={th}>{tc('statements.col.due')}</th>
+                                <th className={thR}>{tc('statements.col.balance')}</th><th className={thR}>{tc('statements.col.minimum')}</th>
+                                <th className={thR}>{tc('statements.col.purchaseInterest')}</th><th className={thR}>{tc('statements.col.waived')}</th><th className={thR}>{tc('statements.col.cashInterest')}</th>
+                                <th className={thR}>{tc('statements.col.planBilled')}</th><th className={th}>{tc('statements.col.grace')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -147,13 +142,13 @@ export function CardDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <Card title="Instalment plans" bodyClass="p-0">
-                {d.plans.length === 0 ? <Empty>No purchase has been converted into instalments.</Empty> : (
+            <Card title={tc('plans.title')} bodyClass="p-0">
+                {d.plans.length === 0 ? <Empty>{tc('plans.empty')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Status</th><th className={thR}>Principal</th><th className={th}>Term</th>
-                                <th className={thR}>Instalment</th><th className={th}>Billed</th><th className={thR}>Remaining</th>
+                                <th className={th}>{tc('plans.col.status')}</th><th className={thR}>{tc('plans.col.principal')}</th><th className={th}>{tc('plans.col.term')}</th>
+                                <th className={thR}>{tc('plans.col.instalment')}</th><th className={th}>{tc('plans.col.billed')}</th><th className={thR}>{tc('plans.col.remaining')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -161,9 +156,9 @@ export function CardDetailView({ id }: { id: string }) {
                                 <tr key={x.id}>
                                     <td className={td}><StatusBadge status={x.status} /></td>
                                     <td className={tdR}><MoneyCell value={x.principal} /></td>
-                                    <td className={td}>{x.months} months at {fmtRate(x.annualRate)}</td>
+                                    <td className={td}>{tc('plans.termValue', { months: x.months, rate: fmtRate(x.annualRate) })}</td>
                                     <td className={tdR}><MoneyCell value={x.instalmentAmount} /></td>
-                                    <td className={td}>{x.billedCount} of {x.months}</td>
+                                    <td className={td}>{tc('plans.billedValue', { billed: x.billedCount, months: x.months })}</td>
                                     <td className={tdR}><MoneyCell value={x.principalRemaining} strong /></td>
                                 </tr>
                             ))}
@@ -172,20 +167,20 @@ export function CardDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <Card title="Transactions" subtitle="Each row moves the card's balances; the balances are always the sum of these rows." bodyClass="p-0">
-                {d.transactions.length === 0 ? <Empty>No transactions yet.</Empty> : (
+            <Card title={tc('transactions.title')} subtitle={tc('transactions.subtitle')} bodyClass="p-0">
+                {d.transactions.length === 0 ? <Empty>{tc('transactions.empty')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Date</th><th className={th}>Type</th><th className={th}>Merchant / detail</th>
-                                <th className={thR}>Amount</th><th className={thR}>Fee</th><th className={thR}>Purchases</th><th className={thR}>Cash</th><th className={thR}>Plans</th>
+                                <th className={th}>{tc('transactions.col.date')}</th><th className={th}>{tc('transactions.col.type')}</th><th className={th}>{tc('transactions.col.detail')}</th>
+                                <th className={thR}>{tc('transactions.col.amount')}</th><th className={thR}>{tc('transactions.col.fee')}</th><th className={thR}>{tc('transactions.col.purchases')}</th><th className={thR}>{tc('transactions.col.cash')}</th><th className={thR}>{tc('transactions.col.plans')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {d.transactions.map((t) => (
                                 <tr key={t.id}>
                                     <td className={`${td} whitespace-nowrap`}>{t.transactionDate}</td>
-                                    <td className={td}>{TXN_LABEL[t.type] ?? t.type}</td>
+                                    <td className={td}>{tc.has(`txn.${t.type}`) ? tc(`txn.${t.type}`) : t.type}</td>
                                     <td className={td}>{t.merchantName || t.description || '—'}</td>
                                     <td className={tdR}><MoneyCell value={t.amount} strong /></td>
                                     <td className={tdR}><MoneyCell value={t.fee} muted /></td>
@@ -199,18 +194,18 @@ export function CardDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <Card title="Terms">
+            <Card title={tc('terms.title')}>
                 <KV
                     cols={4}
                     items={[
-                        ['Purchase rate', fmtRate(d.terms.purchaseAnnualRate)],
-                        ['Cash-advance rate', `${fmtRate(d.terms.cashAdvanceAnnualRate)} from the advance date`],
-                        ['Cash-advance fee', `${d.terms.cashAdvanceFeeRate ? fmtRate(d.terms.cashAdvanceFeeRate) : '—'} (min ${cur} ${d.terms.cashAdvanceFeeMinimum ?? '0'})`],
-                        ['Cash-advance share of limit', fmtRate(d.terms.cashAdvanceLimitShare)],
-                        ['Minimum payment', `charges + plan instalment + ${fmtRate(d.terms.minimumPaymentRate)} of principal (floor ${cur} ${d.terms.minimumPaymentFloor})`],
-                        ['Payment due', `${d.terms.paymentDueDays} days after the statement`],
-                        ['Line availability ends', d.facility.availabilityTo ?? '—'],
-                        ['Instalment plans', offer ? `${offer.allowedMonths.join(' / ')} months at ${fmtRate(offer.annualRate)}, from ${cur} ${offer.minAmount}` : 'Not offered'],
+                        [tc('terms.purchaseRate'), fmtRate(d.terms.purchaseAnnualRate)],
+                        [tc('terms.cashRate'), tc('terms.cashRateValue', { rate: fmtRate(d.terms.cashAdvanceAnnualRate) })],
+                        [tc('terms.cashFee'), tc('terms.cashFeeValue', { rate: d.terms.cashAdvanceFeeRate ? fmtRate(d.terms.cashAdvanceFeeRate) : '—', minimum: `${cur} ${d.terms.cashAdvanceFeeMinimum ?? '0'}` })],
+                        [tc('terms.cashShare'), fmtRate(d.terms.cashAdvanceLimitShare)],
+                        [tc('terms.minimumPayment'), tc('terms.minimumPaymentValue', { rate: fmtRate(d.terms.minimumPaymentRate), floor: `${cur} ${d.terms.minimumPaymentFloor}` })],
+                        [tc('terms.paymentDue'), tc('terms.paymentDueValue', { days: d.terms.paymentDueDays })],
+                        [tc('terms.availabilityEnds'), d.facility.availabilityTo ?? '—'],
+                        [tc('terms.instalmentPlans'), offer ? tc('terms.instalmentPlansValue', { months: offer.allowedMonths.join(' / '), rate: fmtRate(offer.annualRate), minimum: `${cur} ${offer.minAmount}` }) : tc('terms.notOffered')],
                     ]}
                 />
             </Card>

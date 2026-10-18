@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { LendingShell, useLendingHref } from '@/components/lending/LendingShell';
 import { StatusBadge } from '@/components/lending/StatusBadge';
 import { MoneyCell } from '@/components/lending/MoneyCell';
 import { fmtDateTime } from '@/components/lending/format';
+import { Person } from '@/components/lending/People';
 import type { RestructureCase } from '@/components/lending/types';
 import { Btn, Card, Disclosure, Empty, ErrorBox, JsonBlock, KV, Notice, Spinner, Table, Tabs, td, th } from '@/components/lending/ui';
 import { useApi } from '@/components/lending/useAsync';
@@ -17,7 +19,7 @@ import { AffordabilityResult, SpecialistBanner } from '@/components/lending/rest
 import { CompareOptions } from '@/components/lending/restructure/CompareOptions';
 import { ProposalCard } from '@/components/lending/restructure/ProposalCard';
 import { CaseActions, ConditionsPanel } from '@/components/lending/restructure/CaseActions';
-import { DIFFICULTY_TYPES, HARDSHIP_CATEGORIES, labelOf } from '@/components/lending/restructure/labels';
+import { DIFFICULTY_TYPES, HARDSHIP_CATEGORIES, useRestructureLabels } from '@/components/lending/restructure/labels';
 
 type Tab = 'overview' | 'affordability' | 'options' | 'proposals' | 'monitoring';
 
@@ -36,14 +38,16 @@ function lastActive(c: RestructureCase): string {
 }
 
 export default function RestructureCasePage() {
+    const t = useTranslations('LendingRestructure');
+    const L = useRestructureLabels();
     const { id } = useParams<{ id: string }>();
     const href = useLendingHref();
     const { data: c, error, loading, reload } = useApi<RestructureCase>(id ? `/lending/restructures/${id}` : null);
     const [tab, setTab] = useState<Tab>('overview');
     const [assessing, setAssessing] = useState(false);
 
-    if (loading && !c) return <LendingShell title="Restructure case" back={{ href: '/lending/restructures', label: 'Restructures' }}><Spinner /></LendingShell>;
-    if (!c) return <LendingShell title="Restructure case" back={{ href: '/lending/restructures', label: 'Restructures' }}><ErrorBox error={error ?? { message: 'Case not found' }} /></LendingShell>;
+    if (loading && !c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: 'Restructures' }}><Spinner /></LendingShell>;
+    if (!c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: 'Restructures' }}><ErrorBox error={error ?? { message: t('detail.notFound') }} /></LendingShell>;
 
     const working = WORKING.includes(c.status);
     const assessments = c.assessments ?? [];
@@ -55,26 +59,26 @@ export default function RestructureCasePage() {
     const openTasks = (c.tasks ?? []).filter((t) => t.status === 'OPEN').length;
 
     const tabs: { value: Tab; label: string }[] = [
-        { value: 'overview', label: 'Overview & evidence' },
-        { value: 'affordability', label: `Affordability (${assessments.length})` },
-        { value: 'options', label: 'Options simulator' },
-        { value: 'proposals', label: `Proposals (${proposals.length})` },
-        { value: 'monitoring', label: `Conditions & monitoring${outstanding + openTasks ? ` (${outstanding + openTasks})` : ''}` },
+        { value: 'overview', label: t('detail.tabs.overview') },
+        { value: 'affordability', label: t('detail.tabs.affordability', { count: assessments.length }) },
+        { value: 'options', label: t('detail.tabs.options') },
+        { value: 'proposals', label: t('detail.tabs.proposals', { count: proposals.length }) },
+        { value: 'monitoring', label: outstanding + openTasks ? t('detail.tabs.monitoringCount', { count: outstanding + openTasks }) : t('detail.tabs.monitoring') },
     ];
 
     return (
         <LendingShell
-            title={<span className="flex items-center gap-3">Case <span className="font-mono">{c.reference}</span> <StatusBadge status={c.status} /></span>}
-            subtitle={<>Loan <Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[#635BFF] hover:underline">{c.loanAccountId}</Link></>}
+            title={<span className="flex items-center gap-3">{t.rich('detail.title', { reference: c.reference, ref: (ch) => <span className="font-mono">{ch}</span>, badge: () => <StatusBadge status={c.status} /> })}</span>}
+            subtitle={<>{t.rich('detail.subtitle', { id: c.loanAccountId, link: (ch) => <Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[#635BFF] hover:underline">{ch}</Link> })}</>}
             back={{ href: '/lending/restructures', label: 'Restructures' }}
-            actions={<Btn onClick={reload} busy={loading}>Refresh</Btn>}
+            actions={<Btn onClick={reload} busy={loading}>{t('detail.refresh')}</Btn>}
         >
             {error && <ErrorBox error={error} />}
             <Card><CaseStepper status={c.status} lastActiveStatus={lastActive(c)} /></Card>
             {specialist && <SpecialistBanner />}
-            {c.status === 'MORE_INFO_REQUIRED' && <Notice tone="warn" title="More information required">Waiting for the customer to provide more information before assessment can continue.</Notice>}
+            {c.status === 'MORE_INFO_REQUIRED' && <Notice tone="warn" title={t('detail.moreInfoTitle')}>{t('detail.moreInfoBody')}</Notice>}
             {c.previousRestructures > 0 && (
-                <Notice tone="warn" title={`Repeat restructure (${c.previousRestructures} previous)`}>This loan has been restructured before. Repeated restructuring may indicate the problem is not temporary.</Notice>
+                <Notice tone="warn" title={t('detail.repeatTitle', { count: c.previousRestructures })}>{t('detail.repeatBody')}</Notice>
             )}
 
             <Tabs tabs={tabs} value={tab} onChange={setTab} />
@@ -82,27 +86,27 @@ export default function RestructureCasePage() {
             {tab === 'overview' && (
                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 items-start">
                     <div className="space-y-5">
-                        <Card title="Request">
+                        <Card title={t('detail.request')}>
                             <div className="space-y-4">
                                 <KV cols={3} items={[
-                                    ['Trigger', c.trigger.replace(/_/g, ' ')],
-                                    ['Hardship', labelOf(HARDSHIP_CATEGORIES, c.hardshipCategory)],
-                                    ['Difficulty', labelOf(DIFFICULTY_TYPES, c.difficultyType)],
-                                    ['Expected recovery', c.expectedRecoveryDate ?? '—'],
-                                    ['Consent', c.consentRecorded ? <span key="c" className="text-emerald-700 font-semibold">Recorded{c.consentReference ? ` · ${c.consentReference}` : ''}</span> : <span key="c" className="text-amber-700">Not recorded</span>],
-                                    ['Opened', fmtDateTime(c.createdAt)],
+                                    [t('common.trigger'), L.label('trigger', c.trigger)],
+                                    [t('common.hardship'), L.label('hardship', c.hardshipCategory, HARDSHIP_CATEGORIES)],
+                                    [t('common.difficulty'), L.label('difficulty', c.difficultyType, DIFFICULTY_TYPES)],
+                                    [t('detail.expectedRecovery'), c.expectedRecoveryDate ?? '—'],
+                                    [t('detail.consent'), c.consentRecorded ? <span key="c" className="text-emerald-700 font-semibold">{t('common.recorded')}{c.consentReference ? ` · ${c.consentReference}` : ''}</span> : <span key="c" className="text-amber-700">{t('detail.notRecorded')}</span>],
+                                    [t('common.opened'), fmtDateTime(c.createdAt)],
                                 ]} />
                                 <div>
-                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Customer statement</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{t('common.customerStatement')}</p>
                                     <p className="text-[13px] text-[#1A1F36] mt-0.5 whitespace-pre-wrap">{c.customerStatement || '—'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Relief requested</p>
+                                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">{t('detail.reliefRequested')}</p>
                                     <KV cols={4} items={[
-                                        ['Lower instalment', relief.lowerInstalment ? <MoneyCell key="l" value={relief.lowerInstalment} /> : '—'],
-                                        ['Longer term', relief.longerTermMonths ? `${relief.longerTermMonths} months` : '—'],
-                                        ['Payment break', relief.paymentBreakMonths ? `${relief.paymentBreakMonths} months` : '—'],
-                                        ['Note', relief.note || '—'],
+                                        [t('detail.lowerInstalment'), relief.lowerInstalment ? <MoneyCell key="l" value={relief.lowerInstalment} /> : '—'],
+                                        [t('detail.longerTerm'), relief.longerTermMonths ? t('common.months', { count: relief.longerTermMonths }) : '—'],
+                                        [t('detail.paymentBreak'), relief.paymentBreakMonths ? t('common.months', { count: relief.paymentBreakMonths }) : '—'],
+                                        [t('common.note'), relief.note || '—'],
                                     ]} />
                                 </div>
                             </div>
@@ -117,18 +121,18 @@ export default function RestructureCasePage() {
                 <div className="space-y-5">
                     {working && (
                         <Card
-                            title="New affordability assessment"
-                            subtitle="Assessments are immutable. Record a new one when figures change."
-                            actions={<Btn size="sm" onClick={() => setAssessing((a) => !a)}>{assessing ? 'Hide form' : 'Start assessment'}</Btn>}
+                            title={t('detail.newAssessmentTitle')}
+                            subtitle={t('detail.newAssessmentSubtitle')}
+                            actions={<Btn size="sm" onClick={() => setAssessing((a) => !a)}>{assessing ? t('detail.hideForm') : t('detail.startAssessment')}</Btn>}
                         >
                             {assessing ? (
                                 <AffordabilityForm caseId={c.id} onDone={() => { setAssessing(false); reload(); }} />
-                            ) : <p className="text-[12px] text-[#697386]">Choose Individual, Household, Business or Seasonal to capture income, expenses and debts.</p>}
+                            ) : <p className="text-[12px] text-[#697386]">{t('detail.assessmentHint')}</p>}
                         </Card>
                     )}
-                    {assessments.length === 0 ? <Card><Empty>No affordability assessment yet.</Empty></Card> : (
+                    {assessments.length === 0 ? <Card><Empty>{t('detail.noAssessment')}</Empty></Card> : (
                         [...assessments].reverse().map((a, i) => (
-                            <Card key={a.id} title={`${i === 0 ? 'Latest assessment' : 'Earlier assessment'} · ${a.template}`} subtitle={a.createdAt ? fmtDateTime(a.createdAt) : undefined}>
+                            <Card key={a.id} title={t(i === 0 ? 'detail.latestAssessment' : 'detail.earlierAssessment', { template: L.label('template', a.template) })} subtitle={a.createdAt ? fmtDateTime(a.createdAt) : undefined}>
                                 <AffordabilityResult assessment={a} />
                             </Card>
                         ))
@@ -138,15 +142,15 @@ export default function RestructureCasePage() {
 
             {tab === 'options' && (
                 <div className="space-y-4">
-                    {!working && <Notice tone="info">This case is {c.status.replace(/_/g, ' ')}; you can still simulate, but new proposals are not accepted.</Notice>}
-                    {working && !latest && <Notice tone="warn">No affordability assessment yet — simulations cannot say whether an option fits the customer&apos;s budget.</Notice>}
+                    {!working && <Notice tone="info">{t('detail.notWorking', { status: L.status(c.status) })}</Notice>}
+                    {working && !latest && <Notice tone="warn">{t('detail.noAssessmentWarn')}</Notice>}
                     <CompareOptions caseId={c.id} canPropose={working} onProposed={() => { reload(); setTab('proposals'); }} />
                 </div>
             )}
 
             {tab === 'proposals' && (
                 <div className="space-y-5">
-                    {proposals.length === 0 ? <Card><Empty>No proposals yet. Use the options simulator to create one.</Empty></Card> : (
+                    {proposals.length === 0 ? <Card><Empty>{t('detail.noProposals')}</Empty></Card> : (
                         proposals.map((p, i) => <ProposalCard key={p.id} caseId={c.id} proposal={p} onChanged={reload} defaultOpen={i === 0} />)
                     )}
                     <CaseActions c={c} onChanged={reload} />
@@ -156,39 +160,39 @@ export default function RestructureCasePage() {
             {tab === 'monitoring' && (
                 <div className="space-y-5">
                     <ConditionsPanel c={c} onChanged={reload} />
-                    <Card title="Monitoring tasks" bodyClass="p-0">
-                        {(c.tasks ?? []).length === 0 ? <Empty>No tasks.</Empty> : (
+                    <Card title={t('detail.monitoringTasks')} bodyClass="p-0">
+                        {(c.tasks ?? []).length === 0 ? <Empty>{t('detail.noTasks')}</Empty> : (
                             <Table>
-                                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Type</th><th className={th}>Due</th><th className={th}>Status</th><th className={th}>Detail</th></tr></thead>
+                                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('common.type')}</th><th className={th}>{t('common.due')}</th><th className={th}>{t('common.status')}</th><th className={th}>{t('common.detail')}</th></tr></thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
-                                    {c.tasks.map((t) => (
-                                        <tr key={t.id}>
-                                            <td className={`${td} font-semibold`}>{t.type.replace(/_/g, ' ')}</td>
-                                            <td className={`${td} whitespace-nowrap`}>{t.dueDate}</td>
-                                            <td className={td}><StatusBadge status={t.status} /></td>
-                                            <td className={`${td} font-mono text-[11px] break-all`}>{t.detail ? JSON.stringify(t.detail) : '—'}</td>
+                                    {c.tasks.map((task) => (
+                                        <tr key={task.id}>
+                                            <td className={`${td} font-semibold`}>{L.label('taskType', task.type)}</td>
+                                            <td className={`${td} whitespace-nowrap`}>{task.dueDate}</td>
+                                            <td className={td}><StatusBadge status={task.status} /></td>
+                                            <td className={`${td} font-mono text-[11px] break-all`}>{task.detail ? JSON.stringify(task.detail) : '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </Table>
                         )}
                     </Card>
-                    <Card title="Loan amendments" subtitle="Executed changes to the loan agreement." bodyClass="p-0">
-                        {(c.amendments ?? []).length === 0 ? <Empty>Nothing executed yet.</Empty> : (
+                    <Card title={t('detail.amendmentsTitle')} subtitle={t('detail.amendmentsSubtitle')} bodyClass="p-0">
+                        {(c.amendments ?? []).length === 0 ? <Empty>{t('detail.nothingExecuted')}</Empty> : (
                             <div className="divide-y divide-[#F0F2F5]">
                                 {c.amendments.map((a) => {
                                     const x = a as typeof a & { fromAgreementVersion?: number; toAgreementVersion?: number; financialEventId?: string; reversalEventId?: string | null; executedBy?: string };
                                     return (
                                         <div key={x.id} className="px-5 py-3 space-y-2">
                                             <KV cols={4} items={[
-                                                ['Status', <StatusBadge key="s" status={x.status ?? 'EXECUTED'} />],
-                                                ['Agreement version', x.fromAgreementVersion !== undefined ? `v${x.fromAgreementVersion} → v${x.toAgreementVersion}` : x.agreementVersion ?? '—'],
-                                                ['Effective', String(x.effectiveDate ?? '').slice(0, 10) || '—'],
-                                                ['Executed', `${fmtDateTime(x.createdAt)}${x.executedBy ? ` · ${x.executedBy}` : ''}`],
-                                                ['Financial event', x.financialEventId ? <span key="f" className="font-mono text-[11px]">{x.financialEventId}</span> : '—'],
-                                                ['Reversal event', x.reversalEventId ? <span key="r" className="font-mono text-[11px]">{x.reversalEventId}</span> : '—'],
+                                                [t('common.status'), <StatusBadge key="s" status={x.status ?? 'EXECUTED'} />],
+                                                [t('detail.agreementVersion'), x.fromAgreementVersion !== undefined ? `v${x.fromAgreementVersion} → v${x.toAgreementVersion}` : x.agreementVersion ?? '—'],
+                                                [t('detail.effective'), String(x.effectiveDate ?? '').slice(0, 10) || '—'],
+                                                [t('detail.executed'), <span key="ex">{fmtDateTime(x.createdAt)}{x.executedBy ? <> · <Person id={x.executedBy} /></> : null}</span>],
+                                                [t('detail.financialEvent'), x.financialEventId ? <span key="f" className="font-mono text-[11px]">{x.financialEventId}</span> : '—'],
+                                                [t('detail.reversalEvent'), x.reversalEventId ? <span key="r" className="font-mono text-[11px]">{x.reversalEventId}</span> : '—'],
                                             ]} />
-                                            <Disclosure summary="Raw amendment"><JsonBlock value={x} /></Disclosure>
+                                            <Disclosure summary={t('detail.rawAmendment')}><JsonBlock value={x} /></Disclosure>
                                         </div>
                                     );
                                 })}
