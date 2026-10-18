@@ -55,6 +55,15 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
         const k = navKeyFor(t.href);
         return k && tw.has(k) ? tw(k) : t.label;
     };
+    // A list page's title is its menu label and its subtitle comes from messages,
+    // so the heading matches the menu and follows the language. Detail pages
+    // (whose path is not a menu entry) keep the title they pass.
+    const tp = useTranslations('LendingPages');
+    const pageKey = navKeyFor(pathname.startsWith(base) ? pathname.slice(base.length) : pathname);
+    const shownTitle = typeof title === 'string' && pageKey && tw.has(pageKey) ? tw(pageKey) : title;
+    const shownSubtitle = typeof subtitle === 'string' && pageKey && tp.has(pageKey) ? tp(pageKey) : subtitle;
+    const backKey = back ? navKeyFor(back.href) : null;
+    const backLabel = back ? (backKey && tw.has(backKey) ? tw(backKey) : back.label) : '';
     // Tabs follow the same permission rules as the menu; until access loads, all show.
     const tabs = ws.ready && ws.access ? LENDING_TABS.filter((t) => hrefVisible(t.href, ws)) : LENDING_TABS;
     return (
@@ -76,10 +85,10 @@ export function LendingShell({ title, subtitle, actions, children, back }: {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
                 <div className="min-w-0">
                     {back && (
-                        <Link href={`${base}${back.href}`} className="text-[12px] font-semibold text-[#635BFF] hover:underline">← {back.label}</Link>
+                        <Link href={`${base}${back.href}`} className="text-[12px] font-semibold text-[#635BFF] hover:underline">← {backLabel}</Link>
                     )}
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{title}</h1>
-                    {subtitle && <p className="text-[#697386] text-[14px] mt-0.5">{subtitle}</p>}
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{shownTitle}</h1>
+                    {shownSubtitle && <p className="text-[#697386] text-[14px] mt-0.5">{shownSubtitle}</p>}
                 </div>
                 {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
             </div>

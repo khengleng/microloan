@@ -1986,5 +1986,36 @@
       "cancel": "Cancel",
       "failed": "That did not work. Try again."
     }
+  },
+  "LendingPages": {
+    "groups": "Solidarity groups whose members borrow under joint liability.",
+    "documents": "Customer documents awaiting review, expiring identity documents and retention rules.",
+    "applications": "Origination pipeline: draft → submitted → recommended → approved → booked.",
+    "loanAccounts": "Booked loan accounts with live sub-ledger balances.",
+    "facilities": "Revolving lines, overdrafts and staged drawdown facilities.",
+    "cards": "Credit cards: purchases, cash advances and instalment plans on a revolving line.",
+    "trade": "Letters of credit, receivables programmes and import / export loans.",
+    "syndication": "Loans shared with other lenders, with this lender as agent. Book the loan under a syndicated product, then set up its participants here.",
+    "counterparties": "Banks, municipalities, sovereigns and development institutions, their ratings, and the counterparty and country limits every institutional loan is checked against at approval and at payout.",
+    "incomeAssessments": "Income-contingent loans: the instalment follows the borrower's assessed income. Reassess every year (or on a change of circumstances) with evidence; a second person approves, and the schedule is rebuilt from the next period.",
+    "collections": "Loans past due, worst first. Run the end-of-day batch to refresh delinquency.",
+    "restructures": "Hardship cases, affordability assessments, proposals and monitoring.",
+    "relief": "Published relief offers: who qualifies, for how long, and who pays the interest that arises.",
+    "suspense": "Money received without an identifiable loan is held in suspense until it is matched to a loan or refunded to the payer.",
+    "paymentChannels": "Wallet, QR, agent and mobile settlement files, payroll remittances, auto-debit and the daily reconciliation.",
+    "ledger": "Lending sub-ledger journals, trial balance and sub-ledger-to-ledger reconciliation.",
+    "periodClose": "Month-end and year-end close of the lending books: checks, a frozen snapshot, and a lock approved by a second person.",
+    "regulatoryReturns": "Monthly NBC returns covering the lending platform and the original loans: classification and provisioning, PAR, portfolio breakdowns, write-offs, largest borrowers and rates, reconciled to the ledger.",
+    "combinedLedger": "One trial balance for both loan books: the original journal and the lending journal side by side, on the shared chart of accounts.",
+    "migration": "Take over running loans from another system: load, check against control totals, approve by a second person, post opening balances.",
+    "webhooks": "Send this organisation's lending events to its own systems — signed, retried, and activated by a second administrator.",
+    "operations": "Business date and end of day, benchmark rates, holiday calendars and integration adapters.",
+    "lendingProducts": "Versioned product configurations. Changes go through draft → submit → approve → activate (maker-checker).",
+    "policies": "Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker.",
+    "catalogue": "Loan families and templates, and what the engine can actually do today.",
+    "workflows": "Origination workflows: optional checks and amount-based approval levels.",
+    "simulator": "Price a loan against any product version. Side-effect free: nothing is booked.",
+    "auditTrail": "Every lending action and policy decision, with the configuration versions in force at the time.",
+    "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled."
   }
 }
