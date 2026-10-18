@@ -3888,5 +3888,124 @@
       "colDebtService": "Debt service",
       "colClosing": "Closing"
     }
+  },
+  "LendingPortal": {
+    "documents": {
+      "somethingWrong": "Something went wrong ({status}).",
+      "requestedTitle": "Documents requested from you",
+      "nothingNeeded": "Nothing is needed from you right now.",
+      "sendBy": "Please send by {date}",
+      "status": {
+        "OPEN": "Needed",
+        "SUBMITTED": "Received — being checked",
+        "ACCEPTED": "Accepted",
+        "CANCELLED": "No longer needed"
+      },
+      "lastRejected": "We could not accept your last upload: {reason}",
+      "sendDifferent": "Send a different file",
+      "upload": "Upload",
+      "fileTypes": "PDF, JPEG, PNG or WebP, up to 3.5 MB.",
+      "myDocuments": "My documents",
+      "beingChecked": "being checked",
+      "notAccepted": "not accepted",
+      "notAcceptedReason": "not accepted: {reason}",
+      "expires": "expires {date}",
+      "download": "Download"
+    },
+    "relief": {
+      "title": "Request a lower payment / payment relief",
+      "back": "Back",
+      "intro": "Having difficulty paying? Tell us what happened and we will review options such as a lower payment, more time or a short payment break.",
+      "start": "Start a request",
+      "loadingRequests": "Loading your requests…",
+      "offerReady": "Offer ready",
+      "error": {
+        "session": "Your session has expired. Please sign in again.",
+        "generic": "Something went wrong ({status}).",
+        "retry": "Something went wrong. Please try again."
+      },
+      "caseStatus": {
+        "REQUESTED": "Received — we will review your situation",
+        "MORE_INFO_REQUIRED": "We need more information — your branch will contact you",
+        "AFFORDABILITY_ASSESSED": "Under review",
+        "SPECIALIST_REVIEW": "Under specialist review",
+        "OPTIONS_PROPOSED": "Under review",
+        "APPROVED": "An offer is ready for you",
+        "CUSTOMER_ACCEPTED": "You accepted the offer",
+        "CONDITIONS_SATISFIED": "Being finalised",
+        "MONITORING": "New terms in effect",
+        "COMPLETED": "Completed",
+        "REJECTED": "Not approved",
+        "WITHDRAWN": "Withdrawn",
+        "EXPIRED": "Expired",
+        "REVERSED": "Cancelled"
+      },
+      "hardship": {
+        "ILLNESS": "Illness or injury",
+        "JOB_LOSS": "Job loss",
+        "INCOME_REDUCTION": "Reduced income",
+        "BUSINESS_DOWNTURN": "Business downturn",
+        "DELAYED_HARVEST": "Delayed or failed harvest",
+        "DISASTER": "Natural disaster",
+        "FAMILY_EVENT": "Family event (death, birth, wedding…)",
+        "ARREARS": "Payments already overdue",
+        "OTHER": "Other"
+      },
+      "difficulty": {
+        "TEMPORARY": "Temporary — expected to recover",
+        "PERSISTENT": "Persistent — long-term change"
+      },
+      "form": {
+        "problemLoan": "Choose the loan you need help with.",
+        "problemInstalment": "Enter the instalment as a number, e.g. 150 or 150.50.",
+        "problemTerm": "Enter the extra term as a whole number of months.",
+        "problemBreak": "A payment break can be 1 to 24 months.",
+        "whichLoan": "Which loan?",
+        "chooseLoan": "Choose a loan…",
+        "loadingLoans": "Loading your loans…",
+        "loanIdPlaceholder": "Loan id given to you by your branch",
+        "whatHappened": "What happened?",
+        "howLong": "How long do you expect it to last?",
+        "tellUsMore": "Tell us more (optional)",
+        "whatWouldHelp": "What would help? (all optional)",
+        "lowerPayment": "A lower payment of",
+        "moreTime": "More time (months)",
+        "paymentBreak": "Payment break (1–24 months)",
+        "anythingElse": "Anything else (optional)",
+        "whenImprove": "When do you expect things to improve? (optional)",
+        "noChange": "Sending a request does not change your loan. Keep paying what you can while we review it.",
+        "send": "Send request"
+      },
+      "offer": {
+        "varies": "varies",
+        "title": "Offer (version {version})",
+        "startsOn": "If you accept, your new terms start on <b>{date}</b>.",
+        "validUntil": "This offer is valid until <b>{date}</b>.",
+        "validUntilExpired": "This offer is valid until <b>{date}</b> (expired).",
+        "now": "Now",
+        "withOffer": "With this offer",
+        "eachPayment": "Each payment",
+        "lastPayment": "Last payment date",
+        "totalPay": "Total you will pay",
+        "totalInterest": "Total interest & charges",
+        "dueOn": "Due on {date}",
+        "costWarningTitle": "A lower instalment may cost you more interest overall",
+        "costWarning": "You would pay less each time, but {proposed} in interest and charges in total, compared with {original} today.",
+        "compareTotals": "A lower instalment may cost you more interest overall. Compare the totals above before you accept.",
+        "seeSchedule": "See the new payment schedule ({count, plural, one {# payment} other {# payments}})",
+        "overdueAmounts": "Overdue amounts",
+        "understood": "I have read and understood the new terms, including the total cost.",
+        "accept": "Accept this offer",
+        "accepted": "You accepted this offer. Your branch will finalise the change.",
+        "executed": "These terms are now in effect."
+      },
+      "case": {
+        "allRequests": "All requests",
+        "loading": "Loading…",
+        "request": "Request {reference}",
+        "thanks": "Thank you — your acceptance has been recorded.",
+        "noOffer": "There is no offer yet. We will let you know when one is ready."
+      }
+    }
   }
 }
