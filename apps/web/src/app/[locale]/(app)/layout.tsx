@@ -12,6 +12,10 @@ import { WorkspaceProvider, useQueueCount, useWorkspace } from '@/lib/workspace'
 import { NAV, PLATFORM_NAV, visibleNav, type NavItem } from '@/lib/nav';
 import { GlobalSearch } from '@/components/workspace/GlobalSearch';
 import { ShellBanners, ShellChips } from '@/components/workspace/ShellStatus';
+import { LearningProvider } from '@/lib/learning';
+import { TourProvider } from '@/components/learning/TourProvider';
+import { TourButton } from '@/components/learning/TourButton';
+import { OrientationPrompt } from '@/components/learning/OrientationPrompt';
 
 function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
@@ -49,12 +53,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const navItem = (item: NavItem) => {
         const { href, icon: Icon } = item;
         const label = tw(`nav.${item.key}`);
-        const active = pathname === `/${locale}${href}` || ((href.startsWith('/lending/') || href === '/help') && pathname.startsWith(`/${locale}${href}/`));
+        const active = pathname === `/${locale}${href}` || ((href.startsWith('/lending/') || href === '/help' || href === '/learn') && pathname.startsWith(`/${locale}${href}/`));
         const count = queueCount(item.queues);
         return (
             <Link
                 key={href}
                 href={`/${locale}${href}`}
+                {...(item.tour ? { 'data-tour': 'nav-learn' } : {})}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors ${active
                     ? 'bg-sidebar-accent text-white font-semibold'
@@ -105,7 +110,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
 
                 {/* Nav */}
-                <nav className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
+                <nav data-tour="nav-menu" className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
                     {sections.map((sec) => (
                         <div key={sec.key}>
                             {navSection(tw(`sections.${sec.key}`))}
@@ -164,7 +169,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                     <GlobalSearch platform={!!isPlatform} />
                     <ShellChips />
+                    {!pathname.startsWith(`/${locale}/lending`) && <TourButton compact />}
                     <Link
+                        data-tour="help-link"
                         href={`/${locale}/help`}
                         title={tw('nav.userGuide')}
                         aria-label={tw('nav.userGuide')}
@@ -174,7 +181,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         <span className="hidden md:inline text-xs font-semibold">{tw('nav.help')}</span>
                     </Link>
                     {/* Locale switcher */}
-                    <div className="flex items-center gap-0.5 border border-border rounded p-0.5 bg-muted">
+                    <div data-tour="language-switch" className="flex items-center gap-0.5 border border-border rounded p-0.5 bg-muted">
                         <Link
                             href={localizedPath('en')}
                             className={`px-3 py-1 text-xs rounded font-semibold transition-colors ${locale === 'en' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -196,6 +203,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 </main>
             </div>
             <ApiErrorListener />
+            {!isPlatform && <OrientationPrompt />}
         </div>
     );
 }
@@ -204,7 +212,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
         <AuthProvider>
             <WorkspaceProvider>
-                <AppShell>{children}</AppShell>
+                <LearningProvider>
+                    <TourProvider>
+                        <AppShell>{children}</AppShell>
+                    </TourProvider>
+                </LearningProvider>
             </WorkspaceProvider>
         </AuthProvider>
     );

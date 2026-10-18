@@ -8,6 +8,8 @@ import { hrefVisible, navKeyFor } from '@/lib/nav';
 import { useTranslations } from 'next-intl';
 import { HelpLink } from '@/components/help/HelpLink';
 import { helpForPath, type HelpTarget } from '@/lib/user-guide';
+import { TourButton } from '@/components/learning/TourButton';
+import { learning } from '@microloan/shared';
 
 export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/catalogue', label: 'Catalogue' },
@@ -64,6 +66,7 @@ export function LendingShell({ title, subtitle, actions, children, back, help }:
     };
     // Tabs follow the same permission rules as the menu; until access loads, all show.
     const helpTarget = help === false ? null : help ?? helpForPath(pathname.slice(base.length) || '/');
+    const hasTour = learning.toursForPath(pathname.slice(base.length) || '/').length > 0;
     const tabs = ws.ready && ws.access ? LENDING_TABS.filter((t) => hrefVisible(t.href, ws)) : LENDING_TABS;
     return (
         <div className="max-w-[1280px] mx-auto space-y-5 pb-10">
@@ -89,8 +92,9 @@ export function LendingShell({ title, subtitle, actions, children, back, help }:
                     <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{title}</h1>
                     {subtitle && <p className="text-[#697386] text-[14px] mt-0.5">{subtitle}</p>}
                 </div>
-                {(actions || helpTarget) && (
+                {(actions || helpTarget || hasTour) && (
                     <div className="flex flex-wrap items-center gap-2">
+                        {hasTour && <TourButton />}
                         {helpTarget && <HelpLink chapter={helpTarget.chapter} anchor={helpTarget.anchor} />}
                         {actions}
                     </div>

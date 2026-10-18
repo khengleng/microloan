@@ -4,7 +4,7 @@ import {
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
     Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
-    Globe2, GraduationCap, LineChart, CircleHelp,
+    Globe2, GraduationCap, LineChart, CircleHelp, School,
 } from 'lucide-react';
 
 /**
@@ -25,7 +25,8 @@ export interface NavItem {
     legacy?: string[];
     legacyRoles?: string[];
     /** Queue codes from GET /me/work whose counts make the badge. */
-    queues?: string[];
+    queues?: string[];    /** The item's data-tour id for guided tours. */
+    tour?: 'nav-learn';
 }
 
 export interface NavSection {
@@ -44,6 +45,7 @@ export const NAV: NavSection[] = [
             { key: 'home', href: '/home', icon: Home, everyone: true },
             { key: 'kpiDashboard', href: '/dashboard', icon: LayoutDashboard, legacy: ['CUSTOMER_VIEW'], legacyRoles: [...LEGACY_FINANCE, 'SALES'] },
             { key: 'help', href: '/help', icon: CircleHelp, everyone: true },
+            { key: 'learn', href: '/learn', icon: School, everyone: true, tour: 'nav-learn' },
         ],
     },
     {

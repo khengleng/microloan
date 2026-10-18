@@ -684,7 +684,8 @@
       "plans": "Subscription plans",
       "platformTeam": "Platform team",
       "help": "Help",
-      "userGuide": "User guide"
+      "userGuide": "User guide",
+      "learn": "Learning centre"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -814,5 +815,122 @@
     "englishOnly": "The user guide is currently available in English only.",
     "unavailable": "The user guide is not available in this build.",
     "clear": "Clear"
+  },
+  "Learning": {
+    "title": "Learning centre",
+    "subtitle": "Short lessons, guided tours of the real screens and quizzes for your role. Work at your own pace; your progress is saved.",
+    "loading": "Loading…",
+    "orientationTour": "Portal tour",
+    "platformNote": "Progress is kept for staff of a lending organisation. You can read the lessons, but your progress is not saved.",
+    "englishNote": "Lesson text is in English for now; menus, buttons and quiz controls are translated.",
+    "yourPaths": "Your learning paths",
+    "otherPaths": "Other learning paths",
+    "allPaths": "Learning paths",
+    "badges": "Your badges",
+    "lessonsDone": "{done} of {total} lessons complete",
+    "minutes": "{minutes} min",
+    "stats": {
+      "completed": "Lessons completed",
+      "lessons": "Lessons available",
+      "badges": "Paths completed"
+    },
+    "status": {
+      "notStarted": "Not started",
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "tourDone": "Tour done"
+    },
+    "lesson": {
+      "back": "Learning centre",
+      "notFound": "This lesson does not exist.",
+      "position": "Lesson {n} of {total}",
+      "objectives": "What you will learn",
+      "explainer": "How it works",
+      "tryIt": "Try it",
+      "startTour": "Start the guided tour",
+      "practise": "Best practised in the demo organisation, signed in as {account}@demo-lending.test.",
+      "noTour": "This lesson has no guided tour; the explainer and the manual cover it.",
+      "manual": "Read more in the manual",
+      "manualHelp": "The user guide explains this screen step by step.",
+      "openManual": "Open the chapter",
+      "next": "Next lesson"
+    },
+    "quiz": {
+      "title": "Check your understanding",
+      "passMark": "Pass mark: {passMark} of {total}",
+      "best": "Best score: {score} of {total}",
+      "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+      "submit": "Check answers",
+      "submitting": "Checking…",
+      "answerAll": "Answer every question to check your answers.",
+      "error": "Your answers could not be saved. Try again.",
+      "correct": "Correct",
+      "incorrect": "Not quite",
+      "score": "You scored {score} of {total}.",
+      "passed": "Passed — lesson complete.",
+      "failed": "You need {passMark} correct answers to pass. Read the explanations and try again.",
+      "retry": "Try again"
+    },
+    "tour": {
+      "takeTour": "Take the tour",
+      "stepOf": "Step {step} of {total}",
+      "back": "Back",
+      "next": "Next",
+      "done": "Done",
+      "skip": "End tour",
+      "skipStep": "Skip this step",
+      "clickToContinue": "Click the highlighted item to continue",
+      "looking": "Looking for this on the page…"
+    },
+    "prompt": {
+      "title": "New here? Take the two-minute tour",
+      "body": "See where your work queues, search, the language switch and Help are.",
+      "start": "Start the tour",
+      "later": "Not now",
+      "learn": "Open the Learning centre"
+    },
+    "explainer": {
+      "stageOf": "Step {stage} of {total}",
+      "stages": "Steps",
+      "previous": "Previous step",
+      "next": "Next step",
+      "play": "Play",
+      "pause": "Pause",
+      "replay": "Replay",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balanced": "Debits equal credits.",
+      "unbalanced": "Debits and credits differ in this step.",
+      "score": "Score",
+      "grade": "Grade",
+      "miniSearch": "Search…"
+    },
+    "certificate": {
+      "view": "View certificate",
+      "title": "Certificate of completion",
+      "awardedTo": "Awarded to",
+      "forPath": "for completing the {path} learning path",
+      "lessons": "{count, plural, one {# lesson} other {# lessons}} with quizzes passed",
+      "on": "Completed on {date}",
+      "print": "Print",
+      "notYet": "Complete every lesson in this path, passing its quiz, to receive the certificate."
+    },
+    "team": {
+      "title": "Team progress",
+      "subtitle": "Lessons completed by each person in your organisation, against the paths suggested by their roles.",
+      "noAccess": "The team progress report needs the learning.report.read permission (tenant administrators and risk / compliance reviewers).",
+      "failed": "The team progress report could not be loaded.",
+      "path": "Learning path",
+      "suggestedPaths": "Suggested paths",
+      "search": "Find a person",
+      "member": "Team member",
+      "roles": "Roles",
+      "completed": "Lessons completed",
+      "lastActivity": "Last activity",
+      "never": "—",
+      "noSuggested": "No lending role",
+      "noMembers": "No team members match.",
+      "noLessons": "Has not started any lesson yet."
+    }
   }
 }
