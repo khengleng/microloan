@@ -9,6 +9,9 @@ jest.mock('otplib', () => ({
 import { encryptField } from '../common/field-crypto';
 import { totpCodeMatches } from './totp';
 
+// Field encryption needs a key; CI runs the unit tests without one.
+process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-secret';
+
 describe('totpCodeMatches', () => {
   const secret = encryptField('JBSWY3DPEHPK3PXP')!;
 
