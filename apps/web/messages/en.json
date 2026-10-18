@@ -381,7 +381,7 @@
     "qrRequired": "Provide a QR payload string or upload a QR image.",
     "imageTooLarge": "Image is too large (max 1 MB).",
     "payViaQr": "Pay via QR",
-    "qrScanHint": "Scan with any Bakong/bank app to repay this loan."
+    "qrScanHint": "Scan with any Bakong/bank app to repay this loan. QR payments are not matched automatically: record the repayment once the money has arrived."
   },
   "Portal": {
     "loginTitle": "Borrower Portal",
@@ -403,7 +403,7 @@
     "nextDue": "Next due",
     "downloadStatement": "Download statement (PDF)",
     "payViaQr": "Pay via QR",
-    "qrHint": "Scan with any Bakong or bank app to repay.",
+    "qrHint": "Scan with any Bakong or bank app to repay. Your lender records the payment once it arrives, so your balance may take up to a business day to update.",
     "uploadKyc": "Verify your identity",
     "uploadKycHint": "Upload clear photos of your documents. Staff will review them.",
     "kycVerified": "Identity verified",
@@ -412,7 +412,8 @@
     "doc_NATIONAL_ID_FRONT": "National ID (front)",
     "doc_NATIONAL_ID_BACK": "National ID (back)",
     "doc_SELFIE": "Selfie",
-    "doc_PROOF_OF_ADDRESS": "Proof of address"
+    "doc_PROOF_OF_ADDRESS": "Proof of address",
+    "codeHelp": "The code is sent by SMS. If it does not arrive within a few minutes, contact your branch — they can confirm your number and whether text messages are set up."
   },
   "Products": {
     "title": "Loan Products",

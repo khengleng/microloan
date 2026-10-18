@@ -7,7 +7,8 @@ import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, Table, TextInput, td, t
 import { useAction, useApi } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
-import { todayIso } from '../format';
+import { useBusinessDate } from '../useBusinessDate';
+import { MockBankNotice } from './PaymentChannelsView';
 import type { DebitAttempt, Mandate } from './types';
 
 interface MandatesView { mandates: Mandate[]; attempts: DebitAttempt[] }
@@ -23,7 +24,8 @@ export function LoanMandatesCard({ loanId, status, can }: {
     const view = useApi<MandatesView>(`/lending/loans/${loanId}/mandates`);
     const [adding, setAdding] = useState(false);
     const [revoking, setRevoking] = useState<string | null>(null);
-    const [form, setForm] = useState({ mandateReference: '', bankCode: '', accountNumber: '', accountName: '', consentDate: todayIso() });
+    const businessDate = useBusinessDate();
+    const [form, setForm] = useState({ mandateReference: '', bankCode: '', accountNumber: '', accountName: '', consentDate: businessDate });
     const [reason, setReason] = useState('');
     const { busy, error, run, clearError } = useAction();
     const manage = can('loan.repayment.post');
@@ -44,7 +46,7 @@ export function LoanMandatesCard({ loanId, status, can }: {
         if (res) {
             showToast('Mandate recorded — instalments will be collected on their due dates', 'success');
             setAdding(false);
-            setForm({ mandateReference: '', bankCode: '', accountNumber: '', accountName: '', consentDate: todayIso() });
+            setForm({ mandateReference: '', bankCode: '', accountNumber: '', accountName: '', consentDate: businessDate });
             view.reload();
         }
     };
@@ -64,6 +66,7 @@ export function LoanMandatesCard({ loanId, status, can }: {
             bodyClass="p-0"
         >
             {view.error && <div className="p-4"><ErrorBox error={view.error} /></div>}
+            {(adding || active) && <MockBankNotice className="p-4 border-b border-[#E3E8EE]" />}
             {adding && (
                 <div className="p-4 border-b border-[#E3E8EE]">
                     <ActionPanel title="New direct-debit mandate" onClose={() => { setAdding(false); clearError(); }}>
