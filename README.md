@@ -5,6 +5,10 @@ Cambodian lenders (MFIs, digital lenders and banks). One deployment serves many
 lending organisations (tenants), each isolated from the others at the
 application, query and database level.
 
+**Staff using the web portal**: the end-user manual (sign-in, roles and
+approvals, origination to closure, collections, accounting, reports,
+administration, and a guided demo) is in [`docs/user-guide/`](docs/user-guide/README.md).
+
 The repository contains two lending stacks that run side by side:
 
 | | What it is | Where |
