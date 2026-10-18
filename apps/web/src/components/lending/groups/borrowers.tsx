@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Btn, SelectInput, TextInput } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -42,6 +43,7 @@ export function shortId(id: string | null | undefined): string {
 export function BorrowerPicker({ value, onChange, exclude = [] }: {
     value: string; onChange: (id: string) => void; exclude?: string[];
 }) {
+    const t = useTranslations('LendingGroups');
     const [search, setSearch] = useState('');
     const [query, setQuery] = useState('');
     const { data, error, loading } = useApi<BorrowersPage>(`/borrowers${qs({ search: query, page: 1, limit: 50 })}`);
@@ -56,16 +58,16 @@ export function BorrowerPicker({ value, onChange, exclude = [] }: {
                 <TextInput
                     value={search}
                     onChange={setSearch}
-                    placeholder="Search name, full phone or ID…"
+                    placeholder={t('picker.searchPlaceholder')}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setQuery(search.trim()); } }}
                 />
-                <Btn size="sm" onClick={() => setQuery(search.trim())} busy={loading}>Search</Btn>
+                <Btn size="sm" onClick={() => setQuery(search.trim())} busy={loading}>{t('common.search')}</Btn>
             </div>
             <SelectInput
                 value={value}
                 onChange={onChange}
                 options={options}
-                placeholder={loading ? 'Loading…' : options.length ? 'Select a borrower' : 'No borrowers found'}
+                placeholder={loading ? t('picker.loading') : options.length ? t('picker.select') : t('picker.none')}
             />
             {error && <span className="block text-[11px] text-red-600">{error.message}</span>}
         </div>
