@@ -3815,5 +3815,78 @@
       "colLive": "Live",
       "open": "Open"
     }
+  },
+  "LendingProjects": {
+    "title": "Project finance",
+    "subtitle": "Sculpted to a {target} DSCR · lock-up below {lockUp} · reserve of {months, plural, one {# month} other {# months}} of debt service",
+    "subtitleSweep": "Sculpted to a {target} DSCR · lock-up below {lockUp} · reserve of {months, plural, one {# month} other {# months}} of debt service · {sweep} cash sweep",
+    "applyReceipts": "Apply receipts",
+    "construction": "In construction",
+    "constructionBody": "Tranches are drawn and construction interest capitalized on the facility. When availability ends, generate the last statement and term it out on a profile sculpted to the projected CFADS.",
+    "openFacility": "Open the facility →",
+    "nextDebtService": "Next debt service:",
+    "sculptedProfile": "Sculpted repayment profile ({count, plural, one {# period} other {# periods}}, minimum DSCR {min})",
+    "steps": {
+      "colStep": "Step",
+      "colAmount": "Amount",
+      "informational": "(paid by the project; information)"
+    },
+    "reserve": {
+      "short": "{target} target — short",
+      "atTarget": "At target"
+    },
+    "apply": {
+      "problem": "Enter revenue, operating costs and taxes as decimal amounts.",
+      "title": "Apply project receipts",
+      "confirm": "Post the waterfall for {date}: CFADS {currency} {cfads}?",
+      "confirmLocked": "Post the waterfall for {date}: CFADS {currency} {cfads} — the project is in lock-up, so nothing is distributed?",
+      "confirmLabel": "Apply",
+      "closed": "Receipts applied — the loan is repaid and the project closed",
+      "applied": "Receipts applied (run #{sequence})",
+      "revenue": "Revenue ({currency})",
+      "operatingCosts": "Operating costs",
+      "paidByProject": "Paid by the project",
+      "taxes": "Taxes",
+      "reference": "Reference",
+      "referenceHint": "Proceeds account statement",
+      "note": "Applied on the business date, in order: senior debt service, reserve top-up, cash sweep, then distribution — held in lock-up when cover is below the threshold or the reserve is short.",
+      "lockUp": "Lock-up",
+      "periodDscr": "Period DSCR",
+      "reserveAfter": "Reserve after",
+      "reserveTarget": "Reserve target",
+      "preview": "Preview waterfall",
+      "previewFirst": "Preview first"
+    },
+    "tile": {
+      "dsra": "Debt service reserve",
+      "lockUp": "Held in lock-up",
+      "blocked": "Distributions blocked",
+      "released": "Released with the next distribution",
+      "principal": "Principal outstanding",
+      "sculpted": "Sculpted DSCR",
+      "termedOut": "Termed out {date}",
+      "notTermedOut": "Not termed out"
+    },
+    "runs": {
+      "title": "Waterfall runs",
+      "none": "No receipts applied yet.",
+      "colDate": "Date",
+      "colDebtService": "Debt service",
+      "colReserve": "Reserve ±",
+      "colSweep": "Sweep",
+      "colLockUp": "Lock-up ±",
+      "colDistributed": "Distributed",
+      "fromReserve": "{amount} from reserve",
+      "released": "−{amount} released",
+      "latestSteps": "Steps of the latest run ({date})"
+    },
+    "sculpted": {
+      "colDue": "Due",
+      "colOpening": "Opening",
+      "colInterest": "Interest",
+      "colPrincipal": "Principal",
+      "colDebtService": "Debt service",
+      "colClosing": "Closing"
+    }
   }
 }
