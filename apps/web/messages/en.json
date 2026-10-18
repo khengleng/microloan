@@ -1299,6 +1299,37 @@
       "alwaysOn": "always on",
       "cpExplain": "Conditions precedent come from the product configuration and are always checked before disbursement, so this step cannot be switched off.",
       "awaitingOther": "Awaiting another approver"
+    },
+    "coa": {
+      "tab": "Chart of accounts",
+      "title": "Chart of accounts",
+      "subtitle": "Ledger accounts the lending journals and the lending settings can use. Adding an account posts nothing; the settings decide what posts where.",
+      "none": "No accounts.",
+      "code": "Code",
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "addTitle": "Add an account",
+      "addSubtitle": "For example a separate income account the lending settings will name.",
+      "codeHint": "2–16 of 0–9, A–Z, . or -",
+      "codeInvalid": "2–16 of 0–9, A–Z, . or -, starting with a letter or digit",
+      "codeTaken": "That code is already in the chart",
+      "nameTooShort": "At least 2 characters",
+      "add": "Add account",
+      "added": "Account {code} added",
+      "types": {
+        "ASSET": "Asset",
+        "LIABILITY": "Liability",
+        "EQUITY": "Equity",
+        "INCOME": "Income",
+        "EXPENSE": "Expense"
+      }
+    },
+    "json": {
+      "form": "Form",
+      "json": "JSON",
+      "notNumber": "Enter a number",
+      "jsonHint": "JSON — a list [ … ] or table { … }"
     }
   }
 }

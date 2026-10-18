@@ -8,6 +8,8 @@ import { jsonDiff } from '../policies/types';
 import { StatusBadge } from '../StatusBadge';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, TextArea, td, th } from '../ui';
 import { useAction, useApi } from '../useAsync';
+import { useWorkspace } from '@/lib/workspace';
+import { EditorModeSwitch, StructuredJsonEditor, jsonProblem } from '../StructuredJsonEditor';
 import { fmtDateTime } from '../format';
 
 interface SettingsRow {
@@ -69,7 +71,14 @@ export function LendingSettingsTab() {
     const [draft, setDraft] = useState('');
     const [reason, setReason] = useState('');
     const [problem, setProblem] = useState('');
+    const [mode, setMode] = useState<'form' | 'json'>('form');
+    const [formInvalid, setFormInvalid] = useState(0);
+    const [formKey, setFormKey] = useState(0);
     const { busy, error, run, clearError } = useAction();
+    const { can, access } = useWorkspace();
+    const me = access?.principal.id;
+    const canPropose = can('tenant_settings.manage');
+    const canDecide = can('tenant_settings.approve');
 
     if (!list.data) return list.error ? <ErrorBox error={list.error} /> : <Spinner />;
     const { active, versions, effective, defaults } = list.data;
@@ -77,7 +86,9 @@ export function LendingSettingsTab() {
 
     const propose = async () => {
         let settings: unknown;
-        try { settings = JSON.parse(draft); } catch { setProblem('The settings are not valid JSON.'); return; }
+        const bad = jsonProblem(draft);
+        if (bad) { setProblem(`The settings are not valid JSON: ${bad}`); return; }
+        settings = JSON.parse(draft);
         setProblem('');
         const res = await run('propose', () => api.post('/lending/ops/settings', { settings, reason: reason.trim() || undefined }));
         if (res) { showToast('Settings proposed — a second person must approve them', 'success'); setDraft(''); list.reload(); }
@@ -122,8 +133,8 @@ export function LendingSettingsTab() {
                                     <td className={td}>
                                         {v.status === 'PENDING' && (
                                             <div className="flex gap-2">
-                                                <Btn size="sm" variant="primary" onClick={() => decide(v.id, true)} busy={busy === `${v.id}:true`}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" onClick={() => decide(v.id, false)} busy={busy === `${v.id}:false`}>Reject</Btn>
+                                                <Btn size="sm" variant="primary" onClick={() => decide(v.id, true)} busy={busy === `${v.id}:true`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? 'Needs tenant_settings.approve' : v.makerId === me ? 'You proposed this — another person must approve' : undefined}>Approve</Btn>
+                                                <Btn size="sm" variant="danger" onClick={() => decide(v.id, false)} busy={busy === `${v.id}:false`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? 'Needs tenant_settings.approve' : v.makerId === me ? 'You proposed this — another person must decide' : undefined}>Reject</Btn>
                                             </div>
                                         )}
                                     </td>
@@ -136,17 +147,22 @@ export function LendingSettingsTab() {
             <Card
                 title="Propose a change"
                 subtitle="A different user with the settings-approval permission must approve it. Account codes must exist in the chart of accounts; a changed account applies to new postings only."
-                actions={<Btn size="sm" onClick={() => { setDraft(JSON.stringify(effective, null, 2)); setProblem(''); }}>Start from what is in force</Btn>}
+                actions={<Btn size="sm" onClick={() => { setDraft(JSON.stringify(effective, null, 2)); setProblem(''); setFormInvalid(0); setFormKey((k) => k + 1); }}>Start from what is in force</Btn>}
             >
                 {draft === '' ? <p className="text-[13px] text-[#697386]">Start from the settings in force and change what you need.</p> : (
                     <div className="space-y-3">
-                        <Field label="Settings (JSON)" error={problem || undefined}>
-                            <TextArea value={draft} onChange={setDraft} rows={18} className="font-mono text-[12px]" />
-                        </Field>
+                        <EditorModeSwitch mode={mode} onChange={(m) => { if (m === 'form' && jsonProblem(draft)) return; setMode(m); setFormInvalid(0); setFormKey((k) => k + 1); }} />
+                        {mode === 'form' && !jsonProblem(draft) ? (
+                            <StructuredJsonEditor key={formKey} value={JSON.parse(draft)} labels={LABELS} onChange={(next) => setDraft(JSON.stringify(next, null, 2))} onValidity={setFormInvalid} />
+                        ) : (
+                            <Field label="Settings (JSON)" error={problem || jsonProblem(draft) || undefined}>
+                                <TextArea value={draft} onChange={(v) => { setDraft(v); setProblem(''); }} rows={18} className="font-mono text-[12px]" />
+                            </Field>
+                        )}
                         {(() => { try { return <JsonDiff diff={jsonDiff(effective, JSON.parse(draft))} emptyLabel="Same as the settings in force." />; } catch { return null; } })()}
                         <Field label="Why"><TextArea value={reason} onChange={setReason} rows={2} maxLength={500} /></Field>
                         <ErrorBox error={error} onDismiss={clearError} />
-                        <Btn variant="primary" onClick={propose} busy={busy === 'propose'}>Propose</Btn>
+                        <Btn variant="primary" onClick={propose} busy={busy === 'propose'} disabled={!canPropose || !!jsonProblem(draft) || (mode === 'form' && formInvalid > 0)} reason={!canPropose ? 'Needs tenant_settings.manage' : undefined}>Propose</Btn>
                     </div>
                 )}
             </Card>

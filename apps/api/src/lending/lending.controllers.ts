@@ -1552,6 +1552,21 @@ export class LendingOperationsController {
     return this.lendingSettings.decide(actor(req), id, body);
   }
 
+  @LendingAction('accounting.read')
+  @Get('ledger-accounts')
+  ledgerAccounts(@Req() req: Req_) {
+    return this.lendingSettings.accounts(actor(req));
+  }
+
+  @LendingAction('tenant_settings.manage')
+  @Post('ledger-accounts')
+  createLedgerAccount(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.ledgerAccount)) body: never,
+  ) {
+    return this.lendingSettings.createAccount(actor(req), body);
+  }
+
   // ── Month-end and year-end close (OPS-6) ──────────────────────────────────
 
   /** The year at a glance: every month's close state and the year's. */

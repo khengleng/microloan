@@ -668,6 +668,13 @@ export const S = {
       reason: z.string().max(300).optional(),
     })
     .strict(),
+  ledgerAccount: z
+    .object({
+      code: z.string().trim().min(2).max(16),
+      name: z.string().trim().min(2).max(120),
+      type: z.enum(['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']),
+    })
+    .strict(),
   branchCreate: z
     .object({
       name: z.string().trim().min(2).max(80),

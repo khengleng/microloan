@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { ChartOfAccounts } from '@/components/lending/accounting/ChartOfAccounts';
 import api from '@/lib/api';
 import { useWorkspace } from '@/lib/workspace';
 import { useToast } from '@/components/ui/toast';
@@ -264,7 +265,8 @@ function ExportsView() {
 }
 
 export default function LendingAccountingPage() {
-    const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports'>('rec');
+    const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports' | 'accounts'>('rec');
+    const tg = useTranslations('Governance.coa');
     return (
         <LendingShell title="Accounting reconciliation" subtitle="Lending sub-ledger journals, trial balance and sub-ledger-to-ledger reconciliation.">
             <Tabs value={tab} onChange={setTab} tabs={[
@@ -272,11 +274,13 @@ export default function LendingAccountingPage() {
                 { value: 'tb', label: 'Trial balance' },
                 { value: 'journal', label: 'Journal' },
                 { value: 'exports', label: 'Exports' },
+                { value: 'accounts', label: tg('tab') },
             ]} />
             {tab === 'tb' && <TrialBalanceView />}
             {tab === 'rec' && <ReconciliationView />}
             {tab === 'journal' && <JournalView />}
             {tab === 'exports' && <ExportsView />}
+            {tab === 'accounts' && <ChartOfAccounts />}
         </LendingShell>
     );
 }

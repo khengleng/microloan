@@ -24,6 +24,7 @@ d('Access governance maker-checker (integration)', () => {
     await grant(f, f.t1, 'nobody', 'AUDITOR');
     await grant(f, f.t1, 'maker', 'PRODUCT_MAKER');
     await grant(f, f.t1, 'checker', 'PRODUCT_CHECKER');
+    await grant(f, f.t1, 'finance', 'FINANCE_OFFICER');
   }, 60_000);
   afterAll(async () => f?.app.close());
 
@@ -392,6 +393,53 @@ d('Access governance maker-checker (integration)', () => {
       expect(list.alwaysOnSteps).toEqual(['CONDITIONS_PRECEDENT']);
       expect(list.versions.find((x: any) => x.id === v.id).status).toBe(
         'ACTIVE',
+      );
+    });
+  });
+
+  describe('chart of accounts', () => {
+    it('finance adds an account; readers see it; nobody else adds one', async () => {
+      const a = expectOk(
+        await f.as('finance').post('/lending/ops/ledger-accounts', {
+          code: '4350',
+          name: 'Card interchange income',
+          type: 'INCOME',
+        }),
+      );
+      expect(a).toMatchObject({ code: '4350', type: 'INCOME' });
+      expect(
+        (
+          await f.as('finance').post('/lending/ops/ledger-accounts', {
+            code: '4350',
+            name: 'Again',
+            type: 'INCOME',
+          })
+        ).status,
+      ).toBe(409);
+      // The default chart is there too.
+      expect(
+        (
+          await f.as('finance').post('/lending/ops/ledger-accounts', {
+            code: '1200',
+            name: 'Clash',
+            type: 'ASSET',
+          })
+        ).status,
+      ).toBe(409);
+      expect(
+        (
+          await f.as('nobody').post('/lending/ops/ledger-accounts', {
+            code: '4360',
+            name: 'Not allowed',
+            type: 'INCOME',
+          })
+        ).status,
+      ).toBe(403);
+      const list = expectOk(
+        await f.as('nobody').get('/lending/ops/ledger-accounts'),
+      );
+      expect(list.map((x: any) => x.code)).toEqual(
+        expect.arrayContaining(['1200', '4350']),
       );
     });
   });

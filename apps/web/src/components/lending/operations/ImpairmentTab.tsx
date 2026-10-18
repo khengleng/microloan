@@ -8,6 +8,8 @@ import { jsonDiff } from '../policies/types';
 import { StatusBadge } from '../StatusBadge';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, TextArea, td, th } from '../ui';
 import { useAction, useApi } from '../useAsync';
+import { useWorkspace } from '@/lib/workspace';
+import { EditorModeSwitch, StructuredJsonEditor, jsonProblem } from '../StructuredJsonEditor';
 import { fmtDateTime } from '../format';
 
 interface PolicyRow {
@@ -37,15 +39,24 @@ export function ImpairmentTab() {
     const [draft, setDraft] = useState('');
     const [reason, setReason] = useState('');
     const [problem, setProblem] = useState('');
+    const [mode, setMode] = useState<'form' | 'json'>('form');
+    const [formInvalid, setFormInvalid] = useState(0);
+    const [formKey, setFormKey] = useState(0);
     const { busy, error, run, clearError } = useAction();
+    const { can, access } = useWorkspace();
+    const me = access?.principal.id;
+    const canPropose = can('impairment.manage');
+    const canDecide = can('impairment.approve');
 
     if (!list.data) return list.error ? <ErrorBox error={list.error} /> : <Spinner />;
     const { active, versions, template } = list.data;
 
-    const start = (t: unknown) => { setDraft(JSON.stringify(t, null, 2)); setProblem(''); };
+    const start = (t: unknown) => { setDraft(JSON.stringify(t, null, 2)); setProblem(''); setFormInvalid(0); setFormKey((k) => k + 1); };
     const propose = async () => {
         let settings: unknown;
-        try { settings = JSON.parse(draft); } catch { setProblem('The policy is not valid JSON.'); return; }
+        const bad = jsonProblem(draft);
+        if (bad) { setProblem(`The policy is not valid JSON: ${bad}`); return; }
+        settings = JSON.parse(draft);
         setProblem('');
         const res = await run('propose', () => api.post('/lending/ops/impairment-policy', { settings, reason: reason.trim() || undefined }));
         if (res) { showToast('Policy proposed — a risk reviewer must approve it', 'success'); setDraft(''); list.reload(); }
@@ -82,8 +93,8 @@ export function ImpairmentTab() {
                                     <td className={td}>
                                         {v.status === 'PENDING' && (
                                             <div className="flex gap-2">
-                                                <Btn size="sm" variant="primary" onClick={() => decide(v.id, true)} busy={busy === `${v.id}:true`}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" onClick={() => decide(v.id, false)} busy={busy === `${v.id}:false`}>Reject</Btn>
+                                                <Btn size="sm" variant="primary" onClick={() => decide(v.id, true)} busy={busy === `${v.id}:true`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? 'Needs impairment.approve' : v.makerId === me ? 'You proposed this — another person must approve' : undefined}>Approve</Btn>
+                                                <Btn size="sm" variant="danger" onClick={() => decide(v.id, false)} busy={busy === `${v.id}:false`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? 'Needs impairment.approve' : v.makerId === me ? 'You proposed this — another person must decide' : undefined}>Reject</Btn>
                                             </div>
                                         )}
                                     </td>
@@ -108,13 +119,18 @@ export function ImpairmentTab() {
                         <p className="text-[12px] text-[#697386]">
                             REGULATORY: each class&apos;s rate applies to outstanding principal. ECL: allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring; class rates are ignored.
                         </p>
-                        <Field label="Policy (JSON)" error={problem || undefined}>
-                            <TextArea value={draft} onChange={setDraft} rows={18} className="font-mono text-[12px]" />
-                        </Field>
+                        <EditorModeSwitch mode={mode} onChange={(m) => { if (m === 'form' && jsonProblem(draft)) return; setMode(m); setFormInvalid(0); setFormKey((k) => k + 1); }} />
+                        {mode === 'form' && !jsonProblem(draft) ? (
+                            <StructuredJsonEditor key={formKey} value={JSON.parse(draft)} onChange={(next) => setDraft(JSON.stringify(next, null, 2))} onValidity={setFormInvalid} />
+                        ) : (
+                            <Field label="Policy (JSON)" error={problem || jsonProblem(draft) || undefined}>
+                                <TextArea value={draft} onChange={(v) => { setDraft(v); setProblem(''); }} rows={18} className="font-mono text-[12px]" />
+                            </Field>
+                        )}
                         {active && (() => { try { return <JsonDiff diff={jsonDiff(active.settings, JSON.parse(draft))} emptyLabel="Same as the policy in force." />; } catch { return null; } })()}
                         <Field label="Why"><TextArea value={reason} onChange={setReason} rows={2} maxLength={500} /></Field>
                         <ErrorBox error={error} onDismiss={clearError} />
-                        <Btn variant="primary" onClick={propose} busy={busy === 'propose'}>Propose</Btn>
+                        <Btn variant="primary" onClick={propose} busy={busy === 'propose'} disabled={!canPropose || !!jsonProblem(draft) || (mode === 'form' && formInvalid > 0)} reason={!canPropose ? 'Needs impairment.manage' : undefined}>Propose</Btn>
                     </div>
                 )}
             </Card>
