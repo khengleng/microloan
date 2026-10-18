@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Spinner, Table, Tabs, td, tdR, th, thR } from '../ui';
@@ -15,11 +16,12 @@ import type { AgeBucket, PendingRefund, SuspenseList, SuspensePayment, SuspenseS
 import { ReceiptForm } from './ReceiptForm';
 import { MatchPanel } from './MatchPanel';
 import { RefundDecisionPanel, RefundProposalPanel } from './RefundPanel';
+import { Person } from '../People';
 
 type Filter = SuspenseStatus | '';
 type Panel = { id: string; kind: 'match' | 'refund' | 'decision' | 'details' } | null;
 
-const CHANNEL_LABEL = Object.fromEntries(CHANNELS.map((c) => [c.value, c.label])) as Record<string, string>;
+const CHANNEL_VALUES = new Set<string>(CHANNELS.map((c) => c.value));
 
 /** Sum of decimal strings per currency, e.g. "USD 1,200 · KHR 400,000". */
 function byCurrency(rows: SuspensePayment[], field: 'remaining' | 'amount'): { currency: string; total: string }[] {
@@ -38,11 +40,14 @@ function CurrencyTotals({ rows }: { rows: { currency: string; total: string }[] 
 }
 
 function AgeChip({ days }: { days: number }) {
+    const t = useTranslations('LendingSuspense.view');
     const b = AGE_BUCKETS.find((x) => x.key === ageBucket(days))!;
-    return <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-bold tabular-nums whitespace-nowrap ${b.cls}`}>{days}d</span>;
+    return <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-bold tabular-nums whitespace-nowrap ${b.cls}`}>{t('days', { days })}</span>;
 }
 
 export function SuspenseView() {
+    const t = useTranslations('LendingSuspense.view');
+    const tc = useTranslations('LendingSuspense.channel');
     const href = useLendingHref();
     const { showToast } = useToast();
     const [status, setStatus] = useState<Filter>('OPEN');
@@ -75,69 +80,69 @@ export function SuspenseView() {
 
     return (
         <LendingShell
-            title="Unidentified payments"
-            subtitle="Money received without an identifiable loan is held in suspense until it is matched to a loan or refunded to the payer."
-            actions={!recording && <Btn variant="primary" onClick={() => setRecording(true)}><Plus size={15} /> Record receipt</Btn>}
+            title={t('title')}
+            subtitle={t('subtitle')}
+            actions={!recording && <Btn variant="primary" onClick={() => setRecording(true)}><Plus size={15} /> {t('recordReceipt')}</Btn>}
         >
             {recording && (
                 <ReceiptForm
                     defaultCurrency={defaultCurrency}
                     onClose={() => setRecording(false)}
-                    onDone={(p) => { showToast(`Receipt ${p.reference} recorded in suspense`, 'success'); setRecording(false); reloadAll(); }}
+                    onDone={(p) => { showToast(t('recorded', { reference: p.reference }), 'success'); setRecording(false); reloadAll(); }}
                 />
             )}
 
             {/* Aging summary (always of OPEN receipts) */}
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-                <SummaryTile label="Open receipts" value={open.data ? String(open.data.totals.open) : '—'} />
-                <SummaryTile label="Total held" value={<CurrencyTotals rows={summary.held} />} />
+                <SummaryTile label={t('openReceipts')} value={open.data ? String(open.data.totals.open) : '—'} />
+                <SummaryTile label={t('totalHeld')} value={<CurrencyTotals rows={summary.held} />} />
                 <SummaryTile
-                    label="Oldest"
-                    value={summary.oldest ? <span className="flex items-center gap-2">{summary.oldest.ageDays} days <AgeChip days={summary.oldest.ageDays} /></span> : '—'}
-                    note={summary.oldest ? `${summary.oldest.reference} · since ${summary.oldest.valueDate}` : undefined}
+                    label={t('oldest')}
+                    value={summary.oldest ? <span className="flex items-center gap-2">{t('daysLong', { days: summary.oldest.ageDays })} <AgeChip days={summary.oldest.ageDays} /></span> : '—'}
+                    note={summary.oldest ? t('oldestNote', { reference: summary.oldest.reference, date: summary.oldest.valueDate }) : undefined}
                 />
                 {summary.buckets.map((b) => (
                     <button key={b.key} type="button" onClick={() => { setBucket((x) => (x === b.key ? '' : b.key)); setStatus('OPEN'); }}
                         className={`text-left bg-white border rounded-lg shadow-sm px-4 py-3 transition-colors ${bucket === b.key ? 'border-[#635BFF] ring-1 ring-[#635BFF]/30' : 'border-[#E3E8EE] hover:border-[#C9D7FF]'}`}>
-                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8792A2]"><span className={`w-2 h-2 rounded-full ${b.dot}`} /> {b.label}</p>
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#8792A2]"><span className={`w-2 h-2 rounded-full ${b.dot}`} /> {t(`age.${b.key}`)}</p>
                         <p className="text-[18px] font-bold text-[#1A1F36] mt-0.5">{b.count}</p>
                         <div className="text-[12px]"><CurrencyTotals rows={b.totals} /></div>
                     </button>
                 ))}
             </div>
-            {open.data && <p className="text-[11px] text-[#697386] -mt-2">Ages are counted from the value date to the business date {open.data.businessDate}. Click an age bucket to filter.</p>}
+            {open.data && <p className="text-[11px] text-[#697386] -mt-2">{t('ageNote', { date: open.data.businessDate })}</p>}
 
             <Card
-                title="Receipts"
-                subtitle={list.data ? `${rows.length} shown${bucket ? ` · aged ${AGE_BUCKETS.find((b) => b.key === bucket)?.label}` : ''}` : undefined}
+                title={t('receipts')}
+                subtitle={list.data ? (bucket ? t('shownAged', { count: rows.length, age: t(`age.${bucket}`) }) : t('shown', { count: rows.length })) : undefined}
                 bodyClass="p-0"
                 actions={<>
-                    {bucket && <Btn size="sm" variant="ghost" onClick={() => setBucket('')}>Clear age filter</Btn>}
-                    <Btn size="sm" variant="ghost" onClick={reloadAll}>Refresh</Btn>
+                    {bucket && <Btn size="sm" variant="ghost" onClick={() => setBucket('')}>{t('clearAge')}</Btn>}
+                    <Btn size="sm" variant="ghost" onClick={reloadAll}>{t('refresh')}</Btn>
                 </>}
             >
                 <div className="px-4 pt-2">
                     <Tabs<Filter>
                         value={status}
                         onChange={(v) => { setStatus(v); setPanel(null); }}
-                        tabs={[{ value: 'OPEN', label: 'Open' }, { value: 'MATCHED', label: 'Matched' }, { value: 'REFUNDED', label: 'Refunded' }, { value: '', label: 'All' }]}
+                        tabs={[{ value: 'OPEN', label: t('tabOpen') }, { value: 'MATCHED', label: t('tabMatched') }, { value: 'REFUNDED', label: t('tabRefunded') }, { value: '', label: t('tabAll') }]}
                     />
                 </div>
                 {list.error && <div className="p-4"><ErrorBox error={list.error} /></div>}
                 {list.loading && !list.data ? <Spinner /> : rows.length === 0 ? (
-                    !list.error && <Empty>{status === 'OPEN' ? 'Nothing held in suspense.' : 'No receipts match these filters.'}</Empty>
+                    !list.error && <Empty>{status === 'OPEN' ? t('nothingHeld') : t('noMatch')}</Empty>
                 ) : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Reference</th>
-                                <th className={th}>Value date</th>
-                                <th className={th}>Age</th>
-                                <th className={th}>Channel / ext. ref</th>
-                                <th className={th}>Payer</th>
-                                <th className={thR}>Received</th>
-                                <th className={thR}>Still held</th>
-                                <th className={th}>Status</th>
+                                <th className={th}>{t('colReference')}</th>
+                                <th className={th}>{t('colValueDate')}</th>
+                                <th className={th}>{t('colAge')}</th>
+                                <th className={th}>{t('colChannel')}</th>
+                                <th className={th}>{t('colPayer')}</th>
+                                <th className={thR}>{t('colReceived')}</th>
+                                <th className={thR}>{t('colStillHeld')}</th>
+                                <th className={th}>{t('colStatus')}</th>
                                 <th className={th}></th>
                             </tr>
                         </thead>
@@ -155,13 +160,13 @@ export function SuspenseView() {
                                                 <button type="button" onClick={() => toggle(r.id, 'details')} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{r.reference}</button>
                                             </td>
                                             <td className={`${td} whitespace-nowrap`}>{r.valueDate}</td>
-                                            <td className={td}>{isOpen ? <AgeChip days={r.ageDays} /> : <span className="text-[12px] text-[#8792A2] tabular-nums">{r.ageDays}d</span>}</td>
+                                            <td className={td}>{isOpen ? <AgeChip days={r.ageDays} /> : <span className="text-[12px] text-[#8792A2] tabular-nums">{t('days', { days: r.ageDays })}</span>}</td>
                                             <td className={td}>
-                                                <div className="text-[12px]">{CHANNEL_LABEL[r.channel] ?? r.channel}</div>
+                                                <div className="text-[12px]">{CHANNEL_VALUES.has(r.channel) ? tc(r.channel) : r.channel}</div>
                                                 <div className="font-mono text-[11px] text-[#697386] break-all">{r.externalReference}</div>
                                             </td>
                                             <td className={td}>
-                                                {r.payerName || <span className="text-[#AAB7C4]">unknown</span>}
+                                                {r.payerName || <span className="text-[#AAB7C4]">{t('unknown')}</span>}
                                                 {r.narrative && <div className="text-[11px] text-[#697386] line-clamp-2 max-w-[220px]">{r.narrative}</div>}
                                             </td>
                                             <td className={tdR}><MoneyCell value={r.amount} currency={r.currency} /></td>
@@ -175,10 +180,10 @@ export function SuspenseView() {
                                             <td className={`${td} text-right whitespace-nowrap`}>
                                                 {isOpen && (
                                                     <div className="inline-flex gap-1.5">
-                                                        <Btn size="sm" variant={active === 'match' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'match')}>Match</Btn>
+                                                        <Btn size="sm" variant={active === 'match' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'match')}>{t('match')}</Btn>
                                                         {pend
-                                                            ? <Btn size="sm" variant={active === 'decision' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'decision')}>Refund decision</Btn>
-                                                            : <Btn size="sm" variant={active === 'refund' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'refund')}>Refund</Btn>}
+                                                            ? <Btn size="sm" variant={active === 'decision' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'decision')}>{t('refundDecision')}</Btn>
+                                                            : <Btn size="sm" variant={active === 'refund' ? 'primary' : 'secondary'} onClick={() => toggle(r.id, 'refund')}>{t('refund')}</Btn>}
                                                     </div>
                                                 )}
                                             </td>
@@ -194,7 +199,7 @@ export function SuspenseView() {
                                                             onClose={() => setPanel(null)}
                                                             onProposed={(p) => {
                                                                 setPending((s) => ({ ...s, [r.id]: p }));
-                                                                showToast('Refund proposed — awaiting approval by a different user', 'success');
+                                                                showToast(t('refundProposed'), 'success');
                                                                 setPanel({ id: r.id, kind: 'decision' });
                                                             }}
                                                         />
@@ -206,7 +211,7 @@ export function SuspenseView() {
                                                             onClose={() => setPanel(null)}
                                                             onDecided={(approved) => {
                                                                 setPending((s) => { const n = { ...s }; delete n[r.id]; return n; });
-                                                                done(approved ? `Refund of ${pend.amount} ${pend.currency} approved and paid out` : 'Refund proposal rejected');
+                                                                done(approved ? t('refundApproved', { amount: pend.amount, currency: pend.currency }) : t('refundRejected'));
                                                             }}
                                                         />
                                                     )}
@@ -235,23 +240,24 @@ function SummaryTile({ label, value, note }: { label: string; value: React.React
 }
 
 function ReceiptDetails({ payment, loanHref }: { payment: SuspensePayment; loanHref: (id: string) => string }) {
+    const t = useTranslations('LendingSuspense.view');
     return (
         <div className="space-y-2">
             <div className="text-[12px] text-[#697386]">
-                Received {fmtDateTime(payment.createdAt)} by <span className="font-mono">{payment.receivedBy?.slice(0, 8)}</span>
+                {t.rich('receivedBy', { when: fmtDateTime(payment.createdAt), who: () => <Person id={payment.receivedBy} /> })}
                 {payment.narrative && <> · {payment.narrative}</>}
             </div>
             {payment.matches.length === 0 ? (
-                <p className="text-[13px] text-[#697386]">Not yet matched or refunded.</p>
+                <p className="text-[13px] text-[#697386]">{t('notYetMatched')}</p>
             ) : (
                 <Table className="border border-[#E3E8EE] rounded bg-white">
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>When</th>
-                            <th className={th}>Kind</th>
-                            <th className={th}>Loan / reason</th>
-                            <th className={thR}>Amount</th>
-                            <th className={th}>By</th>
+                            <th className={th}>{t('colWhen')}</th>
+                            <th className={th}>{t('colKind')}</th>
+                            <th className={th}>{t('colLoanReason')}</th>
+                            <th className={thR}>{t('colAmount')}</th>
+                            <th className={th}>{t('colBy')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -265,7 +271,7 @@ function ReceiptDetails({ payment, loanHref }: { payment: SuspensePayment; loanH
                                         : m.reason || '—'}
                                 </td>
                                 <td className={tdR}><MoneyCell value={m.amount} currency={payment.currency} /></td>
-                                <td className={`${td} font-mono text-[11px] text-[#697386]`}>{m.actorId.slice(0, 8)}</td>
+                                <td className={`${td} text-[12px] text-[#697386]`}><Person id={m.actorId} /></td>
                             </tr>
                         ))}
                     </tbody>
