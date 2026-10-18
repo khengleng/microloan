@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/auth-context';
 import type { AccessOverview, LendingUser, Permission } from '../types';
 import { Checkbox } from '../ui';
@@ -55,7 +56,8 @@ export function groupByCategory(permissions: Permission[]): [string, Permission[
 }
 
 export function FinancialMark() {
-    return <span title="Financial permission" className="ml-1 text-[10px] font-bold px-1 rounded bg-amber-100 text-amber-800">$</span>;
+    const t = useTranslations('LendingAccess.common');
+    return <span title={t('financialPermission')} className="ml-1 text-[10px] font-bold px-1 rounded bg-amber-100 text-amber-800">$</span>;
 }
 
 /** Grouped permission checkboxes. */
@@ -69,10 +71,11 @@ export function PermissionPicker({ permissions, value, onChange, max }: {
         if (on) next.add(code); else next.delete(code);
         onChange(permissions.map((p) => p.code).filter((c) => next.has(c)));
     };
+    const t = useTranslations('LendingAccess.common');
     const full = max !== undefined && value.length >= max;
     return (
         <div className="space-y-3 max-h-80 overflow-auto border border-[#E3E8EE] rounded p-3 bg-[#FCFDFE]">
-            <p className="text-[11px] text-[#697386]">{value.length} selected{max !== undefined ? ` (max ${max})` : ''}</p>
+            <p className="text-[11px] text-[#697386]">{max !== undefined ? t('selectedMax', { count: value.length, max }) : t('selected', { count: value.length })}</p>
             {groups.map(([cat, perms]) => {
                 const allOn = perms.every((p) => selected.has(p.code));
                 return (
@@ -89,7 +92,7 @@ export function PermissionPicker({ permissions, value, onChange, max }: {
                                     onChange(max !== undefined ? codes.slice(0, max) : codes);
                                 }}
                             >
-                                {allOn ? 'clear' : 'all'}
+                                {allOn ? t('clear') : t('all')}
                             </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1">
@@ -112,11 +115,12 @@ export function PermissionPicker({ permissions, value, onChange, max }: {
 }
 
 export function Chip({ children, onRemove, tone = 'default' }: { children: React.ReactNode; onRemove?: () => void; tone?: 'default' | 'accent' }) {
+    const t = useTranslations('LendingAccess.common');
     const cls = tone === 'accent' ? 'bg-[#F0F5FF] border-[#C9D7FF] text-[#4B45C6]' : 'bg-slate-50 border-[#E3E8EE] text-[#3C4257]';
     return (
         <span className={`inline-flex items-center gap-1 border rounded px-1.5 py-0.5 text-[11px] font-mono ${cls}`}>
             {children}
-            {onRemove && <button type="button" onClick={onRemove} className="text-[#697386] hover:text-red-600" aria-label="remove">×</button>}
+            {onRemove && <button type="button" onClick={onRemove} className="text-[#697386] hover:text-red-600" aria-label={t('remove')}>×</button>}
         </span>
     );
 }

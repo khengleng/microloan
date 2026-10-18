@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, SelectInput, Table, TextInput, th, thR, td, tdR } from '../ui';
@@ -18,28 +19,29 @@ export function AuthoritiesTab({ data, reload }: TabProps) {
     const userName = useUserName(data.users);
     const me = useMyId();
     const rows = data.authorities as AuthorityRow[];
+    const t = useTranslations('LendingAccess.authorities');
     const pending = rows.filter((a) => a.status === 'PENDING');
 
     const decide = async (a: AuthorityRow, approve: boolean) => {
         const r = await run(`decide-${a.id}`, () => api.post(`/lending/access/authorities/${a.id}/decision`, { approve }));
-        if (r) { showToast(approve ? 'Authority approved' : 'Authority rejected', 'success'); reload(); }
+        if (r) { showToast(approve ? t('approved') : t('rejected'), 'success'); reload(); }
     };
 
     return (
         <div className="space-y-5">
             {pending.length > 0 && (
-                <Notice tone="warn" title={`${pending.length} authority request(s) pending`}>
-                    Approval limits follow maker-checker: the requester (and the user receiving the authority) cannot approve it.
+                <Notice tone="warn" title={t('pendingTitle', { count: pending.length })}>
+                    {t('pendingBody')}
                 </Notice>
             )}
-            <Card title="Approval authorities" subtitle="Monetary limits up to which a role or user may approve an action." bodyClass="p-0">
+            <Card title={t('title')} subtitle={t('subtitle')} bodyClass="p-0">
                 <div className="p-4 pb-0"><ErrorBox error={error} onDismiss={clearError} /></div>
-                {rows.length === 0 ? <Empty>No approval authorities configured.</Empty> : (
+                {rows.length === 0 ? <Empty>{t('none')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE]">
-                                <th className={th}>Holder</th><th className={th}>Permission</th><th className={thR}>Max amount</th>
-                                <th className={th}>Family</th><th className={th}>Status</th><th className={th}></th>
+                                <th className={th}>{t('colHolder')}</th><th className={th}>{t('colPermission')}</th><th className={thR}>{t('colMaxAmount')}</th>
+                                <th className={th}>{t('colFamily')}</th><th className={th}>{t('colStatus')}</th><th className={th}></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -47,18 +49,18 @@ export function AuthoritiesTab({ data, reload }: TabProps) {
                                 <tr key={a.id} className={a.status === 'PENDING' ? 'bg-amber-50/60' : ''}>
                                     <td className={td}>
                                         {a.roleId
-                                            ? <><span className="text-[10px] font-bold text-[#8792A2] mr-1">ROLE</span><span className="font-mono text-[12px]">{a.role?.code ?? a.roleId}</span></>
-                                            : <><span className="text-[10px] font-bold text-[#8792A2] mr-1">USER</span>{userName(a.userId)}</>}
+                                            ? <><span className="text-[10px] font-bold text-[#8792A2] mr-1">{t('role')}</span><span className="font-mono text-[12px]">{a.role?.code ?? a.roleId}</span></>
+                                            : <><span className="text-[10px] font-bold text-[#8792A2] mr-1">{t('user')}</span>{userName(a.userId)}</>}
                                     </td>
                                     <td className={td}><span className="font-mono text-[12px]">{a.permission}</span></td>
                                     <td className={tdR}><MoneyCell value={a.maxAmount} currency={a.currency} /></td>
-                                    <td className={td}>{a.familyCode ?? 'All'}</td>
+                                    <td className={td}>{a.familyCode ?? t('allFamilies')}</td>
                                     <td className={td}><StatusBadge status={a.status} /></td>
                                     <td className={`${td} whitespace-nowrap`}>
                                         {a.status === 'PENDING' && (
                                             <div className="flex gap-1.5 justify-end">
-                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={!!busy || (!!me && (a.requestedBy === me || a.userId === me))} reason={me && (a.requestedBy === me || a.userId === me) ? 'Maker-checker: a different admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" disabled={!!busy} onClick={() => decide(a, false)}>Reject</Btn>
+                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={!!busy || (!!me && (a.requestedBy === me || a.userId === me))} reason={me && (a.requestedBy === me || a.userId === me) ? t('makerChecker') : undefined} onClick={() => decide(a, true)}>{t('approve')}</Btn>
+                                                <Btn size="sm" variant="danger" disabled={!!busy} onClick={() => decide(a, false)}>{t('reject')}</Btn>
                                             </div>
                                         )}
                                     </td>
@@ -83,9 +85,10 @@ function AuthorityForm({ data, reload }: TabProps) {
     const [currency, setCurrency] = useState('');
     const [maxAmount, setMaxAmount] = useState('');
     const [familyCode, setFamilyCode] = useState('');
+    const t = useTranslations('LendingAccess.authorities');
 
-    const amountErr = maxAmount && !MONEY_RE.test(maxAmount.trim()) ? 'Decimal with up to 4 places' : undefined;
-    const ccyErr = currency && !/^[A-Z]{3}$/.test(currency) ? '3-letter code' : undefined;
+    const amountErr = maxAmount && !MONEY_RE.test(maxAmount.trim()) ? t('amountRule') : undefined;
+    const ccyErr = currency && !/^[A-Z]{3}$/.test(currency) ? t('currencyRule') : undefined;
     const holderOk = holder === 'role' ? !!roleId : !!userId;
     const valid = holderOk && permission && /^[A-Z]{3}$/.test(currency) && MONEY_RE.test(maxAmount.trim());
 
@@ -100,37 +103,37 @@ function AuthorityForm({ data, reload }: TabProps) {
         });
         const r = await run('create', () => api.post('/lending/access/authorities', body));
         if (r) {
-            showToast('Authority requested — awaiting approval', 'success');
+            showToast(t('requested'), 'success');
             setRoleId(''); setUserId(''); setPermission(''); setMaxAmount(''); setFamilyCode('');
             reload();
         }
     };
 
     return (
-        <Card title="Request approval authority">
+        <Card title={t('requestTitle')}>
             <div className="space-y-4">
                 <div className="flex gap-5 text-[13px] text-[#3C4257]">
-                    <label className="inline-flex items-center gap-2 cursor-pointer"><input type="radio" className="accent-[#635BFF]" checked={holder === 'role'} onChange={() => setHolder('role')} /> Grant to a role</label>
-                    <label className="inline-flex items-center gap-2 cursor-pointer"><input type="radio" className="accent-[#635BFF]" checked={holder === 'user'} onChange={() => setHolder('user')} /> Grant to a user</label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer"><input type="radio" className="accent-[#635BFF]" checked={holder === 'role'} onChange={() => setHolder('role')} /> {t('grantRole')}</label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer"><input type="radio" className="accent-[#635BFF]" checked={holder === 'user'} onChange={() => setHolder('user')} /> {t('grantUser')}</label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {holder === 'role'
-                        ? <Field label="Role"><SelectInput value={roleId} onChange={setRoleId} options={data.roles.map((r) => ({ value: r.id, label: `${r.code} — ${r.name}` }))} placeholder="Select role…" /></Field>
-                        : <Field label="User"><SelectInput value={userId} onChange={setUserId} options={userOptions(data.users)} placeholder="Select user…" /></Field>}
-                    <Field label="Permission">
+                        ? <Field label={t('roleLabel')}><SelectInput value={roleId} onChange={setRoleId} options={data.roles.map((r) => ({ value: r.id, label: `${r.code} — ${r.name}` }))} placeholder={t('selectRole')} /></Field>
+                        : <Field label={t('userLabel')}><SelectInput value={userId} onChange={setUserId} options={userOptions(data.users)} placeholder={t('selectUser')} /></Field>}
+                    <Field label={t('colPermission')}>
                         <select value={permission} onChange={(e) => setPermission(e.target.value)} className="w-full rounded border border-[#E3E8EE] bg-white px-2.5 py-1.5 text-[13px] text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/30">
-                            <option value="">Select permission…</option>
-                            <optgroup label="Financial">{financial.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</optgroup>
-                            <optgroup label="Other">{others.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</optgroup>
+                            <option value="">{t('selectPermission')}</option>
+                            <optgroup label={t('financial')}>{financial.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</optgroup>
+                            <optgroup label={t('other')}>{others.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</optgroup>
                         </select>
                     </Field>
-                    <Field label="Family code (optional)" hint="Restrict to one product family"><TextInput value={familyCode} onChange={setFamilyCode} maxLength={40} /></Field>
-                    <Field label="Currency" error={ccyErr}><TextInput value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} placeholder="USD" /></Field>
-                    <Field label="Max amount" error={amountErr}><TextInput value={maxAmount} onChange={setMaxAmount} inputMode="decimal" placeholder="e.g. 50000.00" /></Field>
+                    <Field label={t('familyOptional')} hint={t('familyHint')}><TextInput value={familyCode} onChange={setFamilyCode} maxLength={40} /></Field>
+                    <Field label={t('currency')} error={ccyErr}><TextInput value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} placeholder="USD" /></Field>
+                    <Field label={t('colMaxAmount')} error={amountErr}><TextInput value={maxAmount} onChange={setMaxAmount} inputMode="decimal" placeholder={t('amountPlaceholder')} /></Field>
                 </div>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Holder, permission, currency and amount are required' : undefined} onClick={submit}>Request authority</Btn>
+                    <Btn variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? t('required') : undefined} onClick={submit}>{t('request')}</Btn>
                 </div>
             </div>
         </Card>
