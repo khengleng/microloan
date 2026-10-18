@@ -29,27 +29,28 @@ export function FlagsTab({ data: overview }: TabProps) {
     const [ctx, setCtx] = useState<Ctx>(EMPTY_CTX);
     const { data, error, loading, reload } = useApi<FlagsResponse>(`/lending/access/flags${qs({ ...ctx })}`);
     const userName = useUserName(overview.users);
+    const t = useTranslations('LendingAccess.flags');
 
     return (
         <div className="space-y-5">
-            <Card title="Evaluation context" subtitle="Flags are evaluated for this context. Leave fields empty to use defaults (channel defaults to STAFF_PORTAL).">
+            <Card title={t('contextTitle')} subtitle={t('contextSubtitle')}>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                    <Field label="Product code"><TextInput value={draft.productCode} onChange={(productCode) => setDraft((d) => ({ ...d, productCode }))} /></Field>
-                    <Field label="Branch"><SelectInput value={draft.branchId} onChange={(branchId) => setDraft((d) => ({ ...d, branchId }))} options={(overview.branches ?? []).map((b) => ({ value: b.id, label: b.name }))} placeholder="(any)" /></Field>
-                    <Field label="Channel"><SelectInput value={draft.channel} onChange={(channel) => setDraft((d) => ({ ...d, channel }))} options={CHANNELS} placeholder="(default)" /></Field>
-                    <Field label="Segment"><TextInput value={draft.segment} onChange={(segment) => setDraft((d) => ({ ...d, segment }))} /></Field>
-                    <Field label="Cohort"><TextInput value={draft.cohort} onChange={(cohort) => setDraft((d) => ({ ...d, cohort }))} /></Field>
+                    <Field label={t('productCode')}><TextInput value={draft.productCode} onChange={(productCode) => setDraft((d) => ({ ...d, productCode }))} /></Field>
+                    <Field label={t('branch')}><SelectInput value={draft.branchId} onChange={(branchId) => setDraft((d) => ({ ...d, branchId }))} options={(overview.branches ?? []).map((b) => ({ value: b.id, label: b.name }))} placeholder={t('any')} /></Field>
+                    <Field label={t('channel')}><SelectInput value={draft.channel} onChange={(channel) => setDraft((d) => ({ ...d, channel }))} options={CHANNELS} placeholder={t('default')} /></Field>
+                    <Field label={t('segment')}><TextInput value={draft.segment} onChange={(segment) => setDraft((d) => ({ ...d, segment }))} /></Field>
+                    <Field label={t('cohort')}><TextInput value={draft.cohort} onChange={(cohort) => setDraft((d) => ({ ...d, cohort }))} /></Field>
                 </div>
                 <div className="flex justify-end gap-2 mt-3">
-                    <Btn size="sm" variant="ghost" onClick={() => { setDraft(EMPTY_CTX); setCtx(EMPTY_CTX); }}>Clear</Btn>
-                    <Btn size="sm" variant="primary" busy={loading} onClick={() => { setCtx({ ...draft }); if (JSON.stringify(draft) === JSON.stringify(ctx)) reload(); }}>Evaluate</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setDraft(EMPTY_CTX); setCtx(EMPTY_CTX); }}>{t('clear')}</Btn>
+                    <Btn size="sm" variant="primary" busy={loading} onClick={() => { setCtx({ ...draft }); if (JSON.stringify(draft) === JSON.stringify(ctx)) reload(); }}>{t('evaluate')}</Btn>
                 </div>
             </Card>
 
             <ErrorBox error={error} />
             {loading && !data ? <Spinner /> : data && (
                 <>
-                    <Card title="Precedence" subtitle="Evaluation order — the first matching source wins.">
+                    <Card title={t('precedenceTitle')} subtitle={t('precedenceSubtitle')}>
                         <ol className="flex flex-wrap items-center gap-1.5">
                             {data.precedence.map((p, i) => (
                                 <li key={p} className="flex items-center gap-1.5">
@@ -76,13 +77,14 @@ export function FlagsTab({ data: overview }: TabProps) {
 function FlagList({ flags }: { flags: Flag[] }) {
     const groups = new Map<string, Flag[]>();
     for (const f of flags) groups.set(f.category, [...(groups.get(f.category) ?? []), f]);
+    const t = useTranslations('LendingAccess.flags');
     return (
-        <Card title="Feature flags" subtitle="Current evaluation for the context above." bodyClass="p-0">
-            {flags.length === 0 ? <Empty>No flags defined.</Empty> : (
+        <Card title={t('flagsTitle')} subtitle={t('flagsSubtitle')} bodyClass="p-0">
+            {flags.length === 0 ? <Empty>{t('noFlags')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE]">
-                            <th className={th}>Flag</th><th className={th}>State</th><th className={th}>Source</th><th className={th}>Scope</th><th className={th}>Default</th>
+                            <th className={th}>{t('colFlag')}</th><th className={th}>{t('colState')}</th><th className={th}>{t('colSource')}</th><th className={th}>{t('colScope')}</th><th className={th}>{t('colDefault')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -97,6 +99,7 @@ function FlagList({ flags }: { flags: Flag[] }) {
 }
 
 function FlagGroup({ category, flags }: { category: string; flags: Flag[] }) {
+    const t = useTranslations('LendingAccess.flags');
     return (
         <>
             <tr className="bg-[#F7FAFC] border-y border-[#E3E8EE]"><td colSpan={5} className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#697386]">{category}</td></tr>
@@ -104,15 +107,15 @@ function FlagGroup({ category, flags }: { category: string; flags: Flag[] }) {
                 <tr key={f.key} className="border-b border-[#F0F2F5]">
                     <td className={td}>
                         <span className="font-mono text-[12px] text-[#1A1F36]">{f.key}</span>
-                        {f.sensitive && <span className="ml-1.5 text-[9px] font-bold px-1 rounded bg-red-50 text-red-700 border border-red-200">SENSITIVE</span>}
+                        {f.sensitive && <span className="ml-1.5 text-[9px] font-bold px-1 rounded bg-red-50 text-red-700 border border-red-200">{t('sensitive')}</span>}
                         <div className="text-[11px] text-[#697386]">{f.description}</div>
                     </td>
                     <td className={td}>
-                        <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold ${f.evaluation.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{f.evaluation.enabled ? 'ON' : 'OFF'}</span>
+                        <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold ${f.evaluation.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>{f.evaluation.enabled ? t('on') : t('off')}</span>
                     </td>
                     <td className={td}><span className="font-mono text-[11px]">{f.evaluation.source}</span></td>
                     <td className={td}><span className="text-[12px]">{f.evaluation.scope ?? '—'}</span></td>
-                    <td className={td}><span className="text-[12px] text-[#697386]">{f.defaultEnabled ? 'on' : 'off'}</span></td>
+                    <td className={td}><span className="text-[12px] text-[#697386]">{f.defaultEnabled ? t('defaultOn') : t('defaultOff')}</span></td>
                 </tr>
             ))}
         </>
@@ -126,20 +129,21 @@ function Approvals({ approvals, rules, userName, reload }: { approvals: Approval
     const me = useMyId();
     const pending = approvals.filter((a) => a.status === 'PENDING');
     const ruleById = new Map(rules.map((r) => [r.id, r]));
+    const t = useTranslations('LendingAccess.flags');
 
     const decide = async (a: ApprovalRow, approve: boolean) => {
         const r = await run(`decide-${a.id}`, () => api.post(`/lending/access/flags/changes/${a.id}/decision`, { approve }));
-        if (r) { showToast(approve ? 'Flag change approved' : 'Flag change rejected', 'success'); reload(); }
+        if (r) { showToast(approve ? t('changeApproved') : t('changeRejected'), 'success'); reload(); }
     };
 
     return (
-        <Card title="Flag change approvals" subtitle={`${pending.length} pending. The maker cannot approve their own change.`} bodyClass="p-0">
+        <Card title={t('approvalsTitle')} subtitle={t('approvalsSubtitle', { count: pending.length })} bodyClass="p-0">
             <div className="p-4 pb-0"><ErrorBox error={error} onDismiss={clearError} /></div>
-            {approvals.length === 0 ? <Empty>No flag change requests.</Empty> : (
+            {approvals.length === 0 ? <Empty>{t('noChanges')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE]">
-                            <th className={th}>Action</th><th className={th}>Rule</th><th className={th}>Maker</th><th className={th}>Reason</th><th className={th}>Status</th><th className={th}></th>
+                            <th className={th}>{t('colAction')}</th><th className={th}>{t('colRule')}</th><th className={th}>{t('colMaker')}</th><th className={th}>{t('colReason')}</th><th className={th}>{t('colStatus')}</th><th className={th}></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -150,7 +154,7 @@ function Approvals({ approvals, rules, userName, reload }: { approvals: Approval
                                 <tr key={a.id} className={a.status === 'PENDING' ? 'bg-amber-50/60' : ''}>
                                     <td className={td}><span className="font-mono text-[12px]">{a.action}</span></td>
                                     <td className={td}>
-                                        {rule ? <><span className="font-mono text-[12px]">{rule.flagKey}</span> <span className="text-[11px] text-[#697386]">{rule.scopeType}{rule.scopeValue ? `=${rule.scopeValue}` : ''} → {rule.enabled ? 'ON' : 'OFF'}</span></> : <span className="font-mono text-[11px]">{a.ruleId ?? '—'}</span>}
+                                        {rule ? <><span className="font-mono text-[12px]">{rule.flagKey}</span> <span className="text-[11px] text-[#697386]">{rule.scopeType}{rule.scopeValue ? `=${rule.scopeValue}` : ''} → {rule.enabled ? t('on') : t('off')}</span></> : <span className="font-mono text-[11px]">{a.ruleId ?? '—'}</span>}
                                     </td>
                                     <td className={td}>{userName(a.makerId)}</td>
                                     <td className={`${td} text-[12px]`}>{a.reason ?? '—'}</td>
@@ -158,8 +162,8 @@ function Approvals({ approvals, rules, userName, reload }: { approvals: Approval
                                     <td className={`${td} whitespace-nowrap`}>
                                         {a.status === 'PENDING' && (
                                             <div className="flex gap-1.5 justify-end">
-                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? 'Needs feature_flag.approve' : own ? 'You proposed this change — a second admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? 'Needs feature_flag.approve' : own ? 'You proposed this change — a second admin must decide' : undefined} onClick={() => decide(a, false)}>Reject</Btn>
+                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? t('needApprove') : own ? t('ownApprove') : undefined} onClick={() => decide(a, true)}>{t('approve')}</Btn>
+                                                <Btn size="sm" variant="danger" disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? t('needApprove') : own ? t('ownDecide') : undefined} onClick={() => decide(a, false)}>{t('reject')}</Btn>
                                             </div>
                                         )}
                                     </td>
@@ -174,13 +178,14 @@ function Approvals({ approvals, rules, userName, reload }: { approvals: Approval
 }
 
 function RuleRowCells({ r }: { r: FlagRule }) {
+    const t = useTranslations('LendingAccess.flags');
     return (
         <>
             <td className={td}><span className="font-mono text-[12px]">{r.flagKey}</span></td>
-            <td className={td}>{r.scopeType ?? 'PLATFORM'}{r.scopeValue ? <span className="text-[#697386]"> = {r.scopeValue}</span> : null}</td>
+            <td className={td}>{r.scopeType ?? t('platform')}{r.scopeValue ? <span className="text-[#697386]"> = {r.scopeValue}</span> : null}</td>
             <td className={td}>
-                <span className={`font-bold text-[11px] ${r.enabled ? 'text-emerald-700' : 'text-slate-600'}`}>{r.enabled ? 'ON' : 'OFF'}</span>
-                {r.emergency && <span className="ml-1 text-[9px] font-bold px-1 rounded bg-red-600 text-white">EMERGENCY</span>}
+                <span className={`font-bold text-[11px] ${r.enabled ? 'text-emerald-700' : 'text-slate-600'}`}>{r.enabled ? t('on') : t('off')}</span>
+                {r.emergency && <span className="ml-1 text-[9px] font-bold px-1 rounded bg-red-600 text-white">{t('emergency')}</span>}
             </td>
             <td className={`${td} text-[12px] whitespace-nowrap`}>{r.effectiveFrom ? fmtDateTime(r.effectiveFrom) : '—'}{r.effectiveTo ? <><br />→ {fmtDateTime(r.effectiveTo)}</> : null}</td>
             <td className={td}><StatusBadge status={r.status ?? null} /></td>
@@ -193,21 +198,22 @@ function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void 
     const { busy, error, run, clearError } = useAction();
     const { can } = useWorkspace();
     const [removing, setRemoving] = useState<FlagRule | null>(null);
+    const t = useTranslations('LendingAccess.flags');
     const [reason, setReason] = useState('');
 
     const submit = async () => {
         if (!removing) return;
         const r = await run('remove', () => api.post(`/lending/access/flags/rules/${removing.id}/remove`, { reason: reason.trim() }));
-        if (r) { showToast('Removal proposed — awaiting approval', 'success'); setRemoving(null); setReason(''); reload(); }
+        if (r) { showToast(t('removalProposed'), 'success'); setRemoving(null); setReason(''); reload(); }
     };
 
     return (
-        <Card title="Tenant rules" bodyClass="p-0">
-            {rules.length === 0 ? <Empty>No tenant flag rules.</Empty> : (
+        <Card title={t('tenantRules')} bodyClass="p-0">
+            {rules.length === 0 ? <Empty>{t('noTenantRules')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE]">
-                            <th className={th}>Flag</th><th className={th}>Scope</th><th className={th}>Sets</th><th className={th}>Effective</th><th className={th}>Status</th><th className={th}>Priority</th><th className={th}></th>
+                            <th className={th}>{t('colFlag')}</th><th className={th}>{t('colScope')}</th><th className={th}>{t('colSets')}</th><th className={th}>{t('colEffective')}</th><th className={th}>{t('colStatus')}</th><th className={th}>{t('colPriority')}</th><th className={th}></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -216,7 +222,7 @@ function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void 
                                 <RuleRowCells r={r} />
                                 <td className={td}>{r.priority ?? '—'}</td>
                                 <td className={`${td} text-right`}>
-                                    {r.status === 'ACTIVE' && <Btn size="sm" variant="danger" disabled={!can('feature_flag.manage')} reason={!can('feature_flag.manage') ? 'Needs feature_flag.manage' : undefined} onClick={() => { setRemoving(r); setReason(''); clearError(); }}>Propose removal</Btn>}
+                                    {r.status === 'ACTIVE' && <Btn size="sm" variant="danger" disabled={!can('feature_flag.manage')} reason={!can('feature_flag.manage') ? t('needManage') : undefined} onClick={() => { setRemoving(r); setReason(''); clearError(); }}>{t('proposeRemoval')}</Btn>}
                                 </td>
                             </tr>
                         ))}
@@ -225,10 +231,10 @@ function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void 
             )}
             {removing && (
                 <div className="p-4">
-                    <ActionPanel title={`Propose removal of ${removing.flagKey} (${removing.scopeType}${removing.scopeValue ? `=${removing.scopeValue}` : ''})`} onClose={() => setRemoving(null)}>
-                        <Field label="Reason" error={reason && reason.trim().length < 3 ? 'At least 3 characters' : undefined}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
+                    <ActionPanel title={t('removalTitle', { flag: removing.flagKey, scope: `${removing.scopeType}${removing.scopeValue ? `=${removing.scopeValue}` : ''}` })} onClose={() => setRemoving(null)}>
+                        <Field label={t('colReason')} error={reason && reason.trim().length < 3 ? t('minChars') : undefined}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
                         <ErrorBox error={error} onDismiss={clearError} />
-                        <div className="flex justify-end"><Btn variant="danger" busy={busy === 'remove'} disabled={reason.trim().length < 3} onClick={submit}>Propose removal</Btn></div>
+                        <div className="flex justify-end"><Btn variant="danger" busy={busy === 'remove'} disabled={reason.trim().length < 3} onClick={submit}>{t('proposeRemoval')}</Btn></div>
                     </ActionPanel>
                 </div>
             )}
@@ -237,13 +243,14 @@ function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void 
 }
 
 function PlatformRules({ rules, userName }: { rules: PlatformRuleRow[]; userName: (id: string | null | undefined) => string }) {
+    const t = useTranslations('LendingAccess.flags');
     return (
-        <Card title="Platform rules" subtitle="Set by the platform operator; read-only for tenants. Platform emergency-off overrides every tenant rule." bodyClass="p-0">
-            {rules.length === 0 ? <Empty>No platform flag rules.</Empty> : (
+        <Card title={t('platformRules')} subtitle={t('platformRulesSubtitle')} bodyClass="p-0">
+            {rules.length === 0 ? <Empty>{t('noPlatformRules')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE]">
-                            <th className={th}>Flag</th><th className={th}>Scope</th><th className={th}>Sets</th><th className={th}>Effective</th><th className={th}>Status</th><th className={th}>Maker</th><th className={th}>Reason</th>
+                            <th className={th}>{t('colFlag')}</th><th className={th}>{t('colScope')}</th><th className={th}>{t('colSets')}</th><th className={th}>{t('colEffective')}</th><th className={th}>{t('colStatus')}</th><th className={th}>{t('colMaker')}</th><th className={th}>{t('colReason')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -274,10 +281,11 @@ function ProposeRuleForm({ flags, reload }: { flags: Flag[]; reload: () => void 
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
     const [reason, setReason] = useState('');
+    const t = useTranslations('LendingAccess.flags');
 
     const flag = flags.find((f) => f.key === flagKey);
-    const priorityErr = priority && (!/^\d+$/.test(priority) || Number(priority) > 1000) ? 'Whole number 0–1000' : undefined;
-    const scopeErr = scopeType !== 'TENANT' && !scopeValue.trim() ? 'Required for this scope' : undefined;
+    const priorityErr = priority && (!/^\d+$/.test(priority) || Number(priority) > 1000) ? t('priorityRule') : undefined;
+    const scopeErr = scopeType !== 'TENANT' && !scopeValue.trim() ? t('scopeRequired') : undefined;
     const valid = flagKey && !scopeErr && !priorityErr && reason.trim().length >= 3;
 
     const submit = async () => {
@@ -293,34 +301,34 @@ function ProposeRuleForm({ flags, reload }: { flags: Flag[]; reload: () => void 
         });
         const r = await run('propose', () => api.post('/lending/access/flags/rules', body));
         if (r) {
-            showToast('Flag rule proposed — awaiting approval', 'success');
+            showToast(t('ruleProposed'), 'success');
             setFlagKey(''); setScopeValue(''); setEmergency(false); setPriority(''); setFrom(''); setTo(''); setReason('');
             reload();
         }
     };
 
     return (
-        <Card title="Propose flag rule" subtitle="Creates a pending rule that a second admin must approve.">
+        <Card title={t('proposeTitle')} subtitle={t('proposeSubtitle')}>
             <div className="space-y-4">
-                {flag?.sensitive && <Notice tone="warn" title="Sensitive flag">Changes to this flag affect financial or regulatory behaviour.</Notice>}
+                {flag?.sensitive && <Notice tone="warn" title={t('sensitiveFlag')}>{t('sensitiveFlagBody')}</Notice>}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <Field label="Flag"><SelectInput value={flagKey} onChange={setFlagKey} options={flags.map((f) => ({ value: f.key, label: `${f.key}${f.sensitive ? ' (sensitive)' : ''}` }))} placeholder="Select flag…" /></Field>
-                    <Field label="Scope type"><SelectInput value={scopeType} onChange={setScopeType} options={SCOPES} /></Field>
-                    <Field label="Scope value" error={scopeErr}>
+                    <Field label={t('colFlag')}><SelectInput value={flagKey} onChange={setFlagKey} options={flags.map((f) => ({ value: f.key, label: f.sensitive ? t('flagSensitive', { key: f.key }) : f.key }))} placeholder={t('selectFlag')} /></Field>
+                    <Field label={t('scopeType')}><SelectInput value={scopeType} onChange={setScopeType} options={SCOPES} /></Field>
+                    <Field label={t('scopeValue')} error={scopeErr}>
                         {scopeType === 'CHANNEL'
-                            ? <SelectInput value={scopeValue} onChange={setScopeValue} options={CHANNELS} placeholder="Select channel…" />
-                            : <TextInput value={scopeValue} onChange={setScopeValue} disabled={scopeType === 'TENANT'} maxLength={80} placeholder={scopeType === 'TENANT' ? 'n/a' : ''} />}
+                            ? <SelectInput value={scopeValue} onChange={setScopeValue} options={CHANNELS} placeholder={t('selectChannel')} />
+                            : <TextInput value={scopeValue} onChange={setScopeValue} disabled={scopeType === 'TENANT'} maxLength={80} placeholder={scopeType === 'TENANT' ? t('na') : ''} />}
                     </Field>
-                    <Field label="Set flag"><SelectInput value={enabled} onChange={setEnabled} options={[{ value: 'true', label: 'ON' }, { value: 'false', label: 'OFF' }]} /></Field>
-                    <Field label="Priority (optional)" error={priorityErr} hint="0–1000"><TextInput value={priority} onChange={setPriority} inputMode="numeric" /></Field>
-                    <Field label="Effective from (optional)"><TextInput type="datetime-local" value={from} onChange={setFrom} /></Field>
-                    <Field label="Effective to (optional)"><TextInput type="datetime-local" value={to} onChange={setTo} /></Field>
-                    <Field label="Reason" error={reason && reason.trim().length < 3 ? 'At least 3 characters' : undefined}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
+                    <Field label={t('setFlag')}><SelectInput value={enabled} onChange={setEnabled} options={[{ value: 'true', label: t('on') }, { value: 'false', label: t('off') }]} /></Field>
+                    <Field label={t('priorityOptional')} error={priorityErr} hint="0–1000"><TextInput value={priority} onChange={setPriority} inputMode="numeric" /></Field>
+                    <Field label={t('effectiveFromOptional')}><TextInput type="datetime-local" value={from} onChange={setFrom} /></Field>
+                    <Field label={t('effectiveToOptional')}><TextInput type="datetime-local" value={to} onChange={setTo} /></Field>
+                    <Field label={t('colReason')} error={reason && reason.trim().length < 3 ? t('minChars') : undefined}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
                 </div>
-                <Checkbox checked={emergency} onChange={setEmergency} label="Emergency rule (cannot be overridden by narrower tenant rules)" />
+                <Checkbox checked={emergency} onChange={setEmergency} label={t('emergencyLabel')} />
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'propose'} disabled={!valid || !can('feature_flag.manage')} reason={!can('feature_flag.manage') ? 'Needs feature_flag.manage' : !valid ? 'Flag, scope value (unless TENANT) and reason are required' : undefined} onClick={submit}>Propose rule</Btn>
+                    <Btn variant="primary" busy={busy === 'propose'} disabled={!valid || !can('feature_flag.manage')} reason={!can('feature_flag.manage') ? t('needManage') : !valid ? t('required') : undefined} onClick={submit}>{t('proposeRule')}</Btn>
                 </div>
             </div>
         </Card>

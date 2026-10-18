@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -10,20 +11,20 @@ import { LendingShell, useLendingHref } from '@/components/lending/LendingShell'
 import { ActionPanel, Btn, Card, ErrorBox, Field, IssueList, JsonBlock, KV, Notice, Spinner, TextArea, TextInput } from '@/components/lending/ui';
 import { StatusBadge } from '@/components/lending/StatusBadge';
 import { JsonDiff } from '@/components/lending/JsonDiff';
+import { Person } from '@/components/lending/People';
 import { ConfigEditor } from '@/components/lending/products/ConfigEditor';
 import { normalizeIssues } from '@/components/lending/products/NewProductWizard';
 import { useAction, useApi, useCapabilities } from '@/components/lending/useAsync';
 import type { MissingCapability, ProductConfig, ProductVersionDetail } from '@/components/lending/types';
 
 type Act = 'submit' | 'approve' | 'reject' | 'activate' | 'retire';
-const PAST: Record<Act, string> = { submit: 'submitted', approve: 'approved', reject: 'rejected', activate: 'activated', retire: 'retired' };
-
-const ACTIONS: { act: Act; label: string; from: string; perm: string; variant: 'primary' | 'secondary' | 'danger' }[] = [
-    { act: 'submit', label: 'Submit for approval', from: 'DRAFT', perm: 'loan_product.submit', variant: 'primary' },
-    { act: 'approve', label: 'Approve', from: 'SUBMITTED', perm: 'loan_product.approve', variant: 'primary' },
-    { act: 'reject', label: 'Reject', from: 'SUBMITTED', perm: 'loan_product.reject', variant: 'danger' },
-    { act: 'activate', label: 'Activate', from: 'APPROVED', perm: 'loan_product.activate', variant: 'primary' },
-    { act: 'retire', label: 'Retire', from: 'ACTIVE', perm: 'loan_product.retire', variant: 'danger' },
+// Button labels and toasts come from LendingProducts.version.actions.<act> / done.<act>.
+const ACTIONS: { act: Act; from: string; perm: string; variant: 'primary' | 'secondary' | 'danger' }[] = [
+    { act: 'submit', from: 'DRAFT', perm: 'loan_product.submit', variant: 'primary' },
+    { act: 'approve', from: 'SUBMITTED', perm: 'loan_product.approve', variant: 'primary' },
+    { act: 'reject', from: 'SUBMITTED', perm: 'loan_product.reject', variant: 'danger' },
+    { act: 'activate', from: 'APPROVED', perm: 'loan_product.activate', variant: 'primary' },
+    { act: 'retire', from: 'ACTIVE', perm: 'loan_product.retire', variant: 'danger' },
 ];
 
 function missingLabel(m: MissingCapability | string) {
@@ -39,6 +40,7 @@ export default function ProductVersionPage() {
     const { data: v, error: loadError, loading, reload } = useApi<ProductVersionDetail>(`/lending/product-versions/${id}`);
     const { can, reload: reloadCaps } = useCapabilities('PRODUCT_VERSION', id);
     const { busy, error, run, clearError } = useAction();
+    const t = useTranslations('LendingProducts.version');
 
     const [draft, setDraft] = useState<ProductConfig | null>(null);
     const [summary, setSummary] = useState('');
@@ -47,28 +49,26 @@ export default function ProductVersionPage() {
 
     const refresh = () => { reload(); reloadCaps(); };
 
-    if (loading && !v) return <LendingShell title="Product version"><Spinner /></LendingShell>;
-    if (loadError || !v) return <LendingShell title="Product version" back={{ href: '/lending/products', label: 'Products' }}><ErrorBox error={loadError} /></LendingShell>;
+    if (loading && !v) return <LendingShell title={t('title')}><Spinner /></LendingShell>;
+    if (loadError || !v) return <LendingShell title={t('title')} back={{ href: '/lending/products', label: 'Products' }}><ErrorBox error={loadError} /></LendingShell>;
 
-    const productName = v.product?.name ?? 'Product';
+    const productName = v.product?.name ?? t('product');
     const missing = v.missingCapabilities ?? [];
     const isDraft = v.status === 'DRAFT';
 
     const transition = async (act: Act, body: Record<string, string> = {}) => {
         if (act === 'activate' || act === 'retire') {
             const ok = await confirm({
-                title: act === 'activate' ? 'Activate this version?' : 'Retire this version?',
-                message: act === 'activate'
-                    ? 'New applications will use this configuration. Any currently active version will be superseded.'
-                    : 'The product will no longer accept new applications on this version. Existing loans keep their terms.',
-                confirmLabel: act === 'activate' ? 'Activate' : 'Retire',
+                title: act === 'activate' ? t('activateTitle') : t('retireTitle'),
+                message: act === 'activate' ? t('activateBody') : t('retireBody'),
+                confirmLabel: act === 'activate' ? t('actions.activate') : t('actions.retire'),
                 variant: act === 'retire' ? 'danger' : 'warning',
             });
             if (!ok) return;
         }
         const r = await run(act, () => api.post(`/lending/product-versions/${id}/${act}`, body));
         if (r) {
-            showToast(`Version ${PAST[act]}`, 'success');
+            showToast(t(`done.${act}`), 'success');
             setRejecting(false);
             setReason('');
             refresh();
@@ -78,7 +78,7 @@ export default function ProductVersionPage() {
     const saveDraft = async () => {
         const r = await run('save', () => api.put(`/lending/product-versions/${id}`, { config: draft, ...(summary.trim() ? { changeSummary: summary.trim() } : {}) }));
         if (r) {
-            showToast('Draft saved', 'success');
+            showToast(t('draftSaved'), 'success');
             setDraft(null);
             refresh();
         }
@@ -87,7 +87,7 @@ export default function ProductVersionPage() {
     const newVersion = async () => {
         const r = await run('newVersion', () => api.post<{ id: string }>(`/lending/products/${v.productId}/versions`, {}));
         if (r) {
-            showToast('New draft version created', 'success');
+            showToast(t('newDraftCreated'), 'success');
             router.push(href(`/lending/products/versions/${r.data.id}`));
         }
     };
@@ -100,60 +100,60 @@ export default function ProductVersionPage() {
             title={<span className="flex items-center gap-2">{productName} v{v.version} <StatusBadge status={v.status} /></span>}
             subtitle={<span className="font-mono text-[12px]">{v.product?.code} · {v.product?.familyCode} / {v.product?.templateCode}</span>}
             actions={<>
-                <Link href={href(`/lending/simulator?version=${v.id}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline mr-2">Simulate pricing →</Link>
+                <Link href={href(`/lending/simulator?version=${v.id}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline mr-2">{t('simulate')}</Link>
                 {ACTIONS.filter((a) => a.from === v.status).map((a) => {
                     const c = can(a.perm);
                     if (a.act === 'reject') {
-                        return <Btn data-tour="product-version-reject" key={a.act} variant="danger" disabled={!c.allowed} reason={c.reason} onClick={() => setRejecting(true)}>Reject</Btn>;
+                        return <Btn data-tour="product-version-reject" key={a.act} variant="danger" disabled={!c.allowed} reason={c.reason} onClick={() => setRejecting(true)}>{t('actions.reject')}</Btn>;
                     }
-                    return <Btn data-tour="product-version-action" key={a.act} variant={a.variant} busy={busy === a.act} disabled={!c.allowed} reason={c.reason} onClick={() => transition(a.act)}>{a.label}</Btn>;
+                    return <Btn data-tour="product-version-action" key={a.act} variant={a.variant} busy={busy === a.act} disabled={!c.allowed} reason={c.reason} onClick={() => transition(a.act)}>{t(`actions.${a.act}`)}</Btn>;
                 })}
                 {(v.status === 'ACTIVE' || v.status === 'RETIRED' || v.status === 'REJECTED') && (
-                    <Btn data-tour="product-version-new" busy={busy === 'newVersion'} disabled={!can('loan_product.create').allowed} reason={can('loan_product.create').reason} onClick={newVersion}>New version</Btn>
+                    <Btn data-tour="product-version-new" busy={busy === 'newVersion'} disabled={!can('loan_product.create').allowed} reason={can('loan_product.create').reason} onClick={newVersion}>{t('newVersion')}</Btn>
                 )}
             </>}
         >
             <ErrorBox error={error && !saveIssues.length ? error : null} onDismiss={clearError} />
             {error?.code === 'MISSING_CAPABILITIES' && (
-                <Notice tone="danger" title="Activation refused: the engine lacks capabilities this configuration needs">
-                    Activation requires every required capability to be IMPLEMENTED. See the missing list below and the <Link className="underline" href={href('/lending/catalogue')}>capability matrix</Link>.
+                <Notice tone="danger" title={t('refusedTitle')}>
+                    {t.rich('refusedBody', { link: (c) => <Link className="underline" href={href('/lending/catalogue')}>{c}</Link> })}
                 </Notice>
             )}
 
             {rejecting && (
-                <ActionPanel title="Reject this version" onClose={() => setRejecting(false)}>
-                    <Field label="Reason"><TextArea value={reason} onChange={setReason} rows={2} /></Field>
-                    <Btn variant="danger" busy={busy === 'reject'} onClick={() => transition('reject', reason.trim() ? { reason: reason.trim() } : {})}>Confirm rejection</Btn>
+                <ActionPanel title={t('rejectTitle')} onClose={() => setRejecting(false)}>
+                    <Field label={t('reason')}><TextArea value={reason} onChange={setReason} rows={2} /></Field>
+                    <Btn variant="danger" busy={busy === 'reject'} onClick={() => transition('reject', reason.trim() ? { reason: reason.trim() } : {})}>{t('confirmReject')}</Btn>
                 </ActionPanel>
             )}
 
             {v.status === 'SUBMITTED' && (
-                <Card title="Changes to review before approval" subtitle={v.activeVersionId ? 'Differences from the currently active version' : 'There is no active version — this is the first configuration.'} className="border-[#635BFF] ring-1 ring-[#635BFF]/20">
-                    {v.diffFromActive ? <JsonDiff diff={v.diffFromActive} /> : <p className="text-[13px] text-[#697386]">No active version to compare against; review the full configuration below.</p>}
+                <Card title={t('reviewTitle')} subtitle={v.activeVersionId ? t('reviewDiff') : t('reviewFirst')} className="border-[#635BFF] ring-1 ring-[#635BFF]/20">
+                    {v.diffFromActive ? <JsonDiff diff={v.diffFromActive} /> : <p className="text-[13px] text-[#697386]">{t('noActive')}</p>}
                 </Card>
             )}
 
             <div data-tour="product-version-checks" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <Card title="Version">
+                <Card title={t('versionCard')}>
                     <KV cols={2} items={[
-                        ['Status', <StatusBadge key="s" status={v.status} />],
-                        ['Effective', `${v.effectiveFrom ?? '—'}${v.effectiveTo ? ` → ${v.effectiveTo}` : ''}`],
-                        ['Maker', <span key="m" className="font-mono text-[11px]">{v.makerId ?? '—'}</span>],
-                        ['Checker', <span key="c" className="font-mono text-[11px]">{v.checkerId ?? '—'}</span>],
-                        ['Change summary', v.changeSummary || '—'],
-                        ['Active version', v.activeVersionId ? <Link key="a" className="text-[#635BFF] hover:underline" href={href(`/lending/products/versions/${v.activeVersionId}`)}>open</Link> : 'none'],
+                        [t('status'), <StatusBadge key="s" status={v.status} />],
+                        [t('effective'), `${v.effectiveFrom ?? '—'}${v.effectiveTo ? ` → ${v.effectiveTo}` : ''}`],
+                        [t('maker'), v.makerId ? <Person key="m" id={v.makerId} /> : '—'],
+                        [t('checker'), v.checkerId ? <Person key="c" id={v.checkerId} /> : '—'],
+                        [t('changeSummary'), v.changeSummary || '—'],
+                        [t('activeVersion'), v.activeVersionId ? <Link key="a" className="text-[#635BFF] hover:underline" href={href(`/lending/products/versions/${v.activeVersionId}`)}>{t('open')}</Link> : t('none')],
                     ]} />
                 </Card>
-                <Card title="Validation">
+                <Card title={t('validation')}>
                     {v.validation.ok
-                        ? <Notice tone="success" title="Configuration is valid" />
-                        : <Notice tone="danger" title={`${v.validation.issues.length} issue(s)`}><IssueList issues={v.validation.issues} /></Notice>}
+                        ? <Notice tone="success" title={t('valid')} />
+                        : <Notice tone="danger" title={t('issues', { count: v.validation.issues.length })}><IssueList issues={v.validation.issues} /></Notice>}
                 </Card>
-                <Card title="Capabilities" subtitle={`${v.requiredCapabilities.length} required`}>
+                <Card title={t('capabilities')} subtitle={t('required', { count: v.requiredCapabilities.length })}>
                     {missing.length === 0
-                        ? <Notice tone="success" title="All required capabilities are implemented" />
+                        ? <Notice tone="success" title={t('allImplemented')} />
                         : (
-                            <Notice tone="danger" title={`${missing.length} missing — activation will be refused`}>
+                            <Notice tone="danger" title={t('missing', { count: missing.length })}>
                                 <ul className="list-disc pl-4 space-y-0.5 mt-1">{missing.map((m, i) => <li key={i} className="text-[12px]">{missingLabel(m)}</li>)}</ul>
                             </Notice>
                         )}
@@ -162,25 +162,25 @@ export default function ProductVersionPage() {
             </div>
 
             {v.status !== 'SUBMITTED' && v.diffFromActive && v.diffFromActive.length > 0 && (
-                <Card title="Differences from active version"><JsonDiff diff={v.diffFromActive} /></Card>
+                <Card title={t('diffTitle')}><JsonDiff diff={v.diffFromActive} /></Card>
             )}
 
             <Card
-                title="Configuration"
-                subtitle={isDraft ? 'Drafts can be edited. Submitting freezes the configuration for review.' : 'Read-only — create a new version to change it.'}
+                title={t('configuration')}
+                subtitle={isDraft ? t('draftEditable') : t('readOnly')}
                 actions={isDraft && !draft && (
-                    <Btn data-tour="product-version-edit" variant="primary" disabled={!can('loan_product.update').allowed} reason={can('loan_product.update').reason} onClick={() => setDraft(v.config)}>Edit draft</Btn>
+                    <Btn data-tour="product-version-edit" variant="primary" disabled={!can('loan_product.update').allowed} reason={can('loan_product.update').reason} onClick={() => setDraft(v.config)}>{t('editDraft')}</Btn>
                 )}
             >
                 {draft ? (
                     <div className="space-y-4">
                         <ConfigEditor config={draft} onChange={setDraft} issues={saveIssues} />
-                        {saveIssues.length > 0 && <ErrorBox error={{ message: `${error?.message ?? 'Validation failed'} — see the highlighted steps.`, code: error?.code }} />}
+                        {saveIssues.length > 0 && <ErrorBox error={{ message: t('seeSteps', { message: error?.message ?? t('validationFailed') }), code: error?.code }} />}
                         <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                            <Field label="Change summary" className="flex-1"><TextInput value={summary} onChange={setSummary} maxLength={500} placeholder="What changed and why" /></Field>
+                            <Field label={t('changeSummary')} className="flex-1"><TextInput value={summary} onChange={setSummary} maxLength={500} placeholder={t('summaryPlaceholder')} /></Field>
                             <div className="flex gap-2">
-                                <Btn onClick={() => { setDraft(null); clearError(); }}>Cancel</Btn>
-                                <Btn variant="primary" busy={busy === 'save'} onClick={saveDraft}>Save draft</Btn>
+                                <Btn onClick={() => { setDraft(null); clearError(); }}>{t('cancel')}</Btn>
+                                <Btn variant="primary" busy={busy === 'save'} onClick={saveDraft}>{t('saveDraft')}</Btn>
                             </div>
                         </div>
                     </div>

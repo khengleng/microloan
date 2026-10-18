@@ -1577,6 +1577,105 @@
         "externalAccounting": "External accounting",
         "documents": "Document storage"
       }
+    },
+    "impairment": {
+      "versions": "Versions",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colProposed": "Proposed",
+      "colNote": "Note",
+      "ownApprove": "You proposed this — another person must approve",
+      "ownDecide": "You proposed this — another person must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "why": "Why",
+      "propose": "Propose",
+      "inForce": "In force: version {version}",
+      "approvedAt": "Approved {at}",
+      "invalidJson": "The policy is not valid JSON: {error}",
+      "proposed": "Policy proposed — a risk reviewer must approve it",
+      "approved": "Policy in force from the next end of day",
+      "rejected": "Policy rejected",
+      "noneInForce": "No impairment policy in force",
+      "noneInForceBody": "Lending loans carry no loss allowance until a policy is approved. Start from the NBC regulatory template or an ECL template below.",
+      "noVersions": "No policy has been proposed.",
+      "colMode": "Mode",
+      "needApprove": "Needs impairment.approve",
+      "needManage": "Needs impairment.manage",
+      "proposeTitle": "Propose a policy",
+      "proposeSubtitle": "A different user with the impairment-approval permission (risk) must approve it.",
+      "startCurrent": "Start from current",
+      "startNbc": "Start from NBC regulatory",
+      "startEcl": "Start from ECL",
+      "pickStart": "Pick a starting point.",
+      "modesExplain": "REGULATORY: each class's rate applies to outstanding principal. ECL: allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring; class rates are ignored.",
+      "policyJson": "Policy (JSON)",
+      "sameAsInForce": "Same as the policy in force."
+    },
+    "settings": {
+      "versions": "Versions",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colProposed": "Proposed",
+      "colNote": "Note",
+      "ownApprove": "You proposed this — another person must approve",
+      "ownDecide": "You proposed this — another person must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "why": "Why",
+      "propose": "Propose",
+      "inForce": "In force: version {version}",
+      "approvedAt": "Approved {at}",
+      "invalidJson": "The settings are not valid JSON: {error}",
+      "proposed": "Settings proposed — a second person must approve them",
+      "approved": "Settings in force",
+      "rejected": "Settings rejected",
+      "defaultsInForce": "Defaults in force",
+      "defaultsInForceBody": "No version has been approved, so every value below is the platform default.",
+      "inForceDefaults": "In force: defaults",
+      "colSetting": "Setting",
+      "colValue": "Value",
+      "colDefault": "Default",
+      "noVersions": "No version has been proposed.",
+      "needApprove": "Needs tenant_settings.approve",
+      "needManage": "Needs tenant_settings.manage",
+      "proposeTitle": "Propose a change",
+      "proposeSubtitle": "A different user with the settings-approval permission must approve it. Account codes must exist in the chart of accounts; a changed account applies to new postings only.",
+      "startFromInForce": "Start from what is in force",
+      "startHint": "Start from the settings in force and change what you need.",
+      "settingsJson": "Settings (JSON)",
+      "sameAsInForce": "Same as the settings in force.",
+      "labels": {
+        "regulatory_classes": "Regulatory loan classes (days past due → provision rate)",
+        "regulatory_sizeBandEdgesUsd": "Regulatory return: loan-size band edges (USD)",
+        "regulatory_sizeBandKhrPerUsd": "Regulatory return: KHR per USD for the size bands",
+        "regulatory_rateBandEdgesPct": "Regulatory return: interest-rate band edges (% a year)",
+        "accounting_cash": "Cash / bank account",
+        "accounting_retainedEarnings": "Retained earnings (year-end close)",
+        "accounting_migrationClearing": "Migration clearing (opening balances)",
+        "accounting_fxPosition": "FX position",
+        "accounting_fxGainLoss": "FX gain / loss",
+        "accounting_unidentifiedSuspense": "Unidentified receipts (suspense)",
+        "accounting_legacy_loansReceivable": "Original loan book: loans receivable",
+        "accounting_legacy_interestIncome": "Original loan book: interest income",
+        "accounting_legacy_penaltyIncome": "Original loan book: penalty income",
+        "accounting_legacy_feeIncome": "Original loan book: fee income",
+        "accounting_legacy_loanLossAllowance": "Original loan book: loan-loss allowance",
+        "accounting_legacy_provisionExpense": "Original loan book: provision expense",
+        "accounting_legacy_writeOffExpense": "Original loan book: write-off expense",
+        "payments_maxFileLines": "Payment files: most lines per file",
+        "payments_maxBackdateDays": "Unidentified receipts and payment files: most days back-dated",
+        "access_maxDelegationDays": "Longest delegation of authority (days)",
+        "legacyServicing_defaultAfterDaysOverdue": "Original loan book: mark DEFAULTED after days overdue",
+        "scoring_monitoring_badDaysPastDue": "Scorecard monitoring: a loan is bad once an instalment is this many days late",
+        "scoring_monitoring_performanceMonths": "Scorecard monitoring: … within this many months of disbursement",
+        "scoring_monitoring_baselineWindowDays": "Scorecard monitoring: baseline window for stability (days)",
+        "scoring_monitoring_recentWindowDays": "Scorecard monitoring: recent window for stability (days)",
+        "scoring_monitoring_psiEpsilon": "Scorecard monitoring: share given to an empty grade in the stability index",
+        "scoring_consent_maxValidityDays": "Alternative data: longest a customer consent may run (days)",
+        "scoring_alternativeData_maxRecordAgeDays": "Alternative data: verified records older than this no longer count (days)",
+        "scoring_alternativeData_digitalChannels": "Alternative data: payment channels counted as digital repayments"
+      }
     }
   },
   "Status": {
@@ -1846,7 +1945,60 @@
     "bureauSubtitle": "One record per loan you may export — status, balance, days past due and classification at the business date. Closed loans are reported as paid.",
     "bureauDownload": "Download bureau file (CSV)",
     "downloadFailed": "Download failed: {message}",
-    "noExports": "Your roles do not include an export."
+    "noExports": "Your roles do not include an export.",
+    "tb": {
+      "none": "No lending journal entries yet.",
+      "refresh": "Refresh",
+      "title": "Trial balance — {currency}",
+      "code": "Code",
+      "account": "Account",
+      "type": "Type",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance",
+      "totals": "Totals"
+    },
+    "rec": {
+      "running": "Reconciling sub-ledger to general ledger…",
+      "checked": "{count, plural, one {# loan account checked} other {# loan accounts checked}} · {at}",
+      "rerun": "Re-run",
+      "reconciled": "Reconciled",
+      "reconciledBody": "Every loan sub-ledger balance matches the general ledger and the trial balance balances.",
+      "breaksFound": "Reconciliation breaks found",
+      "tbUnbalanced": "The trial balance does not balance.",
+      "differences": "{count, plural, one {# sub-ledger / ledger difference} other {# sub-ledger / ledger differences}} — investigate before closing the day.",
+      "breaks": "Breaks",
+      "loan": "Loan",
+      "check": "Check",
+      "subledger": "Sub-ledger",
+      "ledger": "Ledger",
+      "difference": "Difference",
+      "scheduleHint": "Unpaid principal per schedule",
+      "schedule": "schedule"
+    },
+    "journal": {
+      "loan": "Loan",
+      "loanHint": "Optional — search by loan reference",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "none": "No journal entries match.",
+      "date": "Date",
+      "description": "Description",
+      "event": "Event",
+      "ccy": "Ccy",
+      "totalDebits": "Total debits",
+      "loanLink": "loan",
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "tabs": {
+      "rec": "Reconciliation",
+      "tb": "Trial balance",
+      "journal": "Journal",
+      "exports": "Exports"
+    }
   },
   "Customers": {
     "loading": "Loading…",
@@ -5288,5 +5440,1290 @@
       "closeTitle": "Close the card",
       "reason": "Reason"
     }
+  },
+  "LendingAccess": {
+    "common": {
+      "financialPermission": "Financial permission",
+      "selected": "{count} selected",
+      "selectedMax": "{count} selected (max {max})",
+      "clear": "clear",
+      "all": "all",
+      "remove": "remove"
+    },
+    "roles": {
+      "matrixTitle": "Role matrix",
+      "matrixSubtitle": "Permissions (rows, grouped by category) granted to each role (columns). $ marks financial permissions.",
+      "closeForm": "Close form",
+      "newRole": "New custom role",
+      "none": "No roles defined.",
+      "permission": "Permission",
+      "system": "SYSTEM",
+      "sensitive": "SENSITIVE",
+      "tenantOnly": "tenant-only",
+      "tenantOnlyHint": "Not available to platform staff",
+      "granted": "granted",
+      "codeRule": "Start with a letter; 3–40 of A–Z, 0–9 or _",
+      "created": "Role {code} created",
+      "createTitle": "Create custom role",
+      "createSubtitle": "Custom roles can be assigned to users through the assignments tab (maker-checker).",
+      "code": "Code",
+      "codeHint": "e.g. BRANCH_SUPERVISOR",
+      "name": "Name",
+      "descriptionOptional": "Description (optional)",
+      "permissions": "Permissions",
+      "cancel": "Cancel",
+      "required": "Code, name and at least one permission are required",
+      "create": "Create role"
+    },
+    "assignments": {
+      "approved": "Assignment approved",
+      "rejected": "Assignment rejected",
+      "revoked": "Assignment revoked",
+      "pendingTitle": "{count, plural, one {# assignment request awaiting a second admin} other {# assignment requests awaiting a second admin}}",
+      "pendingBody": "Maker-checker: the admin who requested an assignment cannot approve it. Another admin with <code>access_policy.approve</code> must decide.",
+      "title": "Role assignments",
+      "subtitle": "Which users hold which roles, and in what scope.",
+      "none": "No role assignments yet.",
+      "colUser": "User",
+      "colRole": "Role",
+      "colScope": "Scope",
+      "colStatus": "Status",
+      "colRequestedBy": "Requested by",
+      "colApprovedBy": "Approved by",
+      "colValidTo": "Valid to",
+      "allBranches": "All branches",
+      "ownBranch": "Own branch",
+      "portfolios": "{count, plural, one {# portfolio} other {# portfolios}}",
+      "noExpiry": "No expiry",
+      "ownApprove": "You requested this — a second admin must approve",
+      "ownDecide": "You requested this — a second admin must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "revoke": "Revoke",
+      "awaitingOther": "Awaiting another admin",
+      "revokeTitle": "Revoke {role} from {user}",
+      "reason": "Reason",
+      "minChars": "At least 3 characters",
+      "revokeAssignment": "Revoke assignment",
+      "requested": "Assignment requested — awaiting approval by another admin",
+      "requestTitle": "Request role assignment",
+      "requestSubtitle": "Creates a PENDING assignment; a different admin must approve it.",
+      "selectUser": "Select user…",
+      "selectRole": "Select role…",
+      "sensitiveHint": "Sensitive role — grants financial or administrative powers.",
+      "roleOptionSensitive": "{code} — {name} (sensitive)",
+      "validToOptional": "Valid to (optional)",
+      "reasonOptional": "Reason (optional)",
+      "request": "Request assignment"
+    },
+    "authorities": {
+      "approved": "Authority approved",
+      "rejected": "Authority rejected",
+      "pendingTitle": "{count, plural, one {# authority request pending} other {# authority requests pending}}",
+      "pendingBody": "Approval limits follow maker-checker: the requester (and the user receiving the authority) cannot approve it.",
+      "title": "Approval authorities",
+      "subtitle": "Monetary limits up to which a role or user may approve an action.",
+      "none": "No approval authorities configured.",
+      "colHolder": "Holder",
+      "colPermission": "Permission",
+      "colMaxAmount": "Max amount",
+      "colFamily": "Family",
+      "colStatus": "Status",
+      "role": "ROLE",
+      "user": "USER",
+      "allFamilies": "All",
+      "makerChecker": "Maker-checker: a different admin must approve",
+      "approve": "Approve",
+      "reject": "Reject",
+      "amountRule": "Decimal with up to 4 places",
+      "currencyRule": "3-letter code",
+      "requested": "Authority requested — awaiting approval",
+      "requestTitle": "Request approval authority",
+      "grantRole": "Grant to a role",
+      "grantUser": "Grant to a user",
+      "roleLabel": "Role",
+      "userLabel": "User",
+      "selectRole": "Select role…",
+      "selectUser": "Select user…",
+      "selectPermission": "Select permission…",
+      "financial": "Financial",
+      "other": "Other",
+      "familyOptional": "Family code (optional)",
+      "familyHint": "Restrict to one product family",
+      "currency": "Currency",
+      "amountPlaceholder": "e.g. 50000.00",
+      "required": "Holder, permission, currency and amount are required",
+      "request": "Request authority"
+    },
+    "condition": {
+      "phNumList": "e.g. 0, 6",
+      "phList": "comma-separated, e.g. A, B",
+      "phAmount": "decimal, e.g. 10000.00",
+      "phDay": "0 (Sun) – 6 (Sat)",
+      "phValue": "value",
+      "notHint": "Toggle NOT (negate this comparison)",
+      "not": "NOT",
+      "ops": {
+        "eq": "equals",
+        "neq": "not equals",
+        "in": "in list",
+        "nin": "not in list",
+        "gt": ">",
+        "gte": "≥",
+        "lt": "<",
+        "lte": "≤",
+        "exists": "exists",
+        "contains": "contains"
+      },
+      "removeCondition": "Remove condition",
+      "noActions": "No actions selected.",
+      "addFromCatalogue": "Add action from catalogue…",
+      "prefixPlaceholder": "or prefix, e.g. loan.disbursement.*",
+      "prefixRule": "Prefix must look like \"loan.disbursement.*\"",
+      "add": "Add",
+      "rule": "Rule {n}",
+      "removeRule": "Remove rule",
+      "ruleId": "Rule id",
+      "ruleIdRule": "2–40 of a-z, 0-9, _ or -",
+      "effect": "Effect",
+      "denyHint": "Block the action when the condition matches",
+      "requireHint": "Action is only allowed when the condition matches",
+      "message": "Message shown when blocked",
+      "minChars": "At least 3 characters",
+      "messagePlaceholder": "Requires step-up authentication",
+      "actions": "Actions",
+      "condition": "Condition",
+      "tooDeep": "This condition is nested deeper than the builder supports; it is kept unchanged.",
+      "rebuild": "Discard and rebuild with builder",
+      "match": "Match",
+      "allOf": "ALL of (AND)",
+      "anyOf": "ANY of (OR)",
+      "theFollowing": "the following:",
+      "addComparison": "+ Add comparison"
+    },
+    "delegations": {
+      "approved": "Delegation approved",
+      "rejected": "Delegation rejected",
+      "revokeTitle": "Revoke delegation",
+      "revokeConfirm": "Revoke the delegation to {user}? The delegated permissions stop immediately.",
+      "revoke": "Revoke",
+      "revoked": "Delegation revoked",
+      "pendingTitle": "{count, plural, one {# delegation awaiting approval} other {# delegations awaiting approval}}",
+      "pendingBody": "Delegations need approval from an admin other than the one who requested them.",
+      "title": "Delegations",
+      "subtitle": "Temporary grants of permissions from one user to another (max 30 days).",
+      "none": "No delegations.",
+      "colFrom": "From",
+      "colTo": "To",
+      "colPermissions": "Permissions",
+      "colWindow": "Window",
+      "colLimit": "Limit",
+      "colStatus": "Status",
+      "colReason": "Reason",
+      "ownApprove": "You requested this — a second admin must approve",
+      "ownDecide": "You requested this — a second admin must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "windowOrder": "Valid to must be after valid from",
+      "windowMax": "Delegations may last at most {days} days",
+      "amountRule": "Decimal with up to 4 places, e.g. 5000.00",
+      "currencyRule": "3-letter code",
+      "currencyRecommended": "Currency recommended with a max amount",
+      "minChars": "At least 3 characters",
+      "requested": "Delegation requested",
+      "requestTitle": "Request delegation",
+      "requestSubtitle": "Delegate some of your permissions to another user for up to 30 days.",
+      "delegateTo": "Delegate to",
+      "selectUser": "Select user…",
+      "validFrom": "Valid from",
+      "validTo": "Valid to",
+      "maxAmountOptional": "Max amount (optional)",
+      "amountPlaceholder": "e.g. 10000.00",
+      "currencyOptional": "Currency (optional)",
+      "permissionsMax": "Permissions (max 20)",
+      "required": "Fill user, window, permissions and reason",
+      "request": "Request delegation"
+    },
+    "flags": {
+      "contextTitle": "Evaluation context",
+      "contextSubtitle": "Flags are evaluated for this context. Leave fields empty to use defaults (channel defaults to STAFF_PORTAL).",
+      "productCode": "Product code",
+      "branch": "Branch",
+      "any": "(any)",
+      "channel": "Channel",
+      "default": "(default)",
+      "segment": "Segment",
+      "cohort": "Cohort",
+      "clear": "Clear",
+      "evaluate": "Evaluate",
+      "precedenceTitle": "Precedence",
+      "precedenceSubtitle": "Evaluation order — the first matching source wins.",
+      "flagsTitle": "Feature flags",
+      "flagsSubtitle": "Current evaluation for the context above.",
+      "noFlags": "No flags defined.",
+      "colFlag": "Flag",
+      "colState": "State",
+      "colSource": "Source",
+      "colScope": "Scope",
+      "colDefault": "Default",
+      "sensitive": "SENSITIVE",
+      "on": "ON",
+      "off": "OFF",
+      "defaultOn": "on",
+      "defaultOff": "off",
+      "changeApproved": "Flag change approved",
+      "changeRejected": "Flag change rejected",
+      "approvalsTitle": "Flag change approvals",
+      "approvalsSubtitle": "{count} pending. The maker cannot approve their own change.",
+      "noChanges": "No flag change requests.",
+      "colAction": "Action",
+      "colRule": "Rule",
+      "colMaker": "Maker",
+      "colReason": "Reason",
+      "colStatus": "Status",
+      "needApprove": "Needs feature_flag.approve",
+      "needManage": "Needs feature_flag.manage",
+      "ownApprove": "You proposed this change — a second admin must approve",
+      "ownDecide": "You proposed this change — a second admin must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "platform": "PLATFORM",
+      "emergency": "EMERGENCY",
+      "removalProposed": "Removal proposed — awaiting approval",
+      "tenantRules": "Tenant rules",
+      "noTenantRules": "No tenant flag rules.",
+      "colSets": "Sets",
+      "colEffective": "Effective",
+      "colPriority": "Priority",
+      "proposeRemoval": "Propose removal",
+      "removalTitle": "Propose removal of {flag} ({scope})",
+      "minChars": "At least 3 characters",
+      "platformRules": "Platform rules",
+      "platformRulesSubtitle": "Set by the platform operator; read-only for tenants. Platform emergency-off overrides every tenant rule.",
+      "noPlatformRules": "No platform flag rules.",
+      "priorityRule": "Whole number 0–1000",
+      "scopeRequired": "Required for this scope",
+      "ruleProposed": "Flag rule proposed — awaiting approval",
+      "proposeTitle": "Propose flag rule",
+      "proposeSubtitle": "Creates a pending rule that a second admin must approve.",
+      "sensitiveFlag": "Sensitive flag",
+      "sensitiveFlagBody": "Changes to this flag affect financial or regulatory behaviour.",
+      "flagSensitive": "{key} (sensitive)",
+      "selectFlag": "Select flag…",
+      "scopeType": "Scope type",
+      "scopeValue": "Scope value",
+      "selectChannel": "Select channel…",
+      "na": "n/a",
+      "setFlag": "Set flag",
+      "priorityOptional": "Priority (optional)",
+      "effectiveFromOptional": "Effective from (optional)",
+      "effectiveToOptional": "Effective to (optional)",
+      "emergencyLabel": "Emergency rule (cannot be overridden by narrower tenant rules)",
+      "required": "Flag, scope value (unless TENANT) and reason are required",
+      "proposeRule": "Propose rule"
+    },
+    "policies": {
+      "noRules": "No rules.",
+      "approved": "Policy version approved",
+      "rejected": "Policy version rejected",
+      "title": "ABAC policies",
+      "subtitle": "Attribute-based rules evaluated on every lending action. New versions require approval by a second admin.",
+      "none": "No policies yet. Use the editor below to submit one.",
+      "noVersions": "No versions.",
+      "maker": "maker: {name}",
+      "load": "Load into editor",
+      "decisionNote": "Decision note (optional)",
+      "ownApprove": "You submitted this version — a second admin must approve",
+      "ownDecide": "You submitted this version — a second admin must decide",
+      "approve": "Approve",
+      "reject": "Reject",
+      "ownNote": "Maker-checker: you submitted this version, so another admin must decide.",
+      "duplicateIds": "Duplicate rule ids: {ids}",
+      "addOneRule": "Add at least one rule",
+      "submitted": "Policy version submitted for approval",
+      "editorTitle": "Policy editor",
+      "basedOn": "Starting a new version from {from}",
+      "editorSubtitle": "Build rules from the constrained vocabulary below. Submitting creates a SUBMITTED version.",
+      "reset": "Reset",
+      "code": "Policy code",
+      "codeHint": "Same code = new version of an existing policy",
+      "name": "Name",
+      "descriptionOptional": "Description (optional)",
+      "addRule": "+ Add rule",
+      "generatedJson": "Generated rules JSON (read-only)",
+      "fixFirst": "Fix before submitting",
+      "required": "Code, name and valid rules are required",
+      "submit": "Submit for approval"
+    },
+    "simulator": {
+      "uuidRule": "Must be a UUID",
+      "amountRule": "Decimal with up to 4 places",
+      "noticeTitle": "Simulation is side-effect free — nothing is changed or audited as an action.",
+      "noticeBody": "Ask “can this user perform this action on this resource, and why?”. The same policy engine and inputs as a real request are used.",
+      "title": "Policy simulator",
+      "user": "User",
+      "userInactive": "{email} ({role}) — inactive",
+      "selectUser": "Select user…",
+      "action": "Action",
+      "selectAction": "Select action…",
+      "resourceType": "Resource type",
+      "resourceId": "Resource ID (optional)",
+      "resourceIdTenant": "Not used for TENANT",
+      "resourceIdHint": "UUID of the application, loan or product version",
+      "assurance": "Assurance (optional)",
+      "sessionDefault": "(session default)",
+      "amount": "Amount (optional)",
+      "amountPlaceholder": "e.g. 25000.00",
+      "required": "Select a user and action",
+      "simulate": "Simulate",
+      "result": "Result",
+      "yes": "YES",
+      "no": "NO",
+      "checks": "Decision checks",
+      "flagsEvaluated": "Feature flags evaluated ({count})",
+      "subject": "Subject: roles, grants, authorities, cohorts"
+    },
+    "serviceAccounts": {
+      "disableTitle": "Disable service account",
+      "disableConfirm": "Disable \"{name}\"? Integrations using its key will stop working immediately.",
+      "disable": "Disable",
+      "disabled": "Service account disabled",
+      "title": "Service accounts",
+      "subtitle": "Machine credentials for integrations. Limited to repayment posting and read scopes.",
+      "none": "No service accounts.",
+      "colName": "Name",
+      "colKeyPrefix": "Key prefix",
+      "colScopes": "Scopes",
+      "colStatus": "Status",
+      "colExpires": "Expires",
+      "colLastUsed": "Last used",
+      "colCreated": "Created",
+      "never": "Never",
+      "copied": "Key copied to clipboard",
+      "copyFailed": "Could not copy — select the key and copy it manually",
+      "createdTitle": "Service account “{name}” created — copy the key now",
+      "createdBody": "This key will never be shown again. Store it in your integration's secret manager before closing this panel. If lost, disable the account and create a new one.",
+      "copy": "Copy",
+      "createdMeta": "Scopes: {scopes} · Expires {expires}",
+      "stored": "I have stored the key",
+      "daysRule": "Whole number 1–365",
+      "minChars": "At least 2 characters",
+      "expiresDays": "Expires in days (optional)",
+      "expiresDaysHint": "Default 90, max 365",
+      "required": "Name and at least one scope are required"
+    }
+  },
+  "LendingProducts": {
+    "config": {
+      "invalidJsonNotApplied": "Invalid JSON (not applied): {error}",
+      "allocationHint": "Payments are applied in this order.",
+      "jsonHintWith": "{hint} — applied when you leave the box",
+      "jsonHint": "Applied when you leave the box",
+      "none": "(none)",
+      "select": "Select…",
+      "rateHint": "Decimal fraction (0.12 = 12%)",
+      "rateHintValue": "Decimal fraction = {rate}",
+      "decimalRule": "must be a decimal like 1000 or 0.125",
+      "review": "Review / JSON",
+      "stepIssues": "{count, plural, one {# validation issue in this step} other {# validation issues in this step}}",
+      "issues": "{count, plural, one {# validation issue} other {# validation issues}}",
+      "reviewNote": "The complete configuration. You can edit the JSON directly; it is validated by the server when you save.",
+      "invalidJson": "Invalid JSON: {error}",
+      "applyJson": "Apply JSON",
+      "discardEdits": "Discard edits",
+      "back": "← Back",
+      "stepOf": "Step {n} of {total}",
+      "next": "Next →",
+      "steps": {
+        "identity": {
+          "label": "Identity"
+        },
+        "attributes": {
+          "label": "Attributes"
+        },
+        "group": {
+          "label": "Group lending",
+          "note": "Only for products whose liability is GROUP_JOINT or GROUP_INDIVIDUAL."
+        },
+        "specialised": {
+          "label": "Card / BNPL / lease",
+          "note": "Card terms need a REVOLVING facility; BNPL and lease terms a TERM product (a lease also needs BALLOON repayment for its residual)."
+        },
+        "limits": {
+          "label": "Limits"
+        },
+        "eligibility": {
+          "label": "Eligibility"
+        },
+        "pricing": {
+          "label": "Pricing"
+        },
+        "repayment": {
+          "label": "Repayment"
+        },
+        "security": {
+          "label": "Security"
+        },
+        "operations": {
+          "label": "Operations"
+        },
+        "restructuring": {
+          "label": "Restructuring"
+        },
+        "policies": {
+          "label": "Policies",
+          "note": "Compose contracts from the policy library: per kind, a default and the menu a contract may choose from. Every code must have an approved version before the product can be activated."
+        },
+        "scoring": {
+          "label": "Scoring",
+          "note": "The scorecard that drives the decision (the organisation’s active version of the code, else the template), an optional silent challenger, the thin-file switch and the decision strategy. “Recommend approve” only recommends approval — the workflow’s approvers still approve. Defaults refer every grade."
+        },
+        "accounting": {
+          "label": "Accounting",
+          "note": "Ledger account codes used when events post journals."
+        }
+      },
+      "fields": {
+        "identity_familyCode": {
+          "label": "Family"
+        },
+        "identity_templateCode": {
+          "label": "Template"
+        },
+        "identity_name": {
+          "label": "Product name"
+        },
+        "identity_description": {
+          "label": "Description"
+        },
+        "identity_currency": {
+          "label": "Currency",
+          "hint": "ISO code configured on this platform, e.g. USD, KHR"
+        },
+        "identity_legalEntityCode": {
+          "label": "Legal entity code"
+        },
+        "identity_liability": {
+          "label": "Liability"
+        },
+        "identity_customerTypes": {
+          "label": "Customer types"
+        },
+        "identity_channels": {
+          "label": "Channels"
+        },
+        "identity_segments": {
+          "label": "Segments",
+          "hint": "Comma-separated codes"
+        },
+        "identity_countries": {
+          "label": "Countries",
+          "hint": "Comma-separated ISO-2 codes"
+        },
+        "identity_eligibleBranchCodes": {
+          "label": "Eligible branch codes (null = all)"
+        },
+        "attributes_secured": {
+          "label": "Secured"
+        },
+        "attributes_rateType": {
+          "label": "Rate type"
+        },
+        "attributes_greenPurpose": {
+          "label": "Green purpose"
+        },
+        "attributes_digitalChannel": {
+          "label": "Digital channel"
+        },
+        "attributes_recourse": {
+          "label": "Recourse"
+        },
+        "attributes_structure": {
+          "label": "Structure"
+        },
+        "facility_type": {
+          "label": "Facility type",
+          "hint": "Only capabilities marked IMPLEMENTED can be activated — check the capability matrix."
+        },
+        "facility_minLimit": {
+          "label": "Facility: minimum limit",
+          "hint": "Limit-based facilities only (not TERM)"
+        },
+        "facility_maxLimit": {
+          "label": "Facility: maximum limit"
+        },
+        "facility_availabilityMonths": {
+          "label": "Facility: availability (months)",
+          "hint": "How long drawdowns stay available from the start date"
+        },
+        "facility_minimumDrawdown": {
+          "label": "Facility: minimum drawdown"
+        },
+        "facility_maximumDrawdown": {
+          "label": "Facility: maximum drawdown"
+        },
+        "facility_commitmentFeeRate": {
+          "label": "Facility: commitment fee on undrawn (annual)"
+        },
+        "facility_minimumPaymentRate": {
+          "label": "Overdraft: minimum payment rate"
+        },
+        "facility_minimumPaymentFloor": {
+          "label": "Overdraft: minimum payment floor"
+        },
+        "facility_minimumPaymentDueDays": {
+          "label": "Overdraft: days from statement to minimum payment due"
+        },
+        "facility_overlimitRate": {
+          "label": "Facility: over-limit annual rate",
+          "hint": "Empty refuses over-limit balances outright"
+        },
+        "facility_termOutOnExpiry": {
+          "label": "Facility: term out when availability ends"
+        },
+        "facility_tranches": {
+          "label": "Staged drawdown: tranches"
+        },
+        "group": {
+          "label": "Group terms"
+        },
+        "group_minMembers": {
+          "label": "Minimum members"
+        },
+        "group_maxMembers": {
+          "label": "Maximum members"
+        },
+        "group_shareBasis": {
+          "label": "Share basis"
+        },
+        "group_minMembershipDays": {
+          "label": "Minimum membership (days) before a loan"
+        },
+        "group_requireLeader": {
+          "label": "Require a leader"
+        },
+        "group_allowExitWithOutstanding": {
+          "label": "Allow exit while the loan is outstanding"
+        },
+        "card": {
+          "label": "Credit card terms (LT-07)"
+        },
+        "card_cashAdvanceAnnualRate": {
+          "label": "Cash-advance annual rate (from day one)"
+        },
+        "card_cashAdvanceFeeRate": {
+          "label": "Cash-advance fee rate"
+        },
+        "card_cashAdvanceFeeMinimum": {
+          "label": "Cash-advance minimum fee"
+        },
+        "card_cashAdvanceLimitShare": {
+          "label": "Cash-advance share of the limit"
+        },
+        "card_minimumPaymentRate": {
+          "label": "Minimum payment: share of principal"
+        },
+        "card_minimumPaymentFloor": {
+          "label": "Minimum payment floor"
+        },
+        "card_paymentDueDays": {
+          "label": "Days from statement to due date"
+        },
+        "card_instalmentPlan": {
+          "label": "Instalment plans (UC-44)"
+        },
+        "bnpl": {
+          "label": "BNPL merchant settlement (LT-11)"
+        },
+        "bnpl_merchantDiscountRate": {
+          "label": "Merchant discount rate"
+        },
+        "lease": {
+          "label": "Lease terms (LT-15)"
+        },
+        "lease_assetTypes": {
+          "label": "Leasable asset types",
+          "hint": "Comma-separated codes"
+        },
+        "lease_allowReturn": {
+          "label": "Lessee may return the asset instead of paying the residual"
+        },
+        "limits_minAmount": {
+          "label": "Minimum amount"
+        },
+        "limits_maxAmount": {
+          "label": "Maximum amount"
+        },
+        "limits_minInstalments": {
+          "label": "Minimum instalments"
+        },
+        "limits_maxInstalments": {
+          "label": "Maximum instalments"
+        },
+        "eligibility_minAgeYears": {
+          "label": "Minimum age (years)"
+        },
+        "eligibility_maxAgeAtMaturityYears": {
+          "label": "Max age at maturity (years)"
+        },
+        "eligibility_minMonthlyIncome": {
+          "label": "Minimum monthly income"
+        },
+        "eligibility_minBusinessAgeMonths": {
+          "label": "Minimum business age (months)"
+        },
+        "eligibility_maxDebtServiceRatio": {
+          "label": "Max debt-service ratio"
+        },
+        "eligibility_minCreditScore": {
+          "label": "Minimum credit score",
+          "hint": "300–850; blank: not gated"
+        },
+        "eligibility_minDscr": {
+          "label": "Minimum DSCR",
+          "hint": "Net operating income ÷ annual debt service, e.g. 1.25"
+        },
+        "eligibility_employmentTypes": {
+          "label": "Employment types (none = any)"
+        },
+        "pricing_fixed": {
+          "label": "Fixed-rate pricing"
+        },
+        "pricing_fixed_defaultAnnualRate": {
+          "label": "Default annual rate"
+        },
+        "pricing_fixed_minAnnualRate": {
+          "label": "Minimum annual rate"
+        },
+        "pricing_fixed_maxAnnualRate": {
+          "label": "Maximum annual rate"
+        },
+        "pricing_floating": {
+          "label": "Floating pricing (JSON or null)"
+        },
+        "pricing_rateConvention": {
+          "label": "Rate convention"
+        },
+        "pricing_interestMethod": {
+          "label": "Interest method"
+        },
+        "pricing_accrualBasis": {
+          "label": "Accrual basis"
+        },
+        "pricing_dayCount": {
+          "label": "Day count"
+        },
+        "pricing_ratePrecision": {
+          "label": "Rate precision (digits)"
+        },
+        "pricing_regulatoryCapAnnualRate": {
+          "label": "Regulatory rate cap"
+        },
+        "pricing_rounding_increment": {
+          "label": "Rounding increment",
+          "hint": "e.g. 0.01 for cents, 100 for KHR"
+        },
+        "pricing_rounding_mode": {
+          "label": "Rounding mode"
+        },
+        "pricing_capitalization_allowInterestGraceCapitalization": {
+          "label": "Allow interest-grace capitalization"
+        },
+        "pricing_capitalization_basis": {
+          "label": "Capitalization basis",
+          "hint": "SIMPLE: grace interest on the original principal only — no interest on interest"
+        },
+        "pricing_penalty_type": {
+          "label": "Penalty type"
+        },
+        "pricing_penalty_flatAmount": {
+          "label": "Penalty flat amount"
+        },
+        "pricing_penalty_percentOfOverdue": {
+          "label": "Late fee: % of the overdue amount",
+          "hint": "For PERCENT_PER_INSTALMENT — charged once per overdue instalment"
+        },
+        "pricing_penalty_annualRate": {
+          "label": "Penalty annual rate"
+        },
+        "pricing_penalty_graceDays": {
+          "label": "Penalty grace days"
+        },
+        "pricing_penalty_capPerInstalment": {
+          "label": "Penalty cap per instalment"
+        },
+        "pricing_penalty_capPerLoan": {
+          "label": "Penalty cap per loan",
+          "hint": "Most that late charges may ever total on one loan"
+        },
+        "pricing_returnedPaymentFee": {
+          "label": "Returned-payment fee",
+          "hint": "Charged when a repayment is reversed as bounced or returned"
+        },
+        "pricing_promotion": {
+          "label": "Promotional rate (campaign)",
+          "hint": "Applies when the contract quotes the campaign code; the contract rate follows"
+        },
+        "pricing_promotion_code": {
+          "label": "Campaign code"
+        },
+        "pricing_promotion_annualRate": {
+          "label": "Promotional annual rate"
+        },
+        "pricing_promotion_instalments": {
+          "label": "Promotional instalments"
+        },
+        "pricing_promotion_label": {
+          "label": "Promotion description"
+        },
+        "pricing_fees": {
+          "label": "Fees"
+        },
+        "repayment_method": {
+          "label": "Method"
+        },
+        "repayment_frequency": {
+          "label": "Frequency"
+        },
+        "repayment_customFrequency": {
+          "label": "Custom frequency (JSON or null)"
+        },
+        "repayment_maxPrincipalGraceInstalments": {
+          "label": "Max principal-grace instalments"
+        },
+        "repayment_maxInterestGraceInstalments": {
+          "label": "Max interest-grace instalments"
+        },
+        "repayment_maxBalloonFraction": {
+          "label": "Max balloon fraction"
+        },
+        "repayment_instalmentSteps": {
+          "label": "Stepped instalments"
+        },
+        "repayment_allowIrregularFirstPeriod": {
+          "label": "Allow irregular first period"
+        },
+        "repayment_maxFirstPeriodDays": {
+          "label": "Max first-period days"
+        },
+        "repayment_businessDayConvention": {
+          "label": "Business-day convention"
+        },
+        "repayment_holidayCalendarCode": {
+          "label": "Holiday calendar code"
+        },
+        "repayment_accrualDateBasis": {
+          "label": "Accrual date basis"
+        },
+        "repayment_maxBackdateDays": {
+          "label": "Max back-date days"
+        },
+        "repayment_prepayment_allowed": {
+          "label": "Prepayment allowed"
+        },
+        "repayment_prepayment_minAmount": {
+          "label": "Prepayment minimum"
+        },
+        "repayment_prepayment_feeRate": {
+          "label": "Prepayment fee rate"
+        },
+        "repayment_prepayment_allowedStrategies": {
+          "label": "Prepayment strategies"
+        },
+        "repayment_prepayment_defaultStrategy": {
+          "label": "Default prepayment strategy"
+        },
+        "repayment_earlySettlement_allowed": {
+          "label": "Early settlement allowed"
+        },
+        "repayment_earlySettlement_feeRate": {
+          "label": "Settlement fee rate"
+        },
+        "repayment_earlySettlement_feeFixed": {
+          "label": "Settlement fixed fee"
+        },
+        "repayment_earlySettlement_rebateMethod": {
+          "label": "Payoff interest (flat-rate loans)",
+          "hint": "ACCRUED charges interest accrued to the payoff date; the others rebate precomputed interest"
+        },
+        "repayment_earlyRepaymentCharges": {
+          "label": "Lock-in tiers (early repayment charges)"
+        },
+        "repayment_allocation_order": {
+          "label": "Payment allocation order"
+        },
+        "repayment_allocation_strategy": {
+          "label": "Allocation strategy"
+        },
+        "repayment_allocation_excessHandling": {
+          "label": "Money beyond what is due",
+          "hint": "ADVANCE holds it for the next instalments; PREPAY reduces principal"
+        },
+        "security_collateralRequired": {
+          "label": "Collateral required"
+        },
+        "security_acceptedCollateralTypes": {
+          "label": "Accepted collateral types",
+          "hint": "Comma-separated codes"
+        },
+        "security_maxLtv": {
+          "label": "Max loan-to-value"
+        },
+        "security_valuationMaxAgeDays": {
+          "label": "Valuation max age (days)"
+        },
+        "security_guaranteeRequired": {
+          "label": "Guarantee required"
+        },
+        "security_minGuarantors": {
+          "label": "Minimum guarantors"
+        },
+        "security_marginCallCureDays": {
+          "label": "Margin call cure period (days)",
+          "hint": "Time to repay or add collateral after a revaluation breaches max LTV"
+        },
+        "security_haircuts": {
+          "label": "Haircuts by collateral type"
+        },
+        "operations_workflowCode": {
+          "label": "Workflow code",
+          "hint": "See the Workflows page"
+        },
+        "operations_restructureAllowed": {
+          "label": "Restructure allowed"
+        },
+        "operations_writeOffMinDpd": {
+          "label": "Write-off minimum DPD"
+        },
+        "operations_downPayment_minFraction": {
+          "label": "Minimum down payment",
+          "hint": "Fraction of the purchase price paid before disbursement, e.g. 0.2"
+        },
+        "operations_nonAccrual_enabled": {
+          "label": "Non-accrual",
+          "hint": "Hold interest in suspense instead of income past a days-past-due threshold"
+        },
+        "operations_nonAccrual_fromDpd": {
+          "label": "Non-accrual from DPD"
+        },
+        "operations_nonAccrual_cureAtDpd": {
+          "label": "Return to accrual at DPD"
+        },
+        "operations_nonAccrual_reverseAccruedOnEntry": {
+          "label": "On entry, move unpaid recognised interest to suspense"
+        },
+        "operations_integrations_creditBureau": {
+          "label": "Credit bureau"
+        },
+        "operations_integrations_kyc": {
+          "label": "KYC"
+        },
+        "operations_integrations_payments": {
+          "label": "Payments"
+        },
+        "operations_requiredDocuments": {
+          "label": "Required documents"
+        },
+        "operations_disbursementConditions": {
+          "label": "Disbursement conditions"
+        },
+        "operations_delinquencyBuckets": {
+          "label": "Delinquency buckets"
+        },
+        "operations_collectionStages": {
+          "label": "Collection stages"
+        },
+        "restructuring_allowedOptions": {
+          "label": "Allowed options"
+        },
+        "restructuring_allowInterestCapitalization": {
+          "label": "Allow interest capitalization (interest on interest)"
+        },
+        "restructuring_allowFeeCapitalization": {
+          "label": "Allow fee capitalization"
+        },
+        "restructuring_allowPenaltyCapitalization": {
+          "label": "Allow penalty capitalization"
+        },
+        "restructuring_allowedDeferredInterestTreatments": {
+          "label": "Deferred-interest treatments"
+        },
+        "restructuring_maxExtensionInstalments": {
+          "label": "Max extension instalments"
+        },
+        "restructuring_maxDeferralInstalments": {
+          "label": "Max deferral instalments"
+        },
+        "restructuring_escalateAfterRestructures": {
+          "label": "Escalate after N restructures"
+        },
+        "restructuring_probationInstalments": {
+          "label": "Probation instalments"
+        },
+        "restructuring_balloonReminderDays": {
+          "label": "Balloon follow-up: days before it falls due"
+        },
+        "restructuring_materialityTolerance": {
+          "label": "Materiality tolerance"
+        },
+        "restructuring_proposalValidityDays": {
+          "label": "Proposal validity (days)"
+        },
+        "restructuring_allowNegotiatedSettlement": {
+          "label": "Allow negotiated settlement (for less than owed)"
+        },
+        "restructuring_settlementAllocationOrder": {
+          "label": "Negotiated settlement: order the amount clears"
+        },
+        "restructuring_allowPostWriteOffRecovery": {
+          "label": "Allow recoveries after write-off"
+        },
+        "restructuring_allowRefinance": {
+          "label": "Allow refinancing"
+        },
+        "restructuring_refinanceAllowDelinquent": {
+          "label": "Refinance: allow a delinquent loan"
+        },
+        "restructuring_refinanceAllowArrearsRollIn": {
+          "label": "Refinance: allow arrears to be funded by the new loan (evergreening risk)"
+        },
+        "restructuring_refinanceMaxDaysPastDue": {
+          "label": "Refinance: maximum DPD"
+        },
+        "restructuring_refinanceMinInstalmentsPaid": {
+          "label": "Refinance: minimum instalments paid"
+        },
+        "restructuring_maxRefinanceCount": {
+          "label": "Refinance: maximum times per loan chain"
+        },
+        "restructuring_allowRefinanceShortfall": {
+          "label": "Refinance: borrower may pay a shortfall"
+        },
+        "policies": {
+          "label": "Policy menus"
+        },
+        "scoring_championCode": {
+          "label": "Champion scorecard code",
+          "hint": "STANDARD_RETAIL or one of Lending › Scorecards"
+        },
+        "scoring_challengerCode": {
+          "label": "Challenger scorecard code (shadow, never decides)"
+        },
+        "scoring_thinFile_enabled": {
+          "label": "Score thin-file borrowers on a separate scorecard"
+        },
+        "scoring_thinFile_scorecardCode": {
+          "label": "Thin-file scorecard code"
+        },
+        "scoring_thinFile_maxInternalHistoryMonths": {
+          "label": "Thin file: fewer months of history with us than"
+        },
+        "scoring_thinFile_requireNoBureauScore": {
+          "label": "Thin file: only when there is no bureau score"
+        },
+        "scoring_strategy_declineBelowScore": {
+          "label": "Decline below score (with the eligibility minimum, the stricter applies)"
+        },
+        "scoring_strategy_defaultOutcome": {
+          "label": "Outcome for grades without a rule"
+        },
+        "scoring_strategy_gradeRules": {
+          "label": "Grade rules",
+          "hint": "One row per grade: the outcome, the largest amount that grade may borrow (blank = the product limit) and the rate add-on in basis points (100 bps = 1%)."
+        },
+        "scoring_strategy_knockouts_writtenOff": {
+          "label": "Knock-out: earlier write-off"
+        },
+        "scoring_strategy_knockouts_maxCurrentDpd": {
+          "label": "Knock-out: current days past due above"
+        },
+        "scoring_strategy_knockouts_minAgeYears": {
+          "label": "Knock-out: age below"
+        },
+        "scoring_strategy_knockouts_maxAgeYears": {
+          "label": "Knock-out: age above"
+        },
+        "scoring_strategy_knockouts_maxDebtServiceRatio": {
+          "label": "Knock-out: debt-service ratio above"
+        },
+        "scoring_strategy_enforceRateAddOn": {
+          "label": "Require the grade’s rate add-on at approval"
+        },
+        "accounting_cash": {
+          "label": "Cash"
+        },
+        "accounting_loansReceivable": {
+          "label": "Loans Receivable"
+        },
+        "accounting_interestReceivable": {
+          "label": "Interest Receivable"
+        },
+        "accounting_feesReceivable": {
+          "label": "Fees Receivable"
+        },
+        "accounting_penaltyReceivable": {
+          "label": "Penalty Receivable"
+        },
+        "accounting_interestIncome": {
+          "label": "Interest Income"
+        },
+        "accounting_feeIncome": {
+          "label": "Fee Income"
+        },
+        "accounting_penaltyIncome": {
+          "label": "Penalty Income"
+        },
+        "accounting_taxPayable": {
+          "label": "Tax Payable"
+        },
+        "accounting_writeOffExpense": {
+          "label": "Write Off Expense"
+        },
+        "accounting_roundingDifferences": {
+          "label": "Rounding Differences"
+        },
+        "accounting_concessionsExpense": {
+          "label": "Concessions Expense"
+        },
+        "accounting_principalForgivenessExpense": {
+          "label": "Principal Forgiveness Expense"
+        },
+        "accounting_recoveryIncome": {
+          "label": "Recovery Income"
+        },
+        "accounting_customerAdvances": {
+          "label": "Customer Advances"
+        },
+        "accounting_interestSuspense": {
+          "label": "Interest Suspense"
+        },
+        "accounting_merchantDiscountIncome": {
+          "label": "Merchant Discount Income"
+        },
+        "accounting_merchantClawbackReceivable": {
+          "label": "Merchant Clawback Receivable"
+        },
+        "accounting_cardCashAdvanceFeeIncome": {
+          "label": "Card Cash Advance Fee Income"
+        },
+        "accounting_returnedLeaseAssets": {
+          "label": "Returned Lease Assets"
+        }
+      }
+    },
+    "wizard": {
+      "created": "Product created as a draft version",
+      "chooseTitle": "New product — choose a template",
+      "chooseSubtitle": "Only templates whose required capabilities are implemented can be configured.",
+      "cancel": "Cancel",
+      "missingList": "Missing: {list}",
+      "loading": "Loading…",
+      "missingCount": "{count, plural, one {Missing # capability} other {Missing # capabilities}}",
+      "codeRule": "A–Z, 0–9, _ and -; 2–32 characters",
+      "fromTemplate": "New product from {name}",
+      "changeTemplate": "Change template",
+      "cannotActivate": "This template cannot be activated yet",
+      "code": "Product code",
+      "codeHint": "Unique; A–Z, 0–9, _ and -",
+      "name": "Product name",
+      "seeSteps": "{message} — see the highlighted steps.",
+      "create": "Create draft product"
+    },
+    "list": {
+      "newProduct": "New product",
+      "none": "No lending products yet. Create one from an available template.",
+      "activeVersion": "active v{version}",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colEffective": "Effective",
+      "colSummary": "Change summary",
+      "colMakerChecker": "Maker / checker",
+      "open": "Open"
+    },
+    "version": {
+      "title": "Product version",
+      "product": "Product",
+      "activateTitle": "Activate this version?",
+      "retireTitle": "Retire this version?",
+      "activateBody": "New applications will use this configuration. Any currently active version will be superseded.",
+      "retireBody": "The product will no longer accept new applications on this version. Existing loans keep their terms.",
+      "actions": {
+        "submit": "Submit for approval",
+        "approve": "Approve",
+        "reject": "Reject",
+        "activate": "Activate",
+        "retire": "Retire"
+      },
+      "done": {
+        "submit": "Version submitted",
+        "approve": "Version approved",
+        "reject": "Version rejected",
+        "activate": "Version activated",
+        "retire": "Version retired"
+      },
+      "draftSaved": "Draft saved",
+      "newDraftCreated": "New draft version created",
+      "simulate": "Simulate pricing →",
+      "newVersion": "New version",
+      "refusedTitle": "Activation refused: the engine lacks capabilities this configuration needs",
+      "refusedBody": "Activation requires every required capability to be IMPLEMENTED. See the missing list below and the <link>capability matrix</link>.",
+      "rejectTitle": "Reject this version",
+      "reason": "Reason",
+      "confirmReject": "Confirm rejection",
+      "reviewTitle": "Changes to review before approval",
+      "reviewDiff": "Differences from the currently active version",
+      "reviewFirst": "There is no active version — this is the first configuration.",
+      "noActive": "No active version to compare against; review the full configuration below.",
+      "versionCard": "Version",
+      "status": "Status",
+      "effective": "Effective",
+      "maker": "Maker",
+      "checker": "Checker",
+      "changeSummary": "Change summary",
+      "activeVersion": "Active version",
+      "open": "open",
+      "none": "none",
+      "validation": "Validation",
+      "valid": "Configuration is valid",
+      "issues": "{count, plural, one {# issue} other {# issues}}",
+      "capabilities": "Capabilities",
+      "required": "{count} required",
+      "allImplemented": "All required capabilities are implemented",
+      "missing": "{count} missing — activation will be refused",
+      "diffTitle": "Differences from active version",
+      "configuration": "Configuration",
+      "draftEditable": "Drafts can be edited. Submitting freezes the configuration for review.",
+      "readOnly": "Read-only — create a new version to change it.",
+      "editDraft": "Edit draft",
+      "seeSteps": "{message} — see the highlighted steps.",
+      "validationFailed": "Validation failed",
+      "summaryPlaceholder": "What changed and why",
+      "cancel": "Cancel",
+      "saveDraft": "Save draft"
+    }
+  },
+  "LendingShared": {
+    "decision": {
+      "layer": "Layer",
+      "check": "Check",
+      "result": "Result",
+      "message": "Message",
+      "detail": "Detail",
+      "pass": "pass",
+      "fail": "fail",
+      "noBlocking": "No blocking checks."
+    },
+    "diff": {
+      "none": "No differences.",
+      "path": "Path",
+      "before": "Before",
+      "after": "After",
+      "absent": "absent"
+    },
+    "simulation": {
+      "onlyTitle": "Simulation only",
+      "onlyBody": "Nothing has been booked or posted. Amounts are computed by the lending engine from the selected product version.",
+      "rejectedTerms": "These terms would be rejected by the product rules",
+      "projectedTitle": "Contains projected amounts",
+      "projectedBody": "Some instalments depend on a future rate observation; projected rows are highlighted.",
+      "summary": "Summary",
+      "instalment": "Instalment",
+      "varies": "varies",
+      "eir": "Effective annual rate (EIR)",
+      "totalPrincipal": "Total principal",
+      "totalInterest": "Total interest",
+      "capitalizedInterest": "Capitalized interest",
+      "totalPayments": "Total payments",
+      "maturityDate": "Maturity date",
+      "finalResidual": "Final residual (rounding)",
+      "howCalculated": "How this was calculated",
+      "upfrontFees": "Up-front fees",
+      "noFees": "No up-front fees.",
+      "fee": "Fee",
+      "treatment": "Treatment",
+      "amount": "Amount",
+      "tax": "Tax",
+      "financed": "Financed (added to principal)",
+      "deducted": "Deducted from payout",
+      "separate": "Paid separately",
+      "bookedPrincipal": "Booked principal",
+      "netDisbursement": "Net disbursement",
+      "schedule": "Schedule ({count, plural, one {# instalment} other {# instalments}})",
+      "capitalized": "Capitalized",
+      "calcRecord": "Calculation record (inputs, engine version, config hash)"
+    },
+    "schedule": {
+      "dueDate": "Due date",
+      "principal": "Principal",
+      "interest": "Interest",
+      "charges": "Deferred / charges",
+      "total": "Total",
+      "totalIn": "Total ({currency})",
+      "closingPrincipal": "Closing principal",
+      "status": "Status",
+      "projected": "projected",
+      "paid": "paid {amount}",
+      "projectedNote": "Rows marked <b>projected</b> depend on a future rate observation and are not contractually fixed."
+    }
+  },
+  "LendingWorkflows": {
+    "steps": {
+      "DOCUMENT_CHECK": "document check",
+      "KYC_CHECK": "KYC check",
+      "CREDIT_RECOMMENDATION": "credit recommendation",
+      "CREDIT_APPROVAL": "credit approval",
+      "CONDITIONS_PRECEDENT": "conditions precedent",
+      "AGREEMENT_BOOKING": "agreement booking",
+      "DISBURSEMENT_APPROVAL": "disbursement approval"
+    },
+    "level": "{currency} ≥ {amount}: {count, plural, one {# approver} other {# approvers}}",
+    "submitted": "Workflow version submitted for approval",
+    "builderTitle": "Workflow builder",
+    "builderSubtitle": "Assemble a workflow from supported steps. A new version is created as SUBMITTED and needs a second person to approve it.",
+    "code": "Code",
+    "codeRule": "A–Z, 0–9 or _, 2–40 characters",
+    "name": "Name",
+    "startFrom": "Start from built-in",
+    "chooseToCopy": "(choose to copy)",
+    "stepsHeading": "Steps <note>(order is fixed; mandatory steps cannot be removed)</note>",
+    "mandatory": "mandatory",
+    "levelsHeading": "Approval levels <note>— how many independent approvers an amount needs</note>",
+    "currency": "Currency",
+    "fromAmount": "From amount",
+    "approvalsRequired": "Approvals required",
+    "addLevel": "Add level",
+    "needZero": "One approval level must start at 0.",
+    "submit": "Submit workflow version",
+    "activated": "Workflow version activated",
+    "rejected": "Workflow version rejected",
+    "phaseNotice": "Phase 1 executes a fixed origination path (recommend → approve → book → disburse). A workflow chooses the optional checks and the approval levels.",
+    "builtInTitle": "Built-in workflows",
+    "builtInSubtitle": "Used when no tenant version is active for a code",
+    "versionsTitle": "Tenant workflow versions",
+    "noVersions": "No tenant workflow versions yet.",
+    "definition": "Definition",
+    "status": "Status",
+    "approveHint": "A different user from the maker must approve",
+    "approve": "Approve",
+    "reject": "Reject"
+  },
+  "LendingCatalogue": {
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "phase1Slice": "Phase 1 slice",
+    "missingCapabilities": "Missing capabilities",
+    "requires": "{count, plural, one {Requires # capability} other {Requires # capabilities}}",
+    "noFamilies": "No loan families are configured.",
+    "availableOf": "{avail} of {total} templates available",
+    "engineFilter": "Engine <mono>{version}</mono> · Filter:",
+    "all": "All ({count})",
+    "noMatch": "No capabilities match.",
+    "capability": "Capability",
+    "status": "Status",
+    "phase": "Phase",
+    "description": "Description",
+    "limitation": "Limitation / evidence",
+    "tabFamilies": "Families & templates",
+    "tabMatrix": "Capability matrix"
   }
 }

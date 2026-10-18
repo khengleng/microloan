@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle2, CircleSlash } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { LendingShell } from '@/components/lending/LendingShell';
 import { Card, Empty, ErrorBox, Spinner, Tabs, Table, th, td, Disclosure, JsonBlock } from '@/components/lending/ui';
 import { StatusBadge } from '@/components/lending/StatusBadge';
@@ -11,6 +12,7 @@ import type { CapabilityMatrix, CapabilityStatus, Family, TemplateSummary } from
 const STATUS_ORDER: CapabilityStatus[] = ['IMPLEMENTED', 'SIMULATION_ONLY', 'REQUIRES_INTEGRATION', 'NOT_IMPLEMENTED'];
 
 function TemplateCard({ t }: { t: TemplateSummary }) {
+    const tc = useTranslations('LendingCatalogue');
     return (
         <div className={`rounded-md border p-3.5 ${t.available ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 opacity-90'}`}>
             <div className="flex items-start justify-between gap-2">
@@ -19,14 +21,14 @@ function TemplateCard({ t }: { t: TemplateSummary }) {
                     <p className="font-mono text-[10px] text-[#8792A2]">{t.code}</p>
                 </div>
                 {t.available
-                    ? <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={13} /> Available</span>
-                    : <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500"><CircleSlash size={13} /> Unavailable</span>}
+                    ? <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={13} /> {tc('available')}</span>
+                    : <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500"><CircleSlash size={13} /> {tc('unavailable')}</span>}
             </div>
             {t.description && <p className="text-[12px] text-[#697386] mt-1.5">{t.description}</p>}
-            {t.phase1Slice && <p className="mt-1.5 text-[10px] font-bold uppercase text-[#635BFF]">Phase 1 slice</p>}
+            {t.phase1Slice && <p className="mt-1.5 text-[10px] font-bold uppercase text-[#635BFF]">{tc('phase1Slice')}</p>}
             {!t.available && t.missing.length > 0 && (
                 <div className="mt-2 border-t border-slate-200 pt-2">
-                    <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Missing capabilities</p>
+                    <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">{tc('missingCapabilities')}</p>
                     <ul className="space-y-1">
                         {t.missing.map((m) => (
                             <li key={m.id} className="text-[11px] text-slate-600 flex flex-wrap items-center gap-1.5">
@@ -40,7 +42,7 @@ function TemplateCard({ t }: { t: TemplateSummary }) {
             )}
             {t.requiredCapabilities.length > 0 && (
                 <div className="mt-2">
-                    <Disclosure summary={`Requires ${t.requiredCapabilities.length} capabilities`}>
+                    <Disclosure summary={tc('requires', { count: t.requiredCapabilities.length })}>
                         <p className="text-[11px] font-mono text-[#697386] break-words">{t.requiredCapabilities.join(', ')}</p>
                         {t.structure !== undefined && t.structure !== null && <div className="mt-2"><JsonBlock value={t.structure} /></div>}
                     </Disclosure>
@@ -51,14 +53,15 @@ function TemplateCard({ t }: { t: TemplateSummary }) {
 }
 
 function Families({ families }: { families: Family[] }) {
-    if (families.length === 0) return <Empty>No loan families are configured.</Empty>;
+    const tc = useTranslations('LendingCatalogue');
+    if (families.length === 0) return <Empty>{tc('noFamilies')}</Empty>;
     return (
         <div className="space-y-5">
             {families.map((f) => {
                 const avail = f.templates.filter((t) => t.available).length;
                 return (
                     <Card key={f.code} title={f.name} subtitle={<>{f.description} <span className="ml-1 font-mono">{f.code}</span></>}
-                        actions={<span className="text-[12px] text-[#697386]">{avail} of {f.templates.length} templates available</span>}>
+                        actions={<span className="text-[12px] text-[#697386]">{tc('availableOf', { avail, total: f.templates.length })}</span>}>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                             {f.templates.map((t) => <TemplateCard key={t.code} t={t} />)}
                         </div>
@@ -71,6 +74,7 @@ function Families({ families }: { families: Family[] }) {
 
 function Matrix({ matrix }: { matrix: CapabilityMatrix }) {
     const [filter, setFilter] = useState<CapabilityStatus | ''>('');
+    const tc = useTranslations('LendingCatalogue');
     const groups = useMemo(() => {
         const m = new Map<string, CapabilityMatrix['capabilities']>();
         for (const c of matrix.capabilities) {
@@ -90,25 +94,25 @@ function Matrix({ matrix }: { matrix: CapabilityMatrix }) {
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[12px] text-[#697386]">Engine <span className="font-mono">{matrix.engineVersion}</span> · Filter:</span>
-                <button onClick={() => setFilter('')} className={`text-[12px] px-2 py-0.5 rounded border ${filter === '' ? 'border-[#635BFF] text-[#635BFF]' : 'border-[#E3E8EE] text-[#697386]'}`}>All ({matrix.capabilities.length})</button>
+                <span className="text-[12px] text-[#697386]">{tc.rich('engineFilter', { version: matrix.engineVersion, mono: (c) => <span className="font-mono">{c}</span> })}</span>
+                <button onClick={() => setFilter('')} className={`text-[12px] px-2 py-0.5 rounded border ${filter === '' ? 'border-[#635BFF] text-[#635BFF]' : 'border-[#E3E8EE] text-[#697386]'}`}>{tc('all', { count: matrix.capabilities.length })}</button>
                 {STATUS_ORDER.map((s) => (
                     <button key={s} onClick={() => setFilter(s)} className={`rounded ${filter === s ? 'ring-2 ring-[#635BFF]/40' : ''}`}>
                         <StatusBadge status={s} /> <span className="text-[11px] text-[#697386]">{counts[s] ?? 0}</span>
                     </button>
                 ))}
             </div>
-            {groups.length === 0 && <Empty>No capabilities match.</Empty>}
+            {groups.length === 0 && <Empty>{tc('noMatch')}</Empty>}
             {groups.map(([area, caps]) => (
                 <Card key={area} title={area} bodyClass="p-0">
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Capability</th>
-                                <th className={th}>Status</th>
-                                <th className={th}>Phase</th>
-                                <th className={th}>Description</th>
-                                <th className={th}>Limitation / evidence</th>
+                                <th className={th}>{tc('capability')}</th>
+                                <th className={th}>{tc('status')}</th>
+                                <th className={th}>{tc('phase')}</th>
+                                <th className={th}>{tc('description')}</th>
+                                <th className={th}>{tc('limitation')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -137,10 +141,11 @@ export default function CataloguePage() {
     const [tab, setTab] = useState<'families' | 'matrix'>('families');
     const catalogue = useApi<Family[]>('/lending/catalogue');
     const matrix = useApi<CapabilityMatrix>(tab === 'matrix' ? '/lending/capability-matrix' : null);
+    const tc = useTranslations('LendingCatalogue');
 
     return (
         <LendingShell title="Product catalogue" subtitle="Loan families and templates, and what the engine can actually do today.">
-            <Tabs value={tab} onChange={setTab} tabs={[{ value: 'families', label: 'Families & templates' }, { value: 'matrix', label: 'Capability matrix' }]} />
+            <Tabs value={tab} onChange={setTab} tabs={[{ value: 'families', label: tc('tabFamilies') }, { value: 'matrix', label: tc('tabMatrix') }]} />
             {tab === 'families' && (
                 catalogue.loading && !catalogue.data ? <Spinner /> : catalogue.error ? <ErrorBox error={catalogue.error} /> : <Families families={catalogue.data ?? []} />
             )}

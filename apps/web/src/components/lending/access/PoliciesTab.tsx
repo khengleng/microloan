@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Btn, Card, Disclosure, Empty, ErrorBox, Field, JsonBlock, Notice, TextInput } from '../ui';
@@ -38,7 +39,8 @@ export function PoliciesTab({ data, reload }: TabProps) {
 }
 
 function RuleLines({ rules }: { rules: PolicyRule[] }) {
-    if (!Array.isArray(rules) || rules.length === 0) return <p className="text-[12px] text-[#8792A2]">No rules.</p>;
+    const t = useTranslations('LendingAccess.policies');
+    if (!Array.isArray(rules) || rules.length === 0) return <p className="text-[12px] text-[#8792A2]">{t('noRules')}</p>;
     return (
         <ul className="space-y-1.5">
             {rules.map((r) => (
@@ -58,17 +60,18 @@ function PolicyList({ policies, data, reload, onLoad }: { policies: Policy[]; on
     const userName = useUserName(data.users);
     const me = useMyId();
     const [reasons, setReasons] = useState<Record<string, string>>({});
+    const t = useTranslations('LendingAccess.policies');
 
     const decide = async (v: PolicyVersion, approve: boolean) => {
         const r = await run(`decide-${v.id}`, () => api.post(`/lending/access/policies/${v.id}/decision`, clean({ approve, reason: (reasons[v.id] ?? '').trim() })));
-        if (r) { showToast(approve ? 'Policy version approved' : 'Policy version rejected', 'success'); reload(); }
+        if (r) { showToast(approve ? t('approved') : t('rejected'), 'success'); reload(); }
     };
 
     return (
-        <Card title="ABAC policies" subtitle="Attribute-based rules evaluated on every lending action. New versions require approval by a second admin.">
+        <Card title={t('title')} subtitle={t('subtitle')}>
             <div className="space-y-4">
                 <ErrorBox error={error} onDismiss={clearError} />
-                {policies.length === 0 ? <Empty>No policies yet. Use the editor below to submit one.</Empty> : policies.map((p) => (
+                {policies.length === 0 ? <Empty>{t('none')}</Empty> : policies.map((p) => (
                     <div key={p.id} className="border border-[#E3E8EE] rounded-md">
                         <div className="px-4 py-2.5 border-b border-[#E3E8EE] bg-[#F7FAFC]">
                             <span className="font-mono text-[12px] font-bold text-[#1A1F36]">{p.code}</span>
@@ -76,7 +79,7 @@ function PolicyList({ policies, data, reload, onLoad }: { policies: Policy[]; on
                             {p.description && <p className="text-[12px] text-[#697386]">{p.description}</p>}
                         </div>
                         <div className="divide-y divide-[#F0F2F5]">
-                            {p.versions.length === 0 && <p className="px-4 py-3 text-[12px] text-[#8792A2]">No versions.</p>}
+                            {p.versions.length === 0 && <p className="px-4 py-3 text-[12px] text-[#8792A2]">{t('noVersions')}</p>}
                             {p.versions.map((v) => {
                                 const own = !!me && v.makerId === me;
                                 return (
@@ -85,19 +88,19 @@ function PolicyList({ policies, data, reload, onLoad }: { policies: Policy[]; on
                                             <div className="flex items-center gap-2 text-[13px]">
                                                 <span className="font-bold">v{v.version}</span>
                                                 <StatusBadge status={v.status} />
-                                                <span className="text-[12px] text-[#697386]">maker: {userName(v.makerId)}</span>
+                                                <span className="text-[12px] text-[#697386]">{t('maker', { name: userName(v.makerId) })}</span>
                                             </div>
-                                            <Btn size="sm" variant="ghost" onClick={() => onLoad(p, v)}>Load into editor</Btn>
+                                            <Btn size="sm" variant="ghost" onClick={() => onLoad(p, v)}>{t('load')}</Btn>
                                         </div>
                                         <RuleLines rules={v.rules} />
                                         {v.status === 'SUBMITTED' && (
                                             <div className="flex flex-wrap items-end gap-2 pt-1">
-                                                <Field label="Decision note (optional)" className="flex-1 min-w-[200px]">
-                                                    <TextInput value={reasons[v.id] ?? ''} onChange={(t) => setReasons((s) => ({ ...s, [v.id]: t }))} maxLength={300} />
+                                                <Field label={t('decisionNote')} className="flex-1 min-w-[200px]">
+                                                    <TextInput value={reasons[v.id] ?? ''} onChange={(text) => setReasons((s) => ({ ...s, [v.id]: text }))} maxLength={300} />
                                                 </Field>
-                                                <Btn size="sm" variant="primary" busy={busy === `decide-${v.id}`} disabled={own || !!busy} reason={own ? 'You submitted this version — a second admin must approve' : undefined} onClick={() => decide(v, true)}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? 'You submitted this version — a second admin must decide' : undefined} onClick={() => decide(v, false)}>Reject</Btn>
-                                                {own && <p className="w-full text-[11px] text-amber-800">Maker-checker: you submitted this version, so another admin must decide.</p>}
+                                                <Btn size="sm" variant="primary" busy={busy === `decide-${v.id}`} disabled={own || !!busy} reason={own ? t('ownApprove') : undefined} onClick={() => decide(v, true)}>{t('approve')}</Btn>
+                                                <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? t('ownDecide') : undefined} onClick={() => decide(v, false)}>{t('reject')}</Btn>
+                                                {own && <p className="w-full text-[11px] text-amber-800">{t('ownNote')}</p>}
                                             </div>
                                         )}
                                     </div>
@@ -114,13 +117,14 @@ function PolicyList({ policies, data, reload, onLoad }: { policies: Policy[]; on
 function PolicyEditor({ data, reload, state, setState }: TabProps & { state: EditorState; setState: (fn: (s: EditorState) => EditorState) => void }) {
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
+    const t = useTranslations('LendingAccess.policies');
 
     const converted = state.rules.map(draftToRule);
     const errors = converted.flatMap((c) => c.errors);
     const ids = state.rules.map((r) => r.id).filter(Boolean);
     const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
-    if (dupes.length) errors.push(`Duplicate rule ids: ${[...new Set(dupes)].join(', ')}`);
-    if (state.rules.length === 0) errors.push('Add at least one rule');
+    if (dupes.length) errors.push(t('duplicateIds', { ids: [...new Set(dupes)].join(', ') }));
+    if (state.rules.length === 0) errors.push(t('addOneRule'));
     const codeOk = state.code.trim().length > 0 && state.code.length <= 40;
     const nameOk = state.name.trim().length > 0;
     const valid = errors.length === 0 && codeOk && nameOk;
@@ -133,7 +137,7 @@ function PolicyEditor({ data, reload, state, setState }: TabProps & { state: Edi
         const body = clean({ code: state.code.trim(), name: state.name.trim(), description: state.description.trim() });
         const res = await run('submit', () => api.post('/lending/access/policies', { ...body, rules }));
         if (res) {
-            showToast('Policy version submitted for approval', 'success');
+            showToast(t('submitted'), 'success');
             setState(() => EMPTY);
             reload();
         }
@@ -142,17 +146,17 @@ function PolicyEditor({ data, reload, state, setState }: TabProps & { state: Edi
     return (
         <div id="policy-editor">
             <Card
-                title="Policy editor"
-                subtitle={state.basedOn ? `Starting a new version from ${state.basedOn}` : 'Build rules from the constrained vocabulary below. Submitting creates a SUBMITTED version.'}
-                actions={<Btn size="sm" variant="ghost" onClick={() => setState(() => EMPTY)}>Reset</Btn>}
+                title={t('editorTitle')}
+                subtitle={state.basedOn ? t('basedOn', { from: state.basedOn }) : t('editorSubtitle')}
+                actions={<Btn size="sm" variant="ghost" onClick={() => setState(() => EMPTY)}>{t('reset')}</Btn>}
             >
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Field label="Policy code" hint="Same code = new version of an existing policy">
+                        <Field label={t('code')} hint={t('codeHint')}>
                             <TextInput value={state.code} onChange={(code) => setState((s) => ({ ...s, code }))} maxLength={40} placeholder="DISBURSEMENT_CONTROLS" />
                         </Field>
-                        <Field label="Name"><TextInput value={state.name} onChange={(name) => setState((s) => ({ ...s, name }))} maxLength={80} /></Field>
-                        <Field label="Description (optional)"><TextInput value={state.description} onChange={(description) => setState((s) => ({ ...s, description }))} maxLength={500} /></Field>
+                        <Field label={t('name')}><TextInput value={state.name} onChange={(name) => setState((s) => ({ ...s, name }))} maxLength={80} /></Field>
+                        <Field label={t('descriptionOptional')}><TextInput value={state.description} onChange={(description) => setState((s) => ({ ...s, description }))} maxLength={500} /></Field>
                     </div>
 
                     {state.rules.map((r, i) => (
@@ -165,22 +169,22 @@ function PolicyEditor({ data, reload, state, setState }: TabProps & { state: Edi
                             onRemove={() => setState((s) => ({ ...s, rules: s.rules.filter((x) => x.key !== r.key) }))}
                         />
                     ))}
-                    <Btn onClick={() => setState((s) => ({ ...s, rules: [...s.rules, newRule()] }))}>+ Add rule</Btn>
+                    <Btn onClick={() => setState((s) => ({ ...s, rules: [...s.rules, newRule()] }))}>{t('addRule')}</Btn>
 
                     {state.rules.length > 0 && (
-                        <Disclosure summary="Generated rules JSON (read-only)" defaultOpen>
+                        <Disclosure summary={t('generatedJson')} defaultOpen>
                             <JsonBlock value={preview} />
                         </Disclosure>
                     )}
 
                     {errors.length > 0 && (state.rules.length > 0 || state.code) && (
-                        <Notice tone="warn" title="Fix before submitting">
+                        <Notice tone="warn" title={t('fixFirst')}>
                             <ul className="list-disc pl-5 space-y-0.5 text-[12px]">{errors.map((m, i) => <li key={i}>{m}</li>)}</ul>
                         </Notice>
                     )}
                     <ErrorBox error={error} onDismiss={clearError} />
                     <div className="flex justify-end">
-                        <Btn variant="primary" busy={busy === 'submit'} disabled={!valid} reason={!valid ? 'Code, name and valid rules are required' : undefined} onClick={submit}>Submit for approval</Btn>
+                        <Btn variant="primary" busy={busy === 'submit'} disabled={!valid} reason={!valid ? t('required') : undefined} onClick={submit}>{t('submit')}</Btn>
                     </div>
                 </div>
             </Card>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -22,33 +23,34 @@ export function DelegationsTab({ data, reload }: TabProps) {
     const me = useMyId();
     const rows = data.delegations as DelegationRow[];
     const pending = rows.filter((d) => d.status === 'PENDING');
+    const t = useTranslations('LendingAccess.delegations');
 
     const decide = async (d: DelegationRow, approve: boolean) => {
         const r = await run(`decide-${d.id}`, () => api.post(`/lending/access/delegations/${d.id}/decision`, { approve }));
-        if (r) { showToast(approve ? 'Delegation approved' : 'Delegation rejected', 'success'); reload(); }
+        if (r) { showToast(approve ? t('approved') : t('rejected'), 'success'); reload(); }
     };
     const revoke = async (d: DelegationRow) => {
-        const ok = await confirm({ title: 'Revoke delegation', message: `Revoke the delegation to ${userName(d.toUserId)}? The delegated permissions stop immediately.`, confirmLabel: 'Revoke', variant: 'danger' });
+        const ok = await confirm({ title: t('revokeTitle'), message: t('revokeConfirm', { user: userName(d.toUserId) }), confirmLabel: t('revoke'), variant: 'danger' });
         if (!ok) return;
         const r = await run(`revoke-${d.id}`, () => api.post(`/lending/access/delegations/${d.id}/revoke`, {}));
-        if (r) { showToast('Delegation revoked', 'success'); reload(); }
+        if (r) { showToast(t('revoked'), 'success'); reload(); }
     };
 
     return (
         <div className="space-y-5">
             {pending.length > 0 && (
-                <Notice tone="warn" title={`${pending.length} delegation(s) awaiting approval`}>
-                    Delegations need approval from an admin other than the one who requested them.
+                <Notice tone="warn" title={t('pendingTitle', { count: pending.length })}>
+                    {t('pendingBody')}
                 </Notice>
             )}
-            <Card title="Delegations" subtitle="Temporary grants of permissions from one user to another (max 30 days)." bodyClass="p-0">
+            <Card title={t('title')} subtitle={t('subtitle')} bodyClass="p-0">
                 <div className="p-4 pb-0"><ErrorBox error={error} onDismiss={clearError} /></div>
-                {rows.length === 0 ? <Empty>No delegations.</Empty> : (
+                {rows.length === 0 ? <Empty>{t('none')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE]">
-                                <th className={th}>From</th><th className={th}>To</th><th className={th}>Permissions</th><th className={th}>Window</th>
-                                <th className={th}>Limit</th><th className={th}>Status</th><th className={th}>Reason</th><th className={th}></th>
+                                <th className={th}>{t('colFrom')}</th><th className={th}>{t('colTo')}</th><th className={th}>{t('colPermissions')}</th><th className={th}>{t('colWindow')}</th>
+                                <th className={th}>{t('colLimit')}</th><th className={th}>{t('colStatus')}</th><th className={th}>{t('colReason')}</th><th className={th}></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -68,12 +70,12 @@ export function DelegationsTab({ data, reload }: TabProps) {
                                             <div className="flex gap-1.5 justify-end">
                                                 {d.status === 'PENDING' && (
                                                     <>
-                                                        <Btn size="sm" variant="primary" busy={busy === `decide-${d.id}`} disabled={own || !!busy} reason={own ? 'You requested this — a second admin must approve' : undefined} onClick={() => decide(d, true)}>Approve</Btn>
-                                                        <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? 'You requested this — a second admin must decide' : undefined} onClick={() => decide(d, false)}>Reject</Btn>
+                                                        <Btn size="sm" variant="primary" busy={busy === `decide-${d.id}`} disabled={own || !!busy} reason={own ? t('ownApprove') : undefined} onClick={() => decide(d, true)}>{t('approve')}</Btn>
+                                                        <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? t('ownDecide') : undefined} onClick={() => decide(d, false)}>{t('reject')}</Btn>
                                                     </>
                                                 )}
                                                 {(d.status === 'ACTIVE' || d.status === 'PENDING') && (
-                                                    <Btn size="sm" busy={busy === `revoke-${d.id}`} disabled={!!busy} onClick={() => revoke(d)}>Revoke</Btn>
+                                                    <Btn size="sm" busy={busy === `revoke-${d.id}`} disabled={!!busy} onClick={() => revoke(d)}>{t('revoke')}</Btn>
                                                 )}
                                             </div>
                                         </td>
@@ -99,6 +101,7 @@ function DelegationForm({ data, reload }: TabProps) {
     const [maxAmount, setMaxAmount] = useState('');
     const [currency, setCurrency] = useState('');
     const [reason, setReason] = useState('');
+    const t = useTranslations('LendingAccess.delegations');
 
     // The lender's limit from the API (lending settings); the API enforces it too.
     const maxDays = data.limits?.maxDelegationDays;
@@ -107,41 +110,41 @@ function DelegationForm({ data, reload }: TabProps) {
     let windowErr: string | undefined;
     if (fromIso && toIso) {
         const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
-        if (ms <= 0) windowErr = 'Valid to must be after valid from';
-        else if (maxDays && ms > maxDays * 86_400_000) windowErr = `Delegations may last at most ${maxDays} days`;
+        if (ms <= 0) windowErr = t('windowOrder');
+        else if (maxDays && ms > maxDays * 86_400_000) windowErr = t('windowMax', { days: maxDays });
     }
-    const amountErr = maxAmount && !MONEY_RE.test(maxAmount.trim()) ? 'Decimal with up to 4 places, e.g. 5000.00' : undefined;
-    const ccyErr = currency && !/^[A-Z]{3}$/.test(currency) ? '3-letter code' : maxAmount && !currency ? 'Currency recommended with a max amount' : undefined;
-    const reasonErr = reason && reason.trim().length < 3 ? 'At least 3 characters' : undefined;
+    const amountErr = maxAmount && !MONEY_RE.test(maxAmount.trim()) ? t('amountRule') : undefined;
+    const ccyErr = currency && !/^[A-Z]{3}$/.test(currency) ? t('currencyRule') : maxAmount && !currency ? t('currencyRecommended') : undefined;
+    const reasonErr = reason && reason.trim().length < 3 ? t('minChars') : undefined;
     const valid = toUserId && perms.length > 0 && fromIso && toIso && !windowErr && !amountErr && !(currency && !/^[A-Z]{3}$/.test(currency)) && reason.trim().length >= 3;
 
     const submit = async () => {
         const body = clean({ toUserId, permissions: perms, validFrom: fromIso, validTo: toIso, maxAmount: maxAmount.trim(), currency, reason: reason.trim() });
         const r = await run('create', () => api.post('/lending/access/delegations', body));
         if (r) {
-            showToast('Delegation requested', 'success');
+            showToast(t('requested'), 'success');
             setToUserId(''); setPerms([]); setFrom(''); setTo(''); setMaxAmount(''); setCurrency(''); setReason('');
             reload();
         }
     };
 
     return (
-        <Card title="Request delegation" subtitle="Delegate some of your permissions to another user for up to 30 days.">
+        <Card title={t('requestTitle')} subtitle={t('requestSubtitle')}>
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Field label="Delegate to"><SelectInput value={toUserId} onChange={setToUserId} options={userOptions(data.users)} placeholder="Select user…" /></Field>
-                    <Field label="Valid from"><TextInput type="datetime-local" value={from} onChange={setFrom} /></Field>
-                    <Field label="Valid to" error={windowErr}><TextInput type="datetime-local" value={to} onChange={setTo} /></Field>
-                    <Field label="Max amount (optional)" error={amountErr}><TextInput value={maxAmount} onChange={setMaxAmount} inputMode="decimal" placeholder="e.g. 10000.00" /></Field>
-                    <Field label="Currency (optional)" error={ccyErr}><TextInput value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} placeholder="USD" /></Field>
-                    <Field label="Reason" error={reasonErr}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
+                    <Field label={t('delegateTo')}><SelectInput value={toUserId} onChange={setToUserId} options={userOptions(data.users)} placeholder={t('selectUser')} /></Field>
+                    <Field label={t('validFrom')}><TextInput type="datetime-local" value={from} onChange={setFrom} /></Field>
+                    <Field label={t('validTo')} error={windowErr}><TextInput type="datetime-local" value={to} onChange={setTo} /></Field>
+                    <Field label={t('maxAmountOptional')} error={amountErr}><TextInput value={maxAmount} onChange={setMaxAmount} inputMode="decimal" placeholder={t('amountPlaceholder')} /></Field>
+                    <Field label={t('currencyOptional')} error={ccyErr}><TextInput value={currency} onChange={(v) => setCurrency(v.toUpperCase())} maxLength={3} placeholder="USD" /></Field>
+                    <Field label={t('colReason')} error={reasonErr}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
                 </div>
-                <Field label="Permissions (max 20)">
+                <Field label={t('permissionsMax')}>
                     <PermissionPicker permissions={data.permissions} value={perms} onChange={setPerms} max={20} />
                 </Field>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn data-tour="access-delegation-request" variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Fill user, window, permissions and reason' : undefined} onClick={submit}>Request delegation</Btn>
+                    <Btn data-tour="access-delegation-request" variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? t('required') : undefined} onClick={submit}>{t('request')}</Btn>
                 </div>
             </div>
         </Card>

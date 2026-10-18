@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { LoanScheduleLine, ProposedLine, ScheduleLine } from './types';
 import { addDecimal, subDecimal } from './format';
 import { MoneyCell } from './MoneyCell';
@@ -17,6 +18,8 @@ export interface ScheduleRow {
     status?: string;
     projected?: boolean;
     note?: string;
+    /** Amount already paid on the instalment, shown as a translated note. */
+    paid?: string;
 }
 
 export function rowsFromSimulation(lines: ScheduleLine[]): ScheduleRow[] {
@@ -63,15 +66,16 @@ export function rowsFromLoan(lines: LoanScheduleLine[]): ScheduleRow[] {
             closingPrincipal: subDecimal(addDecimal(l.openingPrincipal, l.capitalizedInterest), l.principalDue),
             status: l.status,
             projected: l.projected,
-            note: paid !== '0' && paid !== '0.00' ? `paid ${paid}` : undefined,
+            paid: paid !== '0' && paid !== '0.00' ? paid : undefined,
         };
     });
 }
 
 /** Columns: #, due date, principal, interest, deferred/charges, total, closing principal, status. */
-export function ScheduleTable({ rows, currency, chargesLabel = 'Deferred / charges', showStatus = true }: {
+export function ScheduleTable({ rows, currency, chargesLabel, showStatus = true }: {
     rows: ScheduleRow[]; currency?: string; chargesLabel?: string; showStatus?: boolean;
 }) {
+    const t = useTranslations('LendingShared.schedule');
     const anyProjected = rows.some((r) => r.projected);
     return (
         <div className="space-y-2">
@@ -80,13 +84,13 @@ export function ScheduleTable({ rows, currency, chargesLabel = 'Deferred / charg
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
                             <th className={th}>#</th>
-                            <th className={th}>Due date</th>
-                            <th className={thR}>Principal</th>
-                            <th className={thR}>Interest</th>
-                            <th className={thR}>{chargesLabel}</th>
-                            <th className={thR}>Total{currency ? ` (${currency})` : ''}</th>
-                            <th className={thR}>Closing principal</th>
-                            {showStatus && <th className={th}>Status</th>}
+                            <th className={th}>{t('dueDate')}</th>
+                            <th className={thR}>{t('principal')}</th>
+                            <th className={thR}>{t('interest')}</th>
+                            <th className={thR}>{chargesLabel ?? t('charges')}</th>
+                            <th className={thR}>{currency ? t('totalIn', { currency }) : t('total')}</th>
+                            <th className={thR}>{t('closingPrincipal')}</th>
+                            {showStatus && <th className={th}>{t('status')}</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -103,7 +107,8 @@ export function ScheduleTable({ rows, currency, chargesLabel = 'Deferred / charg
                                     <td className={`${td} whitespace-nowrap`}>
                                         <div className="flex items-center gap-1.5">
                                             {r.status && <StatusBadge status={r.status} />}
-                                            {r.projected && <span className="text-[10px] font-bold uppercase text-amber-700 border border-amber-300 bg-amber-50 rounded px-1">projected</span>}
+                                            {r.projected && <span className="text-[10px] font-bold uppercase text-amber-700 border border-amber-300 bg-amber-50 rounded px-1">{t('projected')}</span>}
+                                            {r.paid && <span className="text-[11px] text-[#697386]">{t('paid', { amount: r.paid })}</span>}
                                             {r.note && <span className="text-[11px] text-[#697386]">{r.note}</span>}
                                         </div>
                                     </td>
@@ -114,7 +119,7 @@ export function ScheduleTable({ rows, currency, chargesLabel = 'Deferred / charg
                 </table>
             </div>
             {anyProjected && (
-                <p className="text-[11px] text-amber-800">Rows marked <b>projected</b> depend on a future rate observation and are not contractually fixed.</p>
+                <p className="text-[11px] text-amber-800">{t.rich('projectedNote', { b: (c) => <b>{c}</b> })}</p>
             )}
         </div>
     );
