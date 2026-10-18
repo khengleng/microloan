@@ -196,6 +196,8 @@ d('Month-end and year-end close (integration)', () => {
   it('the year cannot close while months are open', async () => {
     const y = expectOk(await f.as('finance').get('/lending/ops/years/2026'));
     expect(y.ready).toBe(false);
+    // The account the result goes to comes from the lending settings.
+    expect(y.retainedEarningsAccount).toBe('3100');
     expect(y.checks.find((c: any) => c.code === 'MONTHS_CLOSED').status).toBe(
       'FAIL',
     );
