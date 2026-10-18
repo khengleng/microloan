@@ -668,6 +668,19 @@ export const S = {
       reason: z.string().max(300).optional(),
     })
     .strict(),
+  branchCreate: z
+    .object({
+      name: z.string().trim().min(2).max(80),
+      code: z.string().trim().max(12).optional(),
+    })
+    .strict(),
+  branchUpdate: z
+    .object({
+      name: z.string().trim().min(2).max(80).optional(),
+      code: z.string().trim().max(12).nullable().optional(),
+      isActive: z.boolean().optional(),
+    })
+    .strict(),
   serviceAccount: z
     .object({
       name: z.string().min(2).max(80),

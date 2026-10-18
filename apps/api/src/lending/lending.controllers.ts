@@ -1407,6 +1407,31 @@ export class LendingAccessController {
   }
 
   @LendingAction('access_policy.read')
+  @Get('branches')
+  branches(@Req() req: Req_) {
+    return this.access.branches(actor(req));
+  }
+
+  @LendingAction('access_policy.manage')
+  @Post('branches')
+  createBranch(
+    @Req() req: Req_,
+    @Body(new ZodPipe(S.branchCreate)) body: never,
+  ) {
+    return this.access.createBranch(actor(req), body);
+  }
+
+  @LendingAction('access_policy.manage')
+  @Put('branches/:id')
+  updateBranch(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.branchUpdate)) body: never,
+  ) {
+    return this.access.updateBranch(actor(req), id, body);
+  }
+
+  @LendingAction('access_policy.read')
   @Get('service-accounts')
   serviceAccounts(@Req() req: Req_) {
     return this.access.listServiceAccounts(actor(req));

@@ -113,42 +113,66 @@ export class AccessAdminService {
       this.access(tenantId),
     );
     await this.ensureSystemRoles(tenantId);
-    const [roles, assignments, delegations, authorities, users, policies] =
-      await Promise.all([
-        this.prisma.accessRole.findMany({
-          where: { tenantId },
-          include: { permissions: true },
-          orderBy: { code: 'asc' },
-        }),
-        this.prisma.roleAssignment.findMany({
-          where: { tenantId },
-          include: { role: { select: { code: true, name: true } } },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.delegation.findMany({
-          where: { tenantId },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.approvalAuthority.findMany({
-          where: { tenantId },
-          include: { role: { select: { code: true } } },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.user.findMany({
-          where: { tenantId },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            branchId: true,
-            isActive: true,
-          },
-        }),
-        this.prisma.accessPolicy.findMany({
-          where: { tenantId },
-          include: { versions: { orderBy: { version: 'desc' } } },
-        }),
-      ]);
+    const [
+      roles,
+      assignments,
+      delegations,
+      authorities,
+      users,
+      policies,
+      branches,
+      portfolios,
+    ] = await Promise.all([
+      this.prisma.accessRole.findMany({
+        where: { tenantId },
+        include: { permissions: true },
+        orderBy: { code: 'asc' },
+      }),
+      this.prisma.roleAssignment.findMany({
+        where: { tenantId },
+        include: { role: { select: { code: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.delegation.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.approvalAuthority.findMany({
+        where: { tenantId },
+        include: { role: { select: { code: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          branchId: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.accessPolicy.findMany({
+        where: { tenantId },
+        include: { versions: { orderBy: { version: 'desc' } } },
+      }),
+      this.prisma.branch.findMany({
+        where: { tenantId },
+        select: { id: true, name: true, code: true, isActive: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.portfolio.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          branchId: true,
+          isActive: true,
+        },
+        orderBy: { code: 'asc' },
+      }),
+    ]);
     return {
       permissions: PERMISSIONS,
       roles: roles.map((r) => ({
@@ -164,12 +188,169 @@ export class AccessAdminService {
       })),
       users,
       policies,
+      /** Pickers for assignment scope; branch ids are never typed by hand. */
+      branches,
+      portfolios,
       /** The lender's limits the forms check before the API does. */
       limits: {
         maxDelegationDays: (await this.settings.get(tenantId)).access
           .maxDelegationDays,
       },
     };
+  }
+
+  // ── Branches ──────────────────────────────────────────────────────────────
+
+  /**
+   * The organisation's branches. Creating or renaming one widens nobody's
+   * access by itself (scope is granted by approved assignments), so it needs
+   * access_policy.manage but no second person; every change is audited.
+   */
+  async branches(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'access_policy.read',
+      this.access(tenantId),
+    );
+    const rows = await this.prisma.branch.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isActive: true,
+        createdAt: true,
+        _count: { select: { users: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map(({ _count, ...b }) => ({ ...b, users: _count.users }));
+  }
+
+  async createBranch(
+    actor: LendingActor,
+    body: { name: string; code?: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    const name = (body.name ?? '').trim();
+    const code = body.code?.trim().toUpperCase() || null;
+    if (name.length < 2)
+      throw new BadRequestException('A branch needs a name.');
+    if (code && !/^[A-Z0-9_-]{2,12}$/.test(code))
+      throw new BadRequestException(
+        'Branch code must be 2–12 of A–Z, 0–9, - or _.',
+      );
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.policy.enforce(
+        actor,
+        'access_policy.manage',
+        this.access(tenantId),
+        tx,
+      );
+      await this.uniqueBranch(tx, tenantId, name, code, null);
+      const b = await tx.branch.create({
+        data: { tenantId, name: name.slice(0, 80), code },
+        select: { id: true, name: true, code: true, isActive: true },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.branch_create',
+          resourceType: 'Branch',
+          resourceId: b.id,
+          outcome: 'SUCCESS',
+          details: { name: b.name, code: b.code },
+        },
+        tx,
+      );
+      return b;
+    });
+  }
+
+  async updateBranch(
+    actor: LendingActor,
+    id: string,
+    body: { name?: string; code?: string | null; isActive?: boolean },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.policy.enforce(
+        actor,
+        'access_policy.manage',
+        this.access(tenantId, [], id),
+        tx,
+      );
+      const before = await tx.branch.findFirst({ where: { id, tenantId } });
+      if (!before) throw new NotFoundException('Branch not found');
+      const name = body.name === undefined ? before.name : body.name.trim();
+      const code =
+        body.code === undefined
+          ? before.code
+          : body.code?.trim().toUpperCase() || null;
+      if (name.length < 2)
+        throw new BadRequestException('A branch needs a name.');
+      if (code && !/^[A-Z0-9_-]{2,12}$/.test(code))
+        throw new BadRequestException(
+          'Branch code must be 2–12 of A–Z, 0–9, - or _.',
+        );
+      await this.uniqueBranch(tx, tenantId, name, code, id);
+      const res = await tx.branch.updateMany({
+        where: { id, tenantId, updatedAt: before.updatedAt },
+        data: {
+          name: name.slice(0, 80),
+          code,
+          ...(body.isActive === undefined ? {} : { isActive: body.isActive }),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This branch');
+      await this.audit.write(
+        {
+          actor,
+          action: 'access_policy.branch_update',
+          resourceType: 'Branch',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            before: {
+              name: before.name,
+              code: before.code,
+              isActive: before.isActive,
+            },
+            after: { name, code, isActive: body.isActive ?? before.isActive },
+          },
+        },
+        tx,
+      );
+      return tx.branch.findFirst({
+        where: { id, tenantId },
+        select: { id: true, name: true, code: true, isActive: true },
+      });
+    });
+  }
+
+  private async uniqueBranch(
+    tx: Tx,
+    tenantId: string,
+    name: string,
+    code: string | null,
+    except: string | null,
+  ) {
+    const clash = await tx.branch.findFirst({
+      where: {
+        tenantId,
+        ...(except ? { id: { not: except } } : {}),
+        OR: [
+          { name: { equals: name, mode: 'insensitive' } },
+          ...(code ? [{ code }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (clash)
+      throw new ConflictException(
+        'Another branch already has that name or code.',
+      );
   }
 
   async createRole(

@@ -174,6 +174,65 @@ d('Access governance maker-checker (integration)', () => {
     });
   });
 
+  describe('branches', () => {
+    it('administrators list, create and rename branches; others cannot', async () => {
+      const created = expectOk(
+        await f.as('admin1').post('/lending/access/branches', {
+          name: 'Kampot',
+          code: 'kot',
+        }),
+      );
+      expect(created).toMatchObject({ name: 'Kampot', code: 'KOT' });
+      const dup = await f
+        .as('admin2')
+        .post('/lending/access/branches', { name: 'kampot' });
+      expect(dup.status).toBe(409);
+      const renamed = expectOk(
+        await f.as('admin2').put(`/lending/access/branches/${created.id}`, {
+          name: 'Kampot Town',
+        }),
+      );
+      expect(renamed).toMatchObject({ name: 'Kampot Town', code: 'KOT' });
+      const list = expectOk(
+        await f.as('nobody').get('/lending/access/branches'),
+      );
+      expect(list.map((b: any) => b.name)).toEqual(
+        expect.arrayContaining(['Kampot Town', 'Phnom Penh', 'Siem Reap']),
+      );
+      // Another tenant's branches never appear.
+      expect(list.map((b: any) => b.id)).not.toContain(f.b3);
+      // The overview carries them for the scope pickers.
+      const overview = expectOk(await f.as('admin1').get('/lending/access'));
+      expect(overview.branches.map((b: any) => b.id)).toContain(created.id);
+      // Reading access is not enough to change branches.
+      expect(
+        (
+          await f.as('nobody').post('/lending/access/branches', {
+            name: 'Kep',
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await f
+            .as('admin1')
+            .put(`/lending/access/branches/${f.b3}`, { name: 'Hijack' })
+        ).status,
+      ).toBe(404);
+      const audit = await f.system(() =>
+        f.prisma.auditEvent.findMany({
+          where: { tenantId: f.t1, resourceId: created.id },
+        }),
+      );
+      expect(audit.map((e: any) => e.action)).toEqual(
+        expect.arrayContaining([
+          'access_policy.branch_create',
+          'access_policy.branch_update',
+        ]),
+      );
+    });
+  });
+
   describe('cohorts', () => {
     const members = async () =>
       expectOk(await f.as('admin1').get('/lending/access/cohorts')).members;

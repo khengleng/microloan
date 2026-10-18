@@ -88,6 +88,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'service-accounts/:id': 'serviceAccount',
       'service-account-requests/:taskId': 'approvalTask',
       'cohort-changes/:taskId': 'approvalTask',
+      'branches/:id': 'branch',
       'suspense/:id': 'unidentifiedPayment',
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
