@@ -41,18 +41,18 @@ import { LoanMandatesCard } from '../channels/LoanMandatesCard';
 import { PurchaseLinkedCard } from './PurchaseLinkedCard';
 
 const ACTIONS = [
-    { code: 'loan.disbursement.prepare', label: 'Prepare disbursement' },
-    { code: 'loan.disbursement.approve', label: 'Approve disbursement' },
-    { code: 'loan.disbursement.execute', label: 'Execute disbursement' },
-    { code: 'loan.repayment.post', label: 'Post repayment / settle' },
-    { code: 'loan.repayment.reverse', label: 'Reverse repayment' },
-    { code: 'loan.writeoff.propose', label: 'Propose write-off' },
-    { code: 'loan.writeoff.approve', label: 'Approve write-off' },
-    { code: 'restructure.request', label: 'Request restructure' },
-    { code: 'loan.settlement.negotiate', label: 'Negotiated settlement' },
-    { code: 'loan.recovery.post', label: 'Post recovery' },
-    { code: 'loan.advance_refund.propose', label: 'Propose advance refund' },
-    { code: 'loan.advance_refund.approve', label: 'Approve advance refund' },
+    { code: 'loan.disbursement.prepare', key: 'prepareDisbursement' },
+    { code: 'loan.disbursement.approve', key: 'approveDisbursement' },
+    { code: 'loan.disbursement.execute', key: 'executeDisbursement' },
+    { code: 'loan.repayment.post', key: 'postRepayment' },
+    { code: 'loan.repayment.reverse', key: 'reverseRepayment' },
+    { code: 'loan.writeoff.propose', key: 'proposeWriteOff' },
+    { code: 'loan.writeoff.approve', key: 'approveWriteOff' },
+    { code: 'restructure.request', key: 'requestRestructure' },
+    { code: 'loan.settlement.negotiate', key: 'negotiatedSettlement' },
+    { code: 'loan.recovery.post', key: 'postRecovery' },
+    { code: 'loan.advance_refund.propose', key: 'proposeAdvanceRefund' },
+    { code: 'loan.advance_refund.approve', key: 'approveAdvanceRefund' },
 ];
 
 type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'remedies' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
@@ -68,12 +68,13 @@ export function LoanDetailView({ id }: { id: string }) {
     // A guarantor demand can stay open after the loan cures; it must stay reachable.
     const demands = useApi<{ demands: { status: string }[] }>(`/lending/loans/${id}/guarantor-demands`);
     const ts = useTranslations('Servicing.loan');
+    const tl = useTranslations('LendingServicing.loanDetail');
     const [panel, setPanel] = useState<Panel | null>(null);
 
     const d = loan.data;
     if (!d) {
         return (
-            <LendingShell title="Loan" back={{ href: '/lending/loans', label: 'Loans' }}>
+            <LendingShell title={tl('loadingTitle')} back={{ href: '/lending/loans', label: 'Loans' }}>
                 {loan.error ? <ErrorBox error={loan.error} /> : <Spinner />}
             </LendingShell>
         );
@@ -123,64 +124,64 @@ export function LoanDetailView({ id }: { id: string }) {
             title={<span className="flex items-center gap-2">{acc.reference} <StatusBadge status={acc.status} /> {acc.isRestructured && <RestructuredBadge />}</span>}
             subtitle={`${d.productCode} · agreement v${d.agreementVersion} · product version ${d.productVersionStatus}`}
             back={{ href: '/lending/loans', label: 'Loans' }}
-            actions={<Btn variant="ghost" onClick={() => { loan.reload(); caps.reload(); }}>Refresh</Btn>}
+            actions={<Btn variant="ghost" onClick={() => { loan.reload(); caps.reload(); }}>{tl('refresh')}</Btn>}
         >
             {loan.error && <ErrorBox error={loan.error} />}
 
-            <Card title="Account">
+            <Card title={tl('account.title')}>
                 <KV
                     cols={4}
                     items={[
-                        ['Booked principal', <Money key="bp" value={acc.bookedPrincipal} currency={cur} />],
-                        ['Principal outstanding', <Money key="po" value={acc.principalOutstanding} currency={cur} />],
-                        ['Interest receivable', <Money key="ir" value={acc.interestReceivable} currency={cur} />],
-                        ['Fees receivable', <Money key="fr" value={acc.feesReceivable} currency={cur} />],
-                        ['Penalty receivable', <Money key="pr" value={acc.penaltyReceivable} currency={cur} />],
-                        ['Held on advance', <Money key="adv" value={acc.advanceBalance ?? '0'} currency={cur} />],
-                        ['Interest accrual', acc.nonAccrual
-                            ? <span key="na" className="text-amber-700 font-semibold" title="Interest is still owed but held in suspense, not income">Non-accrual since {acc.nonAccrualSince?.slice(0, 10)}</span>
-                            : 'Accruing'],
-                        ['Interest in suspense', <Money key="sus" value={acc.interestInSuspense ?? '0'} currency={cur} />],
-                        ['Classification', acc.classification ? `${acc.classification.replace(/_/g, ' ').toLowerCase()}${acc.impairmentStage ? ` · stage ${acc.impairmentStage}` : ''}` : 'Not classified'],
-                        ['Loss allowance', <Money key="allow" value={acc.allowance ?? '0'} currency={cur} />],
-                        ['Instalment', <Money key="in" value={acc.instalmentAmount} currency={cur} />],
-                        ['Days past due', <span key="dpd" className={acc.daysPastDue > 0 ? 'text-red-600 font-semibold' : ''}>{acc.daysPastDue}</span>],
-                        ['Delinquency bucket', <StatusBadge key="b" status={acc.delinquencyBucket} />],
-                        ['Collection stage', acc.collectionStage ?? '—'],
-                        ['Disbursed', acc.disbursementDate?.slice(0, 10) ?? '—'],
-                        ['Maturity', acc.maturityDate?.slice(0, 10) ?? '—'],
-                        ['Last accrual', acc.lastAccrualDate?.slice(0, 10) ?? '—'],
-                        ['Restructured', acc.isRestructured ? `Yes (${acc.restructureCount}×)` : 'No'],
-                        ['Probation remaining', acc.probationRemaining > 0 ? `${acc.probationRemaining} instalment(s)` : '—'],
-                        ['Delinquency floor', acc.delinquencyFloorBucket ?? '—'],
-                        ['Application', acc.applicationId ? <Link key="app" href={href(`/lending/applications/${acc.applicationId}`)} className="text-[#635BFF] hover:underline">open application</Link> : '—'],
+                        [tl('account.bookedPrincipal'), <Money key="bp" value={acc.bookedPrincipal} currency={cur} />],
+                        [tl('account.principalOutstanding'), <Money key="po" value={acc.principalOutstanding} currency={cur} />],
+                        [tl('account.interestReceivable'), <Money key="ir" value={acc.interestReceivable} currency={cur} />],
+                        [tl('account.feesReceivable'), <Money key="fr" value={acc.feesReceivable} currency={cur} />],
+                        [tl('account.penaltyReceivable'), <Money key="pr" value={acc.penaltyReceivable} currency={cur} />],
+                        [tl('account.heldOnAdvance'), <Money key="adv" value={acc.advanceBalance ?? '0'} currency={cur} />],
+                        [tl('account.interestAccrual'), acc.nonAccrual
+                            ? <span key="na" className="text-amber-700 font-semibold" title={tl('account.nonAccrualHint')}>{tl('account.nonAccrualSince', { date: acc.nonAccrualSince?.slice(0, 10) ?? '—' })}</span>
+                            : tl('account.accruing')],
+                        [tl('account.interestInSuspense'), <Money key="sus" value={acc.interestInSuspense ?? '0'} currency={cur} />],
+                        [tl('account.classification'), acc.classification ? (acc.impairmentStage ? tl('account.classificationStage', { classification: acc.classification.replace(/_/g, ' ').toLowerCase(), stage: acc.impairmentStage }) : acc.classification.replace(/_/g, ' ').toLowerCase()) : tl('account.notClassified')],
+                        [tl('account.lossAllowance'), <Money key="allow" value={acc.allowance ?? '0'} currency={cur} />],
+                        [tl('account.instalment'), <Money key="in" value={acc.instalmentAmount} currency={cur} />],
+                        [tl('account.daysPastDue'), <span key="dpd" className={acc.daysPastDue > 0 ? 'text-red-600 font-semibold' : ''}>{acc.daysPastDue}</span>],
+                        [tl('account.delinquencyBucket'), <StatusBadge key="b" status={acc.delinquencyBucket} />],
+                        [tl('account.collectionStage'), acc.collectionStage ?? '—'],
+                        [tl('account.disbursed'), acc.disbursementDate?.slice(0, 10) ?? '—'],
+                        [tl('account.maturity'), acc.maturityDate?.slice(0, 10) ?? '—'],
+                        [tl('account.lastAccrual'), acc.lastAccrualDate?.slice(0, 10) ?? '—'],
+                        [tl('account.restructured'), acc.isRestructured ? tl('account.restructuredYes', { count: acc.restructureCount }) : tl('account.restructuredNo')],
+                        [tl('account.probationRemaining'), acc.probationRemaining > 0 ? tl('account.probationInstalments', { count: acc.probationRemaining }) : '—'],
+                        [tl('account.delinquencyFloor'), acc.delinquencyFloorBucket ?? '—'],
+                        [tl('account.application'), acc.applicationId ? <Link key="app" href={href(`/lending/applications/${acc.applicationId}`)} className="text-[#635BFF] hover:underline">{tl('account.openApplication')}</Link> : '—'],
                     ]}
                 />
             </Card>
 
-            <Card title="Servicing actions" subtitle="Buttons reflect your permissions, policies and limits. The server re-checks every action.">
+            <Card title={tl('actionsCard.title')} subtitle={tl('actionsCard.subtitle')}>
                 <div className="space-y-3">
                     <div data-tour="loan-servicing-actions" className="flex flex-wrap gap-2">
-                        {(isBooked || disbTasks.length > 0) && !facilityAccount && actionBtn('Disbursement', 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
-                        {isActive && actionBtn('Post repayment', 'repay', ['loan.repayment.post'], 'primary')}
-                        {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}
-                        {isActive && actionBtn('Early settlement', 'settle', ['loan.repayment.post'])}
-                        {isActive && actionBtn('Payoff letters', 'payoff', ['loan.repayment.post'])}
-                        {((isActive && acc.daysPastDue > 0) || openSetOff || openDemand) && actionBtn('Guarantor / set-off', 'remedies', ['loan.guarantor_demand.issue', 'loan.repayment.post', 'loan.set_off.propose', 'loan.set_off.approve'])}
-                        {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? 'Write-off decision' : 'Propose write-off', 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
-                        {isActive && actionBtn('Request restructure', 'restructure', ['restructure.request'])}
-                        {isActive && actionBtn('Negotiated settlement', 'negotiated', ['loan.settlement.negotiate'])}
-                        {(advanceHeld || advanceTasks.length > 0) && actionBtn(advanceTasks.length ? 'Advance refund decision' : 'Refund advance', 'advance-refund', ['loan.advance_refund.propose', 'loan.advance_refund.approve'])}
-                        {isWrittenOff && actionBtn('Record recovery', 'recovery', ['loan.recovery.post'], 'primary')}
-                        {isActive && actionBtn('Fee waiver', 'fee-waiver', ['loan.fee_waiver.propose', 'loan.fee_waiver.approve'])}
-                        {isActive && c('payment_holiday.grant').allowed && actionBtn('Payment holiday', 'holiday', ['payment_holiday.grant'])}
-                        {isActive && c('loan.rate_reset.apply').allowed && actionBtn('Rate resets', 'rate-resets', ['loan.rate_reset.apply'])}
+                        {(isBooked || disbTasks.length > 0) && !facilityAccount && actionBtn(tl('buttons.disbursement'), 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
+                        {isActive && actionBtn(tl('buttons.postRepayment'), 'repay', ['loan.repayment.post'], 'primary')}
+                        {isActive && groupInfo.data?.group && actionBtn(tl('buttons.groupRepayment'), 'group-repay', ['loan.repayment.post'])}
+                        {isActive && actionBtn(tl('buttons.earlySettlement'), 'settle', ['loan.repayment.post'])}
+                        {isActive && actionBtn(tl('buttons.payoffLetters'), 'payoff', ['loan.repayment.post'])}
+                        {((isActive && acc.daysPastDue > 0) || openSetOff || openDemand) && actionBtn(tl('buttons.guarantorSetOff'), 'remedies', ['loan.guarantor_demand.issue', 'loan.repayment.post', 'loan.set_off.propose', 'loan.set_off.approve'])}
+                        {(isActive || woTasks.length > 0) && actionBtn(woTasks.length ? tl('buttons.writeOffDecision') : tl('buttons.proposeWriteOff'), 'writeoff', ['loan.writeoff.propose', 'loan.writeoff.approve'], 'danger')}
+                        {isActive && actionBtn(tl('buttons.requestRestructure'), 'restructure', ['restructure.request'])}
+                        {isActive && actionBtn(tl('buttons.negotiatedSettlement'), 'negotiated', ['loan.settlement.negotiate'])}
+                        {(advanceHeld || advanceTasks.length > 0) && actionBtn(advanceTasks.length ? tl('buttons.advanceRefundDecision') : tl('buttons.refundAdvance'), 'advance-refund', ['loan.advance_refund.propose', 'loan.advance_refund.approve'])}
+                        {isWrittenOff && actionBtn(tl('buttons.recordRecovery'), 'recovery', ['loan.recovery.post'], 'primary')}
+                        {isActive && actionBtn(tl('buttons.feeWaiver'), 'fee-waiver', ['loan.fee_waiver.propose', 'loan.fee_waiver.approve'])}
+                        {isActive && c('payment_holiday.grant').allowed && actionBtn(tl('buttons.paymentHoliday'), 'holiday', ['payment_holiday.grant'])}
+                        {isActive && c('loan.rate_reset.apply').allowed && actionBtn(tl('buttons.rateResets'), 'rate-resets', ['loan.rate_reset.apply'])}
                     </div>
                     {facilityAccount && d.facility && (
                         <p className="text-[12px] text-[#697386]">{ts('facilityAccount', { reference: d.facility.reference })} <Link href={href(`/lending/facilities/${d.facility.id}`)} className="font-semibold text-[#635BFF] hover:underline">{ts('openFacility')}</Link></p>
                     )}
-                    {!isBooked && !isActive && !isWrittenOff && !advanceHeld && <p className="text-[12px] text-[#697386]">This account is {acc.status.replace(/_/g, ' ').toLowerCase()}; no servicing actions are available.</p>}
-                    <WhyBlocked caps={caps.caps} actions={ACTIONS} />
+                    {!isBooked && !isActive && !isWrittenOff && !advanceHeld && <p className="text-[12px] text-[#697386]">{tl('noActions', { status: acc.status.replace(/_/g, ' ').toLowerCase() })}</p>}
+                    <WhyBlocked caps={caps.caps} actions={ACTIONS.map((a) => ({ code: a.code, label: tl(`whyBlocked.${a.key}`) }))} />
 
                     {panel === 'disburse' && <DisbursementPanel loanId={id} currency={cur} account={acc} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'repay' && <RepaymentForm loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
@@ -191,7 +192,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {panel === 'group-repay' && (
                         <div className="space-y-2">
                             <GroupContributionsPanel loanId={id} currency={cur} onDone={done} />
-                            <Btn variant="ghost" onClick={close}>Close</Btn>
+                            <Btn variant="ghost" onClick={close}>{tl('close')}</Btn>
                         </div>
                     )}
                     {panel === 'holiday' && <LoanHolidayPanel loanId={id} onDone={done} onClose={close} />}
@@ -220,10 +221,10 @@ export function LoanDetailView({ id }: { id: string }) {
                 <Card>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <p className="text-[13px] font-bold text-[#1A1F36]">Refinance</p>
-                            <p className="text-[12px] text-[#697386]">A new application for the same borrower pays this loan off from its proceeds at disbursement. Arrears rolled in and delinquent refinances are recorded and limited by the product.</p>
+                            <p className="text-[13px] font-bold text-[#1A1F36]">{tl('refinance.title')}</p>
+                            <p className="text-[12px] text-[#697386]">{tl('refinance.body')}</p>
                         </div>
-                        <Link href={href(`/lending/applications?refinance=${id}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">Start refinance application →</Link>
+                        <Link href={href(`/lending/applications?refinance=${id}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">{tl('refinance.start')}</Link>
                     </div>
                 </Card>
             )}
@@ -234,9 +235,9 @@ export function LoanDetailView({ id }: { id: string }) {
             <LoanMandatesCard loanId={id} status={acc.status} can={c} />
 
             {pendingTasks.length > 0 && (
-                <Card title="Open tasks" bodyClass="p-0">
+                <Card title={tl('openTasks.title')} bodyClass="p-0">
                     <Table>
-                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Action</th><th className={th}>Status</th><th className={thR}>Amount</th><th className={th}>Maker</th><th className={th}>Created</th></tr></thead>
+                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{tl('openTasks.action')}</th><th className={th}>{tl('openTasks.status')}</th><th className={thR}>{tl('openTasks.amount')}</th><th className={th}>{tl('openTasks.maker')}</th><th className={th}>{tl('openTasks.created')}</th></tr></thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {pendingTasks.map((t) => (
                                 <tr key={t.id}>
@@ -252,17 +253,19 @@ export function LoanDetailView({ id }: { id: string }) {
                 </Card>
             )}
 
-            <Card title="Schedule" subtitle="Grouped by agreement version. Superseded versions are kept — history is never erased.">
-                {versions.length === 0 ? <Empty>No schedule lines.</Empty> : (
+            <Card title={tl('schedule.title')} subtitle={tl('schedule.subtitle')}>
+                {versions.length === 0 ? <Empty>{tl('schedule.empty')}</Empty> : (
                     <div className="space-y-4">
                         {versions.map((v) => {
                             const meta = versionMeta.get(v);
                             const lines = d.schedule.filter((l) => l.agreementVersion === v);
-                            const label = `Agreement v${v}${meta ? ` · ${meta.reason} · effective ${meta.effectiveDate}` : ''} · ${lines.length} line${lines.length === 1 ? '' : 's'}`;
+                            const label = meta
+                                ? tl('schedule.versionLabelMeta', { version: v, reason: meta.reason, date: meta.effectiveDate, count: lines.length })
+                                : tl('schedule.versionLabel', { version: v, count: lines.length });
                             const table = <ScheduleTable rows={rowsFromLoan(lines)} currency={cur} />;
                             return v === d.agreementVersion ? (
                                 <div key={v}>
-                                    <p className="text-[12px] font-bold text-[#1A1F36] mb-2">{label} <span className="ml-1 text-[10px] font-bold uppercase text-emerald-700">current</span></p>
+                                    <p className="text-[12px] font-bold text-[#1A1F36] mb-2">{label} <span className="ml-1 text-[10px] font-bold uppercase text-emerald-700">{tl('current')}</span></p>
                                     {table}
                                 </div>
                             ) : (
@@ -273,14 +276,14 @@ export function LoanDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <Card title="Agreement versions" bodyClass="p-0">
-                {d.agreementVersions.length === 0 ? <Empty>No agreement versions.</Empty> : (
+            <Card title={tl('versions.title')} bodyClass="p-0">
+                {d.agreementVersions.length === 0 ? <Empty>{tl('versions.empty')}</Empty> : (
                     <Table>
-                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Version</th><th className={th}>Reason</th><th className={th}>Effective</th><th className={th}>Policies</th><th className={th}>Engine</th><th className={th}>Config hash</th><th className={th}>Created</th><th className={th}>By</th></tr></thead>
+                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{tl('versions.version')}</th><th className={th}>{tl('versions.reason')}</th><th className={th}>{tl('versions.effective')}</th><th className={th}>{tl('versions.policies')}</th><th className={th}>{tl('versions.engine')}</th><th className={th}>{tl('versions.configHash')}</th><th className={th}>{tl('versions.created')}</th><th className={th}>{tl('versions.by')}</th></tr></thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {[...d.agreementVersions].reverse().map((v) => (
                                 <tr key={v.version} className={v.version === d.agreementVersion ? 'bg-emerald-50/30' : ''}>
-                                    <td className={td}>v{v.version}{v.version === d.agreementVersion && <span className="ml-1 text-[10px] font-bold uppercase text-emerald-700">current</span>}</td>
+                                    <td className={td}>v{v.version}{v.version === d.agreementVersion && <span className="ml-1 text-[10px] font-bold uppercase text-emerald-700">{tl('current')}</span>}</td>
                                     <td className={td}>{v.reason}</td>
                                     <td className={`${td} whitespace-nowrap`}>{v.effectiveDate?.slice(0, 10)}</td>
                                     <td className={td}>
@@ -291,7 +294,7 @@ export function LoanDetailView({ id }: { id: string }) {
                                                     {Object.keys(p.parameters).length > 0 && <span className="text-[#697386]"> ({Object.entries(p.parameters).map(([k, val]) => `${k}=${val}`).join(', ')})</span>}
                                                 </span>
                                             ))
-                                            : <span className="text-[#697386]">product terms</span>}
+                                            : <span className="text-[#697386]">{tl('versions.productTerms')}</span>}
                                     </td>
                                     <td className={td}><span className="font-mono text-[11px]">{v.engineVersion}</span></td>
                                     <td className={td}><span className="font-mono text-[11px]" title={v.configHash}>{v.configHash?.slice(0, 12)}</span></td>
@@ -304,18 +307,18 @@ export function LoanDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <Card title="Financial events" subtitle="Newest first. Expand a row for journal lines, allocation and components." bodyClass="p-0">
+            <Card title={tl('events.title')} subtitle={tl('events.subtitle')} bodyClass="p-0">
                 {panel && typeof panel === 'object' && (
                     <div className="p-4 border-b border-[#E3E8EE]">
                         <ReverseEventForm key={panel.reverse.id} loanId={id} event={panel.reverse} can={c} onDone={done} onClose={close} />
                     </div>
                 )}
-                {d.events.length === 0 ? <Empty>No financial events yet.</Empty> : (
+                {d.events.length === 0 ? <Empty>{tl('events.empty')}</Empty> : (
                     <EventsTable events={[...d.events].reverse()} currency={cur} reverseAllowed={reverseAllowed} onReverse={(e) => setPanel({ reverse: e })} />
                 )}
             </Card>
             {d.events.some((e) => e.status === 'REVERSED') && (
-                <Notice tone="info">Reversed events stay in the history; each reversal is posted as its own compensating event.</Notice>
+                <Notice tone="info">{tl('events.reversedNotice')}</Notice>
             )}
         </LendingShell>
     );

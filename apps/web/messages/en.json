@@ -2379,5 +2379,1427 @@
       "propose": "Propose rule",
       "when": "Proposed on"
     }
+  },
+  "LendingServicing": {
+    "loanDetail": {
+      "loadingTitle": "Loan",
+      "refresh": "Refresh",
+      "close": "Close",
+      "current": "current",
+      "account": {
+        "title": "Account",
+        "bookedPrincipal": "Booked principal",
+        "principalOutstanding": "Principal outstanding",
+        "interestReceivable": "Interest receivable",
+        "feesReceivable": "Fees receivable",
+        "penaltyReceivable": "Penalty receivable",
+        "heldOnAdvance": "Held on advance",
+        "interestAccrual": "Interest accrual",
+        "nonAccrualHint": "Interest is still owed but held in suspense, not income",
+        "nonAccrualSince": "Non-accrual since {date}",
+        "accruing": "Accruing",
+        "interestInSuspense": "Interest in suspense",
+        "classification": "Classification",
+        "classificationStage": "{classification} · stage {stage}",
+        "notClassified": "Not classified",
+        "lossAllowance": "Loss allowance",
+        "instalment": "Instalment",
+        "daysPastDue": "Days past due",
+        "delinquencyBucket": "Delinquency bucket",
+        "collectionStage": "Collection stage",
+        "disbursed": "Disbursed",
+        "maturity": "Maturity",
+        "lastAccrual": "Last accrual",
+        "restructured": "Restructured",
+        "restructuredYes": "Yes ({count}×)",
+        "restructuredNo": "No",
+        "probationRemaining": "Probation remaining",
+        "probationInstalments": "{count, plural, one {# instalment} other {# instalments}}",
+        "delinquencyFloor": "Delinquency floor",
+        "application": "Application",
+        "openApplication": "open application"
+      },
+      "actionsCard": {
+        "title": "Servicing actions",
+        "subtitle": "Buttons reflect your permissions, policies and limits. The server re-checks every action."
+      },
+      "buttons": {
+        "disbursement": "Disbursement",
+        "postRepayment": "Post repayment",
+        "groupRepayment": "Group repayment by member",
+        "earlySettlement": "Early settlement",
+        "payoffLetters": "Payoff letters",
+        "guarantorSetOff": "Guarantor / set-off",
+        "writeOffDecision": "Write-off decision",
+        "proposeWriteOff": "Propose write-off",
+        "requestRestructure": "Request restructure",
+        "negotiatedSettlement": "Negotiated settlement",
+        "advanceRefundDecision": "Advance refund decision",
+        "refundAdvance": "Refund advance",
+        "recordRecovery": "Record recovery",
+        "feeWaiver": "Fee waiver",
+        "paymentHoliday": "Payment holiday",
+        "rateResets": "Rate resets"
+      },
+      "whyBlocked": {
+        "prepareDisbursement": "Prepare disbursement",
+        "approveDisbursement": "Approve disbursement",
+        "executeDisbursement": "Execute disbursement",
+        "postRepayment": "Post repayment / settle",
+        "reverseRepayment": "Reverse repayment",
+        "proposeWriteOff": "Propose write-off",
+        "approveWriteOff": "Approve write-off",
+        "requestRestructure": "Request restructure",
+        "negotiatedSettlement": "Negotiated settlement",
+        "postRecovery": "Post recovery",
+        "proposeAdvanceRefund": "Propose advance refund",
+        "approveAdvanceRefund": "Approve advance refund"
+      },
+      "noActions": "This account is {status}; no servicing actions are available.",
+      "refinance": {
+        "title": "Refinance",
+        "body": "A new application for the same borrower pays this loan off from its proceeds at disbursement. Arrears rolled in and delinquent refinances are recorded and limited by the product.",
+        "start": "Start refinance application →"
+      },
+      "openTasks": {
+        "title": "Open tasks",
+        "action": "Action",
+        "status": "Status",
+        "amount": "Amount",
+        "maker": "Maker",
+        "created": "Created"
+      },
+      "schedule": {
+        "title": "Schedule",
+        "subtitle": "Grouped by agreement version. Superseded versions are kept — history is never erased.",
+        "empty": "No schedule lines.",
+        "versionLabel": "Agreement v{version} · {count, plural, one {# line} other {# lines}}",
+        "versionLabelMeta": "Agreement v{version} · {reason} · effective {date} · {count, plural, one {# line} other {# lines}}"
+      },
+      "versions": {
+        "title": "Agreement versions",
+        "empty": "No agreement versions.",
+        "version": "Version",
+        "reason": "Reason",
+        "effective": "Effective",
+        "policies": "Policies",
+        "engine": "Engine",
+        "configHash": "Config hash",
+        "created": "Created",
+        "by": "By",
+        "productTerms": "product terms"
+      },
+      "events": {
+        "title": "Financial events",
+        "subtitle": "Newest first. Expand a row for journal lines, allocation and components.",
+        "empty": "No financial events yet.",
+        "reversedNotice": "Reversed events stay in the history; each reversal is posted as its own compensating event."
+      }
+    },
+    "purchaseLinked": {
+      "card": {
+        "title": "Credit card",
+        "body": "This account carries a credit card's balance. Purchases, cash advances, statements and payments are handled on the card.",
+        "open": "Open the card →"
+      },
+      "trade": {
+        "importTitle": "Import loan",
+        "exportTitle": "Export working capital",
+        "body": "This loan finances one trade: it is paid out once the trade's documents are verified, and the trade's proceeds repay it.",
+        "open": "Open the trade →"
+      },
+      "bnpl": {
+        "title": "Buy now, pay later",
+        "bookedBody": "At disbursement, name the merchant as the single <b>MERCHANT</b> payee for the full purchase price. The merchant is paid net of the product's merchant discount; the discount is the lender's income.",
+        "subtitle": "Merchant settlement and refunds (UC-52). A refund reduces the remaining instalments, latest first.",
+        "merchant": "Merchant",
+        "purchaseFinanced": "Purchase financed",
+        "merchantDiscount": "Merchant discount",
+        "paidToMerchant": "Paid to merchant",
+        "refundedSoFar": "Refunded so far",
+        "stillRefundable": "Still refundable",
+        "recordRefund": "Record merchant refund",
+        "noRefunds": "No refunds.",
+        "columns": {
+          "reference": "Reference",
+          "refund": "Refund",
+          "offInstalments": "Off instalments",
+          "toCustomer": "To customer",
+          "discountReversed": "Discount reversed",
+          "merchantOwes": "Merchant owes",
+          "clawback": "Clawback"
+        }
+      },
+      "refund": {
+        "positiveAmount": "Enter a positive decimal amount.",
+        "recorded": "Merchant refund of {currency} {amount} recorded",
+        "title": "Record a merchant refund",
+        "amount": "Refund amount ({currency})",
+        "amountHint": "Up to {currency} {amount}",
+        "merchantReference": "Merchant refund reference",
+        "reason": "Reason",
+        "customerPayoutReference": "Customer payout reference",
+        "customerPayoutHint": "Needed when part of the refund goes back to the customer (already paid)",
+        "submit": "Record refund"
+      },
+      "collect": {
+        "collected": "Merchant clawback collected",
+        "placeholder": "Settlement ref",
+        "button": "Collect"
+      },
+      "lease": {
+        "titleTransferred": "Purchase option exercised — title transferred to the lessee",
+        "ijarahTitle": "Ijarah lease",
+        "title": "Lease",
+        "subtitle": "The lender owns the asset; rentals are rental income. At the end the lessee buys it for the residual or returns it.",
+        "register": "Register the leased asset",
+        "noAsset": "No leased asset is registered.",
+        "asset": "Asset",
+        "type": "Type",
+        "supplier": "Supplier",
+        "cost": "Cost",
+        "residual": "Residual (purchase option)",
+        "ownership": "Ownership",
+        "leaseEnd": "Lease end",
+        "boughtOn": "Bought on {date}",
+        "returnedOn": "Returned on {date}",
+        "returnCondition": "Return condition",
+        "paySupplier": "Pay the supplier at disbursement (payee type SUPPLIER, DEALER or SELLER) — never the lessee.",
+        "returnPossible": "Return possible once only the residual is left: {issues}",
+        "returnAsset": "Return the asset",
+        "optionReady": "Every rental and the residual are paid: the purchase option can be exercised.",
+        "transferTitle": "Transfer title to the lessee"
+      },
+      "register": {
+        "registered": "Leased asset registered",
+        "title": "Register the leased asset",
+        "assetType": "Asset type",
+        "description": "Description",
+        "serial": "Serial / VIN",
+        "optional": "Optional",
+        "supplier": "Supplier",
+        "cost": "Cost ({currency})",
+        "submit": "Register asset"
+      },
+      "returnPanel": {
+        "returned": "Asset returned — the residual is settled by the asset and the lease is closed",
+        "title": "Return the asset instead of paying the {currency} {residual} residual",
+        "condition": "Condition on return",
+        "reference": "Return / yard reference",
+        "submit": "Record return"
+      }
+    },
+    "incomeContingent": {
+      "evidence": {
+        "PAYSLIP": "Payslip",
+        "TAX_RETURN": "Tax return",
+        "EMPLOYER_LETTER": "Employer letter",
+        "BENEFITS_STATEMENT": "Benefits statement",
+        "NO_INCOME_DECLARATION": "Signed no-income declaration",
+        "OTHER": "Other (attach the document)",
+        "APPLICATION": "Declared on the application"
+      },
+      "title": "Income-contingent repayment",
+      "subtitle": "The instalment is a share of the borrower's income above a threshold. Below it nothing is due and nothing falls into arrears; what is left at the end of the term is forgiven.",
+      "reviewDueTitle": "Annual reassessment due",
+      "reviewDueBody": "The income was last assessed for a review on {date}. Until a new assessment is approved, the last assessed instalment continues.",
+      "forgivenTitle": "Forgiven at the end of the term",
+      "forgivenBody": "{currency} {amount} was forgiven on {date}.",
+      "kv": {
+        "currentInstalment": "Current instalment",
+        "assessedIncome": "Assessed income",
+        "repaymentRule": "Repayment rule",
+        "interest": "Interest",
+        "nextReview": "Next review",
+        "interestCapitalised": "Interest capitalised",
+        "termEnds": "Term ends",
+        "forgivenAtTermEnd": "Forgiven at term end (at this income)"
+      },
+      "perMonth": "<money></money> a month",
+      "repaymentRuleValue": "{rate} of income above {currency} {threshold} a year",
+      "interestCapitalised": "{rate} a year; uncovered interest capitalised",
+      "interestCapitalisedCap": "{rate} a year; uncovered interest capitalised (cap {cap} of amount financed)",
+      "interestSubsidised": "{rate} a year; uncovered interest not charged (subsidised)",
+      "recordAssessment": "Record a new income assessment",
+      "history": "Assessment history ({count})",
+      "noAssessments": "No assessments.",
+      "columns": {
+        "reason": "Reason",
+        "income": "Income",
+        "instalment": "Instalment",
+        "evidence": "Evidence",
+        "from": "From",
+        "status": "Status"
+      },
+      "propose": {
+        "recorded": "Income assessment recorded — a second person must approve it",
+        "title": "New income assessment",
+        "income": "Declared annual income ({currency})",
+        "reason": "Reason",
+        "reasons": {
+          "ANNUAL": "Annual reassessment",
+          "CHANGE_OF_CIRCUMSTANCES": "Change of circumstances"
+        },
+        "incomePeriod": "Income period",
+        "incomePeriodHint": "Optional — e.g. 2026",
+        "evidence": "Evidence",
+        "evidenceRequired": "This product requires documentary evidence",
+        "evidenceReference": "Evidence reference",
+        "evidenceReferenceHint": "Document number, employer, period covered",
+        "resulting": "Resulting instalment: <b>{currency} {amount}</b> a month.",
+        "resultingFrom": "Resulting instalment: <b>{currency} {amount}</b> a month from the period starting <b>{date}</b>.",
+        "forgivenAtEnd": "At this income {currency} {amount} would be forgiven at the end of the term.",
+        "repaidBy": "At this income the loan is repaid by {date}.",
+        "submit": "Submit for approval"
+      },
+      "pending": {
+        "approved": "Assessment approved — the schedule is rebuilt from the next period",
+        "rejected": "Assessment rejected",
+        "title": "Awaiting approval: {currency} {payment} a month on an income of {currency} {income}",
+        "body": "{reason} · {evidence}: {reference}. Check the evidence; you cannot approve an assessment you recorded.",
+        "comment": "Comment",
+        "approve": "Approve",
+        "reject": "Reject"
+      }
+    },
+    "disbursement": {
+      "title": "Disbursement",
+      "payeeTypes": {
+        "BORROWER": "Borrower",
+        "SELLER": "Seller",
+        "DEALER": "Dealer",
+        "SCHOOL": "School",
+        "PREVIOUS_LENDER": "Previous lender",
+        "INTERNAL_LOAN": "Our loan (consolidate)",
+        "MERCHANT": "Merchant (BNPL — paid net of the discount)",
+        "SUPPLIER": "Asset supplier (lease)",
+        "OTHER": "Other"
+      },
+      "errors": {
+        "dpAmount": "Down payment must be a positive decimal amount.",
+        "dpReceipt": "Receipt reference must be at least 2 characters.",
+        "externalReference": "External reference must be at least 2 characters.",
+        "payeeName": "Every payee needs a name.",
+        "payeeAmount": "Payee {name}: amount must be a decimal amount.",
+        "payeeLoan": "Payee {name}: choose the loan to consolidate."
+      },
+      "toasts": {
+        "dpRecorded": "Down payment recorded",
+        "prepared": "Disbursement prepared — awaiting approval",
+        "approved": "Disbursement approved",
+        "rejected": "Disbursement rejected",
+        "executed": "Disbursement executed"
+      },
+      "confirm": {
+        "approveTitle": "Approve disbursement",
+        "rejectTitle": "Reject disbursement",
+        "approveMessage": "Approve the disbursement task?",
+        "rejectMessage": "Reject the disbursement task?",
+        "approveMessageAmount": "Approve the disbursement task for {currency} {amount}?",
+        "rejectMessageAmount": "Reject the disbursement task for {currency} {amount}?",
+        "executeTitle": "Execute disbursement",
+        "executeMessage": "This posts the disbursement to the ledger and activates the loan. Continue?",
+        "executeLabel": "Execute"
+      },
+      "approve": "Approve",
+      "reject": "Reject",
+      "valueDate": "Value date",
+      "valueDateHint": "Optional — defaults to the business date",
+      "prepare": "Prepare disbursement",
+      "task": "Disbursement task",
+      "maker": "maker <who></who>",
+      "downPayment": {
+        "title": "Down payment",
+        "body": "Received <received></received> · held by us <held></held>. The disbursement is refused until the agreed down payment has been received; what we hold is paid out with the proceeds.",
+        "amount": "Amount",
+        "collectedBy": "Collected by",
+        "collectedLender": "Us (held until payout)",
+        "collectedSeller": "Seller directly",
+        "receiptReference": "Receipt reference",
+        "record": "Record down payment"
+      },
+      "payees": {
+        "title": "Pay to",
+        "hint": "Leave empty to pay the borrower. Split the payout between a seller, dealer, school or previous lender, or consolidate the borrower's other loans with us — amounts must add up to the payout.",
+        "type": "Type",
+        "name": "Name",
+        "loanId": "Loan id",
+        "account": "Account",
+        "reference": "Reference",
+        "amount": "Amount",
+        "remove": "Remove",
+        "add": "Add payee",
+        "total": "Total {currency} {amount}"
+      },
+      "externalReference": "External reference",
+      "externalReferenceHint": "Payment rail / bank transfer reference",
+      "execute": "Execute disbursement"
+    },
+    "collections": {
+      "changeTitle": "Change business date",
+      "changeDatePrompt": "Move the tenant business date from {from} to {to}? This affects accrual, value-date checks and delinquency for every loan.",
+      "changeConfirm": "Change date",
+      "dateChanged": "Business date is now {date}",
+      "batchTitle": "Run end-of-day batch",
+      "batchMessage": "Accrue interest, assess penalties and recompute delinquency for all active loans as of {date}?",
+      "batchMessageNoDate": "Accrue interest, assess penalties and recompute delinquency for all active loans as of the business date?",
+      "batchConfirm": "Run batch",
+      "batchFinished": "End-of-day batch finished",
+      "businessDateTitle": "Business date & end-of-day",
+      "currentBusinessDate": "Current business date",
+      "newBusinessDate": "New business date",
+      "pickDateFirst": "Pick a date first",
+      "setBusinessDate": "Set business date",
+      "runBatch": "Run end-of-day batch",
+      "batchResult": "Batch for {date}: {processed} processed, {failed} failed",
+      "pastDueTitle": "Past-due loans",
+      "refresh": "Refresh",
+      "empty": "No loans are past due.",
+      "columns": {
+        "reference": "Reference",
+        "bucket": "Bucket",
+        "stage": "Stage",
+        "principal": "Principal o/s",
+        "charges": "Interest + fees + penalty",
+        "total": "Total outstanding",
+        "status": "Status"
+      }
+    },
+    "collateral": {
+      "title": "Collateral",
+      "subtitle": "Loan-to-value {ltv}{hasMax, select, yes { (max {maxLtv})} other {}} · owed {outstanding} against lending value {lendingValue}{hasLiens, select, yes { after {priorLiens} ranking ahead} other {}}",
+      "pledgeMore": "Pledge more collateral",
+      "toastRevaluedMarginCall": "Revalued — the loan is above max LTV: margin call opened",
+      "toastRevalued": "Revalued",
+      "toastReleaseProposed": "Release proposed — a different user signs it off",
+      "toastReleased": "Collateral released",
+      "toastReleaseRejected": "Release rejected",
+      "toastPledged": "Collateral pledged",
+      "marginCallTitle": "Margin call — cure by {date}",
+      "marginCallBody": "LTV {ltv} is above {maxLtv}. The borrower must repay {currency} {repayment} or add collateral worth {currency} {collateral}.",
+      "releasePendingTitle": "Collateral release awaiting sign-off",
+      "releasePendingBody": "Reference {reference}; proposed by <who></who>. A different user must sign it off.",
+      "signOff": "Sign off release",
+      "reject": "Reject",
+      "revalueTitle": "Revalue {type}",
+      "newMarketValue": "New market value ({currency})",
+      "valuer": "Valuer",
+      "recordValuation": "Record valuation",
+      "releaseTitle": "Release {type}",
+      "returnedDocRef": "Returned-document reference",
+      "returnedDocRefHint": "Title deed / receipt number given back to the borrower",
+      "proposeRelease": "Propose release",
+      "columns": {
+        "asset": "Asset",
+        "status": "Status",
+        "marketValue": "Market value",
+        "valued": "Valued",
+        "rankingAhead": "Ranking ahead"
+      },
+      "releaseRef": "ref {reference}",
+      "revalue": "Revalue",
+      "release": "Release",
+      "marginCalls": "Margin calls: {list}"
+    },
+    "murabaha": {
+      "title": "Murabaha contract",
+      "subtitle": "A sale, not a loan: the financier buys the asset from its supplier and sells it to the customer at cost plus a disclosed, fixed profit. No interest is charged.",
+      "costOfAsset": "Cost of the asset",
+      "paidTo": "Paid to {supplier}",
+      "paidToSupplier": "Paid to the supplier at disbursement",
+      "profitFixed": "Profit (fixed)",
+      "markUpNote": "Mark-up {rate} on {financed} financed",
+      "salePrice": "Sale price",
+      "instalmentsNote": "{count, plural, one {# instalment} other {# instalments}}{hasDown, select, yes { after {downPayment} paid up front} other {}}",
+      "kv": {
+        "asset": "Asset",
+        "type": "Type",
+        "supplier": "Supplier",
+        "contract": "Contract",
+        "soldOn": "Sold on",
+        "soldOnPending": "On payment of the supplier",
+        "earlySettlement": "Early settlement",
+        "noRebate": "No rebate (full price)",
+        "ibraShare": "Ibra’ {share} of unearned profit",
+        "profitRecognised": "Profit recognised",
+        "deferredProfitLedger": "Deferred profit (ledger)"
+      },
+      "registerNoticeTitle": "Register the asset before the payout",
+      "registerNoticeBody": "The financier must own the asset before it sells it. Record the asset and its supplier; at disbursement pay the supplier (payee type SUPPLIER, DEALER or SELLER) — never the customer.",
+      "registerTheAsset": "Register the asset",
+      "waivedOnSettlement": "Waived on settlement: <b>{currency} {amount}</b>.",
+      "recognitionSummary": "How the profit is recognised",
+      "recognitionBody": "Each instalment’s profit is earned over its own period. Until then it is deferred: carried as unearned profit ({unearned}) against deferred profit ({deferred}), and released into profit income ({income}) as it is earned. Late charges go to charity ({lateCharges}).",
+      "columns": {
+        "due": "Due",
+        "profit": "Profit",
+        "recognisedToDate": "Recognised to date",
+        "stillDeferred": "Still deferred"
+      },
+      "register": {
+        "title": "Register the asset being sold",
+        "assetType": "Asset type",
+        "description": "Description",
+        "serial": "Serial / VIN",
+        "optional": "Optional",
+        "supplier": "Supplier",
+        "cost": "Cost ({currency})",
+        "costHint": "Must equal what is financed plus any down payment: {currency} {expected}",
+        "submit": "Register asset",
+        "toast": "Murabaha asset registered"
+      }
+    },
+    "payoffLetters": {
+      "title": "Payoff letters",
+      "invalidDays": "Valid for 1 to 30 days.",
+      "nameLender": "Name the lender taking the loan over.",
+      "notGoodOn": "Letter {reference} is not good on {date}.",
+      "confirmTitle": "Settle against payoff letter",
+      "confirmMessage": "Post {currency} {amount} received under letter {reference} and close the loan?",
+      "settle": "Settle",
+      "settled": "Loan settled under {reference}",
+      "for": "For",
+      "purpose": {
+        "BORROWER": "The borrower",
+        "TAKEOVER": "Another lender (takeover)"
+      },
+      "validDays": "Valid for (days)",
+      "acquiringLender": "Acquiring lender",
+      "addresseeOptional": "Addressee (optional)",
+      "theirReference": "Their reference",
+      "issue": "Issue letter",
+      "none": "No payoff letters issued.",
+      "columns": {
+        "letter": "Letter",
+        "for": "For",
+        "goodThrough": "Good through",
+        "status": "Status"
+      },
+      "takeover": "Takeover — {name}",
+      "borrower": "Borrower",
+      "goodThroughValue": "{issuedOn} → {expiresOn} · from {currency} {payable}, +{perDiem}/day",
+      "view": "View",
+      "paymentRef": "Payment reference when settling",
+      "paymentRefHint": "E.g. the acquiring lender’s transfer reference",
+      "print": "Print",
+      "hide": "Hide"
+    },
+    "arrearsRemedies": {
+      "title": "Guarantor and set-off",
+      "toastGuarantorPaid": "Guarantor payment posted",
+      "withdrawTitle": "Withdraw demand",
+      "withdrawMessage": "Withdraw {reference}?",
+      "withdraw": "Withdraw",
+      "toastSetOffProposed": "Set-off proposed — awaiting approval",
+      "approveSetOffTitle": "Approve set-off",
+      "rejectSetOffTitle": "Reject set-off",
+      "applyMessage": "Apply {currency} {amount} from the borrower’s deposit?",
+      "rejectMessage": "Reject {currency} {amount} from the borrower’s deposit?",
+      "approve": "Approve",
+      "reject": "Reject",
+      "toastSetOffApplied": "Set-off applied",
+      "toastSetOffRejected": "Set-off rejected",
+      "callGuarantor": "Call the guarantor",
+      "noGuarantees": "This loan has no guarantees.",
+      "guarantee": "Guarantee",
+      "choose": "Choose…",
+      "guaranteeOption": "{name} — up to {currency} {amount}",
+      "amount": "Amount",
+      "amountHint": "Blank: all the guarantee still covers",
+      "payWithin": "Pay within (days)",
+      "issueDemand": "Issue demand",
+      "columns": {
+        "demand": "Demand",
+        "guarantor": "Guarantor",
+        "amountPaid": "Amount / paid",
+        "payBy": "Pay by",
+        "status": "Status"
+      },
+      "letter": "Letter",
+      "recordPayment": "Record payment",
+      "paidByGuarantor": "Paid by guarantor",
+      "reference": "Reference",
+      "postPayment": "Post payment",
+      "cancel": "Cancel",
+      "setOffTitle": "Set-off from the borrower’s deposit",
+      "setOffBody": "Applies money from the borrower’s own deposit account to what is overdue. A second person approves; the deposit system is debited through the set-off clearing account.",
+      "depositAccount": "Deposit account",
+      "reason": "Reason",
+      "proposeSetOff": "Propose set-off",
+      "pendingSetOff": "Set-off {currency} {amount}"
+    },
+    "events": {
+      "columns": {
+        "type": "Type",
+        "status": "Status",
+        "businessDate": "Business date",
+        "valueDate": "Value date",
+        "amount": "Amount ({currency})",
+        "externalRef": "External ref",
+        "actor": "Actor"
+      },
+      "toggleDetails": "Toggle details",
+      "reverses": "reverses {id}",
+      "reverse": "Reverse",
+      "journal": "Journal",
+      "noJournalLines": "No journal lines.",
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit",
+      "total": "Total",
+      "allocation": "Allocation",
+      "instalment": "Instalment",
+      "component": "Component",
+      "amount": "Amount",
+      "components": "Components"
+    },
+    "covenants": {
+      "title": "Covenants",
+      "subtitle": "Tested on schedule; a failed test is a breach until a later test passes or another person waives it.",
+      "none": "No covenants on this loan.",
+      "types": {
+        "MIN_DSCR": "Minimum DSCR",
+        "MAX_LTV": "Maximum LTV",
+        "MAX_LEVERAGE": "Maximum net leverage (net debt / EBITDA)",
+        "MIN_INTEREST_COVER": "Minimum interest cover (EBITDA / interest)",
+        "FINANCIAL_STATEMENTS": "Financial statements"
+      },
+      "columns": {
+        "covenant": "Covenant",
+        "nextTest": "Next test",
+        "lastResult": "Last result",
+        "status": "Status"
+      },
+      "every": "every {count, plural, one {# month} other {# months}}{hasDescription, select, yes { · {description}} other {}}",
+      "overdue": "overdue",
+      "lastResult": "{outcome, select, WAIVED {Waived} PASSED {Passed} other {Failed}}{hasValue, select, yes { ({value})} other {}} · {date}",
+      "recordTest": "Record test",
+      "waive": "Waive",
+      "placeholders": {
+        "noi": "Annual net operating income",
+        "debtService": "Annual debt service (blank: from schedule)",
+        "ebitda": "EBITDA, last twelve months",
+        "totalDebt": "Total debt (blank: this loan’s balance)",
+        "cash": "Cash netted off (blank: 0)",
+        "interest": "Interest expense (blank: from schedule)",
+        "evidence": "Evidence",
+        "waiverReason": "Reason for the waiver"
+      },
+      "received": "Received",
+      "notReceived": "Not received",
+      "saveTest": "Save test",
+      "cancel": "Cancel",
+      "waiveBreach": "Waive breach",
+      "form": {
+        "covenant": "Covenant",
+        "threshold": "Threshold",
+        "example": "e.g. {value}",
+        "every": "Every (months)",
+        "description": "Description",
+        "add": "Add covenant"
+      }
+    },
+    "loansList": {
+      "restructured": "RESTRUCTURED",
+      "exportCsv": "Export CSV",
+      "title": "Loan accounts",
+      "count": "{count, plural, one {# account} other {# accounts}}",
+      "allStatuses": "All statuses",
+      "searchPlaceholder": "Search reference…",
+      "search": "Search",
+      "refresh": "Refresh",
+      "none": "No loan accounts match these filters.",
+      "columns": {
+        "reference": "Reference",
+        "status": "Status",
+        "booked": "Booked",
+        "principalOutstanding": "Principal o/s",
+        "interest": "Interest",
+        "fees": "Fees",
+        "penalty": "Penalty",
+        "bucketStage": "Bucket / stage",
+        "maturity": "Maturity"
+      },
+      "previous": "Previous",
+      "pageOf": "Page {page} of {pages}",
+      "next": "Next"
+    },
+    "negotiatedSettlement": {
+      "title": "Negotiated settlement",
+      "agreedAmount": "Agreed amount ({currency})",
+      "priceIt": "Price it",
+      "enterAmount": "Enter the agreed amount.",
+      "enterReason": "Record why the loan is settled for less than it owes.",
+      "confirmTitle": "Settle for less than owed",
+      "confirmMessage": "Accept {currency} {agreed} against {full} owed and close the loan? The {concession} concession is posted as an expense.",
+      "confirmLabel": "Settle",
+      "done": "Negotiated settlement posted",
+      "forgivesPrincipalTitle": "Forgives principal",
+      "forgivesPrincipalBody": "This needs the principal-forgiveness authority, not just a charge waiver.",
+      "columns": {
+        "paidFromAgreed": "Paid from the agreed amount",
+        "forgiven": "Forgiven",
+        "amount": "Amount"
+      },
+      "concession": "Concession ({rate}%)",
+      "reason": "Reason (recorded with the settlement)",
+      "settleFor": "Settle for {currency} {amount}"
+    },
+    "settlement": {
+      "title": "Early settlement",
+      "quoteAsOf": "Quote as of",
+      "getQuote": "Get quote",
+      "quoteAsOfDate": "Quote as of <b>{date}</b>",
+      "interestRebate": "Interest rebate ({method}):",
+      "murabaha": "Murabaha profit (ibra’):",
+      "settlementFeeLabel": "Settlement fee:",
+      "rows": {
+        "principal": "Principal",
+        "interest": "Interest",
+        "fees": "Fees",
+        "penalties": "Penalties",
+        "settlementFee": "Settlement fee",
+        "lessAdvance": "Less: held on advance",
+        "total": "Total",
+        "roundingDifference": "Rounding difference"
+      },
+      "payable": "Payable",
+      "confirmTitle": "Settle loan",
+      "confirmLabel": "Settle",
+      "done": "Loan settled"
+    },
+    "repayment": {
+      "title": "Post repayment",
+      "amount": "Amount ({currency})",
+      "currencyPaid": "Currency paid",
+      "valueDate": "Value date",
+      "valueDateHint": "Optional — defaults to the business date",
+      "externalReference": "External reference",
+      "optional": "Optional",
+      "excess": "Money beyond what is due",
+      "excessHint": "Held as an advance for the next instalments, or used to prepay principal",
+      "productDefault": "Product default",
+      "excessOptions": {
+        "ADVANCE": "Hold as advance",
+        "PREPAY": "Prepay principal"
+      },
+      "strategy": "Prepayment strategy",
+      "strategyHint": "When prepaying: how the schedule changes",
+      "strategyOptions": {
+        "RECAST": "RECAST — lower instalment",
+        "SHORTEN": "SHORTEN — earlier maturity"
+      },
+      "payerName": "Paid by (if not the borrower)",
+      "payerNameHint": "Optional — recorded with the payment",
+      "payerRelationship": "Payer's relationship",
+      "relationships": {
+        "GUARANTOR": "Guarantor",
+        "FAMILY": "Family",
+        "EMPLOYER": "Employer",
+        "GROUP_MEMBER": "Group member",
+        "OTHER": "Other"
+      },
+      "idempotencyNote": "Retrying the same payment reuses its idempotency key, so a network retry never posts twice.",
+      "post": "Post repayment",
+      "enterAmount": "Enter a positive decimal amount (up to 4 decimals).",
+      "done": "Repayment posted",
+      "doneFx": "Payment in {currency} converted and posted"
+    },
+    "workQueue": {
+      "title": "Collector work queues",
+      "subtitle": "End of day raises one task per collection stage: reminders and notices go out at once; calls, visits and legal reviews wait here.",
+      "refresh": "Refresh",
+      "queue": "Queue",
+      "allQueues": "All queues",
+      "status": "Status",
+      "statuses": {
+        "OPEN": "Open",
+        "DONE": "Done",
+        "CANCELLED": "Cancelled",
+        "all": "All"
+      },
+      "empty": "No tasks.",
+      "columns": {
+        "loan": "Loan",
+        "borrower": "Borrower",
+        "task": "Task",
+        "overdue": "Overdue",
+        "status": "Status"
+      },
+      "queueOf": "queue {queue}",
+      "claimed": "claimed",
+      "claim": "Claim",
+      "recordOutcome": "Record outcome",
+      "outcomes": {
+        "CONTACTED": "contacted",
+        "NO_ANSWER": "no answer",
+        "PROMISE_TO_PAY": "promise to pay",
+        "VISITED": "visited",
+        "NOT_FOUND": "not found",
+        "REFUSED": "refused",
+        "NOTICE_SENT": "notice sent",
+        "REFER_LEGAL": "refer to legal"
+      },
+      "note": "Note",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "incomeReviews": {
+      "pendingTitle": "Waiting for approval",
+      "pendingSubtitle": "Open the loan to check the evidence and approve or reject. You cannot approve an assessment you recorded.",
+      "pendingEmpty": "Nothing waiting.",
+      "dueTitle": "Annual reassessment due",
+      "dueSubtitle": "As of {date}. Until reassessed, the last assessed instalment continues.",
+      "dueEmpty": "No reassessments due.",
+      "columns": {
+        "loan": "Loan",
+        "reason": "Reason",
+        "declaredIncome": "Declared income",
+        "newInstalment": "New instalment",
+        "evidence": "Evidence",
+        "recorded": "Recorded",
+        "currentInstalment": "Current instalment",
+        "reviewDue": "Review was due",
+        "daysOverdue": "Days overdue"
+      }
+    },
+    "advanceRefund": {
+      "title": "Refund money held on advance",
+      "heldNote": "Held on advance: <amount></amount>. It is applied to instalments as they fall due unless refunded.",
+      "pendingTitle": "Refund of {currency} {amount} awaiting approval",
+      "proposedBy": "Proposed by <who></who>. A different user must approve it.",
+      "approveAndPay": "Approve and pay",
+      "reject": "Reject",
+      "amount": "Amount ({currency})",
+      "reason": "Reason",
+      "propose": "Propose refund",
+      "enterAmount": "Enter a positive amount.",
+      "enterReason": "Record why the advance is refunded.",
+      "proposed": "Refund proposed — a different user must approve it",
+      "paid": "Refund paid out",
+      "rejected": "Refund rejected"
+    },
+    "writeOff": {
+      "title": "Write-off",
+      "reason": "Reason",
+      "reasonTooShort": "Reason must be at least 3 characters.",
+      "propose": "Propose write-off",
+      "proposed": "Write-off proposed — awaiting approval",
+      "proposal": "Write-off proposal",
+      "maker": "maker <who></who>",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveTitle": "Approve write-off",
+      "rejectTitle": "Reject write-off",
+      "approveMessage": "Write off this loan? Balances move to written-off and the ledger is posted.",
+      "approveMessageAmount": "Write off this loan ({currency} {amount})? Balances move to written-off and the ledger is posted.",
+      "rejectMessage": "Reject the proposed write-off?",
+      "approved": "Write-off approved",
+      "rejected": "Write-off rejected"
+    },
+    "notices": {
+      "title": "Borrower notices",
+      "subtitle": "Reminders before a due date and notices once it has passed",
+      "subtitleAsOf": "As of {date} — {count, plural, one {# notice} other {# notices}}",
+      "refresh": "Refresh",
+      "notice": "Notice",
+      "kinds": {
+        "DUE_SOON": "Falling due (reminder)",
+        "OVERDUE": "Overdue"
+      },
+      "withinDays": "Within (days)",
+      "empty": "No notices to send.",
+      "columns": {
+        "loan": "Loan",
+        "borrower": "Borrower",
+        "phone": "Phone",
+        "instalment": "Instalment",
+        "due": "Due",
+        "amount": "Amount",
+        "message": "Message"
+      },
+      "copy": "Copy message",
+      "copied": "Copied"
+    },
+    "feeWaiver": {
+      "title": "Fee waiver",
+      "kinds": {
+        "EARLY_SETTLEMENT": "Early settlement fee",
+        "PARTIAL_PREPAYMENT": "Partial prepayment fee"
+      },
+      "approvedTitle": "{kind} — approved, not yet used",
+      "pendingTitle": "{kind} — awaiting approval",
+      "proposedBy": "Proposed by <who></who>.",
+      "approve": "Approve",
+      "reject": "Reject",
+      "fee": "Fee",
+      "expiresOn": "Expires on",
+      "optional": "Optional",
+      "reason": "Reason",
+      "propose": "Propose waiver",
+      "proposed": "Waiver proposed — a different user must approve it",
+      "approved": "Waiver approved — it applies to the next payment of that kind",
+      "rejected": "Waiver rejected"
+    },
+    "documents": {
+      "title": "Statements and letters",
+      "subtitle": "Generated from the books on request; nothing is posted.",
+      "from": "From",
+      "fromHint": "Blank: from disbursement",
+      "to": "To",
+      "toHint": "Blank: business date",
+      "statement": "Statement",
+      "statementTitle": "Statement {from} to {to}",
+      "closureLetter": "Closure letter",
+      "print": "Print",
+      "hide": "Hide"
+    },
+    "reverseEvent": {
+      "title": "Reverse {type} · {amount}",
+      "reason": "Reason",
+      "reasonTooShort": "Reason must be at least 3 characters.",
+      "returned": "The payment bounced or was returned — charge the product's returned-payment fee",
+      "confirmTitle": "Reverse event",
+      "confirmMessage": "Reverse the {type} of {amount} on {date}? A compensating event is posted; the original stays in the history.",
+      "confirmLabel": "Reverse",
+      "done": "Event reversed"
+    },
+    "recovery": {
+      "title": "Record a recovery",
+      "note": "The balance was written off, so the money is recovery income, attributed against what was written off (principal first). The loan stays written off.",
+      "amount": "Amount ({currency})",
+      "externalReference": "External reference",
+      "noteLabel": "Note",
+      "optional": "Optional",
+      "post": "Post recovery",
+      "enterAmount": "Enter a positive amount.",
+      "done": "Recovery posted"
+    }
+  },
+  "LendingFacilities": {
+    "detail": {
+      "loadingTitle": "Facility",
+      "subtitle": "<type></type> · {currency} · rate {rate} · created {created}",
+      "loanAccountLink": "Loan account →",
+      "refresh": "Refresh",
+      "kpi": {
+        "limit": "Limit",
+        "drawnBalance": "Drawn balance",
+        "totalDrawnHint": "Total ever drawn {currency} {amount}",
+        "available": "Available",
+        "staleHint": "Certificate out of date — nothing can be drawn",
+        "baseHint": "Lower of limit and borrowing base {currency} {amount}",
+        "stagedHint": "Staged: repayments do not reinstate",
+        "revolvingHint": "Reinstates on repayment",
+        "utilization": "Utilization",
+        "status": "Status",
+        "availabilityEnds": "Availability ends",
+        "maturityHint": "Maturity {date}"
+      },
+      "overLimit": {
+        "title": "Over limit",
+        "body": "The drawn balance exceeds the limit by <amount></amount>.",
+        "rate": "Over-limit interest accrues at {rate}."
+      },
+      "card": {
+        "title": "Credit card {reference}",
+        "body": "This line carries a credit card. Purchases, cash advances, statements and payments move on the card; the line keeps the limit, its changes and its status.",
+        "open": "Open the card →"
+      },
+      "project": {
+        "title": "Project finance — {status}",
+        "capitalize": "Construction interest is added to principal when each statement is raised.",
+        "body": "When availability ends the drawn balance terms out on a repayment profile sculpted to the projected cash flow at a {dscr}× cover ratio; receipts are then applied through the cash waterfall on the <link>loan account →</link>"
+      },
+      "suspended": {
+        "title": "Suspended",
+        "body": "No drawdowns can be requested, approved or released while the facility is suspended."
+      },
+      "actions": {
+        "title": "Facility actions",
+        "subtitle": "The server re-checks every action against policy, limits and maker-checker; refusals show the reason.",
+        "requestDrawdown": "Request drawdown",
+        "postRepayment": "Post repayment",
+        "generateStatement": "Generate statement",
+        "requestLimitChange": "Request limit change",
+        "changeStatus": "Change status",
+        "sculptedTermOut": "Sculpted term-out",
+        "termOut": "Term out",
+        "openDrawdowns": "{count, plural, one {# drawdown is} other {# drawdowns are}} awaiting approval or release — see Drawdowns below."
+      },
+      "facility": {
+        "title": "Facility",
+        "borrower": "Borrower",
+        "loanAccount": "Loan account",
+        "openLoanAccount": "open drawn-balance account",
+        "availableFrom": "Available from",
+        "availableTo": "Available to",
+        "maturity": "Maturity",
+        "annualRate": "Annual rate",
+        "dayCount": "Day count",
+        "totalRepaid": "Total repaid",
+        "chargesRaised": "Charges raised",
+        "minimumDrawdown": "Minimum drawdown",
+        "noFloor": "No floor",
+        "maximumDrawdown": "Maximum drawdown",
+        "upToAvailable": "Up to available",
+        "commitmentFee": "Commitment fee",
+        "commitmentFeeValue": "{rate} p.a. on undrawn",
+        "none": "None",
+        "overLimit": "Over-limit",
+        "overLimitPriced": "Priced at {rate}",
+        "overLimitRefused": "Refused",
+        "minimumPayment": "Minimum payment",
+        "minimumPaymentValue": "{rate} of balance",
+        "minimumPaymentFloor": "{rate} of balance, floor {currency} {floor}",
+        "lastStatementTo": "Last statement to",
+        "noneYet": "None yet"
+      },
+      "tranches": {
+        "title": "Tranches",
+        "columns": {
+          "tranche": "Tranche",
+          "amount": "Amount",
+          "availableFrom": "Available from",
+          "conditions": "Conditions",
+          "state": "State"
+        },
+        "metOf": "{met} of {total} met",
+        "none": "None"
+      },
+      "newRequest": "New request",
+      "servicedNote": "The drawn balance is serviced on its own loan account: posted drawdowns, repayments, charges and reversals appear in that account's <link>financial events</link>."
+    },
+    "borrowingBase": {
+      "columns": {
+        "class": "Class",
+        "gross": "Gross",
+        "ineligible": "Ineligible",
+        "agedOut": "Aged out",
+        "overConcentration": "Over concentration",
+        "eligible": "Eligible",
+        "advanceRate": "Advance rate",
+        "borrowingBase": "Borrowing base"
+      },
+      "kinds": {
+        "INVENTORY": "inventory",
+        "RECEIVABLES": "receivables"
+      },
+      "form": {
+        "errors": {
+          "noLines": "Add at least one line.",
+          "lineIncomplete": "Every line needs a description and a gross value.",
+          "ineligibleDecimal": "Ineligible amounts are decimals.",
+          "ageWhole": "Age is a whole number of days."
+        },
+        "submitted": "Certificate #{sequence} submitted — base {currency} {base}; a second person must accept it",
+        "title": "New borrowing-base certificate",
+        "asOf": "As of",
+        "asOfHint": "Supports drawings for {days} days",
+        "notes": "Notes",
+        "notesPlaceholder": "e.g. month-end stock count, aged debtors report",
+        "class": "Class",
+        "description": "Description",
+        "debtor": "Debtor",
+        "locationSupplier": "Location / supplier",
+        "gross": "Gross ({currency})",
+        "ineligible": "Ineligible",
+        "reason": "Reason",
+        "reasonPlaceholder": "obsolete, disputed…",
+        "ageDays": "Age (days)",
+        "ageHint": "ineligible over {days}",
+        "addLine": "Add line",
+        "removeLast": "Remove last",
+        "previewSummary": "Gross {currency} {gross} − ineligible {ineligible} = eligible {eligible} → <strong>borrowing base {currency} {base}</strong>",
+        "workOut": "Work out the base",
+        "workOutFirst": "Work out the base first",
+        "submit": "Submit for acceptance"
+      },
+      "acceptConfirm": {
+        "title": "Accept certificate",
+        "message": "Accept certificate #{sequence} as of {date}? Drawings will be limited to the lower of the limit and {currency} {base}.",
+        "confirm": "Accept"
+      },
+      "acceptedOverAdvance": "Certificate accepted — the line is {currency} {amount} over its base and must be reduced",
+      "decided": "Certificate {status}",
+      "title": "Borrowing base",
+      "subtitle": "Drawings are limited to the lower of the limit and the base certified by the borrower; a certificate older than its maximum age supports nothing.",
+      "pendingReason": "A certificate is awaiting a decision",
+      "newCertificate": "New certificate",
+      "staleTitle": "Certificate out of date",
+      "noAcceptedTitle": "No accepted certificate",
+      "tiles": {
+        "limit": "Limit",
+        "borrowingBase": "Borrowing base",
+        "asOf": "as of {date}",
+        "drawingCap": "Drawing cap",
+        "drawingCapHint": "lower of limit and base",
+        "drawn": "Drawn",
+        "availableNow": "Available now",
+        "validThrough": "certificate valid through {date}"
+      },
+      "pendingTitle": "Certificate #{sequence} as of {date} awaits acceptance — base {currency} {base}",
+      "submittedAt": "Submitted {at}. The person who submitted it cannot accept it.",
+      "submittedAtNotes": "Submitted {at} · {notes}. The person who submitted it cannot accept it.",
+      "accept": "Accept",
+      "rejectPlaceholder": "Reason for rejecting",
+      "reject": "Reject",
+      "rejectEllipsis": "Reject…",
+      "currentTitle": "Current certificate #{sequence} (as of {date})",
+      "history": "Certificate history ({count})",
+      "noCertificates": "No certificates yet.",
+      "historyColumns": {
+        "asOf": "As of",
+        "gross": "Gross",
+        "eligible": "Eligible",
+        "base": "Base",
+        "status": "Status",
+        "decided": "Decided"
+      }
+    },
+    "panels": {
+      "repayment": {
+        "amountInvalid": "Enter a positive decimal amount (up to 4 decimals).",
+        "appliedPart": "{component} {amount}",
+        "components": {
+          "PENALTY": "penalty",
+          "FEE": "fees",
+          "TAX": "tax",
+          "INTEREST": "interest",
+          "PRINCIPAL": "principal"
+        },
+        "posted": "Repayment of {currency} {amount} posted",
+        "postedApplied": "Repayment of {currency} {amount} posted — {parts}",
+        "title": "Post repayment",
+        "amount": "Amount ({currency})",
+        "amountHint": "Principal outstanding: {currency} {outstanding}",
+        "valueDate": "Value date",
+        "valueDateHint": "Optional — defaults to the business date",
+        "externalReference": "External reference",
+        "optional": "Optional",
+        "note": "Applied to penalty, fees, interest, then principal. On a revolving line or overdraft, repaid principal becomes available to draw again. Retrying the same payment reuses its idempotency key."
+      },
+      "statement": {
+        "chooseEnd": "Choose the date the period closes on.",
+        "endAfterStart": "The period starts on {start}; it must close after that.",
+        "title": "Generate statement",
+        "confirmMessage": "Close the period {start} → {end}? Interest and fees for the period are posted to the facility's loan account.",
+        "confirm": "Generate",
+        "generated": "Statement #{sequence} generated — charges {currency} {charges}",
+        "periodStart": "Period start",
+        "periodEnd": "Period end",
+        "periodEndHint": "Exclusive; not after the business date"
+      },
+      "status": {
+        "moves": {
+          "SUSPEND": "Suspend — stop further drawdowns",
+          "REINSTATE": "Reinstate — reopen for drawdowns",
+          "EXPIRE": "Expire — end availability now"
+        },
+        "reasonRequired": "Give a reason for suspending the facility.",
+        "confirmTitle": "Change facility status",
+        "confirmMessage": {
+          "SUSPEND": "Suspend this facility?",
+          "REINSTATE": "Reinstate this facility?",
+          "EXPIRE": "Expire this facility?"
+        },
+        "confirm": "Confirm",
+        "changed": "Facility is now {status}",
+        "title": "Change status",
+        "noMoves": "A facility with status {status} has no status changes available.",
+        "action": "Action",
+        "reason": "Reason",
+        "reasonOptional": "Reason (optional)",
+        "apply": "Apply"
+      },
+      "termOut": {
+        "confirmTitle": "Term out facility",
+        "confirmMessage": "Convert the balance drawn at {availabilityEnd} into a term loan amortizing to {maturityDate}? No further drawdowns will be possible.",
+        "done": "Termed out from {date}: {currency} {principal} over {months, plural, one {# month} other {# months}}",
+        "title": "Term out",
+        "body": "Once availability has ended ({availabilityEnd}), the balance drawn at that date amortizes over the whole months remaining to maturity ({maturityDate}). Open drawdown requests must be settled first, and the product must allow term-out on expiry."
+      }
+    },
+    "drawdowns": {
+      "title": "Drawdowns",
+      "subtitle": "Maker-checker: the officer who requested a drawdown cannot approve or release it. Newest first.",
+      "confirmApprove": {
+        "title": "Approve drawdown",
+        "message": "Approve drawdown #{seq} for {currency} {amount}? The limit is re-checked now and again at release."
+      },
+      "confirmCancel": {
+        "title": "Cancel drawdown request",
+        "message": "Cancel drawdown request #{seq} for {currency} {amount}?",
+        "confirm": "Cancel request",
+        "keep": "Keep it"
+      },
+      "confirmRelease": {
+        "title": "Release drawdown",
+        "message": "Pay out {currency} {amount}? This posts a disbursement on the facility's loan account and cannot be undone except by reversal."
+      },
+      "toast": {
+        "approved": "Drawdown #{seq} approved — ready to release",
+        "cancelled": "Drawdown request #{seq} cancelled",
+        "rejected": "Drawdown #{seq} rejected",
+        "released": "Drawdown #{seq} released — {currency} {amount} paid out"
+      },
+      "problems": {
+        "reasonRequired": "Give a reason for rejecting the drawdown.",
+        "referenceRequired": "Record the bank or cash reference of the payout."
+      },
+      "panel": {
+        "rejectTitle": "Reject drawdown #{seq}",
+        "releaseTitle": "Release drawdown #{seq}",
+        "valueDate": "· value date {date}",
+        "tranche": "· tranche <mono>{code}</mono>",
+        "requestedBy": "· requested by <who></who>",
+        "approvedBy": "· approved by <who></who>"
+      },
+      "fields": {
+        "reason": "Reason",
+        "externalReference": "External reference",
+        "externalReferenceHint": "Bank transfer or cash voucher reference of the payout"
+      },
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "cancel": "Cancel",
+        "release": "Release…",
+        "releaseFunds": "Release funds",
+        "rejectDrawdown": "Reject drawdown"
+      },
+      "empty": "No drawdowns yet.",
+      "columns": {
+        "status": "Status",
+        "amount": "Amount",
+        "valueDate": "Value date",
+        "tranche": "Tranche",
+        "purpose": "Purpose",
+        "requested": "Requested",
+        "decided": "Decided / released"
+      },
+      "approvedBy": "Approved by <who></who>",
+      "releasedBy": "Released by <who></who>",
+      "rejectedBy": "Rejected by <who></who>",
+      "disbursementEvent": "Disbursement event {id}",
+      "ledgerEvent": "Ledger event →"
+    },
+    "limitChanges": {
+      "title": "Limit changes",
+      "subtitle": "Maker-checker: the requester cannot decide their own change. Latest 24.",
+      "panel": {
+        "title": "Request limit change",
+        "note": "The limit cannot be cut below what is already drawn. Only one change can await a decision at a time."
+      },
+      "fields": {
+        "newLimit": "New limit ({currency})",
+        "newLimitHint": "Current: {currency} {amount}",
+        "changeType": "Change type",
+        "select": "Select…",
+        "effectiveDate": "Effective date",
+        "effectiveDateHint": "Recorded on the change; the new limit applies when approved",
+        "reason": "Reason"
+      },
+      "problems": {
+        "newLimit": "Enter a positive decimal amount (up to 4 decimals).",
+        "changeType": "Choose the kind of change.",
+        "reason": "Give a reason for the limit change."
+      },
+      "confirm": {
+        "approveTitle": "Approve limit change",
+        "rejectTitle": "Reject limit change",
+        "approveMessage": "Approve the {type} from {currency} {from} to {currency} {to}? The new limit applies immediately.",
+        "rejectMessage": "Reject the {type} from {currency} {from} to {currency} {to}?"
+      },
+      "toast": {
+        "requested": "Limit change requested — awaiting approval",
+        "changed": "Limit changed to {currency} {amount}",
+        "rejected": "Limit change rejected"
+      },
+      "actions": {
+        "requestChange": "Request change",
+        "approve": "Approve",
+        "reject": "Reject"
+      },
+      "empty": "No limit changes.",
+      "columns": {
+        "type": "Type",
+        "status": "Status",
+        "from": "From",
+        "to": "To",
+        "effective": "Effective",
+        "reason": "Reason",
+        "requested": "Requested",
+        "decided": "Decided"
+      }
+    },
+    "sculpting": {
+      "title": "Sculpted term-out",
+      "intro": "Principal is sized so projected cash flow available for debt service (CFADS) covers each period's debt service by the same ratio, at least the product's target, and the loan closes to zero by the last date (no later than maturity, {maturity}).",
+      "fields": {
+        "every": "Every (months)",
+        "periods": "Periods",
+        "cfadsEach": "CFADS each ({currency})",
+        "cfadsEachHint": "Edit each period below",
+        "balloon": "Balloon (optional)",
+        "balloonHint": "Left to the last date",
+        "principal": "Size a principal (optional)",
+        "principalHint": "Preview only; default the balance drawn"
+      },
+      "problems": {
+        "wholeNumbers": "Give whole numbers of months and periods.",
+        "cfadsDecimal": "CFADS is a decimal amount.",
+        "periodIncomplete": "Every period needs a date and a CFADS amount.",
+        "balloonDecimal": "The balloon is a decimal amount."
+      },
+      "confirm": {
+        "title": "Term out on the sculpted profile",
+        "message": "Convert the drawn balance into {count, plural, one {# sculpted instalment} other {# sculpted instalments}} at a {ratio}× cover ratio, ending {end}? No further drawdowns will be possible.",
+        "confirm": "Term out"
+      },
+      "toast": {
+        "termedOut": "Termed out: {currency} {amount} over {count, plural, one {# sculpted instalment} other {# sculpted instalments}}"
+      },
+      "actions": {
+        "layOut": "Lay out periods from {date}",
+        "remove": "Remove",
+        "preview": "Preview profile",
+        "previewFirst": "Preview first",
+        "termOut": "Term out on this profile"
+      },
+      "totalCfads": "Total projected CFADS {currency} {amount}",
+      "result": {
+        "coverRatio": "Cover ratio achieved",
+        "coverRatioValue": "{ratio}× (target {target}×)",
+        "lowestDscr": "Lowest period DSCR",
+        "maxDebt": "Most the projection supports",
+        "starts": "Starts"
+      },
+      "cannotTermOut": "The facility can term out once availability has ended and it is stated to that date."
+    },
+    "drawdownRequest": {
+      "title": "Request drawdown",
+      "problems": {
+        "amount": "Enter a positive decimal amount (up to 4 decimals).",
+        "tranche": "A staged drawdown must name the tranche it releases."
+      },
+      "toast": {
+        "requested": "Drawdown requested — awaiting approval by a second officer"
+      },
+      "limits": {
+        "minimum": "minimum {currency} {amount}",
+        "maximum": "maximum {currency} {amount}"
+      },
+      "fields": {
+        "amount": "Amount ({currency})",
+        "valueDate": "Value date",
+        "valueDateHint": "Optional — defaults to the business date",
+        "tranche": "Tranche",
+        "trancheHint": "The tranche this drawdown releases",
+        "selectTranche": "Select a tranche…",
+        "trancheOption": "{code} — {currency} {amount} from {from}",
+        "purpose": "Purpose",
+        "purposeHint": "Optional, up to 200 characters"
+      },
+      "sim": {
+        "checking": "Checking against the facility…",
+        "permitted": "This drawdown is permitted today",
+        "outstandingAfter": "Outstanding after",
+        "availableAfter": "Available after",
+        "utilizationAfter": "Utilization after",
+        "overLimit": "Over limit",
+        "recheck": "The limit is re-checked at approval and again at release.",
+        "refused": "The server would refuse this drawdown"
+      },
+      "actions": {
+        "request": "Request drawdown"
+      }
+    },
+    "conditions": {
+      "title": "Conditions precedent",
+      "subtitle": "Each tranche can be released only once its conditions are satisfied or waived.",
+      "problems": {
+        "evidence": "Describe the evidence that satisfies this condition.",
+        "reason": "Give a reason for waiving this condition."
+      },
+      "toast": {
+        "satisfied": "Condition {code} satisfied",
+        "waived": "Condition {code} waived"
+      },
+      "panel": {
+        "satisfyTitle": "Satisfy {code} — {label}",
+        "waiveTitle": "Waive {code} — {label}",
+        "waiveNotice": "Waiving is a credit concession: it is recorded against your name with the reason, and may require step-up (MFA) sign-in."
+      },
+      "fields": {
+        "evidence": "Evidence",
+        "waiverReason": "Waiver reason",
+        "evidenceHint": "e.g. document reference, inspection report number"
+      },
+      "actions": {
+        "markSatisfied": "Mark satisfied",
+        "waiveCondition": "Waive condition",
+        "satisfy": "Satisfy…",
+        "waive": "Waive…"
+      },
+      "empty": "No conditions precedent on this facility.",
+      "columns": {
+        "tranche": "Tranche",
+        "condition": "Condition",
+        "status": "Status",
+        "evidence": "Evidence / reason",
+        "by": "By"
+      },
+      "released": "released"
+    },
+    "list": {
+      "title": "Facilities",
+      "count": "{count, plural, one {# facility} other {# facilities}}",
+      "types": {
+        "REVOLVING": "Revolving",
+        "OVERDRAFT": "Overdraft",
+        "STAGED_DRAWDOWN": "Staged drawdown"
+      },
+      "allTypes": "All types",
+      "allStatuses": "All statuses",
+      "searchPlaceholder": "Search reference…",
+      "search": "Search",
+      "refresh": "Refresh",
+      "empty": "No facilities match these filters.",
+      "columns": {
+        "reference": "Reference",
+        "type": "Type",
+        "borrower": "Borrower",
+        "status": "Status",
+        "limit": "Limit",
+        "totalDrawn": "Total drawn",
+        "charges": "Charges",
+        "availableTo": "Available to",
+        "maturity": "Maturity"
+      },
+      "footnote": "Total drawn is everything ever advanced. Outstanding balance and available headroom are computed per facility — open one to see them.",
+      "previous": "Previous",
+      "page": "Page {page} of {pages}",
+      "next": "Next"
+    },
+    "statements": {
+      "title": "Statements",
+      "subtitle": "Append-only: a correction is a later statement, never an edit. Period end is exclusive.",
+      "empty": "No statements generated yet.",
+      "columns": {
+        "period": "Period",
+        "opening": "Opening",
+        "drawdowns": "Drawdowns",
+        "repayments": "Repayments",
+        "interest": "Interest",
+        "overlimitInterest": "Over-limit int.",
+        "commitmentFee": "Commitment fee",
+        "closing": "Closing",
+        "charges": "Charges",
+        "minimumDue": "Minimum due",
+        "generated": "Generated"
+      },
+      "dueBy": "by {date}"
+    }
   }
 }

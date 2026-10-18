@@ -23,6 +23,7 @@ import { WorkQueueCard } from './WorkQueueCard';
 const PAGE_SIZE = 50;
 
 function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
+    const tl = useTranslations('LendingServicing.collections');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const bd = useApi<{ businessDate: string }>('/lending/ops/business-date');
@@ -36,15 +37,15 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
     const advance = async () => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) return;
         const ok = await confirm({
-            title: 'Change business date',
-            message: `Move the tenant business date from ${bd.data?.businessDate ?? '—'} to ${next}? This affects accrual, value-date checks and delinquency for every loan.`,
-            confirmLabel: 'Change date',
+            title: tl('changeTitle'),
+            message: tl('changeDatePrompt', { from: bd.data?.businessDate ?? '—', to: next }),
+            confirmLabel: tl('changeConfirm'),
             variant: 'warning',
         });
         if (!ok) return;
         const res = await run('date', () => api.post<{ businessDate: string }>('/lending/ops/business-date', { businessDate: next }));
         if (res) {
-            showToast(`Business date is now ${res.data?.businessDate ?? next}`, 'success');
+            showToast(tl('dateChanged', { date: res.data?.businessDate ?? next }), 'success');
             setNext('');
             bd.reload();
         }
@@ -52,15 +53,15 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
 
     const batch = async () => {
         const ok = await confirm({
-            title: 'Run end-of-day batch',
-            message: `Accrue interest, assess penalties and recompute delinquency for all active loans as of ${bd.data?.businessDate ?? 'the business date'}?`,
-            confirmLabel: 'Run batch',
+            title: tl('batchTitle'),
+            message: bd.data?.businessDate ? tl('batchMessage', { date: bd.data.businessDate }) : tl('batchMessageNoDate'),
+            confirmLabel: tl('batchConfirm'),
         });
         if (!ok) return;
         const res = await run('batch', () => api.post<{ businessDate: string; processed: number; failed: { id: string; error: string }[] | number }>('/lending/loans/batch/run', {}));
         if (res) {
             setResult(res.data);
-            showToast('End-of-day batch finished', 'success');
+            showToast(tl('batchFinished'), 'success');
             onChanged();
         }
     };
@@ -69,25 +70,25 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
     const failedCount = result ? (Array.isArray(result.failed) ? result.failed.length : result.failed) : 0;
 
     return (
-        <Card title="Business date & end-of-day">
+        <Card title={tl('businessDateTitle')}>
             <div data-tour="coll-business-date" className="flex flex-wrap items-end gap-4">
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Current business date</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{tl('currentBusinessDate')}</p>
                     <p className="text-xl font-bold text-[#1A1F36] tabular-nums">{bd.loading && !bd.data ? '…' : bd.data?.businessDate ?? '—'}</p>
                 </div>
                 {canDate && (
-                    <Field label="New business date">
+                    <Field label={tl('newBusinessDate')}>
                         <TextInput type="date" value={next} onChange={setNext} min={bd.data?.businessDate ? addDaysIso(bd.data.businessDate, 1) : undefined} className="w-44" />
                     </Field>
                 )}
-                {canDate && <Btn onClick={advance} busy={busy === 'date'} disabled={!next} reason={!next ? 'Pick a date first' : undefined}>Set business date</Btn>}
-                {canBatch && <Btn variant="primary" onClick={batch} busy={busy === 'batch'}>Run end-of-day batch</Btn>}
+                {canDate && <Btn onClick={advance} busy={busy === 'date'} disabled={!next} reason={!next ? tl('pickDateFirst') : undefined}>{tl('setBusinessDate')}</Btn>}
+                {canBatch && <Btn variant="primary" onClick={batch} busy={busy === 'batch'}>{tl('runBatch')}</Btn>}
             </div>
             <div className="mt-3 space-y-2">
                 <ErrorBox error={bd.error} />
                 <ErrorBox error={error} onDismiss={clearError} />
                 {result && (
-                    <Notice tone={failedCount ? 'warn' : 'success'} title={`Batch for ${result.businessDate}: ${result.processed} processed, ${failedCount} failed`}>
+                    <Notice tone={failedCount ? 'warn' : 'success'} title={tl('batchResult', { date: result.businessDate, processed: result.processed, failed: failedCount })}>
                         {failedList.length > 0 && (
                             <ul className="mt-1 space-y-0.5">
                                 {failedList.map((f) => <li key={f.id}><span className="font-mono text-[11px]">{f.id}</span> — {f.error}</li>)}
@@ -103,6 +104,7 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
 export function CollectionsView() {
     const href = useLendingHref();
     const t = useTranslations('Servicing.collections');
+    const tl = useTranslations('LendingServicing.collections');
     // Paged and filtered on the server, worst first: the whole book is never loaded.
     const [page, setPage] = useState(1);
     const loans = useApi<Paged<LoanSummary>>(`/lending/loans${qs({ pastDue: 1, page })}`);
@@ -115,27 +117,27 @@ export function CollectionsView() {
             <WorkQueueCard />
             <NoticesCard />
             <Card
-                title="Past-due loans"
+                title={tl('pastDueTitle')}
                 subtitle={loans.data ? t('pastDueCount', { count: total }) : undefined}
-                actions={<Btn variant="ghost" onClick={loans.reload}>Refresh</Btn>}
+                actions={<Btn variant="ghost" onClick={loans.reload}>{tl('refresh')}</Btn>}
                 bodyClass="p-0"
             >
                 {loans.error && <div className="p-4"><ErrorBox error={loans.error} /></div>}
                 {loans.loading && !loans.data ? <Spinner /> : overdue.length === 0 ? (
-                    !loans.error && <Empty>No loans are past due.</Empty>
+                    !loans.error && <Empty>{tl('empty')}</Empty>
                 ) : (
                     <>
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Reference</th>
+                                <th className={th}>{tl('columns.reference')}</th>
                                 <th className={thR}>DPD</th>
-                                <th className={th}>Bucket</th>
-                                <th className={th}>Stage</th>
-                                <th className={thR}>Principal o/s</th>
-                                <th className={thR}>Interest + fees + penalty</th>
-                                <th className={thR}>Total outstanding</th>
-                                <th className={th}>Status</th>
+                                <th className={th}>{tl('columns.bucket')}</th>
+                                <th className={th}>{tl('columns.stage')}</th>
+                                <th className={thR}>{tl('columns.principal')}</th>
+                                <th className={thR}>{tl('columns.charges')}</th>
+                                <th className={thR}>{tl('columns.total')}</th>
+                                <th className={th}>{tl('columns.status')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { ActionPanel, Btn, ErrorBox, Field, IssueList, KV, Notice, SelectInput, TextInput } from '../ui';
 import { clean, qs, useAction, useApi } from '../useAsync';
@@ -18,6 +19,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function DrawdownRequestPanel({ facilityId, terms, onDone, onClose }: {
     facilityId: string; terms: FacilityTerms; onDone: (msg: string) => void; onClose: () => void;
 }) {
+    const tr = useTranslations('LendingFacilities.drawdownRequest');
     const staged = terms.type === 'STAGED_DRAWDOWN';
     const cur = terms.currency;
     const [amount, setAmount] = useState('');
@@ -42,66 +44,66 @@ export function DrawdownRequestPanel({ facilityId, terms, onDone, onClose }: {
 
     const submit = async () => {
         const a = amount.trim();
-        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
-        if (staged && !trancheCode) { setProblem('A staged drawdown must name the tranche it releases.'); return; }
+        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem(tr('problems.amount')); return; }
+        if (staged && !trancheCode) { setProblem(tr('problems.tranche')); return; }
         setProblem('');
         const body = clean({ amount: a, valueDate, trancheCode, purpose: purpose.trim() });
         const res = await run('request', () => api.post(`/lending/facilities/${facilityId}/drawdowns`, body));
-        if (res) onDone('Drawdown requested — awaiting approval by a second officer');
+        if (res) onDone(tr('toast.requested'));
     };
 
     const limits = [
-        terms.minimumDrawdown ? `minimum ${cur} ${terms.minimumDrawdown}` : null,
-        terms.maximumDrawdown ? `maximum ${cur} ${terms.maximumDrawdown}` : null,
+        terms.minimumDrawdown ? tr('limits.minimum', { currency: cur, amount: terms.minimumDrawdown }) : null,
+        terms.maximumDrawdown ? tr('limits.maximum', { currency: cur, amount: terms.maximumDrawdown }) : null,
     ].filter(Boolean).join(' · ');
 
     return (
-        <ActionPanel title="Request drawdown" onClose={onClose}>
+        <ActionPanel title={tr('title')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Field label={`Amount (${cur})`} hint={limits || undefined} error={problem || undefined}>
+                <Field label={tr('fields.amount', { currency: cur })} hint={limits || undefined} error={problem || undefined}>
                     <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
                 </Field>
-                <Field label="Value date" hint="Optional — defaults to the business date">
+                <Field label={tr('fields.valueDate')} hint={tr('fields.valueDateHint')}>
                     <TextInput type="date" value={valueDate} onChange={setValueDate} />
                 </Field>
                 {staged && (
-                    <Field label="Tranche" hint="The tranche this drawdown releases">
+                    <Field label={tr('fields.tranche')} hint={tr('fields.trancheHint')}>
                         <SelectInput
                             value={trancheCode}
                             onChange={setTrancheCode}
-                            placeholder="Select a tranche…"
-                            options={terms.tranches.map((t) => ({ value: t.code, label: `${t.code} — ${cur} ${t.amount} from ${t.availableFrom}` }))}
+                            placeholder={tr('fields.selectTranche')}
+                            options={terms.tranches.map((t) => ({ value: t.code, label: tr('fields.trancheOption', { code: t.code, currency: cur, amount: t.amount, from: t.availableFrom }) }))}
                         />
                     </Field>
                 )}
-                <Field label="Purpose" hint="Optional, up to 200 characters" className={staged ? '' : 'lg:col-span-2'}>
+                <Field label={tr('fields.purpose')} hint={tr('fields.purposeHint')} className={staged ? '' : 'lg:col-span-2'}>
                     <TextInput value={purpose} onChange={setPurpose} maxLength={200} />
                 </Field>
             </div>
 
             {probe && (
                 <div>
-                    {sim.loading && <p className="text-[12px] text-[#697386]">Checking against the facility…</p>}
+                    {sim.loading && <p className="text-[12px] text-[#697386]">{tr('sim.checking')}</p>}
                     {sim.error && !sim.loading && <ErrorBox error={sim.error} />}
                     {sim.data && !sim.loading && (sim.data.ok ? (
-                        <Notice tone="success" title="This drawdown is permitted today">
+                        <Notice tone="success" title={tr('sim.permitted')}>
                             {sim.data.resulting && (
                                 <div className="mt-2">
                                     <KV
                                         cols={4}
                                         items={[
-                                            ['Outstanding after', <Money key="o" value={sim.data.resulting.outstanding} currency={cur} />],
-                                            ['Available after', <Money key="a" value={sim.data.resulting.available} currency={cur} />],
-                                            ['Utilization after', fmtRate(sim.data.resulting.utilization, 2)],
-                                            ['Over limit', <Money key="ol" value={sim.data.resulting.overlimit} currency={cur} />],
+                                            [tr('sim.outstandingAfter'), <Money key="o" value={sim.data.resulting.outstanding} currency={cur} />],
+                                            [tr('sim.availableAfter'), <Money key="a" value={sim.data.resulting.available} currency={cur} />],
+                                            [tr('sim.utilizationAfter'), fmtRate(sim.data.resulting.utilization, 2)],
+                                            [tr('sim.overLimit'), <Money key="ol" value={sim.data.resulting.overlimit} currency={cur} />],
                                         ]}
                                     />
                                 </div>
                             )}
-                            <p className="text-[11px] mt-2 opacity-80">The limit is re-checked at approval and again at release.</p>
+                            <p className="text-[11px] mt-2 opacity-80">{tr('sim.recheck')}</p>
                         </Notice>
                     ) : (
-                        <Notice tone="warn" title="The server would refuse this drawdown">
+                        <Notice tone="warn" title={tr('sim.refused')}>
                             <IssueList issues={sim.data.issues} />
                         </Notice>
                     ))}
@@ -109,7 +111,7 @@ export function DrawdownRequestPanel({ facilityId, terms, onDone, onClose }: {
             )}
 
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={submit} busy={busy === 'request'}>Request drawdown</Btn>
+            <Btn variant="primary" onClick={submit} busy={busy === 'request'}>{tr('actions.request')}</Btn>
         </ActionPanel>
     );
 }

@@ -14,15 +14,13 @@ interface Covenant {
     nextTestOn: string; status: string; description: string; testOverdue: boolean; tests: CovenantTest[];
 }
 
-const LABEL: Record<Covenant['type'], string> = {
-    MIN_DSCR: 'Minimum DSCR', MAX_LTV: 'Maximum LTV', MAX_LEVERAGE: 'Maximum net leverage (net debt / EBITDA)',
-    MIN_INTEREST_COVER: 'Minimum interest cover (EBITDA / interest)', FINANCIAL_STATEMENTS: 'Financial statements',
-};
+const TYPES: Covenant['type'][] = ['MIN_DSCR', 'MAX_LTV', 'MAX_LEVERAGE', 'MIN_INTEREST_COVER', 'FINANCIAL_STATEMENTS'];
 const isMax = (t: Covenant['type']) => t === 'MAX_LTV' || t === 'MAX_LEVERAGE';
-const HINT: Record<Covenant['type'], string> = { MIN_DSCR: 'e.g. 1.25', MAX_LTV: 'e.g. 0.70', MAX_LEVERAGE: 'e.g. 3.50', MIN_INTEREST_COVER: 'e.g. 3.00', FINANCIAL_STATEMENTS: '' };
+const HINT: Record<Covenant['type'], string> = { MIN_DSCR: '1.25', MAX_LTV: '0.70', MAX_LEVERAGE: '3.50', MIN_INTEREST_COVER: '3.00', FINANCIAL_STATEMENTS: '' };
 
 /** Covenants on a commercial loan, their tests, breaches and waivers (LT-16). */
 export function CovenantsCard({ loanId, can }: { loanId: string; can: (code: string) => { allowed: boolean; reason?: string } }) {
+    const t = useTranslations('LendingServicing.covenants');
     const list = useApi<Covenant[]>(`/lending/loans/${loanId}/covenants`);
     const [form, setForm] = useState({ type: 'MIN_DSCR', threshold: '1.25', frequencyMonths: '12', description: '' });
     const [testing, setTesting] = useState<{ id: string; periodEnd: string; noi: string; ds: string; received: string; evidence: string; ebitda: string; debt: string; cash: string; interest: string } | null>(null);
@@ -62,43 +60,43 @@ export function CovenantsCard({ loanId, can }: { loanId: string; can: (code: str
     };
 
     return (
-        <Card title="Covenants" subtitle="Tested on schedule; a failed test is a breach until a later test passes or another person waives it.">
+        <Card title={t('title')} subtitle={t('subtitle')}>
             <div className="space-y-3">
-                {list.data && list.data.length === 0 && <Empty>No covenants on this loan.</Empty>}
+                {list.data && list.data.length === 0 && <Empty>{t('none')}</Empty>}
                 {!!list.data?.length && (
                     <Table>
-                        <thead><tr><th className={th}>Covenant</th><th className={th}>Next test</th><th className={th}>Last result</th><th className={th}>Status</th><th className={th} /></tr></thead>
+                        <thead><tr><th className={th}>{t('columns.covenant')}</th><th className={th}>{t('columns.nextTest')}</th><th className={th}>{t('columns.lastResult')}</th><th className={th}>{t('columns.status')}</th><th className={th} /></tr></thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {list.data.map((c) => {
                                 const last = c.tests[0];
                                 return (
                                     <tr key={c.id} className="align-top">
-                                        <td className={td}>{LABEL[c.type]}{c.threshold ? ` ${isMax(c.type) ? '≤' : '≥'} ${c.threshold}` : ''}<div className="text-[11px] text-[#8792A2]">every {c.frequencyMonths} month(s){c.description ? ` · ${c.description}` : ''}</div></td>
-                                        <td className={td}>{c.nextTestOn}{c.testOverdue && <span className="ml-1 text-[11px] font-semibold text-red-600">overdue</span>}</td>
-                                        <td className={td}>{last ? `${last.kind === 'WAIVER' ? 'Waived' : last.passed ? 'Passed' : 'Failed'}${last.value ? ` (${Number(last.value).toFixed(2)})` : ''} · ${last.testedOn}` : '—'}</td>
+                                        <td className={td}>{t(`types.${c.type}`)}{c.threshold ? ` ${isMax(c.type) ? '≤' : '≥'} ${c.threshold}` : ''}<div className="text-[11px] text-[#8792A2]">{t('every', { count: c.frequencyMonths, hasDescription: c.description ? 'yes' : 'no', description: c.description })}</div></td>
+                                        <td className={td}>{c.nextTestOn}{c.testOverdue && <span className="ml-1 text-[11px] font-semibold text-red-600">{t('overdue')}</span>}</td>
+                                        <td className={td}>{last ? t('lastResult', { outcome: last.kind === 'WAIVER' ? 'WAIVED' : last.passed ? 'PASSED' : 'FAILED', hasValue: last.value ? 'yes' : 'no', value: last.value ? Number(last.value).toFixed(2) : '', date: last.testedOn }) : '—'}</td>
                                         <td className={td}><StatusBadge status={c.status} /></td>
                                         <td className={`${td} whitespace-nowrap space-x-1`}>
-                                            <Btn size="sm" onClick={() => setTesting({ id: c.id, periodEnd: '', noi: '', ds: '', received: 'yes', evidence: '', ebitda: '', debt: '', cash: '', interest: '' })} disabled={!manage.allowed} reason={manage.reason}>Record test</Btn>
-                                            {c.status === 'BREACHED' && <Btn size="sm" variant="ghost" onClick={() => setWaiving({ id: c.id, reason: '' })} disabled={!waive.allowed || (!!me && last?.createdBy === me)} reason={!waive.allowed ? waive.reason : last?.createdBy === me ? tg('covenant.ownTest') : undefined}>Waive</Btn>}
+                                            <Btn size="sm" onClick={() => setTesting({ id: c.id, periodEnd: '', noi: '', ds: '', received: 'yes', evidence: '', ebitda: '', debt: '', cash: '', interest: '' })} disabled={!manage.allowed} reason={manage.reason}>{t('recordTest')}</Btn>
+                                            {c.status === 'BREACHED' && <Btn size="sm" variant="ghost" onClick={() => setWaiving({ id: c.id, reason: '' })} disabled={!waive.allowed || (!!me && last?.createdBy === me)} reason={!waive.allowed ? waive.reason : last?.createdBy === me ? tg('covenant.ownTest') : undefined}>{t('waive')}</Btn>}
                                             {testing?.id === c.id && (
                                                 <div className="mt-2 space-y-1">
                                                     <TextInput type="date" value={testing.periodEnd} onChange={(v) => setTesting({ ...testing, periodEnd: v })} />
-                                                    {c.type === 'MIN_DSCR' && <TextInput value={testing.noi} onChange={(v) => setTesting({ ...testing, noi: v })} placeholder="Annual net operating income" inputMode="decimal" />}
-                                                    {c.type === 'MIN_DSCR' && <TextInput value={testing.ds} onChange={(v) => setTesting({ ...testing, ds: v })} placeholder="Annual debt service (blank: from schedule)" inputMode="decimal" />}
-                                                    {(c.type === 'MAX_LEVERAGE' || c.type === 'MIN_INTEREST_COVER') && <TextInput value={testing.ebitda} onChange={(v) => setTesting({ ...testing, ebitda: v })} placeholder="EBITDA, last twelve months" inputMode="decimal" />}
-                                                    {c.type === 'MAX_LEVERAGE' && <TextInput value={testing.debt} onChange={(v) => setTesting({ ...testing, debt: v })} placeholder="Total debt (blank: this loan's balance)" inputMode="decimal" />}
-                                                    {c.type === 'MAX_LEVERAGE' && <TextInput value={testing.cash} onChange={(v) => setTesting({ ...testing, cash: v })} placeholder="Cash netted off (blank: 0)" inputMode="decimal" />}
-                                                    {c.type === 'MIN_INTEREST_COVER' && <TextInput value={testing.interest} onChange={(v) => setTesting({ ...testing, interest: v })} placeholder="Interest expense (blank: from schedule)" inputMode="decimal" />}
-                                                    {c.type === 'FINANCIAL_STATEMENTS' && <SelectInput value={testing.received} onChange={(v) => setTesting({ ...testing, received: v })} options={[{ value: 'yes', label: 'Received' }, { value: 'no', label: 'Not received' }]} />}
-                                                    <TextInput value={testing.evidence} onChange={(v) => setTesting({ ...testing, evidence: v })} placeholder="Evidence" maxLength={500} />
-                                                    <Btn size="sm" variant="primary" onClick={() => test(c)} busy={busy === `test-${c.id}`}>Save test</Btn>
-                                                    <Btn size="sm" variant="ghost" onClick={() => setTesting(null)}>Cancel</Btn>
+                                                    {c.type === 'MIN_DSCR' && <TextInput value={testing.noi} onChange={(v) => setTesting({ ...testing, noi: v })} placeholder={t('placeholders.noi')} inputMode="decimal" />}
+                                                    {c.type === 'MIN_DSCR' && <TextInput value={testing.ds} onChange={(v) => setTesting({ ...testing, ds: v })} placeholder={t('placeholders.debtService')} inputMode="decimal" />}
+                                                    {(c.type === 'MAX_LEVERAGE' || c.type === 'MIN_INTEREST_COVER') && <TextInput value={testing.ebitda} onChange={(v) => setTesting({ ...testing, ebitda: v })} placeholder={t('placeholders.ebitda')} inputMode="decimal" />}
+                                                    {c.type === 'MAX_LEVERAGE' && <TextInput value={testing.debt} onChange={(v) => setTesting({ ...testing, debt: v })} placeholder={t('placeholders.totalDebt')} inputMode="decimal" />}
+                                                    {c.type === 'MAX_LEVERAGE' && <TextInput value={testing.cash} onChange={(v) => setTesting({ ...testing, cash: v })} placeholder={t('placeholders.cash')} inputMode="decimal" />}
+                                                    {c.type === 'MIN_INTEREST_COVER' && <TextInput value={testing.interest} onChange={(v) => setTesting({ ...testing, interest: v })} placeholder={t('placeholders.interest')} inputMode="decimal" />}
+                                                    {c.type === 'FINANCIAL_STATEMENTS' && <SelectInput value={testing.received} onChange={(v) => setTesting({ ...testing, received: v })} options={[{ value: 'yes', label: t('received') }, { value: 'no', label: t('notReceived') }]} />}
+                                                    <TextInput value={testing.evidence} onChange={(v) => setTesting({ ...testing, evidence: v })} placeholder={t('placeholders.evidence')} maxLength={500} />
+                                                    <Btn size="sm" variant="primary" onClick={() => test(c)} busy={busy === `test-${c.id}`}>{t('saveTest')}</Btn>
+                                                    <Btn size="sm" variant="ghost" onClick={() => setTesting(null)}>{t('cancel')}</Btn>
                                                 </div>
                                             )}
                                             {waiving?.id === c.id && (
                                                 <div className="mt-2 space-y-1">
-                                                    <TextInput value={waiving.reason} onChange={(v) => setWaiving({ ...waiving, reason: v })} placeholder="Reason for the waiver" maxLength={500} />
-                                                    <Btn size="sm" variant="primary" onClick={doWaive} busy={busy === 'waive'}>Waive breach</Btn>
+                                                    <TextInput value={waiving.reason} onChange={(v) => setWaiving({ ...waiving, reason: v })} placeholder={t('placeholders.waiverReason')} maxLength={500} />
+                                                    <Btn size="sm" variant="primary" onClick={doWaive} busy={busy === 'waive'}>{t('waiveBreach')}</Btn>
                                                 </div>
                                             )}
                                         </td>
@@ -109,13 +107,13 @@ export function CovenantsCard({ loanId, can }: { loanId: string; can: (code: str
                     </Table>
                 )}
                 <div className="flex flex-wrap items-end gap-2 border-t border-[#E3E8EE] pt-3">
-                    <Field label="Covenant">
-                        <SelectInput value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={Object.entries(LABEL).map(([value, label]) => ({ value, label }))} />
+                    <Field label={t('form.covenant')}>
+                        <SelectInput value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={TYPES.map((value) => ({ value, label: t(`types.${value}`) }))} />
                     </Field>
-                    {form.type !== 'FINANCIAL_STATEMENTS' && <Field label="Threshold" hint={HINT[form.type as Covenant['type']]}><TextInput value={form.threshold} onChange={(v) => setForm({ ...form, threshold: v })} inputMode="decimal" className="w-24" /></Field>}
-                    <Field label="Every (months)"><TextInput value={form.frequencyMonths} onChange={(v) => setForm({ ...form, frequencyMonths: v })} inputMode="numeric" className="w-20" /></Field>
-                    <Field label="Description"><TextInput value={form.description} onChange={(v) => setForm({ ...form, description: v })} maxLength={500} className="w-56" /></Field>
-                    <Btn onClick={add} busy={busy === 'add'} disabled={!manage.allowed} reason={manage.reason}>Add covenant</Btn>
+                    {form.type !== 'FINANCIAL_STATEMENTS' && <Field label={t('form.threshold')} hint={HINT[form.type as Covenant['type']] ? t('form.example', { value: HINT[form.type as Covenant['type']] }) : undefined}><TextInput value={form.threshold} onChange={(v) => setForm({ ...form, threshold: v })} inputMode="decimal" className="w-24" /></Field>}
+                    <Field label={t('form.every')}><TextInput value={form.frequencyMonths} onChange={(v) => setForm({ ...form, frequencyMonths: v })} inputMode="numeric" className="w-20" /></Field>
+                    <Field label={t('form.description')}><TextInput value={form.description} onChange={(v) => setForm({ ...form, description: v })} maxLength={500} className="w-56" /></Field>
+                    <Btn onClick={add} busy={busy === 'add'} disabled={!manage.allowed} reason={manage.reason}>{t('form.add')}</Btn>
                 </div>
             </div>
             <ErrorBox error={error ?? list.error} onDismiss={clearError} />

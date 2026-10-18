@@ -12,6 +12,7 @@ import { Btn, Card, Empty, ErrorBox, Notice, Spinner, Table, Tabs, td, tdR, th, 
 import { idem, qs, useAction, useApi, useIdempotencyKey } from '../useAsync';
 import { fmtDateTime } from '../format';
 import { MoneyCell } from '../MoneyCell';
+import { Person } from '../People';
 
 export type PendingKind = 'FEE_WAIVER' | 'ADVANCE_REFUND' | 'SET_OFF';
 export const PENDING_KINDS: PendingKind[] = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
@@ -115,7 +116,7 @@ export function PendingApprovalsView({ initial }: { initial: PendingKind }) {
                                             {r.detail.expiresOn && <div>{t('expiresOn', { date: r.detail.expiresOn })}</div>}
                                             {r.detail.reason && <div className="text-[#697386]">{r.detail.reason}</div>}
                                         </td>
-                                        <td className={td}><span className="text-[12px]">{r.makerEmail ?? r.makerId.slice(0, 8)}</span></td>
+                                        <td className={td}><span className="text-[12px]">{r.makerEmail ?? <Person id={r.makerId} />}</span></td>
                                         <td className={`${td} whitespace-nowrap`}>{fmtDateTime(r.createdAt)}</td>
                                         <td className={`${td} whitespace-nowrap`}>
                                             {r.mine ? <span className="text-[11px] text-[#697386]">{t('yours')}</span> : allowed ? (

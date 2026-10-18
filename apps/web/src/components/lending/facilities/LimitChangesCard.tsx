@@ -27,6 +27,7 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
     const [renewalMonths, setRenewalMonths] = useState('12');
     const [problem, setProblem] = useState<{ newLimit?: string; changeType?: string; reason?: string; renewalMonths?: string }>({});
     const t = useTranslations('Servicing.facility');
+    const tl = useTranslations('LendingFacilities.limitChanges');
     const renewal = changeType === 'RENEWAL';
     const typeOptions = LIMIT_CHANGE_TYPES.map((v) => ({ value: v, label: t(`changeType.${v}`) }));
     const { busy, error, run, clearError } = useAction();
@@ -45,43 +46,43 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
     const submit = async () => {
         const p: typeof problem = {};
         const l = newLimit.trim();
-        if (!MONEY_RE.test(l) || !/[1-9]/.test(l)) p.newLimit = 'Enter a positive decimal amount (up to 4 decimals).';
-        if (!changeType) p.changeType = 'Choose the kind of change.';
-        if (!reason.trim()) p.reason = 'Give a reason for the limit change.';
+        if (!MONEY_RE.test(l) || !/[1-9]/.test(l)) p.newLimit = tl('problems.newLimit');
+        if (!changeType) p.changeType = tl('problems.changeType');
+        if (!reason.trim()) p.reason = tl('problems.reason');
         const months = Number(renewalMonths);
         if (renewal && !(Number.isInteger(months) && months >= 1 && months <= 120)) p.renewalMonths = t('renewalMonthsInvalid');
         setProblem(p);
         if (Object.keys(p).length) return;
         const body = clean({ newLimit: l, changeType, reason: reason.trim(), effectiveDate, ...(renewal ? { renewalMonths: months } : {}) });
         const res = await run('limit', () => api.post(`/lending/facilities/${facilityId}/limit-changes`, body));
-        if (res) onDone('Limit change requested — awaiting approval');
+        if (res) onDone(tl('toast.requested'));
     };
 
     return (
-        <ActionPanel title="Request limit change" onClose={onClose}>
+        <ActionPanel title={tl('panel.title')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Field label={`New limit (${currency})`} hint={`Current: ${currency} ${currentLimit}`} error={problem.newLimit}>
+                <Field label={tl('fields.newLimit', { currency })} hint={tl('fields.newLimitHint', { currency, amount: currentLimit })} error={problem.newLimit}>
                     <TextInput value={newLimit} onChange={onLimit} inputMode="decimal" />
                 </Field>
-                <Field label="Change type" error={problem.changeType}>
-                    <SelectInput value={changeType} onChange={(v) => { setChangeType(v); if (v === 'RENEWAL' && !newLimit.trim()) setNewLimit(currentLimit); }} options={typeOptions} placeholder="Select…" />
+                <Field label={tl('fields.changeType')} error={problem.changeType}>
+                    <SelectInput value={changeType} onChange={(v) => { setChangeType(v); if (v === 'RENEWAL' && !newLimit.trim()) setNewLimit(currentLimit); }} options={typeOptions} placeholder={tl('fields.select')} />
                 </Field>
                 {renewal && (
                     <Field label={t('renewalMonths')} hint={t('renewalMonthsHint')} error={problem.renewalMonths}>
                         <TextInput value={renewalMonths} onChange={setRenewalMonths} inputMode="numeric" />
                     </Field>
                 )}
-                <Field label="Effective date" hint="Recorded on the change; the new limit applies when approved">
+                <Field label={tl('fields.effectiveDate')} hint={tl('fields.effectiveDateHint')}>
                     <TextInput type="date" value={effectiveDate} onChange={setEffectiveDate} />
                 </Field>
             </div>
-            <Field label="Reason" error={problem.reason}>
+            <Field label={tl('fields.reason')} error={problem.reason}>
                 <TextArea value={reason} onChange={setReason} maxLength={500} rows={2} />
             </Field>
-            <p className="text-[11px] text-[#697386]">The limit cannot be cut below what is already drawn. Only one change can await a decision at a time.</p>
+            <p className="text-[11px] text-[#697386]">{tl('panel.note')}</p>
             <p className="text-[11px] text-[#697386]">{t('limitChangeScope')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={submit} busy={busy === 'limit'}>Request change</Btn>
+            <Btn variant="primary" onClick={submit} busy={busy === 'limit'}>{tl('actions.requestChange')}</Btn>
         </ActionPanel>
     );
 }
@@ -93,6 +94,7 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
     const confirm = useConfirm();
     const { busy, error, run, clearError } = useAction();
     const t = useTranslations('Servicing.facility');
+    const tl = useTranslations('LendingFacilities.limitChanges');
     const canDecide = useWorkspace().can('facility.limit.approve');
     const me = useMyId();
     const typeLabel = (v: string) => (t.has(`changeType.${v}`) ? t(`changeType.${v}`) : v.replace(/_/g, ' ').toLowerCase());
@@ -100,31 +102,31 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
     const decide = async (c: FacilityLimitChange, outcome: 'APPROVE' | 'REJECT') => {
         const approve = outcome === 'APPROVE';
         const ok = await confirm({
-            title: approve ? 'Approve limit change' : 'Reject limit change',
-            message: `${approve ? 'Approve' : 'Reject'} the ${c.changeType.toLowerCase()} from ${currency} ${c.previousLimit} to ${currency} ${c.newLimit}?${approve ? ' The new limit applies immediately.' : ''}`,
-            confirmLabel: approve ? 'Approve' : 'Reject',
+            title: approve ? tl('confirm.approveTitle') : tl('confirm.rejectTitle'),
+            message: tl(approve ? 'confirm.approveMessage' : 'confirm.rejectMessage', { type: typeLabel(c.changeType), currency, from: c.previousLimit, to: c.newLimit }),
+            confirmLabel: approve ? tl('actions.approve') : tl('actions.reject'),
             variant: approve ? 'default' : 'danger',
         });
         if (!ok) return;
         const res = await run(`${outcome}-${c.id}`, () => api.post(`/lending/facilities/${facilityId}/limit-changes/${c.id}/decide`, { outcome }));
-        if (res) onDone(approve ? `Limit changed to ${currency} ${c.newLimit}` : 'Limit change rejected');
+        if (res) onDone(approve ? tl('toast.changed', { currency, amount: c.newLimit }) : tl('toast.rejected'));
     };
 
     return (
-        <Card title="Limit changes" subtitle="Maker-checker: the requester cannot decide their own change. Latest 24." actions={actions} bodyClass="p-0">
+        <Card title={tl('title')} subtitle={tl('subtitle')} actions={actions} bodyClass="p-0">
             {error && <div className="p-4 border-b border-[#E3E8EE]"><ErrorBox error={error} onDismiss={clearError} /></div>}
-            {changes.length === 0 ? <Empty>No limit changes.</Empty> : (
+            {changes.length === 0 ? <Empty>{tl('empty')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>Type</th>
-                            <th className={th}>Status</th>
-                            <th className={thR}>From</th>
-                            <th className={thR}>To</th>
-                            <th className={th}>Effective</th>
-                            <th className={th}>Reason</th>
-                            <th className={th}>Requested</th>
-                            <th className={th}>Decided</th>
+                            <th className={th}>{tl('columns.type')}</th>
+                            <th className={th}>{tl('columns.status')}</th>
+                            <th className={thR}>{tl('columns.from')}</th>
+                            <th className={thR}>{tl('columns.to')}</th>
+                            <th className={th}>{tl('columns.effective')}</th>
+                            <th className={th}>{tl('columns.reason')}</th>
+                            <th className={th}>{tl('columns.requested')}</th>
+                            <th className={th}>{tl('columns.decided')}</th>
                             <th className={th}></th>
                         </tr>
                     </thead>
@@ -149,8 +151,8 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
                                 <td className={`${td} whitespace-nowrap`}>
                                     {c.status === 'REQUESTED' && canDecide && c.requestedBy !== me && (
                                         <div className="flex justify-end gap-1.5">
-                                            <Btn size="sm" variant="primary" onClick={() => decide(c, 'APPROVE')} busy={busy === `APPROVE-${c.id}`}>Approve</Btn>
-                                            <Btn size="sm" variant="danger" onClick={() => decide(c, 'REJECT')} busy={busy === `REJECT-${c.id}`}>Reject</Btn>
+                                            <Btn size="sm" variant="primary" onClick={() => decide(c, 'APPROVE')} busy={busy === `APPROVE-${c.id}`}>{tl('actions.approve')}</Btn>
+                                            <Btn size="sm" variant="danger" onClick={() => decide(c, 'REJECT')} busy={busy === `REJECT-${c.id}`}>{tl('actions.reject')}</Btn>
                                         </div>
                                     )}
                                 </td>

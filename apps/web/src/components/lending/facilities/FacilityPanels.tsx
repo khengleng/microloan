@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ActionPanel, Btn, ErrorBox, Field, SelectInput, TextArea, TextInput } from '../ui';
@@ -26,37 +27,38 @@ export function FacilityRepaymentPanel({ facilityId, currency, outstanding, can,
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
     const allowed = can('loan.repayment.post');
+    const tl = useTranslations('LendingFacilities.panels.repayment');
 
     const post = async () => {
         const a = amount.trim();
-        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
+        if (!MONEY_RE.test(a) || !/[1-9]/.test(a)) { setProblem(tl('amountInvalid')); return; }
         setProblem('');
         const body = clean({ amount: a, valueDate, externalReference: externalReference.trim() });
         const k = key.keyFor(body);
         const res = await run('repay', () => api.post<{ eventId: string; applied: Record<string, string> }>(`/lending/facilities/${facilityId}/repayments`, body, idem(k)));
         if (res) {
             key.reset();
-            const parts = Object.entries(res.data.applied ?? {}).filter(([, v]) => /[1-9]/.test(v)).map(([k2, v]) => `${k2.toLowerCase()} ${v}`);
-            onDone(`Repayment of ${currency} ${a} posted${parts.length ? ` — ${parts.join(', ')}` : ''}`);
+            const parts = Object.entries(res.data.applied ?? {}).filter(([, v]) => /[1-9]/.test(v)).map(([k2, v]) => tl('appliedPart', { component: tl.has(`components.${k2}`) ? tl(`components.${k2}`) : k2.toLowerCase(), amount: v }));
+            onDone(parts.length ? tl('postedApplied', { currency, amount: a, parts: parts.join(', ') }) : tl('posted', { currency, amount: a }));
         }
     };
 
     return (
-        <ActionPanel title="Post repayment" onClose={onClose}>
+        <ActionPanel title={tl('title')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label={`Amount (${currency})`} hint={`Principal outstanding: ${currency} ${outstanding}`} error={problem || undefined}>
+                <Field label={tl('amount', { currency })} hint={tl('amountHint', { currency, outstanding })} error={problem || undefined}>
                     <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
                 </Field>
-                <Field label="Value date" hint="Optional — defaults to the business date">
+                <Field label={tl('valueDate')} hint={tl('valueDateHint')}>
                     <TextInput type="date" value={valueDate} onChange={setValueDate} />
                 </Field>
-                <Field label="External reference" hint="Optional">
+                <Field label={tl('externalReference')} hint={tl('optional')}>
                     <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} />
                 </Field>
             </div>
-            <p className="text-[11px] text-[#697386]">Applied to penalty, fees, interest, then principal. On a revolving line or overdraft, repaid principal becomes available to draw again. Retrying the same payment reuses its idempotency key.</p>
+            <p className="text-[11px] text-[#697386]">{tl('note')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>Post repayment</Btn>
+            <Btn variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>{tl('title')}</Btn>
         </ActionPanel>
     );
 }
@@ -76,15 +78,16 @@ export function StatementPanel({ facilityId, currency, periodStart, onDone, onCl
     const [problem, setProblem] = useState('');
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
+    const tl = useTranslations('LendingFacilities.panels.statement');
 
     const generate = async () => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) { setProblem('Choose the date the period closes on.'); return; }
-        if (periodEnd <= periodStart) { setProblem(`The period starts on ${periodStart}; it must close after that.`); return; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)) { setProblem(tl('chooseEnd')); return; }
+        if (periodEnd <= periodStart) { setProblem(tl('endAfterStart', { start: periodStart })); return; }
         setProblem('');
         const ok = await confirm({
-            title: 'Generate statement',
-            message: `Close the period ${periodStart} → ${periodEnd}? Interest and fees for the period are posted to the facility's loan account.`,
-            confirmLabel: 'Generate',
+            title: tl('title'),
+            message: tl('confirmMessage', { start: periodStart, end: periodEnd }),
+            confirmLabel: tl('confirm'),
         });
         if (!ok) return;
         const body = { periodEnd };
@@ -93,20 +96,20 @@ export function StatementPanel({ facilityId, currency, periodStart, onDone, onCl
         if (res) {
             key.reset();
             const st = res.data.statement;
-            onDone(`Statement #${st.sequence} generated — charges ${currency} ${st.chargesRaised}`);
+            onDone(tl('generated', { sequence: st.sequence, currency, charges: st.chargesRaised }));
         }
     };
 
     return (
-        <ActionPanel title="Generate statement" onClose={onClose}>
+        <ActionPanel title={tl('title')} onClose={onClose}>
             <div className="flex flex-wrap items-end gap-3">
-                <Field label="Period start">
+                <Field label={tl('periodStart')}>
                     <TextInput value={periodStart} onChange={() => undefined} disabled className="w-40" />
                 </Field>
-                <Field label="Period end" hint="Exclusive; not after the business date" error={problem || undefined}>
+                <Field label={tl('periodEnd')} hint={tl('periodEndHint')} error={problem || undefined}>
                     <TextInput type="date" value={periodEnd} onChange={setPeriodEnd} min={periodStart} className="w-44" />
                 </Field>
-                <Btn variant="primary" onClick={generate} busy={busy === 'statement'}>Generate statement</Btn>
+                <Btn variant="primary" onClick={generate} busy={busy === 'statement'}>{tl('title')}</Btn>
             </div>
             <ErrorBox error={error} onDismiss={clearError} />
         </ActionPanel>
@@ -115,10 +118,10 @@ export function StatementPanel({ facilityId, currency, periodStart, onDone, onCl
 
 /* ── Status ──────────────────────────────────────────────────────────────── */
 
-const MOVES: Record<string, { from: string[]; label: string }> = {
-    SUSPEND: { from: ['PENDING', 'ACTIVE'], label: 'Suspend — stop further drawdowns' },
-    REINSTATE: { from: ['SUSPENDED'], label: 'Reinstate — reopen for drawdowns' },
-    EXPIRE: { from: ['ACTIVE', 'SUSPENDED'], label: 'Expire — end availability now' },
+const MOVES: Record<string, { from: string[] }> = {
+    SUSPEND: { from: ['PENDING', 'ACTIVE'] },
+    REINSTATE: { from: ['SUSPENDED'] },
+    EXPIRE: { from: ['ACTIVE', 'SUSPENDED'] },
 };
 
 export function availableStatusMoves(status: string): string[] {
@@ -132,42 +135,45 @@ export function StatusPanel({ facilityId, status, onDone, onClose }: DoneProps &
     const [reason, setReason] = useState('');
     const [problem, setProblem] = useState('');
     const { busy, error, run, clearError } = useAction();
+    const tl = useTranslations('LendingFacilities.panels.status');
+    const ts = useTranslations('Status');
+    const statusLabel = (s: string) => (ts.has(s) ? ts(s) : s.toLowerCase().replace(/_/g, ' '));
 
     const submit = async () => {
         if (!action) return;
-        if (action === 'SUSPEND' && !reason.trim()) { setProblem('Give a reason for suspending the facility.'); return; }
+        if (action === 'SUSPEND' && !reason.trim()) { setProblem(tl('reasonRequired')); return; }
         setProblem('');
         const ok = await confirm({
-            title: 'Change facility status',
-            message: `${action.charAt(0)}${action.slice(1).toLowerCase()} this facility?`,
-            confirmLabel: 'Confirm',
+            title: tl('confirmTitle'),
+            message: tl(`confirmMessage.${action}`),
+            confirmLabel: tl('confirm'),
             variant: action === 'REINSTATE' ? 'default' : 'danger',
         });
         if (!ok) return;
         const res = await run('status', () => api.post<{ status: string }>(`/lending/facilities/${facilityId}/status`, clean({ action, reason: reason.trim() })));
-        if (res) onDone(`Facility is now ${res.data.status.toLowerCase().replace(/_/g, ' ')}`);
+        if (res) onDone(tl('changed', { status: statusLabel(res.data.status) }));
     };
 
     if (moves.length === 0) {
         return (
-            <ActionPanel title="Change status" onClose={onClose}>
-                <p className="text-[13px] text-[#697386]">A {status.toLowerCase().replace(/_/g, ' ')} facility has no status changes available.</p>
+            <ActionPanel title={tl('title')} onClose={onClose}>
+                <p className="text-[13px] text-[#697386]">{tl('noMoves', { status: statusLabel(status) })}</p>
             </ActionPanel>
         );
     }
 
     return (
-        <ActionPanel title="Change status" onClose={onClose}>
+        <ActionPanel title={tl('title')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Action">
-                    <SelectInput value={action} onChange={setAction} options={moves.map((m) => ({ value: m, label: MOVES[m].label }))} />
+                <Field label={tl('action')}>
+                    <SelectInput value={action} onChange={setAction} options={moves.map((m) => ({ value: m, label: tl(`moves.${m}`) }))} />
                 </Field>
-                <Field label={action === 'SUSPEND' ? 'Reason' : 'Reason (optional)'} error={problem || undefined} className="sm:col-span-2">
+                <Field label={action === 'SUSPEND' ? tl('reason') : tl('reasonOptional')} error={problem || undefined} className="sm:col-span-2">
                     <TextArea value={reason} onChange={setReason} maxLength={500} rows={2} />
                 </Field>
             </div>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant={action === 'REINSTATE' ? 'primary' : 'danger'} onClick={submit} busy={busy === 'status'}>Apply</Btn>
+            <Btn variant={action === 'REINSTATE' ? 'primary' : 'danger'} onClick={submit} busy={busy === 'status'}>{tl('apply')}</Btn>
         </ActionPanel>
     );
 }
@@ -179,27 +185,27 @@ export function TermOutPanel({ facilityId, currency, availabilityEnd, maturityDa
 }) {
     const confirm = useConfirm();
     const { busy, error, run, clearError } = useAction();
+    const tl = useTranslations('LendingFacilities.panels.termOut');
 
     const submit = async () => {
         const ok = await confirm({
-            title: 'Term out facility',
-            message: `Convert the balance drawn at ${availabilityEnd} into a term loan amortizing to ${maturityDate}? No further drawdowns will be possible.`,
-            confirmLabel: 'Term out',
+            title: tl('confirmTitle'),
+            message: tl('confirmMessage', { availabilityEnd, maturityDate }),
+            confirmLabel: tl('title'),
             variant: 'danger',
         });
         if (!ok) return;
         const res = await run('termout', () => api.post<TermOutPlan>(`/lending/facilities/${facilityId}/term-out`));
-        if (res) onDone(`Termed out from ${res.data.effectiveDate}: ${currency} ${res.data.principal} over ${res.data.months} month(s)`);
+        if (res) onDone(tl('done', { date: res.data.effectiveDate, currency, principal: res.data.principal, months: res.data.months }));
     };
 
     return (
-        <ActionPanel title="Term out" onClose={onClose}>
+        <ActionPanel title={tl('title')} onClose={onClose}>
             <p className="text-[13px] text-[#3C4257]">
-                Once availability has ended ({availabilityEnd}), the balance drawn at that date amortizes over the whole months remaining to maturity ({maturityDate}).
-                Open drawdown requests must be settled first, and the product must allow term-out on expiry.
+                {tl('body', { availabilityEnd, maturityDate })}
             </p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="danger" onClick={submit} busy={busy === 'termout'}>Term out</Btn>
+            <Btn variant="danger" onClick={submit} busy={busy === 'termout'}>{tl('title')}</Btn>
         </ActionPanel>
     );
 }

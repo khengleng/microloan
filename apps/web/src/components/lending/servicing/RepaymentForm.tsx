@@ -5,12 +5,15 @@ import api from '@/lib/api';
 import { ActionPanel, Btn, ErrorBox, Field, SelectInput, TextInput } from '../ui';
 import { clean, idem, useAction, useIdempotencyKey } from '../useAsync';
 import { FxQuotePreview, PAYMENT_CURRENCIES } from '../channels/FxQuotePreview';
+import { useTranslations } from 'next-intl';
 
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
+const RELATIONSHIPS = ['GUARANTOR', 'FAMILY', 'EMPLOYER', 'GROUP_MEMBER', 'OTHER'];
 
 export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     loanId: string; currency: string; can: (code: string) => { allowed: boolean; reason?: string }; onDone: (msg: string) => void; onClose: () => void;
 }) {
+    const tl = useTranslations('LendingServicing.repayment');
     const [amount, setAmount] = useState('');
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
@@ -27,7 +30,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const allowed = can('loan.repayment.post');
 
     const post = async () => {
-        if (!MONEY_RE.test(amount.trim()) || !/[1-9]/.test(amount)) { setProblem('Enter a positive decimal amount (up to 4 decimals).'); return; }
+        if (!MONEY_RE.test(amount.trim()) || !/[1-9]/.test(amount)) { setProblem(tl('enterAmount')); return; }
         setProblem('');
         const payer = payerName.trim() ? { name: payerName.trim(), relationship: payerRelationship || 'OTHER' } : undefined;
         const body = clean({ amount: amount.trim(), currency: fx ? payCurrency : undefined, valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy, applyExcessAs: excess, payer });
@@ -37,14 +40,14 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
             key.reset();
             setAmount('');
             setExternalReference('');
-            onDone(fx ? `Payment in ${payCurrency} converted and posted` : 'Repayment posted');
+            onDone(fx ? tl('doneFx', { currency: payCurrency }) : tl('done'));
         }
     };
 
     return (
-        <ActionPanel title="Post repayment" onClose={onClose}>
+        <ActionPanel title={tl('title')} onClose={onClose}>
             <div data-tour="repay-amount-fields" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <Field label={`Amount (${payCurrency})`} error={problem || undefined}>
+                <Field label={tl('amount', { currency: payCurrency })} error={problem || undefined}>
                     <div className="flex gap-1">
                         <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
                         <SelectInput
@@ -52,50 +55,50 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
                             onChange={setPayCurrency}
                             options={[currency, ...PAYMENT_CURRENCIES.filter((c) => c !== currency)]}
                             className="!w-24"
-                            aria-label="Currency paid"
+                            aria-label={tl('currencyPaid')}
                         />
                     </div>
                 </Field>
-                <Field label="Value date" hint="Optional — defaults to the business date">
+                <Field label={tl('valueDate')} hint={tl('valueDateHint')}>
                     <TextInput type="date" value={valueDate} onChange={setValueDate} />
                 </Field>
-                <Field label="External reference" hint="Optional">
+                <Field label={tl('externalReference')} hint={tl('optional')}>
                     <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} />
                 </Field>
-                <Field label="Money beyond what is due" hint="Held as an advance for the next instalments, or used to prepay principal">
+                <Field label={tl('excess')} hint={tl('excessHint')}>
                     <SelectInput
                         value={excess}
                         onChange={setExcess}
-                        placeholder="Product default"
-                        options={[{ value: 'ADVANCE', label: 'Hold as advance' }, { value: 'PREPAY', label: 'Prepay principal' }]}
+                        placeholder={tl('productDefault')}
+                        options={[{ value: 'ADVANCE', label: tl('excessOptions.ADVANCE') }, { value: 'PREPAY', label: tl('excessOptions.PREPAY') }]}
                     />
                 </Field>
-                <Field label="Prepayment strategy" hint="When prepaying: how the schedule changes">
+                <Field label={tl('strategy')} hint={tl('strategyHint')}>
                     <SelectInput
                         value={strategy}
                         onChange={setStrategy}
-                        placeholder="Product default"
-                        options={[{ value: 'RECAST', label: 'RECAST — lower instalment' }, { value: 'SHORTEN', label: 'SHORTEN — earlier maturity' }]}
+                        placeholder={tl('productDefault')}
+                        options={[{ value: 'RECAST', label: tl('strategyOptions.RECAST') }, { value: 'SHORTEN', label: tl('strategyOptions.SHORTEN') }]}
                     />
                 </Field>
             </div>
             <div data-tour="repay-payer-fields" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Field label="Paid by (if not the borrower)" hint="Optional — recorded with the payment">
+                <Field label={tl('payerName')} hint={tl('payerNameHint')}>
                     <TextInput value={payerName} onChange={setPayerName} maxLength={120} />
                 </Field>
-                <Field label="Payer's relationship">
+                <Field label={tl('payerRelationship')}>
                     <SelectInput
                         value={payerRelationship}
                         onChange={setPayerRelationship}
                         placeholder="—"
-                        options={['GUARANTOR', 'FAMILY', 'EMPLOYER', 'GROUP_MEMBER', 'OTHER']}
+                        options={RELATIONSHIPS.map((r) => ({ value: r, label: tl(`relationships.${r}`) }))}
                     />
                 </Field>
             </div>
             {fx && <FxQuotePreview loanId={loanId} amount={amount} currency={payCurrency} valueDate={valueDate} loanCurrency={currency} />}
-            <p className="text-[11px] text-[#697386]">Retrying the same payment reuses its idempotency key, so a network retry never posts twice.</p>
+            <p className="text-[11px] text-[#697386]">{tl('idempotencyNote')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn data-tour="repay-post-button" variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>Post repayment</Btn>
+            <Btn data-tour="repay-post-button" variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>{tl('post')}</Btn>
         </ActionPanel>
     );
 }
