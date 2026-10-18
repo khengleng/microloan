@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatusBadge } from '../StatusBadge';
@@ -12,6 +14,7 @@ import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, S
 import { qs, useAction, useApi } from '../useAsync';
 import { fmtDateTime, fmtRate, percentToFraction } from '../format';
 import type { BatchResult, BusinessDate, CalendarHoliday, HolidayCalendar, IntegrationsStatus, RateObservation } from './types';
+import { addDaysIso } from '../useBusinessDate';
 
 type Tab = 'date' | 'rates' | 'calendars' | 'impairment' | 'settings' | 'integrations';
 
@@ -19,13 +22,17 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CODE_RE = /^[A-Z0-9_]{2,20}$/;
 const SIGNED_DEC_RE = /^-?\d+(\.\d+)?$/;
 const ISO_DAYS: { n: number; label: string }[] = [
-    { n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' }, { n: 4, label: 'Thu' },
-    { n: 5, label: 'Fri' }, { n: 6, label: 'Sat' }, { n: 7, label: 'Sun' },
+    { n: 1, label: 'mon' }, { n: 2, label: 'tue' }, { n: 3, label: 'wed' }, { n: 4, label: 'thu' },
+    { n: 5, label: 'fri' }, { n: 6, label: 'sat' }, { n: 7, label: 'sun' },
 ];
+/** The API refuses a step of more than this many days (BusinessDateService.advance). */
+const MAX_ADVANCE_DAYS = 31;
 
 /* ── Business date & end of day ──────────────────────────────────────────── */
 
 function BusinessDateTab() {
+    const t = useTranslations('LendingOps');
+    const { can } = useWorkspace();
     const { showToast } = useToast();
     const confirm = useConfirm();
     const bd = useApi<BusinessDate>('/lending/ops/business-date');
@@ -35,6 +42,14 @@ function BusinessDateTab() {
     const [result, setResult] = useState<BatchResult | null>(null);
     const { busy, error, run, clearError } = useAction();
     const current = bd.data?.businessDate;
+    // The business date only ever moves forward, at most MAX_ADVANCE_DAYS at a time.
+    const minNext = current ? addDaysIso(current, 1) : undefined;
+    const maxNext = current ? addDaysIso(current, MAX_ADVANCE_DAYS) : undefined;
+    const nextErr = next && DATE_RE.test(next) && minNext && maxNext
+        ? (next < minNext ? t('date.notForward', { current: current ?? '' }) : next > maxNext ? t('date.tooFar', { days: MAX_ADVANCE_DAYS }) : undefined)
+        : undefined;
+    const canAdvance = can('business_date.manage');
+    const canBatch = can('servicing.batch.run');
 
     const runBatch = async () => {
         const res = await run('batch', () => api.post<BatchResult>('/lending/loans/batch/run', {}));
@@ -42,35 +57,34 @@ function BusinessDateTab() {
             setResult(res.data);
             setNote(null);
             const failed = Array.isArray(res.data.failed) ? res.data.failed.length : 0;
-            showToast(`End of day for ${res.data.businessDate}: ${res.data.processed} processed${failed ? `, ${failed} failed` : ''}`, failed ? 'error' : 'success');
+            showToast(t('date.batchToast', { date: res.data.businessDate, processed: res.data.processed, failed }), failed ? 'error' : 'success');
         }
     };
 
     const advance = async () => {
-        if (!DATE_RE.test(next)) return;
-        const backwards = !!current && next < current;
+        if (!DATE_RE.test(next) || nextErr) return;
         const ok = await confirm({
-            title: 'Advance business date',
-            message: `Move the business date from ${current ?? '—'} to ${next}?${backwards ? ' This is EARLIER than the current date.' : ''} It drives accrual, value-date checks and delinquency for every loan.${runAfter ? ' The end-of-day batch runs straight after.' : ''}`,
-            confirmLabel: runAfter ? 'Advance & run end of day' : 'Advance date',
+            title: t('date.confirmTitle'),
+            message: `${t('date.confirmBody', { from: current ?? '—', to: next })}${runAfter && canBatch ? ` ${t('date.confirmBatchAfter')}` : ''}`,
+            confirmLabel: runAfter && canBatch ? t('date.advanceAndRun') : t('date.advance'),
             variant: 'warning',
         });
         if (!ok) return;
         const res = await run('date', () => api.post<BusinessDate>('/lending/ops/business-date', { businessDate: next }));
         if (!res) return;
-        showToast(`Business date is now ${res.data.businessDate}`, 'success');
+        showToast(t('date.nowToast', { date: res.data.businessDate }), 'success');
         setNext('');
         setResult(null);
         setNote(res.data.note ?? null);
         bd.reload();
-        if (runAfter) await runBatch();
+        if (runAfter && canBatch) await runBatch();
     };
 
     const confirmBatch = async () => {
         const ok = await confirm({
-            title: 'Run end-of-day batch',
-            message: `Accrue interest, apply due rate resets, assess penalties and recompute delinquency for every active loan in your scope as of ${current ?? 'the business date'}?`,
-            confirmLabel: 'Run batch',
+            title: t('date.batchTitle'),
+            message: t('date.batchBody', { date: current ?? '—' }),
+            confirmLabel: t('date.runBatch'),
         });
         if (ok) await runBatch();
     };
@@ -79,38 +93,43 @@ function BusinessDateTab() {
 
     return (
         <div className="space-y-5">
-            <Card title="Business date" subtitle="The tenant's accounting date. It only moves when someone advances it here.">
+            <Card title={t('date.title')} subtitle={t('date.subtitle')}>
                 <div className="flex flex-wrap items-end gap-5">
                     <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Current business date</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">{t('date.current')}</p>
                         <p className="text-2xl font-bold text-[#1A1F36] tabular-nums">{bd.loading && !bd.data ? '…' : current ?? '—'}</p>
                     </div>
-                    <Field label="Advance to">
-                        <TextInput type="date" value={next} onChange={setNext} className="w-44" />
-                    </Field>
-                    <div className="pb-1.5"><Checkbox checked={runAfter} onChange={setRunAfter} label="Run end of day after advancing" /></div>
-                    <Btn variant="primary" onClick={advance} busy={busy === 'date'} disabled={!DATE_RE.test(next) || !!busy} reason={!next ? 'Pick a date first' : undefined}>Advance date</Btn>
-                    <Btn onClick={confirmBatch} busy={busy === 'batch'} disabled={!!busy}>Run end-of-day batch</Btn>
+                    {canAdvance && (
+                        <>
+                            <Field label={t('date.advanceTo')} error={nextErr} hint={minNext && maxNext ? t('date.window', { from: minNext, to: maxNext }) : undefined}>
+                                <TextInput type="date" value={next} onChange={setNext} min={minNext} max={maxNext} className="w-44" />
+                            </Field>
+                            {canBatch && <div className="pb-1.5"><Checkbox checked={runAfter} onChange={setRunAfter} label={t('date.runAfter')} /></div>}
+                            <Btn variant="primary" onClick={advance} busy={busy === 'date'} disabled={!DATE_RE.test(next) || !!nextErr || !!busy} reason={!next ? t('date.pickFirst') : undefined}>{t('date.advance')}</Btn>
+                        </>
+                    )}
+                    {canBatch && <Btn onClick={confirmBatch} busy={busy === 'batch'} disabled={!!busy}>{t('date.runBatchLong')}</Btn>}
+                    {!canAdvance && !canBatch && <p className="text-[12px] text-[#697386] pb-1.5">{t('date.readOnly')}</p>}
                 </div>
                 <div className="mt-3 space-y-2">
                     <ErrorBox error={bd.error} />
                     <ErrorBox error={error} onDismiss={clearError} />
-                    {note && <Notice tone="warn" title="End of day not run yet">{note}</Notice>}
+                    {note && <Notice tone="warn" title={t('date.notRunYet')}>{t('date.notRunYetBody')}</Notice>}
                 </div>
             </Card>
 
             {result && (
-                <Card title="End-of-day result" subtitle={`Batch for business date ${result.businessDate}`}>
+                <Card title={t('date.resultTitle')} subtitle={t('date.resultSubtitle', { date: result.businessDate })}>
                     <div className="space-y-4">
                         <KV cols={3} items={[
-                            ['Business date', <span key="d" className="tabular-nums">{result.businessDate}</span>],
-                            ['Loans processed', <span key="p" className="tabular-nums font-bold text-emerald-700">{result.processed}</span>],
-                            ['Loans failed', <span key="f" className={`tabular-nums font-bold ${failed.length ? 'text-red-600' : 'text-[#AAB7C4]'}`}>{failed.length}</span>],
+                            [t('date.businessDate'), <span key="d" className="tabular-nums">{result.businessDate}</span>],
+                            [t('date.processed'), <span key="p" className="tabular-nums font-bold text-emerald-700">{result.processed}</span>],
+                            [t('date.failed'), <span key="f" className={`tabular-nums font-bold ${failed.length ? 'text-red-600' : 'text-[#AAB7C4]'}`}>{failed.length}</span>],
                         ]} />
                         {failed.length > 0 ? (
                             <Table>
                                 <thead>
-                                    <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Loan</th><th className={th}>Error</th></tr>
+                                    <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('date.loan')}</th><th className={th}>{t('date.error')}</th></tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
                                     {failed.map((f) => (
@@ -122,7 +141,7 @@ function BusinessDateTab() {
                                 </tbody>
                             </Table>
                         ) : (
-                            <Notice tone="success">Every loan in scope was processed. Each loan runs in its own transaction, so a re-run only catches up what is left.</Notice>
+                            <Notice tone="success">{t('date.allProcessed')}</Notice>
                         )}
                     </div>
                 </Card>
@@ -134,6 +153,7 @@ function BusinessDateTab() {
 /* ── Benchmark rates ─────────────────────────────────────────────────────── */
 
 function AddRateForm({ initialCode, onDone, onClose }: { initialCode: string; onDone: () => void; onClose: () => void }) {
+    const t = useTranslations('LendingOps');
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
     const [benchmarkCode, setCode] = useState(initialCode);
@@ -141,8 +161,8 @@ function AddRateForm({ initialCode, onDone, onClose }: { initialCode: string; on
     const [ratePct, setRatePct] = useState('');
     const [source, setSource] = useState('');
 
-    const codeErr = benchmarkCode && !CODE_RE.test(benchmarkCode) ? 'A–Z, 0–9 and _ (2–20 chars).' : undefined;
-    const rateErr = ratePct && !SIGNED_DEC_RE.test(ratePct.trim()) ? 'A percentage, e.g. 5.25 or -0.1' : undefined;
+    const codeErr = benchmarkCode && !CODE_RE.test(benchmarkCode) ? t('codeRule') : undefined;
+    const rateErr = ratePct && !SIGNED_DEC_RE.test(ratePct.trim()) ? t('rates.rateRule') : undefined;
     const fraction = ratePct && !rateErr ? percentToFraction(ratePct) : '';
     const ok = CODE_RE.test(benchmarkCode) && DATE_RE.test(observationDate) && !!fraction && source.trim().length >= 2;
 
@@ -151,7 +171,7 @@ function AddRateForm({ initialCode, onDone, onClose }: { initialCode: string; on
         const body = { benchmarkCode, observationDate, rate: fraction, source: source.trim() };
         const res = await run('rate', () => api.post('/lending/ops/rates', body));
         if (res) {
-            showToast(`${benchmarkCode} ${fmtRate(fraction)} recorded for ${observationDate}`, 'success');
+            showToast(t('rates.recordedToast', { code: benchmarkCode, rate: fmtRate(fraction), date: observationDate }), 'success');
             setDate('');
             setRatePct('');
             onDone();
@@ -159,29 +179,31 @@ function AddRateForm({ initialCode, onDone, onClose }: { initialCode: string; on
     };
 
     return (
-        <ActionPanel title="Record benchmark observation" onClose={onClose}>
+        <ActionPanel title={t('rates.recordTitle')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Field label="Benchmark code" error={codeErr} hint="e.g. SOFR, KHR_REF_3M">
+                <Field label={t('rates.code')} error={codeErr} hint={t('rates.codeHint')}>
                     <TextInput value={benchmarkCode} onChange={(v) => setCode(v.toUpperCase())} maxLength={20} className="font-mono" />
                 </Field>
-                <Field label="Observation date">
+                <Field label={t('rates.observationDate')}>
                     <TextInput type="date" value={observationDate} onChange={setDate} />
                 </Field>
-                <Field label="Rate (%)" error={rateErr} hint={fraction ? `Sent as ${fraction}` : 'Percent; stored as a fraction'}>
+                <Field label={t('rates.ratePct')} error={rateErr} hint={fraction ? t('rates.sentAs', { value: fraction }) : t('rates.rateHint')}>
                     <TextInput value={ratePct} onChange={setRatePct} inputMode="decimal" />
                 </Field>
-                <Field label="Source" hint="Publisher / reference (2–120 chars)">
+                <Field label={t('rates.source')} hint={t('rates.sourceHint')}>
                     <TextInput value={source} onChange={setSource} maxLength={120} />
                 </Field>
             </div>
-            <p className="text-[11px] text-[#697386]">Observations are history: a date can be recorded once per benchmark and is never edited, so every reset stays auditable.</p>
+            <p className="text-[11px] text-[#697386]">{t('rates.historyNote')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={submit} busy={busy === 'rate'} disabled={!ok}>Record observation</Btn>
+            <Btn variant="primary" onClick={submit} busy={busy === 'rate'} disabled={!ok}>{t('rates.record')}</Btn>
         </ActionPanel>
     );
 }
 
 function RatesTab() {
+    const t = useTranslations('LendingOps');
+    const { can } = useWorkspace();
     const [code, setCode] = useState('');
     const [adding, setAdding] = useState(false);
     const all = useApi<RateObservation[]>('/lending/ops/rates');
@@ -197,29 +219,29 @@ function RatesTab() {
         <div className="space-y-5">
             {adding && <AddRateForm initialCode={code} onClose={() => setAdding(false)} onDone={() => { reload(); all.reload(); }} />}
             <Card
-                title="Benchmark rates"
-                subtitle="Floating-rate loans re-price from the latest observation on or before each reset date. Latest 200 observations shown."
+                title={t('rates.title')}
+                subtitle={t('rates.subtitle')}
                 actions={
                     <>
-                        <div className="w-44"><SelectInput value={code} onChange={setCode} placeholder="All benchmarks" options={codes} /></div>
-                        {!adding && <Btn variant="primary" onClick={() => setAdding(true)}><Plus size={14} /> Add observation</Btn>}
+                        <div className="w-44"><SelectInput value={code} onChange={setCode} placeholder={t('rates.all')} options={codes} /></div>
+                        {!adding && can('rate_observation.manage') && <Btn variant="primary" onClick={() => setAdding(true)}><Plus size={14} /> {t('rates.add')}</Btn>}
                     </>
                 }
                 bodyClass="p-0"
             >
-                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !grouped.length ? <Empty>No benchmark observations recorded.</Empty> : (
+                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !grouped.length ? <Empty>{t('rates.none')}</Empty> : (
                     <div className="divide-y divide-[#E3E8EE]">
                         {grouped.map(([bm, rows]) => (
                             <div key={bm}>
                                 <div className="flex items-center justify-between px-5 py-2.5 bg-[#F7FAFC]">
                                     <p className="font-mono text-[13px] font-bold text-[#1A1F36]">{bm}</p>
-                                    <p className="text-[12px] text-[#697386]">latest <b className="tabular-nums text-[#1A1F36]">{fmtRate(rows[0].rate)}</b> effective {rows[0].observationDate} · {rows.length} observation{rows.length === 1 ? '' : 's'}</p>
+                                    <p className="text-[12px] text-[#697386]">{t.rich('rates.latest', { rate: fmtRate(rows[0].rate), date: rows[0].observationDate, count: rows.length, b: (c) => <b className="tabular-nums text-[#1A1F36]">{c}</b> })}</p>
                                 </div>
                                 <Table>
                                     <thead>
                                         <tr className="border-b border-[#E3E8EE]">
-                                            <th className={th}>Effective date</th><th className={`${th} text-right`}>Rate</th><th className={th}>Fraction</th>
-                                            <th className={th}>Source</th><th className={th}>Recorded</th>
+                                            <th className={th}>{t('rates.effectiveDate')}</th><th className={`${th} text-right`}>{t('rates.rate')}</th><th className={th}>{t('rates.fraction')}</th>
+                                            <th className={th}>{t('rates.source')}</th><th className={th}>{t('rates.recorded')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -246,6 +268,7 @@ function RatesTab() {
 /* ── Holiday calendars ───────────────────────────────────────────────────── */
 
 function CalendarForm({ existing, onDone, onClose }: { existing: HolidayCalendar | null; onDone: () => void; onClose: () => void }) {
+    const t = useTranslations('LendingOps');
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
     const [code, setCode] = useState(existing?.code ?? '');
@@ -255,7 +278,7 @@ function CalendarForm({ existing, onDone, onClose }: { existing: HolidayCalendar
     const [newDate, setNewDate] = useState('');
     const [newName, setNewName] = useState('');
 
-    const codeErr = code && !CODE_RE.test(code) ? 'A–Z, 0–9 and _ (2–20 chars).' : undefined;
+    const codeErr = code && !CODE_RE.test(code) ? t('codeRule') : undefined;
     const removedExisting = existing ? existing.holidays.filter((h) => !holidays.some((x) => x.date === h.date)) : [];
     const dupDate = holidays.some((h) => h.date === newDate);
     const ok = CODE_RE.test(code) && name.trim().length > 0 && holidays.every((h) => DATE_RE.test(h.date) && h.name.trim());
@@ -273,29 +296,29 @@ function CalendarForm({ existing, onDone, onClose }: { existing: HolidayCalendar
         const body = { code, name: name.trim(), weekendDays, holidays: holidays.map((h) => ({ date: h.date, name: h.name.trim().slice(0, 80) })) };
         const res = await run('cal', () => api.post('/lending/ops/calendars', body));
         if (res) {
-            showToast(`Calendar ${code} saved`, 'success');
+            showToast(t('calendars.savedToast', { code }), 'success');
             onDone();
         }
     };
 
     return (
-        <ActionPanel title={existing ? `Update calendar ${existing.code}` : 'New holiday calendar'} onClose={onClose}>
+        <ActionPanel title={existing ? t('calendars.updateTitle', { code: existing.code }) : t('calendars.newTitle')} onClose={onClose}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="Code" error={codeErr} hint={existing ? 'The code identifies the calendar' : 'e.g. KH'}>
+                <Field label={t('calendars.code')} error={codeErr} hint={existing ? t('calendars.codeFixed') : t('calendars.codeHint')}>
                     <TextInput value={code} onChange={(v) => setCode(v.toUpperCase())} maxLength={20} disabled={!!existing} className="font-mono" />
                 </Field>
-                <Field label="Name" className="sm:col-span-2">
+                <Field label={t('calendars.name')} className="sm:col-span-2">
                     <TextInput value={name} onChange={setName} maxLength={80} />
                 </Field>
             </div>
             <div>
-                <p className="text-[12px] font-semibold text-[#3C4257] mb-1">Weekend days</p>
+                <p className="text-[12px] font-semibold text-[#3C4257] mb-1">{t('calendars.weekendDays')}</p>
                 <div className="flex flex-wrap gap-3">
-                    {ISO_DAYS.map((d) => <Checkbox key={d.n} checked={weekendDays.includes(d.n)} onChange={() => toggleDay(d.n)} label={d.label} />)}
+                    {ISO_DAYS.map((d) => <Checkbox key={d.n} checked={weekendDays.includes(d.n)} onChange={() => toggleDay(d.n)} label={t(`days.${d.label}`)} />)}
                 </div>
             </div>
             <div>
-                <p className="text-[12px] font-semibold text-[#3C4257] mb-1">Holidays ({holidays.length})</p>
+                <p className="text-[12px] font-semibold text-[#3C4257] mb-1">{t('calendars.holidaysCount', { count: holidays.length })}</p>
                 {holidays.length > 0 && (
                     <div className="max-h-64 overflow-auto border border-[#E3E8EE] rounded bg-white mb-2">
                         <Table>
@@ -307,7 +330,7 @@ function CalendarForm({ existing, onDone, onClose }: { existing: HolidayCalendar
                                             <TextInput value={h.name} maxLength={80} onChange={(v) => setHolidays((all) => all.map((x, k) => (k === i ? { ...x, name: v } : x)))} />
                                         </td>
                                         <td className={`${td} w-10`}>
-                                            <button type="button" title="Remove" className="text-[#8792A2] hover:text-red-600" onClick={() => setHolidays((all) => all.filter((_, k) => k !== i))}><Trash2 size={14} /></button>
+                                            <button type="button" title={t('calendars.remove')} className="text-[#8792A2] hover:text-red-600" onClick={() => setHolidays((all) => all.filter((_, k) => k !== i))}><Trash2 size={14} /></button>
                                         </td>
                                     </tr>
                                 ))}
@@ -316,26 +339,29 @@ function CalendarForm({ existing, onDone, onClose }: { existing: HolidayCalendar
                     </div>
                 )}
                 <div className="flex flex-wrap items-end gap-2">
-                    <Field label="Date" error={dupDate ? 'Already listed' : undefined}><TextInput type="date" value={newDate} onChange={setNewDate} className="w-44" /></Field>
-                    <Field label="Holiday name" className="flex-1 min-w-48"><TextInput value={newName} onChange={setNewName} maxLength={80} /></Field>
-                    <Btn onClick={addHoliday} disabled={!DATE_RE.test(newDate) || !newName.trim() || dupDate}><Plus size={14} /> Add</Btn>
+                    <Field label={t('calendars.date')} error={dupDate ? t('calendars.alreadyListed') : undefined}><TextInput type="date" value={newDate} onChange={setNewDate} className="w-44" /></Field>
+                    <Field label={t('calendars.holidayName')} className="flex-1 min-w-48"><TextInput value={newName} onChange={setNewName} maxLength={80} /></Field>
+                    <Btn onClick={addHoliday} disabled={!DATE_RE.test(newDate) || !newName.trim() || dupDate}><Plus size={14} /> {t('calendars.add')}</Btn>
                 </div>
             </div>
             {removedExisting.length > 0 && (
-                <Notice tone="warn" title="Removing holidays is not supported by the API">
-                    Saving adds and renames holidays but never deletes them; {removedExisting.map((h) => h.date).join(', ')} will remain on the calendar.
+                <Notice tone="warn" title={t('calendars.noRemoveTitle')}>
+                    {t('calendars.noRemoveBody', { dates: removedExisting.map((h) => h.date).join(', ') })}
                 </Notice>
             )}
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={submit} busy={busy === 'cal'} disabled={!ok}>{existing ? 'Save calendar' : 'Create calendar'}</Btn>
+            <Btn variant="primary" onClick={submit} busy={busy === 'cal'} disabled={!ok}>{existing ? t('calendars.save') : t('calendars.create')}</Btn>
         </ActionPanel>
     );
 }
 
 function CalendarsTab() {
+    const t = useTranslations('LendingOps');
+    const { can } = useWorkspace();
+    const canManage = can('business_date.manage');
     const { data, error, loading, reload } = useApi<HolidayCalendar[]>('/lending/ops/calendars');
     const [editing, setEditing] = useState<HolidayCalendar | 'new' | null>(null);
-    const dayLabel = (n: number) => ISO_DAYS.find((d) => d.n === n)?.label ?? String(n);
+    const dayLabel = (n: number) => { const d = ISO_DAYS.find((x) => x.n === n); return d ? t(`days.${d.label}`) : String(n); };
 
     return (
         <div className="space-y-5">
@@ -348,21 +374,21 @@ function CalendarsTab() {
                 />
             )}
             <Card
-                title="Holiday calendars"
-                subtitle="Non-business days used to roll due dates."
-                actions={!editing && <Btn variant="primary" onClick={() => setEditing('new')}><Plus size={14} /> New calendar</Btn>}
+                title={t('calendars.title')}
+                subtitle={t('calendars.subtitle')}
+                actions={!editing && canManage && <Btn variant="primary" onClick={() => setEditing('new')}><Plus size={14} /> {t('calendars.new')}</Btn>}
                 bodyClass="p-0"
             >
-                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>No holiday calendars defined.</Empty> : (
+                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>{t('calendars.none')}</Empty> : (
                     <div className="divide-y divide-[#E3E8EE]">
                         {data.map((c) => (
                             <div key={c.id} className="px-5 py-3.5 space-y-2">
                                 <div className="flex flex-wrap items-start justify-between gap-2">
                                     <div>
                                         <p className="text-[13px] font-semibold text-[#1A1F36]"><span className="font-mono">{c.code}</span> — {c.name}</p>
-                                        <p className="text-[12px] text-[#697386]">Weekend: {c.weekendDays.length ? c.weekendDays.map(dayLabel).join(', ') : 'none'} · {c.holidays.length} holiday{c.holidays.length === 1 ? '' : 's'}</p>
+                                        <p className="text-[12px] text-[#697386]">{t('calendars.summary', { weekend: c.weekendDays.length ? c.weekendDays.map(dayLabel).join(', ') : t('calendars.noWeekend'), count: c.holidays.length })}</p>
                                     </div>
-                                    <Btn size="sm" onClick={() => setEditing(c)} disabled={!!editing}>Edit</Btn>
+                                    {canManage && <Btn size="sm" onClick={() => setEditing(c)} disabled={!!editing}>{t('calendars.edit')}</Btn>}
                                 </div>
                                 {c.holidays.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5">
@@ -385,16 +411,10 @@ function CalendarsTab() {
 
 /* ── Integrations ────────────────────────────────────────────────────────── */
 
-const ADAPTER_LABELS: Record<string, string> = {
-    payments: 'Payments',
-    kyc: 'KYC / identity',
-    creditBureau: 'Credit bureau',
-    notifications: 'Notifications',
-    externalAccounting: 'External accounting',
-    documents: 'Document storage',
-};
+const ADAPTER_KEYS = ['payments', 'kyc', 'creditBureau', 'notifications', 'externalAccounting', 'documents'];
 
 function IntegrationsTab() {
+    const t = useTranslations('LendingOps');
     const { data, error, loading } = useApi<IntegrationsStatus>('/lending/ops/integrations');
     const rows = Object.entries(data ?? {});
     const mocks = rows.filter(([, a]) => !a.real);
@@ -403,28 +423,28 @@ function IntegrationsTab() {
     return (
         <div className="space-y-4">
             {mocks.length > 0 && (
-                <Notice tone={unusable.length ? 'danger' : 'warn'} title={`${mocks.length} of ${rows.length} adapters are mocks`}>
-                    Mock adapters simulate the external system: no money moves, no identity is checked and no bureau is queried.
-                    {unusable.length > 0 && ' In production mocks are refused, so messages through them stay pending rather than being marked sent.'}
+                <Notice tone={unusable.length ? 'danger' : 'warn'} title={t('integrations.mocksTitle', { mocks: mocks.length, total: rows.length })}>
+                    {t('integrations.mocksBody')}
+                    {unusable.length > 0 && ` ${t('integrations.mocksRefused')}`}
                 </Notice>
             )}
-            <Card title="Integration adapters" subtitle="Which external system each capability is wired to." bodyClass="p-0">
-                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !rows.length ? <Empty>No adapters reported.</Empty> : (
+            <Card title={t('integrations.title')} subtitle={t('integrations.subtitle')} bodyClass="p-0">
+                {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !rows.length ? <Empty>{t('integrations.none')}</Empty> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Capability</th><th className={th}>Adapter</th><th className={th}>Kind</th><th className={th}>Usable here</th>
+                                <th className={th}>{t('integrations.capability')}</th><th className={th}>{t('integrations.adapter')}</th><th className={th}>{t('integrations.kind')}</th><th className={th}>{t('integrations.usable')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {rows.map(([key, a]) => (
                                 <tr key={key} className={a.real ? '' : 'bg-amber-50/40'}>
-                                    <td className={`${td} font-semibold text-[#1A1F36]`}>{ADAPTER_LABELS[key] ?? key}</td>
+                                    <td className={`${td} font-semibold text-[#1A1F36]`}>{ADAPTER_KEYS.includes(key) ? t(`integrations.adapters.${key}`) : key}</td>
                                     <td className={`${td} font-mono text-[12px]`}>{a.name}</td>
                                     <td className={td}>
                                         {a.real
-                                            ? <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide bg-emerald-50 text-emerald-700 border-emerald-200">REAL</span>
-                                            : <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide bg-amber-50 text-amber-800 border-amber-300">MOCK</span>}
+                                            ? <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide bg-emerald-50 text-emerald-700 border-emerald-200">{t('integrations.real')}</span>
+                                            : <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide bg-amber-50 text-amber-800 border-amber-300">{t('integrations.mock')}</span>}
                                     </td>
                                     <td className={td}><StatusBadge status={a.usable ? 'YES' : 'NO'} /></td>
                                 </tr>
@@ -439,6 +459,7 @@ function IntegrationsTab() {
 
 /** Lending operations: business date / end of day, benchmark rates, calendars, impairment, lending settings, integrations. */
 export function OperationsView() {
+    const t = useTranslations('LendingOps');
     const [tab, setTab] = useState<Tab>('date');
     return (
         <div className="space-y-5">
@@ -446,12 +467,12 @@ export function OperationsView() {
                 value={tab}
                 onChange={setTab}
                 tabs={[
-                    { value: 'date', label: 'Business date & end of day' },
-                    { value: 'rates', label: 'Benchmark rates' },
-                    { value: 'calendars', label: 'Holiday calendars' },
-                    { value: 'impairment', label: 'Impairment policy' },
-                    { value: 'settings', label: 'Lending settings' },
-                    { value: 'integrations', label: 'Integrations' },
+                    { value: 'date', label: t('tabs.date') },
+                    { value: 'rates', label: t('tabs.rates') },
+                    { value: 'calendars', label: t('tabs.calendars') },
+                    { value: 'impairment', label: t('tabs.impairment') },
+                    { value: 'settings', label: t('tabs.settings') },
+                    { value: 'integrations', label: t('tabs.integrations') },
                 ]}
             />
             {tab === 'date' && <BusinessDateTab />}

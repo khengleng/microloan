@@ -1,3 +1,5 @@
+import { useTranslations } from 'next-intl';
+
 const GREEN = 'bg-emerald-50 text-emerald-700 border-emerald-200';
 const BLUE = 'bg-[#F0F5FF] text-[#4B45C6] border-[#C9D7FF]';
 const AMBER = 'bg-amber-50 text-amber-800 border-amber-200';
@@ -27,11 +29,14 @@ const MAP: Record<string, string> = {
 };
 
 export function StatusBadge({ status, className = '' }: { status: string | null | undefined; className?: string }) {
+    const t = useTranslations('Status');
     if (!status) return <span className="text-[#AAB7C4]">—</span>;
     const cls = MAP[status] ?? GREY;
+    // Translated label when the status is known; otherwise the code made readable.
+    const label = t.has(status) ? t(status) : status.replace(/_/g, ' ');
     return (
         <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide whitespace-nowrap ${cls} ${className}`}>
-            {status.replace(/_/g, ' ')}
+            {label}
         </span>
     );
 }
