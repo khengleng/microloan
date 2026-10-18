@@ -145,7 +145,7 @@ export const NAV: NavSection[] = [
             { key: 'auditTrail', href: '/lending/audit', icon: ScrollText, lending: ['audit.read'] },
             { key: 'legacyAudit', href: '/audit', icon: Shield, legacy: ['AUDIT_VIEW'], legacyRoles: LEGACY_ADMIN },
             {
-                key: 'access', href: '/lending/access', icon: KeyRound, lending: ['access_policy.read', 'policy.simulate', 'feature_flag.read'],
+                key: 'access', href: '/lending/access', icon: KeyRound, lending: ['access_policy.read'],
                 queues: ['ACCESS_TO_APPROVE', 'FLAGS_TO_APPROVE'],
             },
         ],
