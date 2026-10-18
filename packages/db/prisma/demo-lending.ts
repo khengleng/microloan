@@ -15,7 +15,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { lending } from '../../shared/src/index';
 
 const prisma = new PrismaClient();
@@ -27,6 +27,15 @@ if (process.env.NODE_ENV === 'production' && process.env.DEMO_SEED_ALLOW !== 'tr
 
 const PASSWORD = process.env.DEMO_PASSWORD || 'Demo#Lending2026';
 const TENANT = 'Demo Lending Co';
+/** A fresh authenticator secret: 20 random bytes, base32 (RFC 4648), as authenticator apps expect. */
+function newTotpSecret(): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const b of randomBytes(20)) bits += b.toString(2).padStart(8, '0');
+  let out = '';
+  for (let i = 0; i < bits.length; i += 5) out += alphabet[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
+  return out;
+}
 
 const USERS: { key: string; role: string; legacyRole: string; branch: 'HQ' | 'PNH' | 'REP' | null; scope: 'ALL' | 'BRANCH' }[] = [
   { key: 'admin', role: 'TENANT_ADMIN', legacyRole: 'TENANT_ADMIN', branch: null, scope: 'ALL' },
@@ -104,6 +113,40 @@ async function main() {
   for (const [key, permission, currency, max] of AUTHORITIES) {
     const exists = await prisma.approvalAuthority.findFirst({ where: { tenantId: t, userId: users[key], permission, currency, status: 'ACTIVE' } });
     if (!exists) await prisma.approvalAuthority.create({ data: { tenantId: t, userId: users[key], permission, currency, maxAmount: max, status: 'ACTIVE', requestedBy: 'demo-seed', approvedBy: 'demo-seed' } });
+  }
+
+  // Four all-round test accounts. Each holds every staff role across all
+  // branches, high approval authorities, and an authenticator already set up,
+  // so one tester can walk every scenario by switching accounts: the platform
+  // never lets the same person create, recommend and approve the same thing
+  // (an application needs three people; a large one a fourth).
+  const { ACTIONS } = await import('../../../apps/api/src/lending/policy/actions');
+  const { encryptField, decryptField } = await import('../../../apps/api/src/common/field-crypto');
+  const qaSecrets: Record<string, string> = {};
+  const authorityPermissions = [...new Set((ACTIONS as { approvalAuthority?: boolean; permission: string }[]).filter((x) => x.approvalAuthority).map((x) => x.permission))];
+  for (const key of ['qa.maker', 'qa.checker', 'qa.approver', 'qa.approver2']) {
+    const email = `${key}@demo-lending.test`;
+    const user =
+      (await prisma.user.findUnique({ where: { email } })) ??
+      (await prisma.user.create({ data: { email, tenantId: t, role: 'TENANT_ADMIN' as never, branchId: null, passwordHash: hash } }));
+    // Each environment gets its own random secret on first run; later runs keep it.
+    const secret = (user.twoFactorSecret && decryptField(user.twoFactorSecret)) || newTotpSecret();
+    qaSecrets[key] = secret;
+    await prisma.user.update({ where: { id: user.id }, data: { branchId: null, twoFactorSecret: encryptField(secret), twoFactorEnabled: true } });
+    users[key] = user.id;
+    for (const def of ROLE_DEFINITIONS) {
+      if (def.code === 'TENANT_ADMIN' || def.code === 'INTEGRATION_SERVICE') continue;
+      const exists = await prisma.roleAssignment.findFirst({ where: { tenantId: t, userId: user.id, roleId: roleIds[def.code], status: 'ACTIVE' } });
+      if (!exists)
+        await prisma.roleAssignment.create({
+          data: { tenantId: t, userId: user.id, roleId: roleIds[def.code], allBranches: true, branchIds: [], status: 'ACTIVE', requestedBy: 'demo-seed', approvedBy: 'demo-seed', reason: 'All-round QA account' },
+        });
+    }
+    for (const permission of authorityPermissions)
+      for (const [currency, max] of [['USD', '1000000000'], ['KHR', '4000000000000']] as const) {
+        const exists = await prisma.approvalAuthority.findFirst({ where: { tenantId: t, userId: user.id, permission, currency, status: 'ACTIVE' } });
+        if (!exists) await prisma.approvalAuthority.create({ data: { tenantId: t, userId: user.id, permission, currency, maxAmount: max, status: 'ACTIVE', requestedBy: 'demo-seed', approvedBy: 'demo-seed' } });
+      }
   }
 
   const cal = await prisma.holidayCalendar.upsert({ where: { tenantId_code: { tenantId: t, code: 'KH' } }, create: { tenantId: t, code: 'KH', name: 'Cambodia', weekendDays: [6, 7] }, update: {} });
@@ -233,6 +276,9 @@ async function main() {
 
   console.log(`Demo tenant "${TENANT}" ready. Users (password ${process.env.DEMO_PASSWORD ? '$DEMO_PASSWORD' : PASSWORD}):`);
   for (const u of USERS) console.log(`  ${u.key}@demo-lending.test  →  ${u.role}${u.scope === 'BRANCH' ? ` (branch ${u.branch})` : ''}`);
+  console.log('\nAll-round QA accounts (every staff role, all branches, high limits, MFA already on):');
+  for (const [key, secret] of Object.entries(qaSecrets))
+    console.log(`  ${key}@demo-lending.test  →  authenticator secret ${secret}  (otpauth://totp/MagicMoney:${key}%40demo-lending.test?secret=${secret}&issuer=MagicMoney)`);
   console.log('Approvals and executions require MFA: enrol TOTP for approver, approver2, ops.checker and committee in Settings first.');
 }
 
