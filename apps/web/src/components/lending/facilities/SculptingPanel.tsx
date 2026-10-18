@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ActionPanel, Btn, ErrorBox, Field, KV, Notice, TextInput } from '../ui';
@@ -37,6 +38,7 @@ export function SculptingPanel({ facilityId, currency, availabilityEnd, maturity
     facilityId: string; currency: string; availabilityEnd: string; maturityDate: string; canTermOut: boolean;
     onDone: (msg: string) => void; onClose: () => void;
 }) {
+    const t = useTranslations('LendingFacilities.sculpting');
     const confirm = useConfirm();
     const [rows, setRows] = useState<{ dueDate: string; cfads: string }[]>([]);
     const [gen, setGen] = useState({ every: '6', count: '4', amount: '' });
@@ -49,15 +51,15 @@ export function SculptingPanel({ facilityId, currency, availabilityEnd, maturity
     const generate = () => {
         const every = Number(gen.every);
         const count = Number(gen.count);
-        if (!Number.isInteger(every) || every < 1 || !Number.isInteger(count) || count < 1 || count > 120) { setProblem('Give whole numbers of months and periods.'); return; }
-        if (gen.amount && !MONEY_RE.test(gen.amount)) { setProblem('CFADS is a decimal amount.'); return; }
+        if (!Number.isInteger(every) || every < 1 || !Number.isInteger(count) || count < 1 || count > 120) { setProblem(t('problems.wholeNumbers')); return; }
+        if (gen.amount && !MONEY_RE.test(gen.amount)) { setProblem(t('problems.cfadsDecimal')); return; }
         setProblem('');
         setRows(Array.from({ length: count }, (_, i) => ({ dueDate: addMonths(availabilityEnd, every * (i + 1)), cfads: gen.amount })));
         setResult(null);
     };
     const body = () => {
-        if (!rows.length || rows.some((r) => !DATE_RE.test(r.dueDate) || !MONEY_RE.test(r.cfads))) { setProblem('Every period needs a date and a CFADS amount.'); return null; }
-        if (balloon && !MONEY_RE.test(balloon)) { setProblem('The balloon is a decimal amount.'); return null; }
+        if (!rows.length || rows.some((r) => !DATE_RE.test(r.dueDate) || !MONEY_RE.test(r.cfads))) { setProblem(t('problems.periodIncomplete')); return null; }
+        if (balloon && !MONEY_RE.test(balloon)) { setProblem(t('problems.balloonDecimal')); return null; }
         setProblem('');
         return clean({ cfads: rows, balloonAmount: balloon });
     };
@@ -71,27 +73,27 @@ export function SculptingPanel({ facilityId, currency, availabilityEnd, maturity
         const b = body();
         if (!b || !result) return;
         const ok = await confirm({
-            title: 'Term out on the sculpted profile',
-            message: `Convert the drawn balance into ${rows.length} sculpted instalments at a ${result.sculptedDscr}× cover ratio, ending ${rows[rows.length - 1].dueDate}? No further drawdowns will be possible.`,
-            confirmLabel: 'Term out',
+            title: t('confirm.title'),
+            message: t('confirm.message', { count: rows.length, ratio: result.sculptedDscr, end: rows[rows.length - 1].dueDate }),
+            confirmLabel: t('confirm.confirm'),
             variant: 'danger',
         });
         if (!ok) return;
         const r = await run('termout', () => api.post<{ principal: string; months: number }>(`/lending/facilities/${facilityId}/term-out`, b));
-        if (r) onDone(`Termed out: ${currency} ${fmtMoney(r.data.principal)} over ${r.data.months} sculpted instalments`);
+        if (r) onDone(t('toast.termedOut', { currency, amount: fmtMoney(r.data.principal), count: r.data.months }));
     };
-    const total = rows.reduce((t, r) => (MONEY_RE.test(r.cfads) ? addDecimal(t, r.cfads) : t), '0');
+    const total = rows.reduce((acc, r) => (MONEY_RE.test(r.cfads) ? addDecimal(acc, r.cfads) : acc), '0');
 
     return (
-        <ActionPanel title="Sculpted term-out" onClose={onClose}>
+        <ActionPanel title={t('title')} onClose={onClose}>
             <p className="text-[13px] text-[#3C4257]">
-                Principal is sized so projected cash flow available for debt service (CFADS) covers each period&apos;s debt service by the same ratio, at least the product&apos;s target, and the loan closes to zero by the last date (no later than maturity, {maturityDate}).
+                {t('intro', { maturity: maturityDate })}
             </p>
             <div className="flex flex-wrap items-end gap-2">
-                <Field label="Every (months)"><TextInput value={gen.every} onChange={(v) => setGen({ ...gen, every: v })} inputMode="numeric" className="w-20" /></Field>
-                <Field label="Periods"><TextInput value={gen.count} onChange={(v) => setGen({ ...gen, count: v })} inputMode="numeric" className="w-20" /></Field>
-                <Field label={`CFADS each (${currency})`} hint="Edit each period below"><TextInput value={gen.amount} onChange={(v) => setGen({ ...gen, amount: v })} inputMode="decimal" className="w-36" /></Field>
-                <Btn onClick={generate}>Lay out periods from {availabilityEnd}</Btn>
+                <Field label={t('fields.every')}><TextInput value={gen.every} onChange={(v) => setGen({ ...gen, every: v })} inputMode="numeric" className="w-20" /></Field>
+                <Field label={t('fields.periods')}><TextInput value={gen.count} onChange={(v) => setGen({ ...gen, count: v })} inputMode="numeric" className="w-20" /></Field>
+                <Field label={t('fields.cfadsEach', { currency })} hint={t('fields.cfadsEachHint')}><TextInput value={gen.amount} onChange={(v) => setGen({ ...gen, amount: v })} inputMode="decimal" className="w-36" /></Field>
+                <Btn onClick={generate}>{t('actions.layOut', { date: availabilityEnd })}</Btn>
             </div>
             {rows.length > 0 && (
                 <div className="space-y-1">
@@ -100,34 +102,34 @@ export function SculptingPanel({ facilityId, currency, availabilityEnd, maturity
                             <span className="w-6 text-[12px] text-[#697386]">{i + 1}</span>
                             <TextInput type="date" value={r.dueDate} onChange={(v) => { const next = [...rows]; next[i] = { ...r, dueDate: v }; setRows(next); setResult(null); }} className="w-44" />
                             <TextInput value={r.cfads} onChange={(v) => { const next = [...rows]; next[i] = { ...r, cfads: v }; setRows(next); setResult(null); }} inputMode="decimal" placeholder="CFADS" className="w-40" />
-                            <Btn size="sm" variant="ghost" onClick={() => { setRows(rows.filter((_, k) => k !== i)); setResult(null); }}>Remove</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { setRows(rows.filter((_, k) => k !== i)); setResult(null); }}>{t('actions.remove')}</Btn>
                         </div>
                     ))}
-                    <p className="text-[12px] text-[#697386]">Total projected CFADS {currency} {fmtMoney(total)}</p>
+                    <p className="text-[12px] text-[#697386]">{t('totalCfads', { currency, amount: fmtMoney(total) })}</p>
                 </div>
             )}
             <div className="flex flex-wrap items-end gap-2">
-                <Field label="Balloon (optional)" hint="Left to the last date"><TextInput value={balloon} onChange={(v) => { setBalloon(v); setResult(null); }} inputMode="decimal" className="w-36" /></Field>
-                <Field label="Size a principal (optional)" hint="Preview only; default the balance drawn"><TextInput value={principal} onChange={setPrincipal} inputMode="decimal" className="w-40" /></Field>
+                <Field label={t('fields.balloon')} hint={t('fields.balloonHint')}><TextInput value={balloon} onChange={(v) => { setBalloon(v); setResult(null); }} inputMode="decimal" className="w-36" /></Field>
+                <Field label={t('fields.principal')} hint={t('fields.principalHint')}><TextInput value={principal} onChange={setPrincipal} inputMode="decimal" className="w-40" /></Field>
             </div>
             {problem && <p className="text-[12px] text-red-600">{problem}</p>}
             {result && (
                 <div className="space-y-2">
                     <KV cols={4} items={[
-                        ['Cover ratio achieved', `${Number(result.sculptedDscr).toFixed(2)}× (target ${result.targetDscr}×)`],
-                        ['Lowest period DSCR', result.minDscr ? `${Number(result.minDscr).toFixed(2)}×` : '—'],
-                        ['Most the projection supports', <Money key="m" value={result.maxDebt} currency={currency} />],
-                        ['Starts', result.startDate],
+                        [t('result.coverRatio'), t('result.coverRatioValue', { ratio: Number(result.sculptedDscr).toFixed(2), target: result.targetDscr })],
+                        [t('result.lowestDscr'), result.minDscr ? `${Number(result.minDscr).toFixed(2)}×` : '—'],
+                        [t('result.maxDebt'), <Money key="m" value={result.maxDebt} currency={currency} />],
+                        [t('result.starts'), result.startDate],
                     ]} />
                     {result.explanation.map((e, i) => <p key={i} className="text-[12px] text-[#697386]">{e}</p>)}
                     <SculptedTable lines={result.lines} currency={currency} />
                 </div>
             )}
-            {!canTermOut && <Notice tone="warn">The facility can term out once availability has ended and it is stated to that date.</Notice>}
+            {!canTermOut && <Notice tone="warn">{t('cannotTermOut')}</Notice>}
             <ErrorBox error={error} onDismiss={clearError} />
             <div className="flex gap-2">
-                <Btn onClick={preview} busy={busy === 'preview'}>Preview profile</Btn>
-                <Btn variant="danger" onClick={termOut} busy={busy === 'termout'} disabled={!result || !canTermOut} reason={!result ? 'Preview first' : undefined}>Term out on this profile</Btn>
+                <Btn onClick={preview} busy={busy === 'preview'}>{t('actions.preview')}</Btn>
+                <Btn variant="danger" onClick={termOut} busy={busy === 'termout'} disabled={!result || !canTermOut} reason={!result ? t('actions.previewFirst') : undefined}>{t('actions.termOut')}</Btn>
             </div>
         </ActionPanel>
     );

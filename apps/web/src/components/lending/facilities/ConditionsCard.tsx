@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, Table, TextArea, td, th } from '../ui';
+import { Person } from '../People';
 import { useAction } from '../useAsync';
 import { fmtDateTime } from '../format';
 import { StatusBadge } from '../StatusBadge';
@@ -10,7 +12,7 @@ import type { FacilityCondition, FacilityTranche } from './types';
 
 type Pending = { kind: 'satisfy' | 'waive'; condition: FacilityCondition };
 
-const who = (id: string | null | undefined) => (id ? <span className="font-mono text-[11px]" title={id}>{id.slice(0, 8)}</span> : null);
+const who = (id: string | null | undefined) => (id ? <Person id={id} className="text-[12px]" /> : null);
 
 /**
  * Conditions precedent gating staged tranches. Satisfying one is backed by
@@ -19,6 +21,7 @@ const who = (id: string | null | undefined) => (id ? <span className="font-mono 
 export function ConditionsCard({ facilityId, conditions, tranches, releasedTranches, onDone }: {
     facilityId: string; conditions: FacilityCondition[]; tranches: FacilityTranche[]; releasedTranches: string[]; onDone: (msg: string) => void;
 }) {
+    const t = useTranslations('LendingFacilities.conditions');
     const { busy, error, run, clearError } = useAction();
     const [pending, setPending] = useState<Pending | null>(null);
     const [text, setText] = useState('');
@@ -31,45 +34,45 @@ export function ConditionsCard({ facilityId, conditions, tranches, releasedTranc
         if (!pending) return;
         const c = pending.condition;
         const value = text.trim();
-        if (!value) { setProblem(pending.kind === 'satisfy' ? 'Describe the evidence that satisfies this condition.' : 'Give a reason for waiving this condition.'); return; }
+        if (!value) { setProblem(pending.kind === 'satisfy' ? t('problems.evidence') : t('problems.reason')); return; }
         setProblem('');
         const body = pending.kind === 'satisfy' ? { evidence: value } : { reason: value };
         const res = await run(`${pending.kind}-${c.id}`, () => api.post(`/lending/facilities/${facilityId}/conditions/${c.id}/${pending.kind}`, body));
         if (res) {
             close();
-            onDone(pending.kind === 'satisfy' ? `Condition ${c.code} satisfied` : `Condition ${c.code} waived`);
+            onDone(pending.kind === 'satisfy' ? t('toast.satisfied', { code: c.code }) : t('toast.waived', { code: c.code }));
         }
     };
 
     const trancheCodes = Array.from(new Set([...tranches.map((t) => t.code), ...conditions.map((c) => c.trancheCode)]));
 
     return (
-        <Card title="Conditions precedent" subtitle="Each tranche can be released only once its conditions are satisfied or waived." bodyClass="p-0">
+        <Card title={t('title')} subtitle={t('subtitle')} bodyClass="p-0">
             {pending && (
                 <div className="p-4 border-b border-[#E3E8EE]">
-                    <ActionPanel title={`${pending.kind === 'satisfy' ? 'Satisfy' : 'Waive'} ${pending.condition.code} — ${pending.condition.label}`} onClose={close}>
+                    <ActionPanel title={t(pending.kind === 'satisfy' ? 'panel.satisfyTitle' : 'panel.waiveTitle', { code: pending.condition.code, label: pending.condition.label })} onClose={close}>
                         {pending.kind === 'waive' && (
-                            <p className="text-[12px] text-amber-800">Waiving is a credit concession: it is recorded against your name with the reason, and may require step-up (MFA) sign-in.</p>
+                            <p className="text-[12px] text-amber-800">{t('panel.waiveNotice')}</p>
                         )}
-                        <Field label={pending.kind === 'satisfy' ? 'Evidence' : 'Waiver reason'} hint={pending.kind === 'satisfy' ? 'e.g. document reference, inspection report number' : undefined} error={problem || undefined}>
+                        <Field label={pending.kind === 'satisfy' ? t('fields.evidence') : t('fields.waiverReason')} hint={pending.kind === 'satisfy' ? t('fields.evidenceHint') : undefined} error={problem || undefined}>
                             <TextArea value={text} onChange={setText} maxLength={500} rows={2} />
                         </Field>
                         <ErrorBox error={error} onDismiss={clearError} />
                         <Btn variant={pending.kind === 'satisfy' ? 'primary' : 'danger'} onClick={submit} busy={busy === `${pending.kind}-${pending.condition.id}`}>
-                            {pending.kind === 'satisfy' ? 'Mark satisfied' : 'Waive condition'}
+                            {pending.kind === 'satisfy' ? t('actions.markSatisfied') : t('actions.waiveCondition')}
                         </Btn>
                     </ActionPanel>
                 </div>
             )}
-            {conditions.length === 0 ? <Empty>No conditions precedent on this facility.</Empty> : (
+            {conditions.length === 0 ? <Empty>{t('empty')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>Tranche</th>
-                            <th className={th}>Condition</th>
-                            <th className={th}>Status</th>
-                            <th className={th}>Evidence / reason</th>
-                            <th className={th}>By</th>
+                            <th className={th}>{t('columns.tranche')}</th>
+                            <th className={th}>{t('columns.condition')}</th>
+                            <th className={th}>{t('columns.status')}</th>
+                            <th className={th}>{t('columns.evidence')}</th>
+                            <th className={th}>{t('columns.by')}</th>
                             <th className={th}></th>
                         </tr>
                     </thead>
@@ -78,7 +81,7 @@ export function ConditionsCard({ facilityId, conditions, tranches, releasedTranc
                             <tr key={c.id}>
                                 <td className={`${td} whitespace-nowrap`}>
                                     <span className="font-mono text-[12px]">{c.trancheCode}</span>
-                                    {releasedTranches.includes(c.trancheCode) && <span className="ml-1.5 text-[10px] font-bold uppercase text-emerald-700">released</span>}
+                                    {releasedTranches.includes(c.trancheCode) && <span className="ml-1.5 text-[10px] font-bold uppercase text-emerald-700">{t('released')}</span>}
                                 </td>
                                 <td className={td}>
                                     <div className="font-semibold text-[#1A1F36]">{c.label}</div>
@@ -94,8 +97,8 @@ export function ConditionsCard({ facilityId, conditions, tranches, releasedTranc
                                 <td className={`${td} whitespace-nowrap`}>
                                     {c.status === 'PENDING' && (
                                         <div className="flex justify-end gap-1.5">
-                                            <Btn size="sm" variant="primary" onClick={() => open({ kind: 'satisfy', condition: c })}>Satisfy…</Btn>
-                                            <Btn size="sm" variant="danger" onClick={() => open({ kind: 'waive', condition: c })}>Waive…</Btn>
+                                            <Btn size="sm" variant="primary" onClick={() => open({ kind: 'satisfy', condition: c })}>{t('actions.satisfy')}</Btn>
+                                            <Btn size="sm" variant="danger" onClick={() => open({ kind: 'waive', condition: c })}>{t('actions.waive')}</Btn>
                                         </div>
                                     )}
                                 </td>

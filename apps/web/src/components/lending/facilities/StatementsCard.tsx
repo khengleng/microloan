@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, Empty, Table, td, tdR, th, thR } from '../ui';
 import { fmtDateTime } from '../format';
 import { MoneyCell } from '../MoneyCell';
@@ -8,24 +9,25 @@ import type { FacilityStatementRow } from './types';
 
 /** Period statements, newest first (the API returns the latest 24). */
 export function StatementsCard({ statements, currency, actions }: { statements: FacilityStatementRow[]; currency: string; actions?: ReactNode }) {
+    const t = useTranslations('LendingFacilities.statements');
     return (
-        <Card title="Statements" subtitle="Append-only: a correction is a later statement, never an edit. Period end is exclusive." actions={actions} bodyClass="p-0">
-            {statements.length === 0 ? <Empty>No statements generated yet.</Empty> : (
+        <Card title={t('title')} subtitle={t('subtitle')} actions={actions} bodyClass="p-0">
+            {statements.length === 0 ? <Empty>{t('empty')}</Empty> : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
                             <th className={th}>#</th>
-                            <th className={th}>Period</th>
-                            <th className={thR}>Opening</th>
-                            <th className={thR}>Drawdowns</th>
-                            <th className={thR}>Repayments</th>
-                            <th className={thR}>Interest</th>
-                            <th className={thR}>Over-limit int.</th>
-                            <th className={thR}>Commitment fee</th>
-                            <th className={thR}>Closing</th>
-                            <th className={thR}>Charges</th>
-                            <th className={th}>Minimum due</th>
-                            <th className={th}>Generated</th>
+                            <th className={th}>{t('columns.period')}</th>
+                            <th className={thR}>{t('columns.opening')}</th>
+                            <th className={thR}>{t('columns.drawdowns')}</th>
+                            <th className={thR}>{t('columns.repayments')}</th>
+                            <th className={thR}>{t('columns.interest')}</th>
+                            <th className={thR}>{t('columns.overlimitInterest')}</th>
+                            <th className={thR}>{t('columns.commitmentFee')}</th>
+                            <th className={thR}>{t('columns.closing')}</th>
+                            <th className={thR}>{t('columns.charges')}</th>
+                            <th className={th}>{t('columns.minimumDue')}</th>
+                            <th className={th}>{t('columns.generated')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -42,7 +44,7 @@ export function StatementsCard({ statements, currency, actions }: { statements: 
                                 <td className={tdR}><MoneyCell value={s.closingBalance} strong /></td>
                                 <td className={tdR}><MoneyCell value={s.chargesRaised} strong /></td>
                                 <td className={`${td} whitespace-nowrap`}>
-                                    {s.minimumPayment ? <><MoneyCell value={s.minimumPayment} /> <span className="text-[11px] text-[#697386]">by {s.minimumPaymentDue ?? '—'}</span></> : '—'}
+                                    {s.minimumPayment ? <><MoneyCell value={s.minimumPayment} /> <span className="text-[11px] text-[#697386]">{t('dueBy', { date: s.minimumPaymentDue ?? '—' })}</span></> : '—'}
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
                                     <span className="text-[12px]">{fmtDateTime(s.createdAt)}</span>
