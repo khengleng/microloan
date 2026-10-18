@@ -130,7 +130,7 @@ function AuthorityForm({ data, reload }: TabProps) {
                 </div>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Holder, permission, currency and amount are required' : undefined} onClick={submit}>Request authority</Btn>
+                    <Btn data-tour="access-authority-request" variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Holder, permission, currency and amount are required' : undefined} onClick={submit}>Request authority</Btn>
                 </div>
             </div>
         </Card>

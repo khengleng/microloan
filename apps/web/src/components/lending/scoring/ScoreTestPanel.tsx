@@ -64,7 +64,7 @@ export function ScoreTestPanel({ list, draft }: { list: ScorecardList; draft: { 
             <Card title="Test score" subtitle="Nothing is recorded. Leave a value blank to test the missing-value outcome.">
                 <div className="space-y-4">
                     <Field label="Scorecard">
-                        <SelectInput value={source} onChange={(v) => { setSource(v); setResult(null); }} options={options} placeholder="Choose…" />
+                        <SelectInput data-tour="scorecards-test-source" value={source} onChange={(v) => { setSource(v); setResult(null); }} options={options} placeholder="Choose…" />
                     </Field>
                     {kind === 'version' && detail.loading && <Spinner />}
                     {definition && used.length === 0 && <Empty>This scorecard has no characteristics.</Empty>}
@@ -89,7 +89,7 @@ export function ScoreTestPanel({ list, draft }: { list: ScorecardList; draft: { 
                         })}
                     </div>
                     <ErrorBox error={withIssuePaths(error)} />
-                    <Btn variant="primary" onClick={test} busy={busy === 'test'} disabled={!source}><FlaskConical size={14} /> Score</Btn>
+                    <Btn data-tour="scorecards-test-run" variant="primary" onClick={test} busy={busy === 'test'} disabled={!source}><FlaskConical size={14} /> Score</Btn>
                 </div>
             </Card>
             <Card title="Result">

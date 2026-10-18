@@ -34,7 +34,7 @@ export function ShellChips() {
     }
     const mfa = access.assurance.current === 'MFA';
     return (
-        <div className="hidden md:flex flex-wrap items-center gap-1.5">
+        <div data-tour="status-chips" className="hidden md:flex flex-wrap items-center gap-1.5">
             {access.businessDate && (
                 <span className={`${chip} border-border bg-white text-muted-foreground`} title={t('businessDateTitle')}>
                     {t('businessDate', { date: access.businessDate })}

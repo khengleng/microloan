@@ -27,7 +27,7 @@ export function NoticesCard() {
             actions={<Btn variant="ghost" onClick={r.reload}>Refresh</Btn>}
             bodyClass="p-0"
         >
-            <div className="flex flex-wrap items-end gap-2 p-4 border-b border-[#E3E8EE]">
+            <div data-tour="coll-notices" className="flex flex-wrap items-end gap-2 p-4 border-b border-[#E3E8EE]">
                 <Field label="Notice">
                     <SelectInput value={kind} onChange={setKind} options={[{ value: 'DUE_SOON', label: 'Falling due (reminder)' }, { value: 'OVERDUE', label: 'Overdue' }]} />
                 </Field>

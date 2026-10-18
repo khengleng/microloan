@@ -141,7 +141,7 @@ function DelegationForm({ data, reload }: TabProps) {
                 </Field>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Fill user, window, permissions and reason' : undefined} onClick={submit}>Request delegation</Btn>
+                    <Btn data-tour="access-delegation-request" variant="primary" busy={busy === 'create'} disabled={!valid} reason={!valid ? 'Fill user, window, permissions and reason' : undefined} onClick={submit}>Request delegation</Btn>
                 </div>
             </div>
         </Card>

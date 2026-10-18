@@ -40,7 +40,7 @@ export function EventsTable({ events, currency, onReverse, reverseAllowed }: {
                         <Fragment key={e.id}>
                             <tr className={e.status === 'REVERSED' ? 'bg-red-50/40' : ''}>
                                 <td className={td}>
-                                    <button type="button" onClick={() => toggle(e.id)} className="text-[#697386] hover:text-[#1A1F36]" aria-label="Toggle details">
+                                    <button data-tour="loan-event-expand" type="button" onClick={() => toggle(e.id)} className="text-[#697386] hover:text-[#1A1F36]" aria-label="Toggle details">
                                         {open[e.id] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </button>
                                 </td>

@@ -22,19 +22,19 @@ const EMPTY = { resourceType: '', resourceId: '', action: '', outcome: '' };
 
 function AuditDetail({ r }: { r: AuditRecord }) {
     return (
-        <div className="space-y-3">
+        <div data-tour="audit-event-detail" className="space-y-3">
             {r.decision?.checks && r.decision.checks.length > 0 && (
-                <div>
+                <div data-tour="audit-event-decision">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Policy decision</p>
                     <DecisionExplain checks={r.decision.checks} />
                 </div>
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div>
+                <div data-tour="audit-event-details">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Details</p>
                     <JsonBlock value={r.details} />
                 </div>
-                <div>
+                <div data-tour="audit-event-config">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Configuration versions in force</p>
                     <JsonBlock value={r.configVersions} />
                 </div>
@@ -56,12 +56,12 @@ export default function LendingAuditPage() {
         <LendingShell title="Audit explorer" subtitle="Every lending action and policy decision, with the configuration versions in force at the time.">
             <Card>
                 <form className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(filters); setPage(1); }}>
-                    <Field label="Resource type"><SelectInput value={filters.resourceType} onChange={set('resourceType')} options={RESOURCE_TYPES} placeholder="Any" /></Field>
-                    <Field label="Resource id"><TextInput value={filters.resourceId} onChange={(v) => set('resourceId')(v.trim())} placeholder="uuid" /></Field>
-                    <Field label="Action contains"><TextInput value={filters.action} onChange={set('action')} placeholder="e.g. loan.repayment" /></Field>
-                    <Field label="Outcome"><SelectInput value={filters.outcome} onChange={set('outcome')} options={OUTCOMES} placeholder="Any" /></Field>
+                    <Field label="Resource type"><SelectInput data-tour="audit-filter-resource-type" value={filters.resourceType} onChange={set('resourceType')} options={RESOURCE_TYPES} placeholder="Any" /></Field>
+                    <Field label="Resource id"><TextInput data-tour="audit-filter-resource-id" value={filters.resourceId} onChange={(v) => set('resourceId')(v.trim())} placeholder="uuid" /></Field>
+                    <Field label="Action contains"><TextInput data-tour="audit-filter-action" value={filters.action} onChange={set('action')} placeholder="e.g. loan.repayment" /></Field>
+                    <Field label="Outcome"><SelectInput data-tour="audit-filter-outcome" value={filters.outcome} onChange={set('outcome')} options={OUTCOMES} placeholder="Any" /></Field>
                     <div className="flex gap-2">
-                        <Btn variant="primary" type="submit">Search</Btn>
+                        <Btn data-tour="audit-search" variant="primary" type="submit">Search</Btn>
                         <Btn onClick={() => { setFilters(EMPTY); setApplied(EMPTY); setPage(1); }}>Reset</Btn>
                         <Btn variant="ghost" onClick={reload}>↻</Btn>
                     </div>
@@ -84,7 +84,7 @@ export default function LendingAuditPage() {
                                     const denied = r.outcome === 'DENY' || r.outcome === 'FAILURE';
                                     return (
                                         <Fragment key={r.id}>
-                                            <tr className={`cursor-pointer ${denied ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-[#F7FAFC]'}`} onClick={() => setOpen((o) => ({ ...o, [r.id]: !o[r.id] }))}>
+                                            <tr data-tour="audit-event-row" className={`cursor-pointer ${denied ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-[#F7FAFC]'}`} onClick={() => setOpen((o) => ({ ...o, [r.id]: !o[r.id] }))}>
                                                 <td className={td}>{isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
                                                 <td className={`${td} whitespace-nowrap text-[12px]`}>{fmtDateTime(r.eventTime)}</td>
                                                 <td className={`${td} font-mono text-[12px]`}>{r.action}</td>

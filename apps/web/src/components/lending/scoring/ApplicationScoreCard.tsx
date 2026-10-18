@@ -16,7 +16,7 @@ const RESCORABLE = ['DRAFT', 'SUBMITTED', 'RECOMMENDED'];
 
 function Header({ e }: { e: ScoreEvaluation }) {
     return (
-        <div className="flex flex-wrap items-end gap-6">
+        <div data-tour="app-score-header" className="flex flex-wrap items-end gap-6">
             <div>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Score</p>
                 <p className="text-[28px] font-bold text-[#1A1F36] tabular-nums leading-tight">{e.score}</p>
@@ -61,7 +61,7 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
     };
 
     const actions = canRun && RESCORABLE.includes(status)
-        ? <Btn size="sm" busy={busy === 'rerun'} onClick={rerun}><RefreshCw size={13} /> Re-run score</Btn>
+        ? <Btn data-tour="app-score-rerun" size="sm" busy={busy === 'rerun'} onClick={rerun}><RefreshCw size={13} /> Re-run score</Btn>
         : undefined;
 
     if (scores.loading && !scores.data) return <Card title="Credit score"><Spinner /></Card>;
@@ -73,7 +73,7 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
 
     return (
         <Card title="Credit score" subtitle="A recommendation only — the credit decision still goes through the normal approvals." actions={actions}>
-            <div className="space-y-5">
+            <div data-tour="app-score-card" className="space-y-5">
                 <ErrorBox error={error} onDismiss={clearError} />
                 {!e ? <Empty>This application has not been scored yet.</Empty> : (
                     <>
@@ -105,12 +105,12 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                         )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-                            <div className="lg:col-span-3">
+                            <div data-tour="app-score-factors" className="lg:col-span-3">
                                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Factors</p>
                                 <FactorBars items={e.result.characteristics} />
                             </div>
                             <div className="lg:col-span-2 space-y-4">
-                                <div>
+                                <div data-tour="app-score-adverse">
                                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Adverse reasons</p>
                                     <AdverseReasons items={e.result.adverseReasons} />
                                 </div>
@@ -146,7 +146,7 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                 )}
 
                 {d.challenger && (
-                    <div className="border border-dashed border-[#C9D7FF] rounded-md p-4 bg-[#FBFCFE] space-y-3">
+                    <div data-tour="app-score-challenger" className="border border-dashed border-[#C9D7FF] rounded-md p-4 bg-[#FBFCFE] space-y-3">
                         <p className="text-[12px] font-bold text-[#4B45C6]">Challenger — shadow, does not affect the decision</p>
                         <Header e={d.challenger} />
                         <Disclosure summary="Challenger factors"><FactorBars items={d.challenger.result.characteristics} /></Disclosure>

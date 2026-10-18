@@ -78,7 +78,7 @@ export function HomeView() {
             {!work ? <Spinner /> : queues.length === 0 ? (
                 <section className="bg-white border border-[#E3E8EE] rounded-lg"><Empty>{t('noQueues')}</Empty></section>
             ) : (
-                <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(230px,1fr))]">
+                <div data-tour="home-queues" className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(230px,1fr))]">
                     {queues.map((q) => <QueueTile key={q.code} q={q} title={title(q)} href={href(q.href)} />)}
                 </div>
             )}

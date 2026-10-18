@@ -35,7 +35,7 @@ export function ApplicationsList() {
         <LendingShell
             title="Applications"
             subtitle="Origination pipeline: draft → submitted → recommended → approved → booked."
-            actions={<Btn variant="primary" onClick={() => setCreating(true)} disabled={creating}>New application</Btn>}
+            actions={<Btn data-tour="app-new-button" variant="primary" onClick={() => setCreating(true)} disabled={creating}>New application</Btn>}
         >
             {creating && (
                 <NewApplicationForm
@@ -50,6 +50,7 @@ export function ApplicationsList() {
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
                         <SelectInput
+                            data-tour="app-status-filter"
                             value={status}
                             onChange={(v) => { setStatus(v); setPage(1); }}
                             options={APPLICATION_STATUSES}
@@ -87,7 +88,7 @@ export function ApplicationsList() {
                             {rows.map((a) => (
                                 <tr key={a.id} className="hover:bg-[#F7FAFC]">
                                     <td className={td}>
-                                        <Link href={href(`/lending/applications/${a.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{a.reference}</Link>
+                                        <Link data-tour="app-list-reference" href={href(`/lending/applications/${a.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{a.reference}</Link>
                                     </td>
                                     <td className={td}>{fullName(a.borrower)}</td>
                                     <td className={td}><StatusBadge status={a.status} /></td>

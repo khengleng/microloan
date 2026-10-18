@@ -23,7 +23,7 @@ export function RolesTab({ data, reload }: TabProps) {
             >
                 {roles.length === 0 ? <Empty>No roles defined.</Empty> : (
                     <div className="overflow-auto max-h-[70vh]">
-                        <table className="min-w-full border-collapse">
+                        <table data-tour="access-role-matrix" className="min-w-full border-collapse">
                             <thead className="sticky top-0 bg-white z-10">
                                 <tr className="border-b border-[#E3E8EE]">
                                     <th className={`${th} sticky left-0 bg-white`}>Permission</th>

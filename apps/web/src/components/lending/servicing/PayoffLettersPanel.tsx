@@ -80,7 +80,7 @@ export function PayoffLettersPanel({ loanId, can, onDone, onClose }: {
 
     return (
         <ActionPanel title="Payoff letters" onClose={onClose}>
-            <div className="flex flex-wrap items-end gap-2">
+            <div data-tour="payoff-letter-form" className="flex flex-wrap items-end gap-2">
                 <Field label="For">
                     <SelectInput value={form.purpose} onChange={(v) => setForm({ ...form, purpose: v })} options={[{ value: 'BORROWER', label: 'The borrower' }, { value: 'TAKEOVER', label: 'Another lender (takeover)' }]} />
                 </Field>
@@ -105,9 +105,9 @@ export function PayoffLettersPanel({ loanId, can, onDone, onClose }: {
                                 <td className={td}>{q.issuedOn} → {q.expiresOn} · from {q.currency} {q.goodThrough[0]?.payable}, +{q.perDiem}/day</td>
                                 <td className={td}><StatusBadge status={q.status} /></td>
                                 <td className={`${td} space-x-2 whitespace-nowrap`}>
-                                    <Btn size="sm" variant="ghost" onClick={() => view(q)} busy={busy === `view-${q.id}`}>View</Btn>
+                                    <Btn data-tour="payoff-letter-view" size="sm" variant="ghost" onClick={() => view(q)} busy={busy === `view-${q.id}`}>View</Btn>
                                     {q.status === 'ISSUED' && (
-                                        <Btn size="sm" onClick={() => settle(q)} busy={busy === `settle-${q.id}` || busy === `quote-${q.id}`} disabled={!issueAllowed.allowed} reason={issueAllowed.reason}>Settle</Btn>
+                                        <Btn data-tour="payoff-settle-letter" size="sm" onClick={() => settle(q)} busy={busy === `settle-${q.id}` || busy === `quote-${q.id}`} disabled={!issueAllowed.allowed} reason={issueAllowed.reason}>Settle</Btn>
                                     )}
                                 </td>
                             </tr>

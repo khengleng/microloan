@@ -104,7 +104,7 @@ function Checklist({ checks }: { checks: Check[] }) {
 
 function Stepper({ steps }: { steps: { label: string; done: boolean; active: boolean; sub?: string }[] }) {
     return (
-        <ol className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-0">
+        <ol data-tour="close-stepper" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-0">
             {steps.map((s, i) => (
                 <li key={s.label} className="flex flex-1 items-start gap-2 sm:flex-col sm:items-center sm:text-center">
                     <div className="flex items-center sm:w-full">
@@ -286,12 +286,12 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
                     </div>
                 )}
 
-                <section className="space-y-2">
+                <section data-tour="close-checks" className="space-y-2">
                     <h3 className="text-[13px] font-bold text-[#1A1F36]">Close checks</h3>
                     <Checklist checks={d.checks} />
                 </section>
 
-                <section className="space-y-2">
+                <section data-tour="close-snapshot" className="space-y-2">
                     <h3 className="text-[13px] font-bold text-[#1A1F36]">Month-end snapshot</h3>
                     <SnapshotPanel s={d.snapshot} preview={d.snapshotIsPreview} />
                 </section>
@@ -304,7 +304,7 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
                     )}
                     <div className="flex flex-wrap gap-2">
                         {d.status === 'OPEN' && (
-                            <Btn variant="primary" onClick={prepare} busy={busy === 'prepare'}
+                            <Btn data-tour="close-prepare" variant="primary" onClick={prepare} busy={busy === 'prepare'}
                                 disabled={!d.permissions.prepare.allowed || fails > 0}
                                 reason={!d.permissions.prepare.allowed ? d.permissions.prepare.reason : fails ? 'Fix the failing checks first' : undefined}>
                                 <CalendarCheck2 size={14} /> Prepare close
@@ -312,7 +312,7 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
                         )}
                         {d.status === 'PENDING' && (
                             <>
-                                <Btn variant="primary" onClick={() => decide(true)} busy={busy === 'decide'} disabled={!d.permissions.approve.allowed} reason={d.permissions.approve.reason || undefined}>
+                                <Btn data-tour="close-approve" variant="primary" onClick={() => decide(true)} busy={busy === 'decide'} disabled={!d.permissions.approve.allowed} reason={d.permissions.approve.reason || undefined}>
                                     <Lock size={14} /> Approve and lock
                                 </Btn>
                                 <Btn variant="danger" onClick={() => decide(false)} disabled={!d.permissions.approve.allowed || busy === 'decide'} reason={d.permissions.approve.reason || undefined}>Send back</Btn>
@@ -497,7 +497,7 @@ export function PeriodCloseView() {
                             <span className="min-w-[4rem] text-center text-[18px] font-bold text-[#1A1F36]">{data.year}</span>
                             <Btn size="sm" variant="ghost" onClick={() => { setYear(data.year + 1); setSelected(null); }} aria-label="Next year"><ChevronRight size={16} /></Btn>
                         </div>
-                        <div className="flex flex-wrap gap-2 text-[12px]">
+                        <div data-tour="close-status" className="flex flex-wrap gap-2 text-[12px]">
                             <span className="rounded-full border border-[#E3E8EE] bg-white px-2.5 py-1 text-[#3C4257]">Business date <b>{data.businessDate}</b></span>
                             <span className={`rounded-full border px-2.5 py-1 ${data.lastEndOfDayFailures ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#E3E8EE] bg-white text-[#3C4257]'}`}>
                                 Last end of day <b>{data.lastEndOfDay ?? 'not yet'}</b>{data.lastEndOfDayFailures ? ` · ${data.lastEndOfDayFailures} failed` : ''}
@@ -507,7 +507,7 @@ export function PeriodCloseView() {
                     </div>
 
                     {next && (
-                        <button type="button" onClick={() => setSelected(next.month)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#C9D7FF] bg-[#F0F5FF] px-4 py-3 text-left hover:bg-[#E6EEFF]">
+                        <button data-tour="close-next-step" type="button" onClick={() => setSelected(next.month)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#C9D7FF] bg-[#F0F5FF] px-4 py-3 text-left hover:bg-[#E6EEFF]">
                             <span className="flex items-center gap-2 text-[13px] font-semibold text-[#4B45C6]"><Clock3 size={16} /> Next step: {next.text}</span>
                             <ArrowRight size={16} className="text-[#4B45C6]" />
                         </button>
@@ -522,7 +522,7 @@ export function PeriodCloseView() {
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                    <div data-tour="close-months" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                         {data.months.map((m) => {
                             const t = TILE[m.status];
                             const Icon = t.icon;

@@ -44,7 +44,7 @@ export function LoansList() {
                 bodyClass="p-0"
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
-                        <SelectInput value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={LOAN_STATUSES} placeholder="All statuses" className="w-40" />
+                        <SelectInput data-tour="loan-list-status-filter" value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={LOAN_STATUSES} placeholder="All statuses" className="w-40" />
                         <TextInput
                             value={search}
                             onChange={setSearch}
@@ -81,7 +81,7 @@ export function LoansList() {
                                 <tr key={l.id} className="hover:bg-[#F7FAFC]">
                                     <td className={td}>
                                         <div className="flex items-center gap-1.5">
-                                            <Link href={href(`/lending/loans/${l.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{l.reference}</Link>
+                                            <Link data-tour="loan-list-row-link" href={href(`/lending/loans/${l.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{l.reference}</Link>
                                             {l.isRestructured && <RestructuredBadge />}
                                         </div>
                                     </td>

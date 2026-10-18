@@ -116,6 +116,7 @@ export default function BorrowersPage() {
                         {t('creditCheck')}
                     </button>
                     <button
+                        data-tour="borrower-new-button"
                         onClick={() => { setSelectedBorrower(null); setIsModalOpen(true); }}
                         className="btn-primary"
                     >
@@ -129,6 +130,7 @@ export default function BorrowersPage() {
                 <div className="relative flex-1">
                     <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <input
+                        data-tour="borrower-search"
                         type="text"
                         placeholder={t('searchPlaceholder')}
                         value={searchQuery}
@@ -175,7 +177,7 @@ export default function BorrowersPage() {
                                 </tr>
                             ) : (
                                 borrowers.map(borrower => (
-                                    <tr key={borrower.id} className="hover:bg-muted/20 transition-colors group">
+                                    <tr key={borrower.id} data-tour="borrower-row" className="hover:bg-muted/20 transition-colors group">
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">

@@ -243,14 +243,14 @@ export function DecisionForm({ appId, mode, onDone, onClose }: { appId: string; 
         <ActionPanel title={title} onClose={onClose}>
             {mode === 'recommend' && (
                 <Field label="Recommendation">
-                    <SelectInput value={recommendation} onChange={(v) => setRecommendation(v as 'APPROVE' | 'REJECT')} options={['APPROVE', 'REJECT']} />
+                    <SelectInput data-tour="app-decision-recommendation" value={recommendation} onChange={(v) => setRecommendation(v as 'APPROVE' | 'REJECT')} options={['APPROVE', 'REJECT']} />
                 </Field>
             )}
             <Field label="Rationale" error={problem || undefined}>
-                <TextArea value={rationale} onChange={setRationale} rows={3} maxLength={2000} />
+                <TextArea data-tour="app-decision-rationale" value={rationale} onChange={setRationale} rows={3} maxLength={2000} />
             </Field>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant={mode === 'reject' ? 'danger' : 'primary'} onClick={save} busy={busy === mode}>{title}</Btn>
+            <Btn data-tour="app-decision-submit" variant={mode === 'reject' ? 'danger' : 'primary'} onClick={save} busy={busy === mode}>{title}</Btn>
         </ActionPanel>
     );
 }

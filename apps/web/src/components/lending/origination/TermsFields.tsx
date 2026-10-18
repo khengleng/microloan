@@ -68,7 +68,7 @@ export function termsFromDraft(d: TermsDraft, base?: Partial<Terms> | null): Ter
 export function TermsFields({ value, onChange, currency }: { value: TermsDraft; onChange: (v: TermsDraft) => void; currency?: string }) {
     const set = (k: keyof TermsDraft) => (v: string) => onChange({ ...value, [k]: v });
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div data-tour="app-terms" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Field label={`Principal${currency ? ` (${currency})` : ''}`}>
                 <TextInput value={value.principal} onChange={set('principal')} inputMode="decimal" placeholder="10000.00" />
             </Field>

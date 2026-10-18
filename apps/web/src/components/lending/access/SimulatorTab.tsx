@@ -63,7 +63,7 @@ export function SimulatorTab({ data }: TabProps) {
                     </div>
                     <ErrorBox error={error} onDismiss={clearError} />
                     <div className="flex justify-end">
-                        <Btn variant="primary" busy={busy === 'sim'} disabled={!valid} reason={!valid ? 'Select a user and action' : undefined} onClick={simulate}><FlaskConical size={13} /> Simulate</Btn>
+                        <Btn data-tour="access-simulator-run" variant="primary" busy={busy === 'sim'} disabled={!valid} reason={!valid ? 'Select a user and action' : undefined} onClick={simulate}><FlaskConical size={13} /> Simulate</Btn>
                     </div>
                 </div>
             </Card>

@@ -95,7 +95,7 @@ function ScorecardsTab({ list, reload, onTest }: { list: ScorecardList; reload: 
                                             <td className={td}>{active ? versionLabel(active.version) : list.templateInForce.includes(s.code) ? 'template' : '—'}</td>
                                             <td className={td}>{latest ? <span className="flex items-center gap-1.5">{versionLabel(latest.version)} <StatusBadge status={latest.status} /></span> : '—'}</td>
                                             <td className={`${td} text-right`}>
-                                                <Btn size="sm" variant={openId === s.id ? 'primary' : 'secondary'} onClick={() => setOpenId(openId === s.id ? null : s.id)}>{openId === s.id ? 'Close' : 'Open'}</Btn>
+                                                <Btn data-tour="scorecards-open" size="sm" variant={openId === s.id ? 'primary' : 'secondary'} onClick={() => setOpenId(openId === s.id ? null : s.id)}>{openId === s.id ? 'Close' : 'Open'}</Btn>
                                             </td>
                                         </tr>
                                         {openId === s.id && (
@@ -230,7 +230,7 @@ function ScorecardDetail({ id, list, onChanged, onTest }: { id: string; list: Sc
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[12px] text-[#697386]">Created {fmtDateTime(s.createdAt)} by <span className="font-mono">{shortId(s.createdBy)}</span>{s.templateCode ? ` · from template ${s.templateCode}` : ''}</p>
                 {can('scorecard.manage') && (
-                    <Btn size="sm" onClick={() => setNewSummary(newSummary === null ? '' : null)} disabled={hasDraft} reason={hasDraft ? 'Finish the open draft or submission first' : undefined}><Plus size={13} /> New version</Btn>
+                    <Btn data-tour="scorecards-new-version" size="sm" onClick={() => setNewSummary(newSummary === null ? '' : null)} disabled={hasDraft} reason={hasDraft ? 'Finish the open draft or submission first' : undefined}><Plus size={13} /> New version</Btn>
                 )}
             </div>
             {newSummary !== null && (
@@ -246,7 +246,7 @@ function ScorecardDetail({ id, list, onChanged, onTest }: { id: string; list: Sc
                     {versions.map((v) => {
                         const own = !!me && v.makerId === me;
                         return (
-                            <tr key={v.id} className={current?.id === v.id ? 'bg-[#F8F9FF]' : ''}>
+                            <tr data-tour="scorecards-version-row" key={v.id} className={current?.id === v.id ? 'bg-[#F8F9FF]' : ''}>
                                 <td className={td}><button type="button" className="font-semibold text-[#635BFF] hover:underline" onClick={() => setSelected(v.id)}>{versionLabel(v.version)}</button></td>
                                 <td className={td}><StatusBadge status={v.status} />{v.rejectionReason && <div className="text-[11px] text-red-700 mt-0.5">{v.rejectionReason}</div>}</td>
                                 <td className={td}>{v.changeSummary || '—'}</td>
@@ -256,16 +256,16 @@ function ScorecardDetail({ id, list, onChanged, onTest }: { id: string; list: Sc
                                 <td className={`${td} text-right whitespace-nowrap`}>
                                     <div className="flex justify-end gap-1.5">
                                         {v.status === 'DRAFT' && can('scorecard.manage') && (
-                                            <Btn size="sm" variant="primary" disabled={!own && !!me} reason={!own && me ? 'Only the maker of this draft can submit it' : undefined} busy={busy === `submit-${v.id}`} onClick={() => step(v, 'submit')}>Submit</Btn>
+                                            <Btn data-tour="scorecards-submit" size="sm" variant="primary" disabled={!own && !!me} reason={!own && me ? 'Only the maker of this draft can submit it' : undefined} busy={busy === `submit-${v.id}`} onClick={() => step(v, 'submit')}>Submit</Btn>
                                         )}
                                         {v.status === 'SUBMITTED' && can('scorecard.approve') && (
                                             <>
-                                                <Btn size="sm" variant="primary" disabled={own} reason={own ? 'You made this version; a different user must approve it.' : undefined} busy={busy === `approve-${v.id}`} onClick={() => step(v, 'approve')}>Approve</Btn>
+                                                <Btn data-tour="scorecards-approve" size="sm" variant="primary" disabled={own} reason={own ? 'You made this version; a different user must approve it.' : undefined} busy={busy === `approve-${v.id}`} onClick={() => step(v, 'approve')}>Approve</Btn>
                                                 <Btn size="sm" variant="danger" disabled={own} reason={own ? 'You made this version.' : undefined} onClick={() => setReject({ versionId: v.id, reason: '' })}>Reject</Btn>
                                             </>
                                         )}
                                         {v.status === 'APPROVED' && (can('scorecard.approve') || can('scorecard.manage')) && (
-                                            <Btn size="sm" variant="primary" busy={busy === `activate-${v.id}`} onClick={() => step(v, 'activate')}>Activate</Btn>
+                                            <Btn data-tour="scorecards-activate" size="sm" variant="primary" busy={busy === `activate-${v.id}`} onClick={() => step(v, 'activate')}>Activate</Btn>
                                         )}
                                         {v.status === 'ACTIVE' && (can('scorecard.approve') || can('scorecard.manage')) && (
                                             <Btn size="sm" variant="danger" busy={busy === `retire-${v.id}`} onClick={() => step(v, 'retire')}>Retire</Btn>
@@ -320,8 +320,8 @@ function VersionPanel({ scorecard, version, list, editable, onSaved, onTest }: {
             title={`${scorecard.code} ${versionLabel(version.version)}`}
             subtitle={editable ? 'Draft — you can edit it. The server validates the whole definition when you save.' : `Read-only (${version.status.toLowerCase()}). Create a new version to change it.`}
             actions={<>
-                <Btn size="sm" variant="ghost" onClick={() => onTest({ label, definition: normaliseDefinition(def) })}><FlaskConical size={13} /> Test this definition</Btn>
-                {editable && <Btn size="sm" variant="primary" busy={busy === 'save'} disabled={!dirty} onClick={save}><Save size={13} /> Save draft</Btn>}
+                <Btn data-tour="scorecards-test-definition" size="sm" variant="ghost" onClick={() => onTest({ label, definition: normaliseDefinition(def) })}><FlaskConical size={13} /> Test this definition</Btn>
+                {editable && <Btn data-tour="scorecards-save-draft" size="sm" variant="primary" busy={busy === 'save'} disabled={!dirty} onClick={save}><Save size={13} /> Save draft</Btn>}
             </>}
         >
             <div className="space-y-4">

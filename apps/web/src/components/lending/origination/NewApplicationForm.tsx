@@ -63,6 +63,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                     <Field label="Find borrower" hint="Search the borrower register, then pick one below">
                         <div className="flex gap-2">
                             <TextInput
+                                data-tour="app-find-borrower"
                                 value={search}
                                 onChange={setSearch}
                                 placeholder="Name, phone, ID…"
@@ -73,6 +74,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                     </Field>
                     <Field label="Borrower" error={borrowers.error ? `Could not load borrowers: ${borrowers.error.message}` : undefined}>
                         <SelectInput
+                            data-tour="app-borrower-select"
                             value={borrowerOptions.some((o) => o.value === borrowerId) ? borrowerId : ''}
                             onChange={setBorrowerId}
                             options={borrowerOptions}
@@ -90,6 +92,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                         error={products.error ? `Could not load products: ${products.error.message}` : undefined}
                     >
                         <SelectInput
+                            data-tour="app-product-select"
                             value={productId}
                             onChange={setProductId}
                             options={activeProducts.map((p) => ({
@@ -115,7 +118,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
             )}
             <ErrorBox error={error} onDismiss={clearError} />
             <div className="flex gap-2">
-                <Btn variant="primary" onClick={submit} busy={busy === 'create'}>Create draft application</Btn>
+                <Btn data-tour="app-create-draft" variant="primary" onClick={submit} busy={busy === 'create'}>Create draft application</Btn>
                 <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
             </div>
         </ActionPanel>

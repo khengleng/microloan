@@ -107,7 +107,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     return (
         <ActionPanel title={<span className="flex items-center gap-2">Disbursement <HelpLink chapter="06-disbursement" anchor="step-1--prepare-the-disbursement" /></span>} onClose={onClose}>
             {pending.length === 0 && approved.length === 0 && (
-                <div className="flex flex-wrap items-end gap-2">
+                <div data-tour="disb-prepare" className="flex flex-wrap items-end gap-2">
                     <Field label="Value date" hint="Optional — defaults to the business date">
                         <TextInput type="date" value={valueDate} onChange={setValueDate} className="w-44" />
                     </Field>
@@ -116,7 +116,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
             )}
 
             {pending.map((t) => (
-                <div key={t.id} className="flex flex-wrap items-center gap-2 text-[13px]">
+                <div data-tour="disb-pending-task" key={t.id} className="flex flex-wrap items-center gap-2 text-[13px]">
                     <StatusBadge status={t.status} />
                     <span>Disbursement task {t.amount && <Money value={t.amount} currency={t.currency ?? currency} />}</span>
                     <span className="font-mono text-[11px] text-[#8792A2]">maker {t.makerId.slice(0, 8)}</span>
@@ -126,7 +126,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
             ))}
 
             {account?.status === 'BOOKED' && (
-                <div className="rounded-md border border-[#E3E8EE] p-3 space-y-2">
+                <div data-tour="disb-down-payment" className="rounded-md border border-[#E3E8EE] p-3 space-y-2">
                     <div className="text-[13px] font-medium text-[#1A1F36]">Down payment</div>
                     <div className="text-[12px] text-[#697386]">
                         Received <Money value={account.downPaymentReceived ?? '0'} currency={currency} /> · held by us <Money value={account.downPaymentHeld ?? '0'} currency={currency} />.
@@ -144,7 +144,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
             )}
 
             {approved.length > 0 && (
-                <div className="space-y-2">
+                <div data-tour="disb-payees" className="space-y-2">
                     <div className="text-[13px] font-medium text-[#1A1F36]">Pay to</div>
                     <div className="text-[12px] text-[#697386]">
                         Leave empty to pay the borrower. Split the payout between a seller, dealer, school or previous lender, or consolidate the borrower&apos;s other loans with us — amounts must add up to the payout.
@@ -169,7 +169,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
             )}
 
             {approved.length > 0 && (
-                <div className="flex flex-wrap items-end gap-2">
+                <div data-tour="disb-execute" className="flex flex-wrap items-end gap-2">
                     <Field label="External reference" hint="Payment rail / bank transfer reference" error={problem || undefined}>
                         <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} className="w-64" />
                     </Field>

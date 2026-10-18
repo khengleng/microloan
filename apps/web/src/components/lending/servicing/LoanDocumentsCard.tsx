@@ -36,11 +36,11 @@ export function LoanDocumentsCard({ loanId, closed }: { loanId: string; closed: 
 
     return (
         <Card title="Statements and letters" subtitle="Generated from the books on request; nothing is posted.">
-            <div className="flex flex-wrap items-end gap-2">
+            <div data-tour="payoff-statements-letters" className="flex flex-wrap items-end gap-2">
                 <Field label="From" hint="Blank: from disbursement"><TextInput type="date" value={from} onChange={setFrom} className="w-44" /></Field>
                 <Field label="To" hint="Blank: business date"><TextInput type="date" value={to} onChange={setTo} className="w-44" /></Field>
                 <Btn onClick={statement} busy={busy === 'statement'}>Statement</Btn>
-                {closed && <Btn onClick={closure} busy={busy === 'closure'}>Closure letter</Btn>}
+                {closed && <Btn data-tour="payoff-closure-letter" onClick={closure} busy={busy === 'closure'}>Closure letter</Btn>}
             </div>
             {doc && (
                 <div className="mt-3 rounded-md border border-[#E3E8EE] bg-[#F7FAFC] p-3">

@@ -67,7 +67,7 @@ export function AssignmentsTab({ data, reload }: TabProps) {
                                             <div className="flex gap-1.5 justify-end">
                                                 {a.status === 'PENDING' && (
                                                     <>
-                                                        <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy} reason={own ? 'You requested this — a second admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
+                                                        <Btn data-tour="access-assignment-approve" size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy} reason={own ? 'You requested this — a second admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
                                                         <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? 'You requested this — a second admin must decide' : undefined} onClick={() => decide(a, false)}>Reject</Btn>
                                                     </>
                                                 )}
@@ -139,7 +139,7 @@ function RequestAssignmentForm({ data, reload }: TabProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label="User"><SelectInput value={userId} onChange={setUserId} options={userOptions(data.users)} placeholder="Select user…" /></Field>
                     <Field label="Role" hint={role?.sensitive ? 'Sensitive role — grants financial or administrative powers.' : undefined}>
-                        <SelectInput value={roleId} onChange={setRoleId} options={data.roles.map((r) => ({ value: r.id, label: `${r.code} — ${r.name}${r.sensitive ? ' (sensitive)' : ''}` }))} placeholder="Select role…" />
+                        <SelectInput data-tour="access-assignment-role" value={roleId} onChange={setRoleId} options={data.roles.map((r) => ({ value: r.id, label: `${r.code} — ${r.name}${r.sensitive ? ' (sensitive)' : ''}` }))} placeholder="Select role…" />
                     </Field>
                     <div className="md:col-span-2"><Checkbox checked={allBranches} onChange={setAllBranches} label="All branches" /></div>
                     <Field label="Branch IDs (comma-separated UUIDs)" error={b.invalid.length ? `Not UUIDs: ${b.invalid.join(', ')}` : undefined} hint="Leave empty for the user's own branch.">
@@ -153,7 +153,7 @@ function RequestAssignmentForm({ data, reload }: TabProps) {
                 </div>
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'request'} disabled={!valid} reason={!valid ? 'Select a user and role; IDs must be valid UUIDs' : undefined} onClick={submit}>Request assignment</Btn>
+                    <Btn data-tour="access-assignment-request" variant="primary" busy={busy === 'request'} disabled={!valid} reason={!valid ? 'Select a user and role; IDs must be valid UUIDs' : undefined} onClick={submit}>Request assignment</Btn>
                 </div>
             </div>
         </Card>

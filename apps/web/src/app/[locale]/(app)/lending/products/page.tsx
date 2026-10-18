@@ -23,14 +23,14 @@ export default function LendingProductsPage() {
         <LendingShell
             title="Lending products"
             subtitle="Versioned product configurations. Changes go through draft → submit → approve → activate (maker-checker)."
-            actions={!creating && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> New product</Btn>}
+            actions={!creating && <Btn data-tour="product-new" variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> New product</Btn>}
         >
             {creating && <NewProductWizard onClose={() => setCreating(false)} />}
 
             {loading && !data ? <Spinner /> : error ? <ErrorBox error={error} /> : (data ?? []).length === 0 ? (
                 <Card><Empty>No lending products yet. Create one from an available template.</Empty></Card>
             ) : (
-                <div className="space-y-4">
+                <div data-tour="product-list" className="space-y-4">
                     {(data ?? []).map((p) => {
                         const active = activeOf(p);
                         return (
@@ -58,7 +58,7 @@ export default function LendingProductsPage() {
                                                 <td className={td}>{v.changeSummary || <span className="text-[#AAB7C4]">—</span>}</td>
                                                 <td className={`${td} font-mono text-[11px] text-[#697386]`}>{v.makerId?.slice(0, 8) ?? '—'} / {v.checkerId?.slice(0, 8) ?? '—'}</td>
                                                 <td className={`${td} text-right`}>
-                                                    <Link href={href(`/lending/products/versions/${v.id}`)} className="text-[12px] font-semibold text-[#635BFF] hover:underline">Open</Link>
+                                                    <Link data-tour="product-version-open" href={href(`/lending/products/versions/${v.id}`)} className="text-[12px] font-semibold text-[#635BFF] hover:underline">Open</Link>
                                                 </td>
                                             </tr>
                                         ))}

@@ -104,12 +104,12 @@ export default function ProductVersionPage() {
                 {ACTIONS.filter((a) => a.from === v.status).map((a) => {
                     const c = can(a.perm);
                     if (a.act === 'reject') {
-                        return <Btn key={a.act} variant="danger" disabled={!c.allowed} reason={c.reason} onClick={() => setRejecting(true)}>Reject</Btn>;
+                        return <Btn data-tour="product-version-reject" key={a.act} variant="danger" disabled={!c.allowed} reason={c.reason} onClick={() => setRejecting(true)}>Reject</Btn>;
                     }
-                    return <Btn key={a.act} variant={a.variant} busy={busy === a.act} disabled={!c.allowed} reason={c.reason} onClick={() => transition(a.act)}>{a.label}</Btn>;
+                    return <Btn data-tour="product-version-action" key={a.act} variant={a.variant} busy={busy === a.act} disabled={!c.allowed} reason={c.reason} onClick={() => transition(a.act)}>{a.label}</Btn>;
                 })}
                 {(v.status === 'ACTIVE' || v.status === 'RETIRED' || v.status === 'REJECTED') && (
-                    <Btn busy={busy === 'newVersion'} disabled={!can('loan_product.create').allowed} reason={can('loan_product.create').reason} onClick={newVersion}>New version</Btn>
+                    <Btn data-tour="product-version-new" busy={busy === 'newVersion'} disabled={!can('loan_product.create').allowed} reason={can('loan_product.create').reason} onClick={newVersion}>New version</Btn>
                 )}
             </>}
         >
@@ -133,7 +133,7 @@ export default function ProductVersionPage() {
                 </Card>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div data-tour="product-version-checks" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <Card title="Version">
                     <KV cols={2} items={[
                         ['Status', <StatusBadge key="s" status={v.status} />],
@@ -169,7 +169,7 @@ export default function ProductVersionPage() {
                 title="Configuration"
                 subtitle={isDraft ? 'Drafts can be edited. Submitting freezes the configuration for review.' : 'Read-only — create a new version to change it.'}
                 actions={isDraft && !draft && (
-                    <Btn variant="primary" disabled={!can('loan_product.update').allowed} reason={can('loan_product.update').reason} onClick={() => setDraft(v.config)}>Edit draft</Btn>
+                    <Btn data-tour="product-version-edit" variant="primary" disabled={!can('loan_product.update').allowed} reason={can('loan_product.update').reason} onClick={() => setDraft(v.config)}>Edit draft</Btn>
                 )}
             >
                 {draft ? (

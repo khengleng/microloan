@@ -41,7 +41,7 @@ export function WorkQueueCard() {
             actions={<Btn variant="ghost" onClick={r.reload}>Refresh</Btn>}
             bodyClass="p-0"
         >
-            <div className="flex flex-wrap items-end gap-2 p-4 border-b border-[#E3E8EE]">
+            <div data-tour="coll-queue-filters" className="flex flex-wrap items-end gap-2 p-4 border-b border-[#E3E8EE]">
                 <Field label="Queue"><SelectInput value={queue} onChange={setQueue} placeholder="All queues" options={queues} /></Field>
                 <Field label="Status"><SelectInput value={status} onChange={setStatus} options={[{ value: 'OPEN', label: 'Open' }, { value: 'DONE', label: 'Done' }, { value: 'CANCELLED', label: 'Cancelled' }, { value: '', label: 'All' }]} /></Field>
             </div>
@@ -56,7 +56,7 @@ export function WorkQueueCard() {
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
                         {r.data.map((t) => (
-                            <tr key={t.id} className="align-top">
+                            <tr data-tour="coll-task-row" key={t.id} className="align-top">
                                 <td className={td}><Link href={href(`/lending/loans/${t.loanAccountId}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{t.reference}</Link></td>
                                 <td className={td}>{t.borrower}<div className="text-[11px] text-[#8792A2]">{t.phone ?? ''}</div></td>
                                 <td className={td}>{t.action.replace(/_/g, ' ').toLowerCase()} · {t.stage}<div className="text-[11px] text-[#8792A2]">queue {t.queue}</div></td>
@@ -68,10 +68,10 @@ export function WorkQueueCard() {
                                     {t.assignedTo && t.status === 'OPEN' && <div className="text-[11px] text-[#8792A2]">claimed</div>}
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
-                                    {t.status === 'OPEN' && !t.assignedTo && <Btn size="sm" onClick={() => claim(t)} busy={busy === `claim-${t.id}`}>Claim</Btn>}
-                                    {t.status === 'OPEN' && working?.id !== t.id && <Btn size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '' })}>Record outcome</Btn>}
+                                    {t.status === 'OPEN' && !t.assignedTo && <Btn data-tour="coll-task-claim" size="sm" onClick={() => claim(t)} busy={busy === `claim-${t.id}`}>Claim</Btn>}
+                                    {t.status === 'OPEN' && working?.id !== t.id && <Btn data-tour="coll-task-outcome" size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '' })}>Record outcome</Btn>}
                                     {working?.id === t.id && (
-                                        <div className="space-y-1">
+                                        <div data-tour="coll-outcome-form" className="space-y-1">
                                             <SelectInput value={working.outcome} onChange={(v) => setWorking({ ...working, outcome: v })} options={OUTCOMES.map((o) => ({ value: o, label: o.replace(/_/g, ' ').toLowerCase() }))} />
                                             <TextInput value={working.note} onChange={(v) => setWorking({ ...working, note: v })} placeholder="Note" maxLength={1000} />
                                             <div className="space-x-1">

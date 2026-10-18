@@ -81,16 +81,16 @@ function BusinessDateTab() {
         <div className="space-y-5">
             <Card title="Business date" subtitle="The tenant's accounting date. It only moves when someone advances it here.">
                 <div className="flex flex-wrap items-end gap-5">
-                    <div>
+                    <div data-tour="eod-current-date">
                         <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Current business date</p>
                         <p className="text-2xl font-bold text-[#1A1F36] tabular-nums">{bd.loading && !bd.data ? '…' : current ?? '—'}</p>
                     </div>
                     <Field label="Advance to">
-                        <TextInput type="date" value={next} onChange={setNext} className="w-44" />
+                        <TextInput data-tour="eod-advance-to" type="date" value={next} onChange={setNext} className="w-44" />
                     </Field>
-                    <div className="pb-1.5"><Checkbox checked={runAfter} onChange={setRunAfter} label="Run end of day after advancing" /></div>
-                    <Btn variant="primary" onClick={advance} busy={busy === 'date'} disabled={!DATE_RE.test(next) || !!busy} reason={!next ? 'Pick a date first' : undefined}>Advance date</Btn>
-                    <Btn onClick={confirmBatch} busy={busy === 'batch'} disabled={!!busy}>Run end-of-day batch</Btn>
+                    <div data-tour="eod-run-after" className="pb-1.5"><Checkbox checked={runAfter} onChange={setRunAfter} label="Run end of day after advancing" /></div>
+                    <Btn data-tour="eod-advance" variant="primary" onClick={advance} busy={busy === 'date'} disabled={!DATE_RE.test(next) || !!busy} reason={!next ? 'Pick a date first' : undefined}>Advance date</Btn>
+                    <Btn data-tour="eod-run-batch" onClick={confirmBatch} busy={busy === 'batch'} disabled={!!busy}>Run end-of-day batch</Btn>
                 </div>
                 <div className="mt-3 space-y-2">
                     <ErrorBox error={bd.error} />
@@ -101,7 +101,7 @@ function BusinessDateTab() {
 
             {result && (
                 <Card title="End-of-day result" subtitle={`Batch for business date ${result.businessDate}`}>
-                    <div className="space-y-4">
+                    <div data-tour="eod-result" className="space-y-4">
                         <KV cols={3} items={[
                             ['Business date', <span key="d" className="tabular-nums">{result.businessDate}</span>],
                             ['Loans processed', <span key="p" className="tabular-nums font-bold text-emerald-700">{result.processed}</span>],

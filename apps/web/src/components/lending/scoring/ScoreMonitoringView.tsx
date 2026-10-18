@@ -40,7 +40,7 @@ export function ScoreMonitoringView() {
             actions={<Btn variant="ghost" onClick={report.reload}>Refresh</Btn>}
         >
             <Card title="Filters">
-                <form className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(form); }}>
+                <form data-tour="scorecard-monitoring-filters" className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(form); }}>
                     <Field label="Scorecard"><SelectInput value={form.scorecardCode} onChange={set('scorecardCode')} options={codes} placeholder="All" /></Field>
                     <Field label="Bad at DPD ≥"><TextInput inputMode="numeric" value={form.badDaysPastDue} onChange={set('badDaysPastDue')} placeholder={p ? String(p.badDaysPastDue) : ''} /></Field>
                     <Field label="Performance months"><TextInput inputMode="numeric" value={form.performanceMonths} onChange={set('performanceMonths')} placeholder={p ? String(p.performanceMonths) : ''} /></Field>
@@ -49,7 +49,7 @@ export function ScoreMonitoringView() {
                     <Field label="Recent from"><TextInput type="date" value={form.recentFrom} onChange={set('recentFrom')} /></Field>
                     <Field label="Recent to"><TextInput type="date" value={form.recentTo} onChange={set('recentTo')} /></Field>
                     <div className="col-span-2 md:col-span-4 lg:col-span-7 flex gap-2">
-                        <Btn variant="primary" type="submit">Apply</Btn>
+                        <Btn data-tour="scorecard-monitoring-apply" variant="primary" type="submit">Apply</Btn>
                         <Btn variant="ghost" onClick={() => { setForm(EMPTY); setApplied(EMPTY); }}>Reset</Btn>
                     </div>
                 </form>
@@ -85,7 +85,7 @@ function VersionCard({ v }: { v: MonitoredVersion }) {
             </span>}
             subtitle={`Source ${v.source.toLowerCase()}`}
         >
-            <div className="space-y-5">
+            <div data-tour="scorecard-monitoring-version" className="space-y-5">
                 <KV cols={4} items={[
                     ['Applications', v.applications],
                     ['Average score', v.averageScore === null ? '—' : dec(String(v.averageScore), 1)],
@@ -97,7 +97,7 @@ function VersionCard({ v }: { v: MonitoredVersion }) {
                     ['PSI', <span key="psi">{dec(v.stability.psi)} <span className={`font-semibold ${psi.cls}`}>{psi.label}</span></span>],
                 ]} />
 
-                <div>
+                <div data-tour="scorecard-monitoring-distribution">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Distribution by grade</p>
                     {v.byGrade.length === 0 ? <Empty>No applications.</Empty> : (
                         <div className="space-y-1.5">
@@ -149,7 +149,7 @@ function VersionCard({ v }: { v: MonitoredVersion }) {
                 )}
 
                 {v.stability.bins.length > 0 && (
-                    <div>
+                    <div data-tour="scorecard-monitoring-stability">
                         <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Stability (baseline → recent share)</p>
                         <Table className="border border-[#E3E8EE] rounded">
                             <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Grade</th><th className={thR}>Baseline</th><th className={thR}>Recent</th><th className={thR}>PSI contribution</th></tr></thead>

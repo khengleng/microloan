@@ -137,6 +137,7 @@ export default function UsersPage() {
                     </p>
                 </div>
                 <Button
+                    data-tour="users-onboard"
                     onClick={() => setIsModalOpen(true)}
                     className="rounded-2xl font-black px-8 h-12 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
@@ -146,7 +147,7 @@ export default function UsersPage() {
             </div>
 
             {/* Team Summary KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div data-tour="users-kpis" className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('activeSeats')}</div>
                     <div className="text-3xl font-black text-slate-900 tracking-tight">{users.filter(u => u.isActive).length}</div>
@@ -195,7 +196,7 @@ export default function UsersPage() {
                                 </tr>
                             ) : (
                                 users.map(user => (
-                                    <tr key={user.id} className="group hover:bg-slate-50/50 transition-all duration-300">
+                                    <tr data-tour="users-row" key={user.id} className="group hover:bg-slate-50/50 transition-all duration-300">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black shadow-sm transition-all group-hover:scale-110 ${user.isActive ? 'bg-indigo-600 text-white' : 'bg-rose-100 text-rose-500'}`}>
@@ -211,6 +212,7 @@ export default function UsersPage() {
                                         <td className="py-5">
                                             <div className="relative inline-block group/role">
                                                 <select
+                                                    data-tour="users-role-select"
                                                     value={user.role}
                                                     onChange={e => handleRoleChange(user.id, e.target.value)}
                                                     className={`appearance-none pl-4 pr-10 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] rounded-full border-0 cursor-pointer focus:outline-none focus:ring-4 focus:ring-white/50 transition-all ${ROLE_COLORS[user.role] || 'bg-slate-100 text-slate-400'}`}
@@ -234,7 +236,7 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div data-tour="users-governance" className="flex items-center justify-end gap-2">
                                                 {user.isActive && (
                                                     <button
                                                         onClick={() => handleResetPassword(user.id, user.email)}
@@ -267,7 +269,7 @@ export default function UsersPage() {
 
             {/* Invite Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="rounded-[2.5rem] border-none shadow-2xl glass p-8">
+                <DialogContent data-tour="users-onboard-dialog" className="rounded-[2.5rem] border-none shadow-2xl glass p-8">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">{t('onboardTitle')}</DialogTitle>
                         <DialogDescription className="text-slate-500 font-medium">{t('onboardDesc')}</DialogDescription>
@@ -278,6 +280,7 @@ export default function UsersPage() {
                             <div className="relative group">
                                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                                 <Input
+                                    data-tour="users-onboard-email"
                                     id="inv-email"
                                     type="email"
                                     autoComplete="email"
@@ -292,6 +295,7 @@ export default function UsersPage() {
                         <div className="space-y-3">
                             <Label htmlFor="inv-pass" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('credentialLabel')}</Label>
                             <Input
+                                data-tour="users-onboard-password"
                                 id="inv-pass"
                                 type="password"
                                 autoComplete="new-password"
@@ -307,6 +311,7 @@ export default function UsersPage() {
                             <Label htmlFor="inv-role" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('roleLabel')}</Label>
                             <div className="relative">
                                 <select
+                                    data-tour="users-onboard-role"
                                     id="inv-role"
                                     value={form.role}
                                     onChange={e => setForm({ ...form, role: e.target.value })}
@@ -321,7 +326,7 @@ export default function UsersPage() {
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 pt-4">
-                            <Button type="submit" disabled={submitting} className="h-14 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-950/20">
+                            <Button data-tour="users-onboard-submit" type="submit" disabled={submitting} className="h-14 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-950/20">
                                 {submitting && <Loader2 size={16} className="animate-spin mr-3" />}
                                 {submitting ? t('registering') : t('registerDispatch')}
                             </Button>

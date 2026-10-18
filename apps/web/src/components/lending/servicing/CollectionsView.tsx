@@ -95,7 +95,7 @@ function BusinessDateCard({ onChanged }: { onChanged: () => void }) {
 
     return (
         <Card title="Business date & end-of-day">
-            <div className="flex flex-wrap items-end gap-4">
+            <div data-tour="coll-business-date" className="flex flex-wrap items-end gap-4">
                 <div>
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2]">Current business date</p>
                     <p className="text-xl font-bold text-[#1A1F36] tabular-nums">{bd.loading && !bd.data ? '…' : bd.data?.businessDate ?? '—'}</p>
@@ -164,7 +164,7 @@ export function CollectionsView() {
                                     <tr key={l.id} className="hover:bg-[#F7FAFC]">
                                         <td className={td}>
                                             <div className="flex items-center gap-1.5">
-                                                <Link href={href(`/lending/loans/${l.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{l.reference}</Link>
+                                                <Link data-tour="coll-past-due-link" href={href(`/lending/loans/${l.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{l.reference}</Link>
                                                 {l.isRestructured && <RestructuredBadge />}
                                             </div>
                                         </td>

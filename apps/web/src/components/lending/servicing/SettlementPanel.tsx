@@ -55,7 +55,7 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
 
     return (
         <ActionPanel title="Early settlement" onClose={onClose}>
-            <div className="flex flex-wrap items-end gap-2">
+            <div data-tour="payoff-settlement-quote" className="flex flex-wrap items-end gap-2">
                 <Field label="Quote as of" hint="Optional — defaults to the business date">
                     <TextInput type="date" value={asOf} onChange={(v) => { setAsOf(v); setQuote(null); }} className="w-44" />
                 </Field>

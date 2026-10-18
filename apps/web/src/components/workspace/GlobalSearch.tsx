@@ -106,7 +106,7 @@ export function GlobalSearch({ platform = false }: { platform?: boolean }) {
     const typeLabel = (type: string) => (t.has(`types.${type}`) ? t(`types.${type}`) : type);
 
     return (
-        <div className="relative flex-1 min-w-0 max-w-xl">
+        <div data-tour="global-search" className="relative flex-1 min-w-0 max-w-xl">
             <label className="flex items-center gap-2 border border-border rounded px-2.5 py-1.5 bg-muted text-sm focus-within:ring-2 focus-within:ring-[#635BFF]/30 focus-within:border-[#635BFF]">
                 <Search size={14} className="text-muted-foreground flex-shrink-0" aria-hidden />
                 <span className="sr-only">{t('label')}</span>

@@ -151,7 +151,7 @@ export function LoanDetailView({ id }: { id: string }) {
 
             <Card title="Servicing actions" subtitle="Buttons reflect your permissions, policies and limits. The server re-checks every action.">
                 <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
+                    <div data-tour="loan-servicing-actions" className="flex flex-wrap gap-2">
                         {(isBooked || disbTasks.length > 0) && actionBtn('Disbursement', 'disburse', ['loan.disbursement.prepare', 'loan.disbursement.approve', 'loan.disbursement.execute'], 'primary')}
                         {isActive && actionBtn('Post repayment', 'repay', ['loan.repayment.post'], 'primary')}
                         {isActive && groupInfo.data?.group && actionBtn('Group repayment by member', 'group-repay', ['loan.repayment.post'])}

@@ -43,7 +43,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
 
     return (
         <ActionPanel title="Post repayment" onClose={onClose}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div data-tour="repay-amount-fields" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <Field label={`Amount (${payCurrency})`} error={problem || undefined}>
                     <div className="flex gap-1">
                         <TextInput value={amount} onChange={setAmount} inputMode="decimal" />
@@ -79,7 +79,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
                     />
                 </Field>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div data-tour="repay-payer-fields" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Field label="Paid by (if not the borrower)" hint="Optional — recorded with the payment">
                     <TextInput value={payerName} onChange={setPayerName} maxLength={120} />
                 </Field>
@@ -95,7 +95,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
             {fx && <FxQuotePreview loanId={loanId} amount={amount} currency={payCurrency} valueDate={valueDate} loanCurrency={currency} />}
             <p className="text-[11px] text-[#697386]">Retrying the same payment reuses its idempotency key, so a network retry never posts twice.</p>
             <ErrorBox error={error} onDismiss={clearError} />
-            <Btn variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>Post repayment</Btn>
+            <Btn data-tour="repay-post-button" variant="primary" onClick={post} busy={busy === 'repay'} disabled={!allowed.allowed} reason={allowed.reason}>Post repayment</Btn>
         </ActionPanel>
     );
 }

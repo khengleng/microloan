@@ -83,7 +83,7 @@ export function ScorecardEditor({ value, onChange, variables, readOnly }: {
     };
 
     return (
-        <fieldset disabled={readOnly} className="space-y-5">
+        <fieldset data-tour="scorecards-editor" disabled={readOnly} className="space-y-5">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Field label="Base score"><IntInput value={value.baseScore} onChange={(v) => set({ baseScore: v ?? 0 })} /></Field>
                 <Field label="Minimum score"><IntInput value={value.minScore} onChange={(v) => set({ minScore: v ?? 0 })} /></Field>

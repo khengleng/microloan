@@ -141,12 +141,12 @@ export function ApplicationDetailView({ id }: { id: string }) {
 
             <Card title="Actions" subtitle="Buttons reflect your permissions, policies and limits. The server re-checks every action.">
                 <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
+                    <div data-tour="app-actions" className="flex flex-wrap gap-2">
                         {a.status === 'DRAFT' && btn('Edit terms', 'loan_application.update', () => setPanel({ kind: 'terms' }))}
                         {open && btn('Upload document', 'loan_application.update', () => setPanel({ kind: 'document' }))}
                         {open && btn('Add collateral', 'collateral.manage', () => setPanel({ kind: 'collateral' }))}
                         {open && btn('Add guarantee', 'collateral.manage', () => setPanel({ kind: 'guarantee' }))}
-                        <Btn onClick={simulate} busy={action.busy === 'simulate'}>Simulate</Btn>
+                        <Btn data-tour="app-simulate" onClick={simulate} busy={action.busy === 'simulate'}>Simulate</Btn>
                         {a.status === 'DRAFT' && btn('Submit', 'loan_application.submit', submit, { variant: 'primary', busy: action.busy === 'submit' })}
                         {a.status === 'SUBMITTED' && btn('Recommend', 'credit_decision.recommend', () => setPanel({ kind: 'decision', mode: 'recommend' }), { variant: 'primary' })}
                         {a.status === 'RECOMMENDED' && btn('Approve', 'credit_decision.approve', () => setPanel({ kind: 'decision', mode: 'approve' }), { variant: 'primary' })}
@@ -216,7 +216,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Card title="Documents" subtitle={requiredDocs ? `${requiredDocs.filter((d) => d.mandatory).length} mandatory by product` : undefined} bodyClass="p-0">
                     {requiredDocs && requiredDocs.length > 0 && (
-                        <div className="px-5 py-3 border-b border-[#E3E8EE] flex flex-wrap gap-1.5">
+                        <div data-tour="app-required-docs" className="px-5 py-3 border-b border-[#E3E8EE] flex flex-wrap gap-1.5">
                             {requiredDocs.map((d) => (
                                 <span key={d.code} className={`text-[11px] px-1.5 py-0.5 rounded border ${haveDocs.has(d.code) ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : d.mandatory ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
                                     {haveDocs.has(d.code) ? '✓ ' : ''}{d.label}{d.stage ? ` · ${d.stage}` : ''}
@@ -316,7 +316,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
                         <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>When</th><th className={th}>Type</th><th className={thR}>Amount</th><th className={th}>Rationale</th><th className={th}>By</th><th className={th}>Detail</th></tr></thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
                             {a.decisions.map((d) => (
-                                <tr key={d.id}>
+                                <tr key={d.id} data-tour="app-decision-row">
                                     <td className={`${td} whitespace-nowrap`}>{fmtDateTime(d.createdAt)}</td>
                                     <td className={td}><StatusBadge status={d.type} /></td>
                                     <td className={tdR}><MoneyCell value={d.amount} currency={d.currency} /></td>

@@ -50,13 +50,13 @@ function AccessPageInner() {
 
     const tabs: { value: TabKey; label: React.ReactNode }[] = [
         { value: 'roles', label: 'Role matrix' },
-        { value: 'assignments', label: <>Assignments{pendingCount(data?.assignments.filter((a) => a.status === 'PENDING').length ?? 0)}</> },
-        { value: 'delegations', label: <>Delegations{pendingCount(data?.delegations.filter((d) => d.status === 'PENDING').length ?? 0)}</> },
-        { value: 'authorities', label: <>Approval authorities{pendingCount(data?.authorities.filter((a) => a.status === 'PENDING').length ?? 0)}</> },
+        { value: 'assignments', label: <span data-tour="access-tab-assignments">Assignments{pendingCount(data?.assignments.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
+        { value: 'delegations', label: <span data-tour="access-tab-delegations">Delegations{pendingCount(data?.delegations.filter((d) => d.status === 'PENDING').length ?? 0)}</span> },
+        { value: 'authorities', label: <span data-tour="access-tab-authorities">Approval authorities{pendingCount(data?.authorities.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
         { value: 'policies', label: <>ABAC policies{pendingCount(pendingPolicies)}</> },
         { value: 'flags', label: 'Feature flags' },
         { value: 'service-accounts', label: 'Service accounts' },
-        { value: 'simulator', label: 'Policy simulator' },
+        { value: 'simulator', label: <span data-tour="access-tab-simulator">Policy simulator</span> },
     ];
 
     // Service accounts load their own list and don't need the overview.

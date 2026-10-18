@@ -120,7 +120,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="firstName" className={labelCls}>First Name <span className="text-destructive">*</span></label>
-                                <input id="firstName" data-clarity-mask="true" className={fieldCls} value={formData.firstName} onChange={e => {
+                                <input id="firstName" data-tour="borrower-form-name" data-clarity-mask="true" className={fieldCls} value={formData.firstName} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, firstName: e.target.value });
                                 }} required />
@@ -136,7 +136,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
 
                         <div>
                             <label htmlFor="phone" className={labelCls}>Phone Number <span className="text-destructive">*</span></label>
-                            <input id="phone" type="tel" data-clarity-mask="true" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => {
+                            <input id="phone" data-tour="borrower-form-phone" type="tel" data-clarity-mask="true" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => {
                                 setDirty(true);
                                 setFormData({ ...formData, phone: e.target.value });
                             }} required />
@@ -144,7 +144,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
 
                         <div>
                             <label htmlFor="idNumber" className={labelCls}>National ID / Passport <span className="text-destructive">*</span></label>
-                            <input id="idNumber" data-clarity-mask="true" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => {
+                            <input id="idNumber" data-tour="borrower-form-id" data-clarity-mask="true" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => {
                                 setDirty(true);
                                 setFormData({ ...formData, idNumber: e.target.value });
                             }} required />
@@ -162,7 +162,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="monthlyIncome" className={labelCls}>Monthly Income (USD)</label>
-                                <input id="monthlyIncome" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyIncome} onChange={e => {
+                                <input id="monthlyIncome" data-tour="borrower-form-income" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyIncome} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, monthlyIncome: e.target.value });
                                 }} />
@@ -182,7 +182,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">
                             Cancel
                         </button>
-                        <button type="submit" disabled={loading} className="btn-primary">
+                        <button type="submit" data-tour="borrower-form-save" disabled={loading} className="btn-primary">
                             {loading && <Loader2 size={14} className="animate-spin" />}
                             {loading ? 'Saving...' : borrower ? 'Save Changes' : 'Add Borrower'}
                         </button>

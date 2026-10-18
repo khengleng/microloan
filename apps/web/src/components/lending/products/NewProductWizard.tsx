@@ -63,7 +63,7 @@ export function NewProductWizard({ onClose }: { onClose: () => void }) {
                         {(catalogue.data ?? []).map((f) => (
                             <div key={f.code}>
                                 <p className="text-[12px] font-bold uppercase tracking-wide text-[#8792A2] mb-1.5">{f.name}</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                                <div data-tour="product-template-grid" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                                     {f.templates.map((t) => (
                                         <button key={t.code} type="button" disabled={!t.available || !!loadingTpl} onClick={() => pick(t.code)}
                                             title={t.available ? undefined : `Missing: ${t.missing.map((m) => `${m.id} (${m.status})`).join(', ')}`}
@@ -114,7 +114,7 @@ export function NewProductWizard({ onClose }: { onClose: () => void }) {
                 <ConfigEditor config={config} onChange={setConfig} issues={issues} />
                 <ErrorBox error={error && !error.issues?.length ? error : error ? { ...error, issues: undefined, message: `${error.message} — see the highlighted steps.` } : null} />
                 <div className="flex justify-end gap-2">
-                    <Btn variant="primary" busy={busy === 'create'} disabled={!CODE_RE.test(code) || name.trim().length < 2} onClick={submit}>Create draft product</Btn>
+                    <Btn data-tour="product-create-draft" variant="primary" busy={busy === 'create'} disabled={!CODE_RE.test(code) || name.trim().length < 2} onClick={submit}>Create draft product</Btn>
                 </div>
             </div>
         </Card>
