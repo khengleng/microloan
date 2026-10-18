@@ -156,6 +156,12 @@ function coversScope(grant: Grant, r: Resource): boolean {
   return false;
 }
 
+/** Drawdown-kind actions that move no money: never flag-gated. */
+const DRAWDOWN_NO_MONEY = new Set([
+  'facility.drawdown.reject',
+  'facility.drawdown.cancel',
+]);
+
 export function requiredFlagsFor(
   action: ActionDefinition,
   r: Resource,
@@ -170,6 +176,20 @@ export function requiredFlagsFor(
     flags.push('lending.accounting.posting');
   }
   if (action.kind === 'SERVICING_MONEY') flags.push('lending.servicing');
+  // Drawing against a limit (facility drawdowns, card purchases and cash
+  // advances) is new money out on a booked contract: the family and the
+  // facility type must be switched on, and posting and servicing available.
+  // Not lending.origination: switching new business off must not freeze
+  // limits already committed to borrowers. Refusing or cancelling a pending
+  // drawdown moves no money, so it stays possible when a flag is off.
+  if (action.kind === 'DRAWDOWN' && !DRAWDOWN_NO_MONEY.has(action.code)) {
+    if (r.familyCode) flags.push(familyFlagKey(r.familyCode));
+    flags.push(
+      ...(r.requiredFlags ?? []),
+      'lending.accounting.posting',
+      'lending.servicing',
+    );
+  }
   if (action.kind === 'RESTRUCTURE') {
     const c = action.code;
     if (c === 'restructure.request') flags.push('lending.restructure.request');
