@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import { CURRENCY_OPTIONS } from '@/lib/currency';
 import { useToast } from '@/components/ui/toast';
-import { Loader2, Plus, Coins } from 'lucide-react';
+import { Loader2, Plus, Coins, Info } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
 
 interface FxRate {
     id: string;
@@ -18,6 +20,9 @@ const fieldCls = "h-9 px-3 bg-white border border-[#E3E8EE] rounded text-sm text
 
 export default function FxRatesPage() {
     const { showToast } = useToast();
+    const o = useTranslations('Overview');
+    const { legacyCan } = useWorkspace();
+    const canManage = legacyCan('FX_MANAGE');
     const [rates, setRates] = useState<FxRate[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -77,7 +82,13 @@ export default function FxRatesPage() {
                 <p className="text-[#697386] text-[14px]">Manage currency conversion rates used across the ledger.</p>
             </div>
 
+            <div role="note" className="flex items-start gap-2 border border-[#E3E8EE] bg-[#F7FAFC] rounded-lg px-4 py-3 text-[13px] text-[#4F566B]">
+                <Info size={15} className="mt-0.5 shrink-0 text-[#635BFF]" />
+                <p>{o('fxNote')}</p>
+            </div>
+
             {/* Add rate form */}
+            {canManage && (
             <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm p-6">
                 <h2 className="text-[15px] font-bold text-[#1A1F36] mb-4 flex items-center gap-2"><Coins size={16} className="text-[#635BFF]" /> Add Rate</h2>
                 <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
@@ -110,6 +121,7 @@ export default function FxRatesPage() {
                     </button>
                 </form>
             </div>
+            )}
 
             {/* Rates table */}
             <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">

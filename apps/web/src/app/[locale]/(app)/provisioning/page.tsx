@@ -5,6 +5,8 @@ import api from '@/lib/api';
 import { money } from '@/lib/currency';
 import { useToast } from '@/components/ui/toast';
 import { Loader2, Play } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
 
 interface ProvisioningRun {
     id: string;
@@ -64,13 +66,17 @@ export default function ProvisioningPage() {
             .finally(() => setDetailLoading(false));
     }, [showToast]);
 
+    const o = useTranslations('Overview');
+    const { legacyCan } = useWorkspace();
     const handleRun = async () => {
         setRunning(true);
         try {
             const res = await api.post('/provisioning/run');
-            const movement = Number(res.data.movement);
-            const sign = movement >= 0 ? '+' : '';
-            showToast(`Provisioning run complete. Movement: ${sign}${money(movement, 'USD')}`, 'success');
+            showToast(o('provisionRunDone', {
+                date: res.data.businessDate,
+                total: money(res.data.totalProvision, res.data.baseCurrency),
+                loans: res.data.loanCount,
+            }), 'success');
             fetchRuns();
             if (res.data.id) loadDetail(res.data.id);
         } catch {
@@ -93,7 +99,9 @@ export default function ProvisioningPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Loan-Loss Provisioning</h1>
                     <p className="text-[#697386] text-[14px]">Run and review expected credit loss provisioning.</p>
+                    <p className="text-[#697386] text-[12px] mt-1">{o('provisionBasis')}</p>
                 </div>
+                {legacyCan('PROVISION_RUN') && (
                 <button
                     onClick={handleRun}
                     disabled={running}
@@ -102,6 +110,7 @@ export default function ProvisioningPage() {
                     {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
                     {running ? 'Running...' : 'Run Provisioning'}
                 </button>
+                )}
             </div>
 
             {/* Runs table */}

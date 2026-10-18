@@ -245,7 +245,7 @@ describe('lending decision engine', () => {
     ).toBe(true);
   });
 
-  it('cross-currency approval needs an approved, fresh FX rate — otherwise deny', () => {
+  it('cross-currency approval needs a recorded, fresh FX rate — otherwise deny', () => {
     const khr = application({ amount: '40000000', currency: 'KHR' });
     expect(
       decide(input('credit_decision.approve', { resource: khr })).allowed,
@@ -270,6 +270,20 @@ describe('lending decision engine', () => {
     );
     expect(failed(d)).toEqual(['APPROVAL_AUTHORITY']);
     expect(d.denial?.detail).toMatch(/stale/);
+    // The denial names the stale rate, not a generic "exceeds" message.
+    expect(d.denial?.message).toMatch(/older than 3 days/);
+    expect(d.denial?.message).toMatch(/KHR→USD \(2026-09-01\)/);
+    expect(d.denial?.message).not.toMatch(/exceeds/);
+    const none = decide(input('credit_decision.approve', { resource: khr }));
+    expect(none.denial?.message).toMatch(
+      /no exchange rate is recorded for KHR→USD/,
+    );
+    // When a fresh rate converts the amount above the limit, it still says "exceeds".
+    const big = application({ amount: '400000000', currency: 'KHR' });
+    expect(
+      decide(input('credit_decision.approve', { resource: big, fx: fresh }))
+        .denial?.message,
+    ).toBe('The amount exceeds your approval authority');
   });
 
   it('family-restricted authority does not cover other families', () => {
