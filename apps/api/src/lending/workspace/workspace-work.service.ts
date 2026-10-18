@@ -7,6 +7,10 @@ import { decStr, fromLocalDate, type LendingActor } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { ACTION_BY_CODE } from '../policy/actions';
 import type { Subject } from '../policy/decision';
+import {
+  COHORT_SUBJECT,
+  SERVICE_ACCOUNT_SUBJECT,
+} from '../access/access-admin.service';
 import { D } from '../common/util';
 
 /** Who acts on a queue: the person preparing work, the second person approving it, or information only. */
@@ -42,6 +46,8 @@ export interface WorkQueue {
 }
 
 const TOP = 5;
+/** ApprovalTask subjects shown in the access and flag queues, not the generic ones. */
+const GOVERNANCE_SUBJECTS = [SERVICE_ACCOUNT_SUBJECT, COHORT_SUBJECT];
 /** Candidate rows examined per queue before maker-checker filtering. */
 const SCAN = 500;
 
@@ -173,6 +179,7 @@ const QUEUE_HREF: Record<string, string> = {
   PAYOFF_QUOTES_OPEN: '/lending/loans',
   ACCESS_TO_APPROVE: '/lending/access',
   FLAGS_TO_APPROVE: '/lending/access',
+  SERVICE_KEYS_TO_COLLECT: '/lending/access?tab=service-accounts',
   IMPAIRMENT_TO_APPROVE: '/lending/operations',
   TRADE_INVOICES_TO_APPROVE: '/lending/trade',
   LETTERS_OF_CREDIT_TO_ISSUE: '/lending/trade',
@@ -1414,6 +1421,16 @@ export class WorkspaceWorkService {
                 take: SCAN,
               }),
             ]);
+          const serviceAccounts = await tx.approvalTask.findMany({
+            where: {
+              tenantId,
+              subjectType: SERVICE_ACCOUNT_SUBJECT,
+              status: 'PENDING',
+              makerId: { not: me },
+            },
+            orderBy: { createdAt: 'asc' },
+            take: SCAN,
+          });
           add(
             'ACCESS_TO_APPROVE',
             'Access changes to approve',
@@ -1422,7 +1439,8 @@ export class WorkspaceWorkService {
             assignments.length +
               authorities.length +
               delegations.length +
-              policies.length,
+              policies.length +
+              serviceAccounts.length,
             [
               ...assignments.map((a) => ({
                 id: a.id,
@@ -1454,8 +1472,47 @@ export class WorkspaceWorkService {
                 href: '/lending/access',
                 since: p.createdAt.toISOString(),
               })),
+              ...serviceAccounts.map((t) => ({
+                id: t.id,
+                reference: (t.payload as { name?: string }).name ?? 'SERVICE',
+                label: 'Service account',
+                href: '/lending/access?tab=service-accounts',
+                since: t.createdAt.toISOString(),
+              })),
             ],
           );
+        }
+        if (has('access_policy.manage')) {
+          // Approved service accounts whose key the requester has not collected yet.
+          const where: Prisma.ApprovalTaskWhereInput = {
+            tenantId,
+            subjectType: SERVICE_ACCOUNT_SUBJECT,
+            status: 'APPROVED',
+            makerId: me,
+          };
+          const [count, rows] = await Promise.all([
+            tx.approvalTask.count({ where }),
+            tx.approvalTask.findMany({
+              where,
+              orderBy: { createdAt: 'asc' },
+              take: TOP,
+            }),
+          ]);
+          if (count)
+            add(
+              'SERVICE_KEYS_TO_COLLECT',
+              'Service account keys to collect',
+              'access_policy.manage',
+              'MAKER',
+              count,
+              rows.map((t) => ({
+                id: t.id,
+                reference: (t.payload as { name?: string }).name ?? 'SERVICE',
+                label: 'Approved; collect the key once',
+                href: '/lending/access?tab=service-accounts',
+                since: t.createdAt.toISOString(),
+              })),
+            );
         }
         if (has('feature_flag.approve')) {
           const where: Prisma.FlagChangeApprovalWhereInput = {
@@ -1463,7 +1520,7 @@ export class WorkspaceWorkService {
             status: 'PENDING',
             makerId: { not: me },
           };
-          const [count, rows] = await Promise.all([
+          const [count, rows, cohortRows] = await Promise.all([
             tx.flagChangeApproval.count({ where }),
             tx.flagChangeApproval.findMany({
               where,
@@ -1471,20 +1528,49 @@ export class WorkspaceWorkService {
               take: TOP,
               include: { rule: { select: { flagKey: true } } },
             }),
+            tx.approvalTask.findMany({
+              where: {
+                tenantId,
+                subjectType: COHORT_SUBJECT,
+                status: 'PENDING',
+                makerId: { not: me },
+              },
+              orderBy: { createdAt: 'asc' },
+              take: SCAN,
+            }),
           ]);
+          // A person being placed in a cohort may not approve it either.
+          const cohorts = cohortRows.filter((t) => {
+            const p = t.payload as { subjectType?: string; subjectId?: string };
+            return !(p.subjectType === 'USER' && p.subjectId === me);
+          });
           add(
             'FLAGS_TO_APPROVE',
             'Flag changes to approve',
             'feature_flag.approve',
             'CHECKER',
-            count,
-            rows.map((r) => ({
-              id: r.id,
-              reference: r.rule.flagKey,
-              label: humanize(r.action),
-              href: '/lending/access',
-              since: r.createdAt.toISOString(),
-            })),
+            count + cohorts.length,
+            [
+              ...rows.map((r) => ({
+                id: r.id,
+                reference: r.rule.flagKey,
+                label: humanize(r.action),
+                href: '/lending/access?tab=flags',
+                since: r.createdAt.toISOString(),
+              })),
+              ...cohorts.map((t) => {
+                const p = t.payload as { member?: boolean };
+                return {
+                  id: t.id,
+                  reference: t.subjectId,
+                  label: p.member
+                    ? 'Cohort: add member'
+                    : 'Cohort: remove member',
+                  href: '/lending/access?tab=flags',
+                  since: t.createdAt.toISOString(),
+                };
+              }),
+            ],
           );
         }
         if (has('audit.read')) {
@@ -1537,6 +1623,8 @@ export class WorkspaceWorkService {
       where: {
         tenantId,
         makerId: { not: me },
+        // Access governance requests have their own queues below.
+        subjectType: { notIn: GOVERNANCE_SUBJECTS },
         OR: [
           { status: 'PENDING', requiredPermission: { in: [...held] } },
           ...(execute ? [{ status: 'APPROVED', action: 'DISBURSEMENT' }] : []),

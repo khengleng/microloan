@@ -189,9 +189,9 @@ d('Credit score, DSCR and covenants (integration)', () => {
         reason: 'Waiving my own test',
       });
     expect(own.status).toBe(403);
-    expect(
-      own.body.blockedBy.map((b: any) => b.message).join(' '),
-    ).toMatch(/created or proposed/);
+    expect(own.body.blockedBy.map((b: any) => b.message).join(' ')).toMatch(
+      /created or proposed/,
+    );
     expectOk(
       await f
         .as('approver2')

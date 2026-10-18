@@ -325,3 +325,30 @@ export function expectOk(res: request.Response, status = [200, 201]) {
   }
   return res.body;
 }
+
+/**
+ * A service account through its maker-checker flow: `maker` requests it,
+ * `checker` approves it, and the maker collects the key once.
+ */
+export async function serviceAccount(
+  f: Pick<Fixture, 'as'>,
+  maker: string,
+  checker: string,
+  body: { name: string; scopes: string[]; expiresInDays?: number },
+): Promise<{ id: string; key: string; scopes: string[] }> {
+  const req = expectOk(
+    await f.as(maker).post('/lending/access/service-accounts', body),
+  );
+  expectOk(
+    await f
+      .as(checker)
+      .post(`/lending/access/service-account-requests/${req.id}/decision`, {
+        approve: true,
+      }),
+  );
+  return expectOk(
+    await f
+      .as(maker)
+      .post(`/lending/access/service-account-requests/${req.id}/issue`),
+  );
+}

@@ -665,6 +665,7 @@ export const S = {
       subjectType: z.enum(['BRANCH', 'USER', 'BORROWER']),
       subjectId: z.string().max(64),
       member: z.boolean(),
+      reason: z.string().max(300).optional(),
     })
     .strict(),
   serviceAccount: z

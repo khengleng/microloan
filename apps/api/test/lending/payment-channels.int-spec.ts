@@ -9,7 +9,14 @@
  *               FX payment arrive
  *   2026-02-06+ the failed debit is retried until the policy gives up
  */
-import { Fixture, TEST_DB, bootstrap, expectOk, key } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  expectOk,
+  key,
+  serviceAccount,
+} from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -360,12 +367,10 @@ d('Payment channels (integration)', () => {
   });
 
   it('UC-18: a service account may push a settlement file', async () => {
-    const sa = expectOk(
-      await f.as('admin2').post('/lending/access/service-accounts', {
-        name: 'Agent network feed',
-        scopes: ['loan.repayment.post'],
-      }),
-    );
+    const sa = await serviceAccount(f, 'admin2', 'admin1', {
+      name: 'Agent network feed',
+      scopes: ['loan.repayment.post'],
+    });
     const res = await f
       .http()
       .post('/v1/lending/integrations/settlement-files')
@@ -377,12 +382,10 @@ d('Payment channels (integration)', () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.lines[0].outcome).toBe('SUSPENSE');
-    const readOnly = expectOk(
-      await f.as('admin2').post('/lending/access/service-accounts', {
-        name: 'Reporting',
-        scopes: ['loan.read'],
-      }),
-    );
+    const readOnly = await serviceAccount(f, 'admin2', 'admin1', {
+      name: 'Reporting',
+      scopes: ['loan.read'],
+    });
     const refused = await f
       .http()
       .post('/v1/lending/integrations/settlement-files')
