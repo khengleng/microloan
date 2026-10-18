@@ -6,6 +6,7 @@ import { useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Field, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
+import { useTranslations } from 'next-intl';
 
 interface Notice {
     loanAccountId: string; reference: string; borrower: string; phone: string | null; instalment: number;
@@ -14,6 +15,7 @@ interface Notice {
 
 /** Reminders before a due date and notices after it (OPS-7), with the message for each borrower. */
 export function NoticesCard() {
+    const tl = useTranslations('LendingServicing.notices');
     const href = useLendingHref();
     const [kind, setKind] = useState('DUE_SOON');
     const [days, setDays] = useState('7');
@@ -22,24 +24,24 @@ export function NoticesCard() {
     const copy = (n: Notice) => { void navigator.clipboard?.writeText(n.text); setOpen(`${n.loanAccountId}:${n.instalment}`); };
     return (
         <Card
-            title="Borrower notices"
-            subtitle={r.data ? `As of ${r.data.businessDate} — ${r.data.notices.length} notice${r.data.notices.length === 1 ? '' : 's'}` : 'Reminders before a due date and notices once it has passed'}
-            actions={<Btn variant="ghost" onClick={r.reload}>Refresh</Btn>}
+            title={tl('title')}
+            subtitle={r.data ? tl('subtitleAsOf', { date: r.data.businessDate, count: r.data.notices.length }) : tl('subtitle')}
+            actions={<Btn variant="ghost" onClick={r.reload}>{tl('refresh')}</Btn>}
             bodyClass="p-0"
         >
             <div className="flex flex-wrap items-end gap-2 p-4 border-b border-[#E3E8EE]">
-                <Field label="Notice">
-                    <SelectInput value={kind} onChange={setKind} options={[{ value: 'DUE_SOON', label: 'Falling due (reminder)' }, { value: 'OVERDUE', label: 'Overdue' }]} />
+                <Field label={tl('notice')}>
+                    <SelectInput value={kind} onChange={setKind} options={[{ value: 'DUE_SOON', label: tl('kinds.DUE_SOON') }, { value: 'OVERDUE', label: tl('kinds.OVERDUE') }]} />
                 </Field>
-                {kind === 'DUE_SOON' && <Field label="Within (days)"><TextInput value={days} onChange={setDays} inputMode="numeric" className="w-20" /></Field>}
+                {kind === 'DUE_SOON' && <Field label={tl('withinDays')}><TextInput value={days} onChange={setDays} inputMode="numeric" className="w-20" /></Field>}
             </div>
             {r.error && <div className="p-4"><ErrorBox error={r.error} /></div>}
-            {r.loading && !r.data ? <Spinner /> : !r.data?.notices.length ? (!r.error && <Empty>No notices to send.</Empty>) : (
+            {r.loading && !r.data ? <Spinner /> : !r.data?.notices.length ? (!r.error && <Empty>{tl('empty')}</Empty>) : (
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>Loan</th><th className={th}>Borrower</th><th className={th}>Phone</th>
-                            <th className={thR}>Instalment</th><th className={th}>Due</th><th className={thR}>Amount</th><th className={th}>Message</th>
+                            <th className={th}>{tl('columns.loan')}</th><th className={th}>{tl('columns.borrower')}</th><th className={th}>{tl('columns.phone')}</th>
+                            <th className={thR}>{tl('columns.instalment')}</th><th className={th}>{tl('columns.due')}</th><th className={thR}>{tl('columns.amount')}</th><th className={th}>{tl('columns.message')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -55,7 +57,7 @@ export function NoticesCard() {
                                     <td className={tdR}><MoneyCell value={n.amount} currency={n.currency} /></td>
                                     <td className={`${td} max-w-md`}>
                                         <p className="text-[12px] text-[#3C4257]">{n.text}</p>
-                                        <Btn size="sm" variant="ghost" onClick={() => copy(n)}>{open === k ? 'Copied' : 'Copy message'}</Btn>
+                                        <Btn size="sm" variant="ghost" onClick={() => copy(n)}>{open === k ? tl('copied') : tl('copy')}</Btn>
                                     </td>
                                 </tr>
                             );

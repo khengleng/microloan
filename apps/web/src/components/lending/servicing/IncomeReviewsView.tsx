@@ -7,6 +7,7 @@ import { useApi } from '../useAsync';
 import { fmtDateTime } from '../format';
 import { MoneyCell } from '../MoneyCell';
 import type { IncomeAssessment } from './IncomeContingentCard';
+import { useTranslations } from 'next-intl';
 
 interface Reviews {
     businessDate: string;
@@ -16,6 +17,7 @@ interface Reviews {
 
 /** Lending › Income assessments: annual reassessments due, and assessments waiting for a checker. */
 export function IncomeReviewsView() {
+    const tl = useTranslations('LendingServicing.incomeReviews');
     const href = useLendingHref();
     const res = useApi<Reviews>('/lending/income-contingent/reviews');
     const r = res.data;
@@ -27,12 +29,12 @@ export function IncomeReviewsView() {
             {res.error && <ErrorBox error={res.error} />}
             {!r ? <Spinner /> : (
                 <>
-                    <Card title="Waiting for approval" subtitle="Open the loan to check the evidence and approve or reject. You cannot approve an assessment you recorded." bodyClass="p-0">
-                        {r.pending.length === 0 ? <div className="p-5"><Empty>Nothing waiting.</Empty></div> : (
+                    <Card title={tl('pendingTitle')} subtitle={tl('pendingSubtitle')} bodyClass="p-0">
+                        {r.pending.length === 0 ? <div className="p-5"><Empty>{tl('pendingEmpty')}</Empty></div> : (
                             <Table>
                                 <thead>
                                     <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                        <th className={th}>Loan</th><th className={th}>Reason</th><th className={thR}>Declared income</th><th className={thR}>New instalment</th><th className={th}>Evidence</th><th className={th}>Recorded</th>
+                                        <th className={th}>{tl('columns.loan')}</th><th className={th}>{tl('columns.reason')}</th><th className={thR}>{tl('columns.declaredIncome')}</th><th className={thR}>{tl('columns.newInstalment')}</th><th className={th}>{tl('columns.evidence')}</th><th className={th}>{tl('columns.recorded')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
@@ -50,12 +52,12 @@ export function IncomeReviewsView() {
                             </Table>
                         )}
                     </Card>
-                    <Card title="Annual reassessment due" subtitle={`As of ${r.businessDate}. Until reassessed, the last assessed instalment continues.`} bodyClass="p-0">
-                        {r.due.length === 0 ? <div className="p-5"><Empty>No reassessments due.</Empty></div> : (
+                    <Card title={tl('dueTitle')} subtitle={tl('dueSubtitle', { date: r.businessDate })} bodyClass="p-0">
+                        {r.due.length === 0 ? <div className="p-5"><Empty>{tl('dueEmpty')}</Empty></div> : (
                             <Table>
                                 <thead>
                                     <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                        <th className={th}>Loan</th><th className={thR}>Current instalment</th><th className={th}>Review was due</th><th className={thR}>Days overdue</th>
+                                        <th className={th}>{tl('columns.loan')}</th><th className={thR}>{tl('columns.currentInstalment')}</th><th className={th}>{tl('columns.reviewDue')}</th><th className={thR}>{tl('columns.daysOverdue')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F0F2F5]">
