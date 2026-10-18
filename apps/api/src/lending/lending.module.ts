@@ -16,6 +16,8 @@ import { ApplicationsService } from './origination/applications.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
+import { LendingOverviewService } from './reporting/overview.service';
+import { LendingOverviewController } from './reporting/overview.controller';
 import { PeriodCloseService } from './accounting/period-close.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
@@ -120,6 +122,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
 @Module({
   imports: [PrismaModule, LedgerModule],
   controllers: [
+    LendingOverviewController,
     RestructuringController,
     RestructuringPortalController,
     LendingProductsController,
@@ -158,6 +161,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
   ],
   providers: [
     ReportingService,
+    LendingOverviewService,
     PeriodCloseService,
     RegulatoryReturnService,
     LoanMigrationService,

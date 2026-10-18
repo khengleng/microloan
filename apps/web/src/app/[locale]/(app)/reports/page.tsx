@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { LegacyModuleNote } from '@/components/LegacyModuleNote';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -188,6 +189,7 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-black text-slate-900">{t('title')}</h1>
         <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
       </div>
+      <LegacyModuleNote />
 
       {isBorrower ? (
         <div className="bg-white border border-red-200 text-red-700 rounded-lg p-5 text-sm">
