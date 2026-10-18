@@ -122,6 +122,13 @@ const DIRECT_TENANT_MODELS = new Set([
   // Tenant lending settings (maker-checker) and durable scheduled-job claims
   'TenantLendingSettings',
   'ScheduledJobClaim',
+  // Scorecards, score evaluations and alternative data (D-075…D-080)
+  'Scorecard',
+  'ScorecardVersion',
+  'ScoreEvaluation',
+  'AltDataConsent',
+  'AltDataRecord',
+  'AltDataProviderConfig',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

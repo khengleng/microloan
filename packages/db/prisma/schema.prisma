@@ -72,6 +72,7 @@ model Tenant {
   workflowVersions  WorkflowVersion[]
   lendingProducts   LendingProduct[]
   lendingPolicies   LendingPolicy[]
+  scorecards        Scorecard[]
   unidentifiedPayments UnidentifiedPayment[]
   impairmentPolicies ImpairmentPolicy[]
   borrowerGroups    BorrowerGroup[]
@@ -355,6 +356,8 @@ model Borrower {
   groupMemberships GroupMembership[]
   customerDocuments CustomerDocument[]
   documentRequests  DocumentRequest[]
+  altDataConsents   AltDataConsent[]
+  altDataRecords    AltDataRecord[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
@@ -1538,6 +1541,7 @@ model Application {
   conditions ConditionPrecedent[]
   guarantees Guarantee[]
   pledges    CollateralPledge[]
+  scoreEvaluations ScoreEvaluation[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -3181,6 +3185,7 @@ model CustomerDocument {
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
   versions        CustomerDocumentVersion[]
+  altDataRecords  AltDataRecord[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, legacySource, legacyId])
@@ -4454,4 +4459,197 @@ model ScheduledJobClaim {
 
   @@unique([tenantId, job, runKey])
   @@unique([tenantId, id])
+}
+
+// ── Scorecards and score evaluations (DECISIONS D-075…D-077) ───────────────
+
+/// A tenant's scorecard: a code products name as champion or challenger.
+/// The definition lives in its versions. Installed from a template or
+/// written from scratch.
+model Scorecard {
+  id           String             @id @default(uuid())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  description  String             @default("")
+  /// The template it was installed from, if any.
+  templateCode String?
+  createdBy    String
+  createdAt    DateTime           @default(now())
+  versions     ScorecardVersion[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// One version of a scorecard. DRAFT → SUBMITTED → APPROVED → ACTIVE →
+/// RETIRED under maker-checker (REJECTED goes back to the maker). The
+/// definition is frozen once it leaves DRAFT; at most one version of a
+/// scorecard is ACTIVE.
+model ScorecardVersion {
+  id              String            @id @default(uuid())
+  tenantId        String
+  scorecardId     String
+  scorecard       Scorecard         @relation(fields: [tenantId, scorecardId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// DRAFT, SUBMITTED, APPROVED, REJECTED, ACTIVE, RETIRED
+  status          String            @default("DRAFT")
+  definition      Json
+  definitionHash  String
+  changeSummary   String            @default("")
+  makerId         String
+  submittedAt     DateTime?
+  checkerId       String?
+  approvedAt      DateTime?
+  activatedBy     String?
+  activatedAt     DateTime?
+  retiredAt       DateTime?
+  rejectionReason String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  evaluations     ScoreEvaluation[]
+
+  @@unique([scorecardId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// One scoring of an application, append-only: the scorecard version (or
+/// template) used, the full input snapshot with each feature's source and
+/// consent, the result and the strategy outcome. A CHALLENGER row is a
+/// silent evaluation that never drives the decision.
+model ScoreEvaluation {
+  id                 String            @id @default(uuid())
+  tenantId           String
+  applicationId      String
+  application        Application       @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId         String
+  productId          String
+  productVersionId   String
+  /// CHAMPION (drives the decision) or CHALLENGER (shadow)
+  role               String
+  /// APPLICATION, APPROVAL or RESCORE
+  stage              String
+  scorecardCode      String
+  /// Null when the template scored (the tenant has no ACTIVE version).
+  scorecardVersionId String?
+  scorecardVersion   ScorecardVersion? @relation(fields: [tenantId, scorecardVersionId], references: [tenantId, id], onDelete: Restrict)
+  /// The version number; 0 for the template.
+  version            Int
+  /// TENANT or TEMPLATE
+  source             String
+  definitionHash     String
+  thinFile           Boolean           @default(false)
+  inputs             Json
+  result             Json
+  score              Int
+  grade              String
+  /// AUTO_APPROVE, REFER, DECLINE (what the strategy says; a challenger's never applies)
+  outcome            String
+  strategy           Json
+  drivesDecision     Boolean
+  currency           String
+  requestedAmount    Decimal           @db.Decimal(24, 4)
+  engineVersion      String
+  evaluatedBy        String
+  createdAt          DateTime          @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, applicationId, createdAt])
+  @@index([tenantId, scorecardCode, createdAt])
+}
+
+// ── Alternative data for thin-file borrowers (DECISIONS D-078, D-079) ───────
+
+/// A borrower's consent to one alternative data source, append-only: a
+/// GRANT, and later perhaps the REVOKE that ends it (a new row naming the
+/// grant). Nothing from a source is fetched or used without a grant in force.
+model AltDataConsent {
+  id          String          @id @default(uuid())
+  tenantId    String
+  borrowerId  String
+  borrower    Borrower        @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// GRANT or REVOKE
+  action      String
+  /// INTERNAL_BEHAVIOUR, UTILITY_BILLS, TELCO_STATEMENT, RENT_HISTORY,
+  /// BUSINESS_CASH_FLOW, SMARTPHONE_DATA, TELCO_DATA, EWALLET_DATA
+  source      String
+  /// On a REVOKE: the grant it ends.
+  grantId     String?
+  /// Why the data is used, as told to the borrower.
+  purpose     String          @default("")
+  /// What the borrower agreed may be used.
+  scope       String          @default("")
+  /// SIGNED_FORM, RECORDED_VERBAL, BORROWER_PORTAL
+  method      String
+  /// The customer document holding the signed form, when there is one.
+  documentId  String?
+  /// When the borrower gave (GRANT) or withdrew (REVOKE) it.
+  effectiveAt DateTime
+  /// GRANT: when it lapses.
+  expiresAt   DateTime?
+  reason      String          @default("")
+  /// The staff member who recorded it (the borrower grants it).
+  recordedBy  String
+  createdAt   DateTime        @default(now())
+  records     AltDataRecord[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, source])
+}
+
+/// Alternative data a loan officer captured from a customer document
+/// (utility bills, telco statement, rent, observed business cash flow). It
+/// counts towards a score only once a second person has verified it.
+model AltDataRecord {
+  id              String           @id @default(uuid())
+  tenantId        String
+  borrowerId      String
+  borrower        Borrower         @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// UTILITY_BILLS, TELCO_STATEMENT, RENT_HISTORY, BUSINESS_CASH_FLOW
+  kind            String
+  data            Json
+  periodFrom      DateTime         @db.Date
+  periodTo        DateTime         @db.Date
+  documentId      String
+  document        CustomerDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
+  /// The consent in force when it was captured.
+  consentId       String
+  consent         AltDataConsent   @relation(fields: [tenantId, consentId], references: [tenantId, id], onDelete: Restrict)
+  /// PENDING, VERIFIED, REJECTED
+  status          String           @default("PENDING")
+  note            String           @default("")
+  recordedBy      String
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, kind, status])
+}
+
+/// A tenant's connection to an external alternative-data provider
+/// (smartphone, telco or e-wallet data). Credentials are field-encrypted
+/// and never returned. Activated by a second administrator; usable only when
+/// this build ships an adapter for the provider.
+model AltDataProviderConfig {
+  id           String    @id @default(uuid())
+  tenantId     String
+  /// SMARTPHONE_DATA, TELCO_DATA, EWALLET_DATA
+  source       String
+  providerCode String
+  endpointUrl  String
+  credentials  String
+  /// PENDING, ACTIVE, REJECTED, DISABLED
+  status       String    @default("PENDING")
+  makerId      String
+  checkerId    String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, source, status])
 }
