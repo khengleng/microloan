@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
     AlertTriangle, ArrowRight, CalendarCheck2, CheckCircle2, ChevronLeft, ChevronRight, CircleDashed,
     Clock3, Lock, LockOpen, PlayCircle, XCircle,
@@ -14,6 +15,7 @@ import { Btn, Card, Disclosure, Empty, ErrorBox, Field, Spinner, Table, TextArea
 import { useAction, useApi } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
 import { fmtDateTime } from '../format';
+import { Person } from '../People';
 
 /* ── API shapes ──────────────────────────────────────────────────────────── */
 
@@ -52,27 +54,31 @@ interface YearClosing { currency: string; income: string; expense: string; netIn
 interface YearView {
     year: number; status: string; preparedBy: string | null; approvedBy: string | null; closedAt: string | null; closingEventIds: string[];
     checks: Check[]; ready: boolean; closing: YearClosing[]; log: LogEntry[];
+    /** Where the year's result is carried (tenant lending settings). */
+    retainedEarningsAccount?: string;
     permissions: { prepare: Can; approve: Can };
 }
 
 /* ── Presentation helpers ────────────────────────────────────────────────── */
 
-const who = (id: string | null) => (!id ? '—' : id === 'system:period-close' ? 'End of day (automatic)' : `User ${id.slice(0, 8)}`);
+/** The person (by email) or the automatic end-of-day close. */
+function Who({ id }: { id: string | null }) {
+    const t = useTranslations('LendingClose');
+    if (id === 'system:period-close') return <>{t('automatic')}</>;
+    return <Person id={id} />;
+}
 
-const TILE: Record<MonthStatus, { label: string; icon: typeof Lock; cls: string }> = {
-    CLOSED: { label: 'Closed', icon: Lock, cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-    PENDING: { label: 'Awaiting approval', icon: Clock3, cls: 'border-amber-300 bg-amber-50 text-amber-900' },
-    REOPEN_PENDING: { label: 'Reopen requested', icon: LockOpen, cls: 'border-amber-300 bg-amber-50 text-amber-900' },
-    OPEN: { label: 'To close', icon: PlayCircle, cls: 'border-[#C9D7FF] bg-[#F0F5FF] text-[#4B45C6]' },
-    CURRENT: { label: 'In progress', icon: CircleDashed, cls: 'border-[#E3E8EE] bg-white text-[#3C4257]' },
-    FUTURE: { label: 'Not started', icon: CircleDashed, cls: 'border-dashed border-[#E3E8EE] bg-white text-[#AAB7C4]' },
-    NO_ACTIVITY: { label: 'No activity', icon: CircleDashed, cls: 'border-dashed border-[#E3E8EE] bg-[#F7FAFC] text-[#AAB7C4]' },
+const TILE: Record<MonthStatus, { icon: typeof Lock; cls: string }> = {
+    CLOSED: { icon: Lock, cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+    PENDING: { icon: Clock3, cls: 'border-amber-300 bg-amber-50 text-amber-900' },
+    REOPEN_PENDING: { icon: LockOpen, cls: 'border-amber-300 bg-amber-50 text-amber-900' },
+    OPEN: { icon: PlayCircle, cls: 'border-[#C9D7FF] bg-[#F0F5FF] text-[#4B45C6]' },
+    CURRENT: { icon: CircleDashed, cls: 'border-[#E3E8EE] bg-white text-[#3C4257]' },
+    FUTURE: { icon: CircleDashed, cls: 'border-dashed border-[#E3E8EE] bg-white text-[#AAB7C4]' },
+    NO_ACTIVITY: { icon: CircleDashed, cls: 'border-dashed border-[#E3E8EE] bg-[#F7FAFC] text-[#AAB7C4]' },
 };
 
-const LOG_LABEL: Record<string, string> = {
-    PREPARED: 'Prepared for close', APPROVED: 'Approved and locked', REJECTED: 'Sent back',
-    REOPEN_REQUESTED: 'Reopening requested', REOPENED: 'Reopened', REOPEN_REJECTED: 'Reopening refused',
-};
+const LOG_ACTIONS = ['PREPARED', 'APPROVED', 'REJECTED', 'REOPEN_REQUESTED', 'REOPENED', 'REOPEN_REJECTED'];
 
 function CheckIcon({ status }: { status: Check['status'] }) {
     if (status === 'PASS') return <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />;
@@ -81,6 +87,7 @@ function CheckIcon({ status }: { status: Check['status'] }) {
 }
 
 function Checklist({ checks }: { checks: Check[] }) {
+    const t = useTranslations('LendingClose');
     const href = useLendingHref();
     return (
         <ul className="divide-y divide-[#F0F2F5] rounded-md border border-[#E3E8EE]">
@@ -93,7 +100,7 @@ function Checklist({ checks }: { checks: Check[] }) {
                     </div>
                     {c.link && c.status !== 'PASS' && (
                         <Link href={href(c.link)} className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#635BFF] hover:underline">
-                            Fix <ArrowRight size={12} />
+                            {t('fix')} <ArrowRight size={12} />
                         </Link>
                     )}
                 </li>
@@ -102,7 +109,7 @@ function Checklist({ checks }: { checks: Check[] }) {
     );
 }
 
-function Stepper({ steps }: { steps: { label: string; done: boolean; active: boolean; sub?: string }[] }) {
+function Stepper({ steps }: { steps: { label: string; done: boolean; active: boolean; sub?: ReactNode }[] }) {
     return (
         <ol className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-0">
             {steps.map((s, i) => (
@@ -136,14 +143,15 @@ function Kpi({ label, value, currency, tone }: { label: string; value: string; c
 }
 
 function History({ log }: { log: LogEntry[] }) {
+    const t = useTranslations('LendingClose');
     if (!log.length) return null;
     return (
         <ol className="space-y-2 border-l border-[#E3E8EE] pl-4">
             {log.map((l) => (
                 <li key={l.id} className="relative text-[12px]">
                     <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#635BFF]" />
-                    <span className="font-semibold text-[#1A1F36]">{LOG_LABEL[l.action] ?? l.action}</span>
-                    <span className="text-[#697386]"> · {who(l.actorId)} · {fmtDateTime(l.createdAt)}</span>
+                    <span className="font-semibold text-[#1A1F36]">{LOG_ACTIONS.includes(l.action) ? t(`log.${l.action}`) : l.action}</span>
+                    <span className="text-[#697386]"> · <Who id={l.actorId} /> · {fmtDateTime(l.createdAt)}</span>
                     {l.comment && <div className="text-[#3C4257]">“{l.comment}”</div>}
                 </li>
             ))}
@@ -152,12 +160,13 @@ function History({ log }: { log: LogEntry[] }) {
 }
 
 function SnapshotPanel({ s, preview }: { s: Snapshot; preview: boolean }) {
+    const t = useTranslations('LendingClose');
     const currencies = Array.from(new Set([...Object.keys(s.month ?? {}), ...Object.keys(s.portfolio ?? {})])).sort();
-    if (!currencies.length) return <Empty>No postings yet in this period.</Empty>;
+    if (!currencies.length) return <Empty>{t('noPostings')}</Empty>;
     return (
         <div className="space-y-4">
             <p className="text-[12px] text-[#697386]">
-                {preview ? 'Live preview — the figures are frozen when the month is prepared.' : `Frozen at ${fmtDateTime(s.takenAt)}.`}
+                {preview ? t('livePreview') : t('frozenAt', { at: fmtDateTime(s.takenAt) })}
             </p>
             {currencies.map((ccy) => {
                 const m = s.month?.[ccy];
@@ -167,21 +176,21 @@ function SnapshotPanel({ s, preview }: { s: Snapshot; preview: boolean }) {
                     <div key={ccy} className="space-y-2">
                         <div className="text-[12px] font-bold text-[#3C4257]">{ccy}</div>
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-                            <Kpi label="Disbursed" value={m?.disbursed ?? '0'} currency={ccy} />
-                            <Kpi label="Collected" value={m?.collected ?? '0'} currency={ccy} />
-                            <Kpi label="Net income" value={m?.netIncome ?? '0'} currency={ccy} tone={Number(m?.netIncome ?? 0) < 0 ? 'bad' : 'good'} />
-                            <Kpi label="Principal outstanding" value={p?.principalOutstanding ?? '0'} currency={ccy} />
-                            <Kpi label="PAR 30" value={`${par30.toFixed(2)}%`} tone={par30 > 5 ? 'bad' : undefined} />
-                            <Kpi label="Loss allowance" value={p?.allowance ?? '0'} currency={ccy} />
+                            <Kpi label={t('kpi.disbursed')} value={m?.disbursed ?? '0'} currency={ccy} />
+                            <Kpi label={t('kpi.collected')} value={m?.collected ?? '0'} currency={ccy} />
+                            <Kpi label={t('kpi.netIncome')} value={m?.netIncome ?? '0'} currency={ccy} tone={Number(m?.netIncome ?? 0) < 0 ? 'bad' : 'good'} />
+                            <Kpi label={t('kpi.principalOutstanding')} value={p?.principalOutstanding ?? '0'} currency={ccy} />
+                            <Kpi label={t('kpi.par30')} value={`${par30.toFixed(2)}%`} tone={par30 > 5 ? 'bad' : undefined} />
+                            <Kpi label={t('kpi.allowance')} value={p?.allowance ?? '0'} currency={ccy} />
                         </div>
                     </div>
                 );
             })}
-            <Disclosure summary={`Trial balance at month end (${s.trialBalance.length} accounts)`}>
+            <Disclosure summary={t('trialBalance', { count: s.trialBalance.length })}>
                 <Table>
                     <thead>
                         <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                            <th className={th}>Ccy</th><th className={th}>Code</th><th className={th}>Account</th><th className={thR}>Debit</th><th className={thR}>Credit</th>
+                            <th className={th}>{t('col.ccy')}</th><th className={th}>{t('col.code')}</th><th className={th}>{t('col.account')}</th><th className={thR}>{t('col.debit')}</th><th className={thR}>{t('col.credit')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
@@ -204,6 +213,7 @@ function SnapshotPanel({ s, preview }: { s: Snapshot; preview: boolean }) {
 /* ── Month detail ────────────────────────────────────────────────────────── */
 
 function MonthPanel({ year, month, onChanged }: { year: number; month: number; onChanged: () => void }) {
+    const t = useTranslations('LendingClose');
     const confirm = useConfirm();
     const { showToast } = useToast();
     const detail = useApi<MonthDetail>(`/lending/ops/periods/${year}/${month}`);
@@ -225,80 +235,80 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
     const locked = d.status === 'CLOSED' || d.status === 'REOPEN_PENDING';
 
     const prepare = async () => {
-        if (warns && !(await confirm({ title: `Prepare ${d.label}`, message: `${warns} warning(s) will be shown to the approver. Prepare the close anyway?`, confirmLabel: 'Prepare close' }))) return;
-        if (await run('prepare', () => api.post(`/lending/ops/periods/${year}/${month}/prepare`, comment.trim() ? { comment: comment.trim() } : {}))) done(`${d.label} prepared — waiting for approval`);
+        if (warns && !(await confirm({ title: t('month.prepareTitle', { label: d.label }), message: t('month.prepareWarnings', { count: warns }), confirmLabel: t('month.prepare') }))) return;
+        if (await run('prepare', () => api.post(`/lending/ops/periods/${year}/${month}/prepare`, comment.trim() ? { comment: comment.trim() } : {}))) done(t('preparedToast', { label: d.label }));
     };
     const decide = async (approve: boolean) => {
         const ok = await confirm({
-            title: approve ? `Lock ${d.label}` : `Send ${d.label} back`,
+            title: approve ? t('month.lockTitle', { label: d.label }) : t('sendBackTitle', { label: d.label }),
             message: approve
-                ? `Once locked, nothing can be posted on ${d.start} to ${d.end}. The checks are run again before locking. Continue?`
-                : 'The month returns to open so it can be corrected and prepared again.',
-            confirmLabel: approve ? 'Approve and lock' : 'Send back',
+                ? t('month.lockBody', { start: d.start, end: d.end })
+                : t('month.sendBackBody'),
+            confirmLabel: approve ? t('month.approveLock') : t('sendBack'),
             variant: approve ? 'default' : 'danger',
         });
         if (!ok) return;
-        if (await run('decide', () => api.post(`/lending/ops/periods/${year}/${month}/decision`, { approve, ...(comment.trim() ? { comment: comment.trim() } : {}) }))) done(approve ? `${d.label} is closed and locked` : `${d.label} sent back`);
+        if (await run('decide', () => api.post(`/lending/ops/periods/${year}/${month}/decision`, { approve, ...(comment.trim() ? { comment: comment.trim() } : {}) }))) done(approve ? t('month.lockedToast', { label: d.label }) : t('sentBackToast', { label: d.label }));
     };
     const requestReopen = async () => {
-        if (await run('reopen', () => api.post(`/lending/ops/periods/${year}/${month}/reopen`, { reason: reopenReason.trim() }))) done('Reopening requested — waiting for approval');
+        if (await run('reopen', () => api.post(`/lending/ops/periods/${year}/${month}/reopen`, { reason: reopenReason.trim() }))) done(t('month.reopenRequestedToast'));
     };
     const decideReopen = async (approve: boolean) => {
         const ok = await confirm({
-            title: approve ? `Reopen ${d.label}` : 'Refuse reopening',
-            message: approve ? `Postings dated ${d.start} to ${d.end} will be allowed again until the month is closed again.` : `${d.label} stays locked.`,
-            confirmLabel: approve ? 'Reopen' : 'Keep locked',
+            title: approve ? t('month.reopenTitle', { label: d.label }) : t('month.refuseReopen'),
+            message: approve ? t('month.reopenBody', { start: d.start, end: d.end }) : t('month.staysLocked', { label: d.label }),
+            confirmLabel: approve ? t('month.reopen') : t('month.keepLocked'),
             variant: approve ? 'danger' : 'default',
         });
         if (!ok) return;
-        if (await run('reopen-decision', () => api.post(`/lending/ops/periods/${year}/${month}/reopen-decision`, { approve }))) done(approve ? `${d.label} reopened` : 'Reopening refused');
+        if (await run('reopen-decision', () => api.post(`/lending/ops/periods/${year}/${month}/reopen-decision`, { approve }))) done(approve ? t('month.reopenedToast', { label: d.label }) : t('month.reopenRefusedToast'));
     };
 
     const steps = [
-        { label: 'Month ends', done: d.checks.find((c) => c.code === 'BUSINESS_DATE')?.status === 'PASS', active: false, sub: d.end },
-        { label: 'Checks pass', done: fails === 0, active: !prepared, sub: fails ? `${fails} to fix` : warns ? `${warns} warning(s)` : 'All clear' },
-        { label: 'Prepared', done: prepared, active: d.status === 'OPEN' && fails === 0, sub: d.preparedBy ? who(d.preparedBy) : 'Finance' },
-        { label: 'Approved & locked', done: locked, active: d.status === 'PENDING', sub: d.approvedBy ? who(d.approvedBy) : 'A second person' },
+        { label: t('step.monthEnds'), done: d.checks.find((c) => c.code === 'BUSINESS_DATE')?.status === 'PASS', active: false, sub: d.end },
+        { label: t('step.checksPass'), done: fails === 0, active: !prepared, sub: fails ? t('step.toFix', { count: fails }) : warns ? t('step.warnings', { count: warns }) : t('step.allClear') },
+        { label: t('step.prepared'), done: prepared, active: d.status === 'OPEN' && fails === 0, sub: d.preparedBy ? <Who id={d.preparedBy} /> : t('step.finance') },
+        { label: t('step.approvedLocked'), done: locked, active: d.status === 'PENDING', sub: d.approvedBy ? <Who id={d.approvedBy} /> : t('step.secondPerson') },
     ];
 
     return (
         <Card
             title={<span className="flex items-center gap-2">{d.label} {locked ? <Lock size={15} className="text-emerald-600" /> : null}</span>}
             subtitle={`${d.start} to ${d.end}`}
-            actions={<Btn size="sm" variant="ghost" onClick={detail.reload}>Refresh</Btn>}
+            actions={<Btn size="sm" variant="ghost" onClick={detail.reload}>{t('refresh')}</Btn>}
         >
             <div className="space-y-5">
                 <Stepper steps={steps} />
 
                 {d.status === 'PENDING' && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
-                        Prepared by {who(d.preparedBy)}{d.preparedAt ? ` on ${fmtDateTime(d.preparedAt)}` : ''}. Waiting for someone else to approve and lock it.
+                        {t.rich('month.pendingNote', { who: () => <Who id={d.preparedBy} />, at: d.preparedAt ? fmtDateTime(d.preparedAt) : '—' })}
                     </div>
                 )}
                 {d.status === 'REOPEN_PENDING' && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
-                        Reopening requested by {who(d.reopenRequestedBy)}: “{d.reopenReason}”. The month stays locked until a second person approves.
+                        {t.rich('month.reopenPendingNote', { who: () => <Who id={d.reopenRequestedBy} />, reason: d.reopenReason })}
                     </div>
                 )}
                 {d.status === 'CLOSED' && (
                     <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800">
-                        Closed by {who(d.approvedBy)}{d.closedAt ? ` on ${fmtDateTime(d.closedAt)}` : ''}. Nothing can be posted into this month.
+                        {t.rich('month.closedNote', { who: () => <Who id={d.approvedBy} />, at: d.closedAt ? fmtDateTime(d.closedAt) : '—' })}
                     </div>
                 )}
 
                 <section className="space-y-2">
-                    <h3 className="text-[13px] font-bold text-[#1A1F36]">Close checks</h3>
+                    <h3 className="text-[13px] font-bold text-[#1A1F36]">{t('month.checks')}</h3>
                     <Checklist checks={d.checks} />
                 </section>
 
                 <section className="space-y-2">
-                    <h3 className="text-[13px] font-bold text-[#1A1F36]">Month-end snapshot</h3>
+                    <h3 className="text-[13px] font-bold text-[#1A1F36]">{t('month.snapshot')}</h3>
                     <SnapshotPanel s={d.snapshot} preview={d.snapshotIsPreview} />
                 </section>
 
                 <section className="space-y-3 border-t border-[#E3E8EE] pt-4">
                     {(d.status === 'OPEN' || d.status === 'PENDING') && (
-                        <Field label="Comment" hint="Optional — kept in the close history">
+                        <Field label={t('comment')} hint={t('commentHint')}>
                             <TextArea value={comment} onChange={setComment} rows={2} maxLength={500} />
                         </Field>
                     )}
@@ -306,38 +316,38 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
                         {d.status === 'OPEN' && (
                             <Btn variant="primary" onClick={prepare} busy={busy === 'prepare'}
                                 disabled={!d.permissions.prepare.allowed || fails > 0}
-                                reason={!d.permissions.prepare.allowed ? d.permissions.prepare.reason : fails ? 'Fix the failing checks first' : undefined}>
-                                <CalendarCheck2 size={14} /> Prepare close
+                                reason={!d.permissions.prepare.allowed ? d.permissions.prepare.reason : fails ? t('month.fixFirst') : undefined}>
+                                <CalendarCheck2 size={14} /> {t('month.prepare')}
                             </Btn>
                         )}
                         {d.status === 'PENDING' && (
                             <>
                                 <Btn variant="primary" onClick={() => decide(true)} busy={busy === 'decide'} disabled={!d.permissions.approve.allowed} reason={d.permissions.approve.reason || undefined}>
-                                    <Lock size={14} /> Approve and lock
+                                    <Lock size={14} /> {t('month.approveLock')}
                                 </Btn>
-                                <Btn variant="danger" onClick={() => decide(false)} disabled={!d.permissions.approve.allowed || busy === 'decide'} reason={d.permissions.approve.reason || undefined}>Send back</Btn>
+                                <Btn variant="danger" onClick={() => decide(false)} disabled={!d.permissions.approve.allowed || busy === 'decide'} reason={d.permissions.approve.reason || undefined}>{t('sendBack')}</Btn>
                             </>
                         )}
                         {d.status === 'CLOSED' && !showReopen && (
                             <Btn onClick={() => setShowReopen(true)} disabled={!d.permissions.prepare.allowed} reason={d.permissions.prepare.reason || undefined}>
-                                <LockOpen size={14} /> Request reopening
+                                <LockOpen size={14} /> {t('month.requestReopen')}
                             </Btn>
                         )}
                         {d.status === 'REOPEN_PENDING' && (
                             <>
-                                <Btn variant="danger" onClick={() => decideReopen(true)} busy={busy === 'reopen-decision'} disabled={!d.permissions.approve.allowed} reason={d.permissions.approve.reason || undefined}>Approve reopening</Btn>
-                                <Btn onClick={() => decideReopen(false)} disabled={!d.permissions.approve.allowed || busy === 'reopen-decision'} reason={d.permissions.approve.reason || undefined}>Keep locked</Btn>
+                                <Btn variant="danger" onClick={() => decideReopen(true)} busy={busy === 'reopen-decision'} disabled={!d.permissions.approve.allowed} reason={d.permissions.approve.reason || undefined}>{t('month.approveReopen')}</Btn>
+                                <Btn onClick={() => decideReopen(false)} disabled={!d.permissions.approve.allowed || busy === 'reopen-decision'} reason={d.permissions.approve.reason || undefined}>{t('month.keepLocked')}</Btn>
                             </>
                         )}
                     </div>
                     {showReopen && (
                         <div className="space-y-2 rounded-md border border-[#E3E8EE] p-3">
-                            <Field label="Why must this month be reopened?" hint="At least 10 characters; a second person approves. Only the latest closed month can be reopened.">
+                            <Field label={t('month.reopenWhy')} hint={t('month.reopenHint')}>
                                 <TextArea value={reopenReason} onChange={setReopenReason} rows={2} maxLength={500} />
                             </Field>
                             <div className="flex gap-2">
-                                <Btn variant="primary" onClick={requestReopen} busy={busy === 'reopen'} disabled={reopenReason.trim().length < 10}>Request reopening</Btn>
-                                <Btn variant="ghost" onClick={() => setShowReopen(false)}>Cancel</Btn>
+                                <Btn variant="primary" onClick={requestReopen} busy={busy === 'reopen'} disabled={reopenReason.trim().length < 10}>{t('month.requestReopen')}</Btn>
+                                <Btn variant="ghost" onClick={() => setShowReopen(false)}>{t('cancel')}</Btn>
                             </div>
                         </div>
                     )}
@@ -346,7 +356,7 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
 
                 {d.log.length > 0 && (
                     <section className="space-y-2">
-                        <h3 className="text-[13px] font-bold text-[#1A1F36]">History</h3>
+                        <h3 className="text-[13px] font-bold text-[#1A1F36]">{t('history')}</h3>
                         <History log={d.log} />
                     </section>
                 )}
@@ -358,6 +368,7 @@ function MonthPanel({ year, month, onChanged }: { year: number; month: number; o
 /* ── Year end ────────────────────────────────────────────────────────────── */
 
 function YearPanel({ year, monthsClosed, monthsRequired, onChanged }: { year: number; monthsClosed: number; monthsRequired: number; onChanged: () => void }) {
+    const t = useTranslations('LendingClose');
     const confirm = useConfirm();
     const { showToast } = useToast();
     const v = useApi<YearView>(`/lending/ops/years/${year}`);
@@ -368,31 +379,31 @@ function YearPanel({ year, monthsClosed, monthsRequired, onChanged }: { year: nu
 
     const done = (m: string) => { showToast(m, 'success'); v.reload(); onChanged(); };
     const prepare = async () => {
-        if (await run('prepare', () => api.post(`/lending/ops/years/${year}/prepare`, {}))) done(`${year} prepared — waiting for approval`);
+        if (await run('prepare', () => api.post(`/lending/ops/years/${year}/prepare`, {}))) done(t('preparedToast', { label: String(year) }));
     };
     const decide = async (approve: boolean) => {
         const ok = await confirm({
-            title: approve ? `Close ${year}` : `Send ${year} back`,
+            title: approve ? t('year.closeTitle', { year }) : t('sendBackTitle', { label: String(year) }),
             message: approve
-                ? `This posts the closing journal dated ${year}-12-31: every income and expense account is brought to zero and the result goes to retained earnings (3100). It cannot be undone.`
-                : 'The year returns to open.',
-            confirmLabel: approve ? 'Approve and close the year' : 'Send back',
+                ? t('year.closeBody', { year, account: y.retainedEarningsAccount ?? '—' })
+                : t('year.sendBackBody'),
+            confirmLabel: approve ? t('year.approveClose') : t('sendBack'),
             variant: approve ? 'warning' : 'danger',
         });
         if (!ok) return;
-        if (await run('decide', () => api.post(`/lending/ops/years/${year}/decision`, { approve }))) done(approve ? `${year} is closed` : `${year} sent back`);
+        if (await run('decide', () => api.post(`/lending/ops/years/${year}/decision`, { approve }))) done(approve ? t('year.closedToast', { year }) : t('sentBackToast', { label: String(year) }));
     };
     const pct = monthsRequired ? Math.round((monthsClosed / monthsRequired) * 100) : 0;
 
     return (
         <Card
-            title={<span className="flex items-center gap-2">Year-end close {year} {y.status === 'CLOSED' && <Lock size={15} className="text-emerald-600" />}</span>}
-            subtitle="Carries the year's income and expense into retained earnings and opens the new year."
+            title={<span className="flex items-center gap-2">{t('year.title', { year })} {y.status === 'CLOSED' && <Lock size={15} className="text-emerald-600" />}</span>}
+            subtitle={t('year.subtitle', { account: y.retainedEarningsAccount ?? '—' })}
         >
             <div className="space-y-5">
                 <div>
                     <div className="mb-1 flex justify-between text-[12px] text-[#697386]">
-                        <span>Months closed</span><span className="font-semibold text-[#1A1F36]">{monthsClosed} of {monthsRequired}</span>
+                        <span>{t('monthsClosed')}</span><span className="font-semibold text-[#1A1F36]">{t('xOfY', { x: monthsClosed, y: monthsRequired })}</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-[#F0F2F5]">
                         <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
@@ -400,17 +411,17 @@ function YearPanel({ year, monthsClosed, monthsRequired, onChanged }: { year: nu
                 </div>
                 <Checklist checks={y.checks} />
                 <section className="space-y-2">
-                    <h3 className="text-[13px] font-bold text-[#1A1F36]">{y.status === 'CLOSED' ? 'Closing journal posted' : 'Closing journal preview'}</h3>
-                    {!y.closing.length ? <Empty>No income or expense in {year}.</Empty> : y.closing.map((c) => (
+                    <h3 className="text-[13px] font-bold text-[#1A1F36]">{y.status === 'CLOSED' ? t('year.journalPosted') : t('year.journalPreview')}</h3>
+                    {!y.closing.length ? <Empty>{t('year.noIncome', { year })}</Empty> : y.closing.map((c) => (
                         <div key={c.currency} className="space-y-2">
                             <div className="grid grid-cols-3 gap-2">
-                                <Kpi label={`Income (${c.currency})`} value={c.income} currency={c.currency} />
-                                <Kpi label="Expense" value={c.expense} currency={c.currency} />
-                                <Kpi label="Net to retained earnings" value={c.netIncome} currency={c.currency} tone={Number(c.netIncome) < 0 ? 'bad' : 'good'} />
+                                <Kpi label={t('year.income', { currency: c.currency })} value={c.income} currency={c.currency} />
+                                <Kpi label={t('year.expense')} value={c.expense} currency={c.currency} />
+                                <Kpi label={t('year.net')} value={c.netIncome} currency={c.currency} tone={Number(c.netIncome) < 0 ? 'bad' : 'good'} />
                             </div>
-                            <Disclosure summary={`${c.accounts.length} account(s) brought to zero`}>
+                            <Disclosure summary={t('year.accountsZeroed', { count: c.accounts.length })}>
                                 <Table>
-                                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Code</th><th className={th}>Account</th><th className={th}>Type</th><th className={thR}>Year balance</th></tr></thead>
+                                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('col.code')}</th><th className={th}>{t('col.account')}</th><th className={th}>{t('col.type')}</th><th className={thR}>{t('col.yearBalance')}</th></tr></thead>
                                     <tbody className="divide-y divide-[#F0F2F5]">
                                         {c.accounts.map((a) => (
                                             <tr key={a.accountCode}><td className={`${td} font-mono text-[12px]`}>{a.accountCode}</td><td className={td}>{a.name}</td><td className={td}>{a.type.toLowerCase()}</td><td className={tdR}><MoneyCell value={a.balance} currency={c.currency} /></td></tr>
@@ -424,19 +435,19 @@ function YearPanel({ year, monthsClosed, monthsRequired, onChanged }: { year: nu
                 <div className="flex flex-wrap gap-2 border-t border-[#E3E8EE] pt-4">
                     {y.status === 'OPEN' && (
                         <Btn variant="primary" onClick={prepare} busy={busy === 'prepare'} disabled={!y.permissions.prepare.allowed || !y.ready}
-                            reason={!y.permissions.prepare.allowed ? y.permissions.prepare.reason : !y.ready ? 'Every month must be closed first' : undefined}>
-                            <CalendarCheck2 size={14} /> Prepare year-end close
+                            reason={!y.permissions.prepare.allowed ? y.permissions.prepare.reason : !y.ready ? t('year.monthsFirst') : undefined}>
+                            <CalendarCheck2 size={14} /> {t('year.prepare')}
                         </Btn>
                     )}
                     {y.status === 'PENDING' && (
                         <>
                             <Btn variant="primary" onClick={() => decide(true)} busy={busy === 'decide'} disabled={!y.permissions.approve.allowed} reason={y.permissions.approve.reason || undefined}>
-                                <Lock size={14} /> Approve and close {year}
+                                <Lock size={14} /> {t('year.approveCloseYear', { year })}
                             </Btn>
-                            <Btn variant="danger" onClick={() => decide(false)} disabled={!y.permissions.approve.allowed || busy === 'decide'} reason={y.permissions.approve.reason || undefined}>Send back</Btn>
+                            <Btn variant="danger" onClick={() => decide(false)} disabled={!y.permissions.approve.allowed || busy === 'decide'} reason={y.permissions.approve.reason || undefined}>{t('sendBack')}</Btn>
                         </>
                     )}
-                    {y.status === 'CLOSED' && <span className="text-[13px] text-emerald-700">Closed by {who(y.approvedBy)}{y.closedAt ? ` on ${fmtDateTime(y.closedAt)}` : ''}.</span>}
+                    {y.status === 'CLOSED' && <span className="text-[13px] text-emerald-700">{t.rich('year.closedBy', { who: () => <Who id={y.approvedBy} />, at: y.closedAt ? fmtDateTime(y.closedAt) : '—' })}</span>}
                 </div>
                 <ErrorBox error={error} onDismiss={clearError} />
                 {y.log.length > 0 && <History log={y.log} />}
@@ -448,6 +459,8 @@ function YearPanel({ year, monthsClosed, monthsRequired, onChanged }: { year: nu
 /* ── Page ────────────────────────────────────────────────────────────────── */
 
 export function PeriodCloseView() {
+    const t = useTranslations('LendingClose');
+    const tn = useTranslations('Workspace.nav');
     const [year, setYear] = useState<number | null>(null);
     const [selected, setSelected] = useState<number | 'YEAR' | null>(null);
     const o = useApi<Overview>(`/lending/ops/periods${year ? `?year=${year}` : ''}`);
@@ -478,54 +491,54 @@ export function PeriodCloseView() {
     const next = useMemo(() => {
         if (!data) return null;
         const pending = data.months.find((m) => m.status === 'PENDING');
-        if (pending) return { text: `${pending.label} ${data.year} is prepared and waiting for approval.`, month: pending.month };
+        if (pending) return { text: t('next.pending', { label: pending.label, year: data.year }), month: pending.month };
         const reopen = data.months.find((m) => m.status === 'REOPEN_PENDING');
-        if (reopen) return { text: `A reopening of ${reopen.label} ${data.year} is waiting for approval.`, month: reopen.month };
+        if (reopen) return { text: t('next.reopen', { label: reopen.label, year: data.year }), month: reopen.month };
         const open = data.months.find((m) => m.status === 'OPEN');
-        if (open) return { text: `${open.label} ${data.year} has ended and can be closed.`, month: open.month };
+        if (open) return { text: t('next.open', { label: open.label, year: data.year }), month: open.month };
         return null;
-    }, [data]);
+    }, [data, t]);
 
     return (
-        <LendingShell title="Period close" subtitle="Month-end and year-end close of the lending books: checks, a frozen snapshot, and a lock approved by a second person.">
+        <LendingShell title={tn('periodClose')} subtitle={t('subtitle')}>
             {o.error && <ErrorBox error={o.error} />}
             {!data ? <Spinner /> : (
                 <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-1">
-                            <Btn size="sm" variant="ghost" onClick={() => { setYear(data.year - 1); setSelected(null); }} aria-label="Previous year"><ChevronLeft size={16} /></Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { setYear(data.year - 1); setSelected(null); }} aria-label={t('prevYear')}><ChevronLeft size={16} /></Btn>
                             <span className="min-w-[4rem] text-center text-[18px] font-bold text-[#1A1F36]">{data.year}</span>
-                            <Btn size="sm" variant="ghost" onClick={() => { setYear(data.year + 1); setSelected(null); }} aria-label="Next year"><ChevronRight size={16} /></Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { setYear(data.year + 1); setSelected(null); }} aria-label={t('nextYear')}><ChevronRight size={16} /></Btn>
                         </div>
                         <div className="flex flex-wrap gap-2 text-[12px]">
-                            <span className="rounded-full border border-[#E3E8EE] bg-white px-2.5 py-1 text-[#3C4257]">Business date <b>{data.businessDate}</b></span>
+                            <span className="rounded-full border border-[#E3E8EE] bg-white px-2.5 py-1 text-[#3C4257]">{t.rich('businessDate', { date: data.businessDate, b: (c) => <b>{c}</b> })}</span>
                             <span className={`rounded-full border px-2.5 py-1 ${data.lastEndOfDayFailures ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#E3E8EE] bg-white text-[#3C4257]'}`}>
-                                Last end of day <b>{data.lastEndOfDay ?? 'not yet'}</b>{data.lastEndOfDayFailures ? ` · ${data.lastEndOfDayFailures} failed` : ''}
+                                {t.rich('lastEod', { date: data.lastEndOfDay ?? t('notYet'), b: (c) => <b>{c}</b> })}{data.lastEndOfDayFailures ? ` · ${t('failedCount', { count: data.lastEndOfDayFailures })}` : ''}
                             </span>
-                            {data.lastClosed && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">Last closed <b>{data.lastClosed.label}</b></span>}
+                            {data.lastClosed && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{t.rich('lastClosed', { label: data.lastClosed.label, b: (c) => <b>{c}</b> })}</span>}
                         </div>
                     </div>
 
                     {next && (
                         <button type="button" onClick={() => setSelected(next.month)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-[#C9D7FF] bg-[#F0F5FF] px-4 py-3 text-left hover:bg-[#E6EEFF]">
-                            <span className="flex items-center gap-2 text-[13px] font-semibold text-[#4B45C6]"><Clock3 size={16} /> Next step: {next.text}</span>
+                            <span className="flex items-center gap-2 text-[13px] font-semibold text-[#4B45C6]"><Clock3 size={16} /> {t('nextStep', { text: next.text })}</span>
                             <ArrowRight size={16} className="text-[#4B45C6]" />
                         </button>
                     )}
 
                     {stats && (
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                            <Kpi label="Months closed" value={`${stats.closed}`} />
-                            <Kpi label="Awaiting approval" value={`${stats.pending}`} tone={stats.pending ? 'bad' : undefined} />
-                            <Kpi label="Ready to close" value={`${stats.toClose}`} />
-                            <Kpi label="Year end" value={data.yearClose.status === 'CLOSED' ? 'Closed' : data.yearClose.status === 'PENDING' ? 'Awaiting approval' : 'Open'} tone={data.yearClose.status === 'CLOSED' ? 'good' : undefined} />
+                            <Kpi label={t('monthsClosed')} value={`${stats.closed}`} />
+                            <Kpi label={t('tile.PENDING')} value={`${stats.pending}`} tone={stats.pending ? 'bad' : undefined} />
+                            <Kpi label={t('readyToClose')} value={`${stats.toClose}`} />
+                            <Kpi label={t('yearEnd')} value={data.yearClose.status === 'CLOSED' ? t('tile.CLOSED') : data.yearClose.status === 'PENDING' ? t('tile.PENDING') : t('open')} tone={data.yearClose.status === 'CLOSED' ? 'good' : undefined} />
                         </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                         {data.months.map((m) => {
-                            const t = TILE[m.status];
-                            const Icon = t.icon;
+                            const tile = TILE[m.status];
+                            const Icon = tile.icon;
                             const active = shown === m.month;
                             const clickable = m.status !== 'FUTURE';
                             return (
@@ -534,15 +547,15 @@ export function PeriodCloseView() {
                                     type="button"
                                     disabled={!clickable}
                                     onClick={() => setSelected(m.month)}
-                                    className={`rounded-lg border p-3 text-left transition-shadow ${t.cls} ${active ? 'ring-2 ring-[#635BFF] ring-offset-1' : ''} ${clickable ? 'hover:shadow-md' : 'cursor-default'}`}
+                                    className={`rounded-lg border p-3 text-left transition-shadow ${tile.cls} ${active ? 'ring-2 ring-[#635BFF] ring-offset-1' : ''} ${clickable ? 'hover:shadow-md' : 'cursor-default'}`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <span className="text-[13px] font-bold">{m.label.slice(0, 3)}</span>
                                         <Icon size={15} />
                                     </div>
-                                    <div className="mt-1 text-[11px] font-semibold">{t.label}</div>
-                                    {m.warnings > 0 && m.status !== 'CLOSED' && <div className="text-[11px]">{m.warnings} warning(s)</div>}
-                                    {m.reopenCount > 0 && <div className="text-[11px] opacity-80">reopened {m.reopenCount}×</div>}
+                                    <div className="mt-1 text-[11px] font-semibold">{t(`tile.${m.status}`)}</div>
+                                    {m.warnings > 0 && m.status !== 'CLOSED' && <div className="text-[11px]">{t('step.warnings', { count: m.warnings })}</div>}
+                                    {m.reopenCount > 0 && <div className="text-[11px] opacity-80">{t('reopenedTimes', { count: m.reopenCount })}</div>}
                                 </button>
                             );
                         })}
@@ -552,11 +565,11 @@ export function PeriodCloseView() {
                             className={`col-span-2 rounded-lg border p-3 text-left sm:col-span-3 lg:col-span-6 ${data.yearClose.status === 'CLOSED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : data.yearClose.status === 'PENDING' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-[#E3E8EE] bg-white text-[#3C4257]'} ${shown === 'YEAR' ? 'ring-2 ring-[#635BFF] ring-offset-1' : ''} hover:shadow-md`}
                         >
                             <div className="flex items-center justify-between">
-                                <span className="text-[13px] font-bold">Year end {data.year}</span>
+                                <span className="text-[13px] font-bold">{t('yearEndYear', { year: data.year })}</span>
                                 {data.yearClose.status === 'CLOSED' ? <Lock size={15} /> : <CalendarCheck2 size={15} />}
                             </div>
                             <div className="mt-1 text-[11px] font-semibold">
-                                {data.yearClose.status === 'CLOSED' ? 'Closed — result carried to retained earnings' : data.yearClose.status === 'PENDING' ? 'Awaiting approval' : `${stats?.closed ?? 0} of ${stats?.required ?? 0} months closed`}
+                                {data.yearClose.status === 'CLOSED' ? t('yearClosedTile') : data.yearClose.status === 'PENDING' ? t('tile.PENDING') : t('monthsClosedOf', { x: stats?.closed ?? 0, y: stats?.required ?? 0 })}
                             </div>
                         </button>
                     </div>
@@ -565,7 +578,7 @@ export function PeriodCloseView() {
                         ? <YearPanel year={data.year} monthsClosed={stats?.closed ?? 0} monthsRequired={stats?.required ?? 12} onChanged={o.reload} />
                         : shown
                             ? <MonthPanel key={`${data.year}-${shown}`} year={data.year} month={shown} onChanged={o.reload} />
-                            : <Card><Empty>Pick a month to see its close.</Empty></Card>}
+                            : <Card><Empty>{t('pickMonth')}</Empty></Card>}
                 </>
             )}
         </LendingShell>

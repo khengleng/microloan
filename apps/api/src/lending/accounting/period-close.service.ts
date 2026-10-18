@@ -1221,6 +1221,9 @@ export class PeriodCloseService {
       return {
         row,
         closing,
+        // Where the result is carried — shown before anyone approves the close.
+        retainedEarnings: (await this.settings.get(tenantId, tx)).accounting
+          .retainedEarnings,
         checks:
           row?.status === 'CLOSED'
             ? (row.checks as unknown as CloseCheck[])
@@ -1238,6 +1241,7 @@ export class PeriodCloseService {
       checks: v.checks,
       ready: v.checks.every((c) => c.status !== 'FAIL'),
       closing: v.closing,
+      retainedEarningsAccount: v.retainedEarnings,
       log: v.row?.log ?? [],
       permissions: {
         prepare: await this.can(actor, 'accounting.period.close'),
