@@ -356,7 +356,12 @@ rotates the secret.
 
 Revolving lines, overdrafts and staged drawdowns are live. Each type is behind
 its own flag, all **off by default**; switch one on under Access → Feature
-flags (two administrators), then activate a facility product:
+flags (two administrators), then activate a facility product. Every drawdown
+(request, approval, release) and every card purchase or cash advance checks
+the facility-type flag, the product family's flag, `lending.accounting.posting`
+and `lending.servicing`; cards are revolving lines and need
+`lending.revolving.drawdown` (D-085). Rejecting or cancelling a pending
+drawdown is never blocked by a flag.
 
 | Type | Flag | Templates |
 |---|---|---|
