@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
+import { errorPage, isBrowserNavigation } from '@/lib/proxy-error-page';
 
 /**
  * Next.js API Proxy Route
@@ -98,6 +99,11 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         // 3. Handle response
         const responseData = await res.arrayBuffer();
 
+        // A download link opened in the browser: show a readable page, not raw JSON.
+        if (res.status >= 400 && req.method === 'GET' && isBrowserNavigation(req.headers)) {
+            return errorPage({ status: res.status, body: responseData, contentType: res.headers.get('content-type'), headers: req.headers, cookieLocale: req.cookies.get('NEXT_LOCALE')?.value });
+        }
+
         // Special case: if NestJS returns 401, it means the token is expired.
         // The interceptor on the client will handle the redirect.
 
@@ -114,6 +120,9 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         });
     } catch (error) {
         console.error(`[Proxy Error] ${req.method} ${targetUrl}:`, error);
+        if (req.method === 'GET' && isBrowserNavigation(req.headers)) {
+            return errorPage({ status: 502, body: null, contentType: null, headers: req.headers, cookieLocale: req.cookies.get('NEXT_LOCALE')?.value });
+        }
         return NextResponse.json({ message: 'Gateway error' }, { status: 502 });
     }
 }

@@ -93,11 +93,17 @@ export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | un
     );
 }
 
-export function IssueList({ issues }: { issues: { path: string; message: string }[] }) {
+/**
+ * Validation and assessment issues. A field path is shown as a readable label
+ * ("terms › principal"); an issue about the whole request (no path — e.g. an
+ * eligibility or document check) shows its message alone.
+ */
+export function IssueList({ issues }: { issues: { path?: string; code?: string; message: string }[] }) {
+    const label = (path: string) => path.replace(/\[(\d+)\]/g, ' $1').split('.').map((p) => p.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()).join(' › ');
     return (
-        <ul className="mt-1 space-y-0.5">
+        <ul className="mt-1 space-y-0.5 list-disc pl-4">
             {issues.map((i, k) => (
-                <li key={k} className="text-[12px]"><span className="font-mono text-[11px] text-red-700">{i.path || '(root)'}</span> — {i.message}</li>
+                <li key={k} className="text-[12px]">{i.path ? <><span className="font-semibold text-red-700">{label(i.path)}</span>: </> : null}{i.message}</li>
             ))}
         </ul>
     );
