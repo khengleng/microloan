@@ -3616,5 +3616,68 @@
       "readinessMust": "ការត្រួតពិនិត្យការត្រៀមខ្លួនទាំងអស់ត្រូវតែជាប់",
       "cancelFile": "បោះបង់ឯកសារ"
     }
+  },
+  "LendingWebhooks": {
+    "title": "Webhooks",
+    "subtitle": "ផ្ញើព្រឹត្តិការណ៍ឥណទានរបស់ស្ថាប័ននេះ ទៅប្រព័ន្ធផ្ទាល់ខ្លួនរបស់វា — មានហត្ថលេខា ព្យាយាមម្តងទៀតដោយស្វ័យប្រវត្តិ និងដាក់ឱ្យដំណើរការដោយអ្នកគ្រប់គ្រងទីពីរ។",
+    "secret": {
+      "copyNow": "ចម្លង signing secret ឥឡូវនេះ — វានឹងមិនបង្ហាញម្តងទៀតទេ។",
+      "copied": "បានចម្លង",
+      "copy": "ចម្លង",
+      "stored": "ខ្ញុំបានរក្សាទុកវាហើយ"
+    },
+    "deliveries": {
+      "none": "មិនទាន់មានការបញ្ជូនទេ។",
+      "colEvent": "ព្រឹត្តិការណ៍",
+      "colStatus": "ស្ថានភាព",
+      "colAttempts": "ចំនួនព្យាយាម",
+      "colResponse": "ការឆ្លើយតប",
+      "colWhen": "ពេលវេលា",
+      "nextTry": "ព្យាយាមម្តងទៀតនៅ {when}",
+      "retry": "ព្យាយាមម្តងទៀត"
+    },
+    "rotateTitle": "ប្តូរ signing secret",
+    "rotateMessage": "ការបញ្ជូនត្រូវចុះហត្ថលេខាដោយ secret ថ្មីភ្លាមៗ; សូមធ្វើបច្ចុប្បន្នភាពប្រព័ន្ធទទួលរបស់អ្នកជាមុនសិន បើមិនដូច្នោះទេ ការបញ្ជូននឹងត្រូវបដិសេធ។",
+    "rotate": "ប្តូរ",
+    "disableTitle": "បិទ endpoint នេះ",
+    "disableMessage": "គ្មានព្រឹត្តិការណ៍ណាត្រូវបានផ្ញើទៅវាទេ។ ការបើកវាវិញ ត្រូវការអ្នកគ្រប់គ្រងម្នាក់ទៀត។",
+    "switchOff": "បិទ",
+    "testDelivered": "បានបញ្ជូនព្រឹត្តិការណ៍សាកល្បង",
+    "testFailed": "ព្រឹត្តិការណ៍សាកល្បងបរាជ័យ — សូមមើលការបញ្ជូន",
+    "endpoints": "Endpoints",
+    "addEndpoint": "បន្ថែម endpoint",
+    "endpointUrl": "URL របស់ endpoint",
+    "endpointUrlHint": "HTTPS លើអ៊ីនធឺណិតសាធារណៈ",
+    "description": "ការពិពណ៌នា",
+    "descriptionPlaceholder": "ប្រព័ន្ធធនាគារស្នូល គណនេយ្យ…",
+    "events": "ព្រឹត្តិការណ៍",
+    "allEventsLater": "<b>ព្រឹត្តិការណ៍ទាំងអស់</b> រួមទាំងព្រឹត្តិការណ៍ដែលបន្ថែមនៅពេលក្រោយ",
+    "register": "ចុះបញ្ជី endpoint",
+    "cancel": "បោះបង់",
+    "noEndpoints": "មិនទាន់មាន endpoint ទេ។",
+    "allEvents": "ព្រឹត្តិការណ៍ទាំងអស់",
+    "eventsCount": "ព្រឹត្តិការណ៍ {count, plural, other {#}}",
+    "secretPrefix": "secret {prefix}…",
+    "lastDelivered": "បញ្ជូនចុងក្រោយ {when}",
+    "sentThisWeek": "បានផ្ញើ {count} សប្តាហ៍នេះ",
+    "retrying": "{count} កំពុងព្យាយាមម្តងទៀត",
+    "failed": "{count} បរាជ័យ",
+    "failuresInRow": "បរាជ័យជាប់ៗគ្នា {count} ដង",
+    "activate": "ដាក់ឱ្យដំណើរការ",
+    "reject": "បដិសេធ",
+    "sendTest": "ផ្ញើសាកល្បង",
+    "rotateSecret": "ប្តូរ secret",
+    "turnBackOn": "បើកវិញ",
+    "hideDeliveries": "លាក់ការបញ្ជូន",
+    "deliveriesBtn": "ការបញ្ជូន",
+    "receiving": {
+      "title": "ការទទួលព្រឹត្តិការណ៍",
+      "subtitle": "ការបញ្ជូននីមួយៗជា POST ដែលមាន JSON body {shape}។",
+      "signature": "<code>X-Webhook-Signature</code> គឺ <code>v1=</code> HMAC-SHA256 នៃ <code>timestamp.body</code> ជាមួយ secret របស់អ្នក; សូមបដិសេធអ្វីដែលមិនត្រូវគ្នា។",
+      "answer": "ឆ្លើយតបដោយ 2xx ណាមួយក្នុងរយៈពេល 10 វិនាទី។ ចម្លើយផ្សេងទៀតត្រូវព្យាយាមម្តងទៀតដោយពន្យារពេលកាន់តែយូរ ប្រហែលមួយថ្ងៃ បន្ទាប់មកត្រូវកត់ថាបរាជ័យ។",
+      "id": "<code>X-Webhook-Id</code> កំណត់អត្តសញ្ញាណព្រឹត្តិការណ៍; ប្រើវាដើម្បីរំលងការបញ្ជូនស្ទួន។",
+      "switchedOff": "endpoint ដែលបរាជ័យ 50 ដងជាប់ៗគ្នា នឹងត្រូវបិទ។",
+      "example": "ឧទាហរណ៍ការផ្ទៀងផ្ទាត់ (Node.js)"
+    }
   }
 }

@@ -3616,5 +3616,68 @@
       "readinessMust": "Every readiness check must pass",
       "cancelFile": "Cancel file"
     }
+  },
+  "LendingWebhooks": {
+    "title": "Webhooks",
+    "subtitle": "Send this organisation's lending events to its own systems — signed, retried, and activated by a second administrator.",
+    "secret": {
+      "copyNow": "Copy the signing secret now — it will not be shown again.",
+      "copied": "Copied",
+      "copy": "Copy",
+      "stored": "I have stored it"
+    },
+    "deliveries": {
+      "none": "No deliveries yet.",
+      "colEvent": "Event",
+      "colStatus": "Status",
+      "colAttempts": "Attempts",
+      "colResponse": "Response",
+      "colWhen": "When",
+      "nextTry": "next try {when}",
+      "retry": "Retry"
+    },
+    "rotateTitle": "Rotate the signing secret",
+    "rotateMessage": "Deliveries are signed with the new secret immediately; update your receiver first or deliveries will be rejected.",
+    "rotate": "Rotate",
+    "disableTitle": "Switch off this endpoint",
+    "disableMessage": "No events are sent to it. Turning it back on needs another administrator.",
+    "switchOff": "Switch off",
+    "testDelivered": "Test event delivered",
+    "testFailed": "Test event failed — see deliveries",
+    "endpoints": "Endpoints",
+    "addEndpoint": "Add endpoint",
+    "endpointUrl": "Endpoint URL",
+    "endpointUrlHint": "HTTPS on the public internet",
+    "description": "Description",
+    "descriptionPlaceholder": "Core banking, accounting…",
+    "events": "Events",
+    "allEventsLater": "<b>All events</b>, including ones added later",
+    "register": "Register endpoint",
+    "cancel": "Cancel",
+    "noEndpoints": "No endpoints yet.",
+    "allEvents": "All events",
+    "eventsCount": "{count, plural, one {# event} other {# events}}",
+    "secretPrefix": "secret {prefix}…",
+    "lastDelivered": "last delivered {when}",
+    "sentThisWeek": "{count} sent this week",
+    "retrying": "{count} retrying",
+    "failed": "{count} failed",
+    "failuresInRow": "{count} failures in a row",
+    "activate": "Activate",
+    "reject": "Reject",
+    "sendTest": "Send test",
+    "rotateSecret": "Rotate secret",
+    "turnBackOn": "Turn back on",
+    "hideDeliveries": "Hide deliveries",
+    "deliveriesBtn": "Deliveries",
+    "receiving": {
+      "title": "Receiving events",
+      "subtitle": "Each delivery is a POST with a JSON body {shape}.",
+      "signature": "<code>X-Webhook-Signature</code> is <code>v1=</code> HMAC-SHA256 of <code>timestamp.body</code> with your secret; reject anything that does not match.",
+      "answer": "Answer with any 2xx within 10 seconds. Anything else is retried with growing delays for about a day, then marked failed.",
+      "id": "<code>X-Webhook-Id</code> identifies the event; use it to ignore repeats.",
+      "switchedOff": "An endpoint that fails 50 times in a row is switched off.",
+      "example": "Verification example (Node.js)"
+    }
   }
 }
