@@ -144,7 +144,8 @@ export interface ScoreEvaluation {
         maxAmount: string | null;
         amountAboveGradeLimit: boolean;
         rateAddOnBps: number | null;
-        explanation: string;
+        /** What the customer is told; shown from ApplicationScores.customerExplanation. */
+        explanation: { outcome: ScoreOutcome; reasons: CodedMessage[] };
     } | null;
 }
 

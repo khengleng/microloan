@@ -9,8 +9,8 @@ import { useAction, useApi } from '../useAsync';
 import { fmtDateTime } from '../format';
 import { Money } from '../MoneyCell';
 import { AdverseReasons, FactorBars, GradePill, OutcomeBadge } from './ScoreResultView';
-import { displayValue, shortId, versionLabel } from './types';
-import type { ApplicationScores, ScoreEvaluation } from './types';
+import { displayValue, OUTCOME_LABELS, shortId, versionLabel } from './types';
+import type { ApplicationScores, ScoreEvaluation, ScoreOutcome } from './types';
 
 const RESCORABLE = ['DRAFT', 'SUBMITTED', 'RECOMMENDED'];
 
@@ -100,7 +100,6 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                                     {st.declineBelowScore !== null && <p>Declines below score {st.declineBelowScore}.</p>}
                                     {st.maxAmount && <p>Grade limit <Money value={st.maxAmount} currency={e.inputs.currency || currency} />{st.amountAboveGradeLimit && <span className="ml-1 font-semibold text-amber-700">— requested amount is above it</span>}</p>}
                                     {!!st.rateAddOnBps && <p>Rate add-on {st.rateAddOnBps} bps for this grade.</p>}
-                                    {st.explanation && <p className="text-[#697386]">{st.explanation}</p>}
                                 </div>
                             </div>
                         )}
@@ -118,7 +117,7 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                                 {d.customerExplanation && (
                                     <div className="border border-[#E3E8EE] rounded-md p-3 bg-[#F7FAFC]">
                                         <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">What the customer is told</p>
-                                        <p className="text-[13px] font-semibold text-[#1A1F36]">{d.customerExplanation.outcome.replace(/_/g, ' ').toLowerCase()}</p>
+                                        <p className="text-[13px] font-semibold text-[#1A1F36]">{OUTCOME_LABELS[d.customerExplanation.outcome as ScoreOutcome] ?? d.customerExplanation.outcome}</p>
                                         {d.customerExplanation.reasons.length > 0 && (
                                             <ul className="mt-1 space-y-0.5 list-disc list-inside">{d.customerExplanation.reasons.map((r) => <li key={r.code} className="text-[13px] text-[#3C4257]">{r.message}</li>)}</ul>
                                         )}

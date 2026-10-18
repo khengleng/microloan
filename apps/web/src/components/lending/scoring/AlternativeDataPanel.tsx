@@ -231,11 +231,13 @@ export function AlternativeDataView({ borrowerId }: { borrowerId: string }) {
                             <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Source</th><th className={th}>Status</th><th className={th}>Expires</th><th className={th} /></tr></thead>
                             <tbody className="divide-y divide-[#F0F2F5]">
                                 {d.sources.map((s) => {
-                                    const f = inForce.get(s);
+                                    // The API lists every source; only one with a grant has consent in force.
+                                    const entry = inForce.get(s);
+                                    const f = entry?.grantId ? entry : undefined;
                                     return (
                                         <tr key={s}>
                                             <td className={td}>{sourceLabel(s)}<div className="font-mono text-[11px] text-[#697386]">{s}</div></td>
-                                            <td className={td}>{f ? <StatusBadge status="ACTIVE" /> : <span className="text-[12px] text-[#697386]">no consent</span>}{f && !f.grantId && <div className="text-[11px] text-[#697386]">no grant needed</div>}</td>
+                                            <td className={td}>{f ? <StatusBadge status="ACTIVE" /> : <span className="text-[12px] text-[#697386]">no consent</span>}</td>
                                             <td className={`${td} whitespace-nowrap`}>{f?.expiresAt ? fmtDateTime(f.expiresAt) : '—'}</td>
                                             <td className={`${td} text-right`}>
                                                 {can('alt_data.consent.manage') && (
