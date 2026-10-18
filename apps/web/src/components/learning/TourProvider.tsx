@@ -141,7 +141,8 @@ function TourOverlay({ active, setActive, onFinish, onClose }: {
         if (!step.target) { setSearching(false); return; }
         setSearching(true);
         const id = step.target;
-        const deadline = Date.now() + (patient ? PATIENT_MS : QUICK_MS);
+        // Poll a fixed number of times rather than against the clock.
+        let attemptsLeft = Math.ceil((patient ? PATIENT_MS : QUICK_MS) / POLL_MS);
         let timer: ReturnType<typeof setTimeout> | undefined;
         const look = () => {
             const el = findTarget(id);
@@ -151,7 +152,7 @@ function TourOverlay({ active, setActive, onFinish, onClose }: {
                 setSearching(false);
                 return;
             }
-            if (Date.now() >= deadline) { go(direction); return; }
+            if (--attemptsLeft <= 0) { go(direction); return; }
             timer = setTimeout(look, POLL_MS);
         };
         look();
