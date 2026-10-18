@@ -80,6 +80,7 @@ export const SETTLEMENT_COLUMNS = ['reference', 'loan_ref', 'amount', 'currency'
 /** Columns of a payroll remittance file; one of `national_id` / `loan_ref` must be given per line. */
 export const PAYROLL_COLUMNS = ['employee_ref', 'national_id', 'loan_ref', 'amount'] as const;
 
+/** Default ceiling on payment lines per file; a lender sets its own in its lending settings (paymentFiles.maxLines). */
 export const MAX_FILE_LINES = 5000;
 
 export interface FileLineError {
@@ -200,10 +201,10 @@ export function sameLine(
   );
 }
 
-function finish(lines: ChannelLine[], errors: FileLineError[]): ParsedChannelFile {
+function finish(lines: ChannelLine[], errors: FileLineError[], maxLines: number): ParsedChannelFile {
   if (!lines.length && !errors.length) errors.push({ lineNo: 1, message: 'the file has no payment lines' });
-  if (lines.length > MAX_FILE_LINES)
-    errors.push({ lineNo: lines[MAX_FILE_LINES].lineNo, message: `a file may hold at most ${MAX_FILE_LINES} lines` });
+  if (lines.length > maxLines)
+    errors.push({ lineNo: lines[maxLines].lineNo, message: `a file may hold at most ${maxLines} lines` });
   markDuplicates(lines, errors);
   const totals: Record<string, Dec> = {};
   for (const l of lines)
@@ -236,7 +237,7 @@ function text(raw: string, field: string, errors: FileLineError[], lineNo: numbe
  * `loan_ref` is the loan account reference (blank when the payer gave none —
  * the line then goes to suspense). Lines starting with `#` are comments.
  */
-export function parseSettlementFile(content: string): ParsedChannelFile {
+export function parseSettlementFile(content: string, maxLines: number = MAX_FILE_LINES): ParsedChannelFile {
   const rows = parseCsv(content);
   const col = header(rows[0], SETTLEMENT_COLUMNS, ['payer_name']);
   const errors: FileLineError[] = [];
@@ -265,7 +266,7 @@ export function parseSettlementFile(content: string): ParsedChannelFile {
       duplicateOf: null,
     });
   }
-  return finish(lines, errors);
+  return finish(lines, errors, maxLines);
 }
 
 /**
@@ -280,6 +281,7 @@ export function parseSettlementFile(content: string): ParsedChannelFile {
 export function parsePayrollFile(
   content: string,
   meta: { employer: string; period: string; currency: string; valueDate: string },
+  maxLines: number = MAX_FILE_LINES,
 ): ParsedChannelFile {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(meta.period))
     throw new EngineError('FILE_INVALID', `Period ${meta.period} must be YYYY-MM.`);
@@ -314,7 +316,7 @@ export function parsePayrollFile(
       duplicateOf: null,
     });
   }
-  return finish(lines, errors);
+  return finish(lines, errors, maxLines);
 }
 
 // ── Cross-currency payments (UC-21) ─────────────────────────────────────────

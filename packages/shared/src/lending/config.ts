@@ -345,6 +345,8 @@ export const productConfigSchema = z
         /** OVERDRAFT: the minimum payment formula. */
         minimumPaymentRate: rateFraction.nullable().default(null),
         minimumPaymentFloor: decimalString.nullable().default(null),
+        /** OVERDRAFT: days from the statement period end to the minimum payment's due date. */
+        minimumPaymentDueDays: z.number().int().min(1).max(60).default(21),
         /**
          * Annual rate on any balance above the limit. Null refuses over-limit
          * balances outright rather than pricing them.
@@ -568,6 +570,8 @@ export const productConfigSchema = z
         escalateAfterRestructures: z.number().int().min(0).max(10).default(1),
         /** Consecutive on-time revised instalments before the delinquency floor lifts. */
         probationInstalments: z.number().int().min(0).max(60).default(6),
+        /** Days before a restructured loan's balloon falls due that the follow-up task is raised. */
+        balloonReminderDays: z.number().int().min(0).max(365).default(30),
         /** Balance change between proposal and execution tolerated without re-approval. */
         materialityTolerance: decimalString.default('0'),
         proposalValidityDays: z.number().int().min(1).max(180).default(30),

@@ -119,6 +119,9 @@ const DIRECT_TENANT_MODELS = new Set([
   'ExposureLimit',
   'IncomeAssessment',
   'MurabahaContract',
+  // Tenant lending settings (maker-checker) and durable scheduled-job claims
+  'TenantLendingSettings',
+  'ScheduledJobClaim',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

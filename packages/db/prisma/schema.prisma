@@ -4413,3 +4413,45 @@ model MurabahaContract {
   @@unique([tenantId, loanAccountId])
   @@index([tenantId, status])
 }
+
+/// A lender's own operating parameters that used to be constants in code:
+/// regulatory-return bands and classes, the ledger accounts tenant-level
+/// postings use, payment-file limits, the longest delegation, and the
+/// legacy servicing jobs' thresholds. Versioned and maker-checker governed
+/// like the impairment policy: one version in force; with none, the
+/// documented defaults (the previous constants) apply.
+model TenantLendingSettings {
+  id        String    @id @default(uuid())
+  tenantId  String
+  version   Int
+  settings  Json
+  /// PENDING, ACTIVE, REJECTED, RETIRED
+  status    String    @default("PENDING")
+  makerId   String
+  checkerId String?
+  decidedAt DateTime?
+  reason    String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// Durable claims for scheduled work across API instances: a run claimed
+/// once per tenant and run key (a reminder batch for a day), or a lease an
+/// instance renews while it holds a long-lived role (polling a chat bot).
+/// Replaces in-process guards that only held within one instance.
+model ScheduledJobClaim {
+  id         String    @id @default(uuid())
+  tenantId   String
+  job        String
+  runKey     String
+  holder     String
+  claimedAt  DateTime  @default(now())
+  /// Null: claimed for good (run once). Otherwise free again after this.
+  leaseUntil DateTime?
+
+  @@unique([tenantId, job, runKey])
+  @@unique([tenantId, id])
+}

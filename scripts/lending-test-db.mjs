@@ -69,6 +69,7 @@ const INVARIANT_SECTIONS = [
   ['20261019001900_trade_receivables_documentary', '-- Database-level invariants for bought receivables and documentary trade loans.'],
   ['20261019002000_lending_project_finance_borrowing_base', '-- Database-level invariants for project finance and borrowing bases.'],
   ['20261019002100_lending_institutional_icl_murabaha', '-- Database-level invariants for institutional lending, income-contingent repayment and Murabaha.'],
+  ['20261019002200_tenant_settings_job_claims', '-- Database-level invariants for tenant lending settings and job claims.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
