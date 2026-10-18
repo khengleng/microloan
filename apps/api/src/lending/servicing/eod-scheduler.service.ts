@@ -7,6 +7,7 @@ import { BusinessDateService } from '../common/business-date.service';
 import { LendingActor } from '../common/util';
 import { ServicingService } from './servicing.service';
 import { PeriodCloseService } from '../accounting/period-close.service';
+import { operationalConfig } from '../../config/operational-config';
 
 /** Arbitrary, fixed key for the cross-instance advisory lock. */
 const EOD_LOCK_KEY = 7_264_190_311;
@@ -81,7 +82,7 @@ export class EodSchedulerService {
 
   /** Run end-of-day for every tenant. Returns null when another instance holds the lock. */
   async runAll(today = BusinessDateService.calendarToday()) {
-    const maxDays = Number(process.env.LENDING_EOD_MAX_CATCHUP_DAYS || 31);
+    const maxDays = operationalConfig().eod.maxCatchUpDays;
     return runAsSystem('lending end-of-day', () =>
       this.prisma.$transaction(
         async (tx) => {

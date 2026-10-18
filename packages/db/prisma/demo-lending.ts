@@ -25,8 +25,18 @@ if (process.env.NODE_ENV === 'production' && process.env.DEMO_SEED_ALLOW !== 'tr
   process.exit(1);
 }
 
-const PASSWORD = process.env.DEMO_PASSWORD || 'Demo#Lending2026';
+/**
+ * The demo users' password: DEMO_PASSWORD, or a fresh random one printed at
+ * the end — never a literal in the code. Users an earlier run created keep
+ * the password they were created with.
+ */
+const PASSWORD = process.env.DEMO_PASSWORD?.trim() || `Demo-${randomBytes(12).toString('base64url')}`;
+const PASSWORD_FROM_ENV = !!process.env.DEMO_PASSWORD?.trim();
+/** Emails of the users this run created (and so gave PASSWORD). */
+const created = new Set<string>();
 const TENANT = 'Demo Lending Co';
+/** The authenticator label, as the API names itself (PLATFORM_NAME). */
+const ISSUER = encodeURIComponent((process.env.PLATFORM_NAME?.trim() || 'Magic Money').replace(/\s+/g, ''));
 /** A fresh authenticator secret: 20 random bytes, base32 (RFC 4648), as authenticator apps expect. */
 function newTotpSecret(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -101,7 +111,9 @@ async function main() {
   const users: Record<string, string> = {};
   for (const u of USERS) {
     const email = `${u.key}@demo-lending.test`;
-    const user = (await prisma.user.findUnique({ where: { email } })) ?? (await prisma.user.create({ data: { email, tenantId: t, role: u.legacyRole as never, branchId: u.branch ? branches[u.branch].id : null, passwordHash: hash } }));
+    const user =
+      (await prisma.user.findUnique({ where: { email } })) ??
+      (created.add(email), await prisma.user.create({ data: { email, tenantId: t, role: u.legacyRole as never, branchId: u.branch ? branches[u.branch].id : null, passwordHash: hash } }));
     users[u.key] = user.id;
     const exists = await prisma.roleAssignment.findFirst({ where: { tenantId: t, userId: user.id, roleId: roleIds[u.role], status: 'ACTIVE' } });
     if (!exists && u.role !== 'TENANT_ADMIN') {
@@ -128,7 +140,7 @@ async function main() {
     const email = `${key}@demo-lending.test`;
     const user =
       (await prisma.user.findUnique({ where: { email } })) ??
-      (await prisma.user.create({ data: { email, tenantId: t, role: 'TENANT_ADMIN' as never, branchId: null, passwordHash: hash } }));
+      (created.add(email), await prisma.user.create({ data: { email, tenantId: t, role: 'TENANT_ADMIN' as never, branchId: null, passwordHash: hash } }));
     // Each environment gets its own random secret on first run; later runs keep it.
     const secret = (user.twoFactorSecret && decryptField(user.twoFactorSecret)) || newTotpSecret();
     qaSecrets[key] = secret;
@@ -274,11 +286,16 @@ async function main() {
     });
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
-  console.log(`Demo tenant "${TENANT}" ready. Users (password ${process.env.DEMO_PASSWORD ? '$DEMO_PASSWORD' : PASSWORD}):`);
+  console.log(`Demo tenant "${TENANT}" ready.`);
+  if (created.size)
+    console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
+  if (created.size < USERS.length + 4)
+    console.log('  Users from an earlier run keep the password they were created with.');
+  console.log('Users:');
   for (const u of USERS) console.log(`  ${u.key}@demo-lending.test  →  ${u.role}${u.scope === 'BRANCH' ? ` (branch ${u.branch})` : ''}`);
   console.log('\nAll-round QA accounts (every staff role, all branches, high limits, MFA already on):');
   for (const [key, secret] of Object.entries(qaSecrets))
-    console.log(`  ${key}@demo-lending.test  →  authenticator secret ${secret}  (otpauth://totp/MagicMoney:${key}%40demo-lending.test?secret=${secret}&issuer=MagicMoney)`);
+    console.log(`  ${key}@demo-lending.test  →  authenticator secret ${secret}  (otpauth://totp/${ISSUER}:${key}%40demo-lending.test?secret=${secret}&issuer=${ISSUER})`);
   console.log('Approvals and executions require MFA: enrol TOTP for approver, approver2, ops.checker and committee in Settings first.');
 }
 

@@ -13,6 +13,7 @@ import { BusinessDateService } from '../common/business-date.service';
 import { LendingActor, toLocalDate } from '../common/util';
 import { LendingOperationsService } from '../accounting/operations.service';
 import { ServicingService } from '../servicing/servicing.service';
+import { operationalConfig } from '../../config/operational-config';
 
 /** Arbitrary, fixed key for the cross-instance reconciliation lock. */
 const RECONCILIATION_LOCK_KEY = 7_264_190_312;
@@ -75,10 +76,7 @@ export class LendingMetricsCollector implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
     if (process.env.LENDING_METRICS_REFRESH_DISABLED === 'true') return;
-    const seconds = Math.max(
-      10,
-      Number(process.env.LENDING_METRICS_REFRESH_SECONDS || 60),
-    );
+    const seconds = operationalConfig().metricsRefreshSeconds;
     this.timer = setInterval(() => void this.refresh(), seconds * 1000);
     this.timer.unref();
     void this.refresh();

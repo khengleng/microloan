@@ -12,6 +12,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { s3Settings } from '../../config/s3';
 
 /**
  * Integration adapters for the lending platform.
@@ -178,14 +179,16 @@ class MockBankDebit implements BankDebitAdapter {
  * Fixed rates for development only (1 USD = 4100 KHR, 36 THB, 0.92 EUR),
  * "published" every day. Selected with LENDING_FX_SOURCE=MOCK.
  */
+const MOCK_USD_RATES: Readonly<Record<string, string>> = {
+  KHR: '4100',
+  THB: '36',
+  EUR: '0.92',
+};
+
 class MockFxFeed implements FxRateAdapter {
   readonly name = 'MOCK_FX_FEED';
   readonly isMock = true;
-  private readonly usd: Record<string, string> = {
-    KHR: '4100',
-    THB: '36',
-    EUR: '0.92',
-  };
+  private readonly usd = MOCK_USD_RATES;
   async rate(input: { from: string; to: string; onOrBefore: string }) {
     const pair = input.from === 'USD' ? input.to : input.from;
     const other = input.from === 'USD' ? input.from : input.to;
@@ -219,14 +222,12 @@ class MockDocuments implements DocumentStorageAdapter {
 class S3Documents implements DocumentStorageAdapter {
   readonly name = 'S3';
   readonly isMock = false;
+  private settings = s3Settings();
   private client = new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-    },
+    region: this.settings.region,
+    credentials: this.settings.credentials,
   });
-  private bucket = process.env.AWS_S3_BUCKET_NAME || '';
+  private bucket = this.settings.bucket;
   async put(input: {
     tenantId: string;
     key: string;
@@ -256,11 +257,7 @@ class S3Documents implements DocumentStorageAdapter {
 @Injectable()
 export class AdapterRegistry {
   private readonly production = process.env.NODE_ENV === 'production';
-  private readonly s3 = !!(
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_S3_BUCKET_NAME
-  );
+  private readonly s3 = s3Settings().configured;
 
   private guard<T extends Adapter>(adapter: T): T {
     if (adapter.isMock && this.production) {

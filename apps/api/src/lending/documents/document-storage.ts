@@ -14,6 +14,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3Settings } from '../../config/s3';
 
 /**
  * Object storage for the customer document library (DOC-2).
@@ -119,14 +120,12 @@ export function sniffMatches(mime: string, bytes: Buffer): boolean {
 
 class S3LibraryStorage implements LibraryStorage {
   readonly provider = 'S3' as const;
+  private settings = s3Settings();
   private client = new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-    },
+    region: this.settings.region,
+    credentials: this.settings.credentials,
   });
-  private bucket = process.env.AWS_S3_BUCKET_NAME || '';
+  private bucket = this.settings.bucket;
   async put(key: string, body: Buffer, contentType: string) {
     await this.client.send(
       new PutObjectCommand({
@@ -190,11 +189,7 @@ class LocalLibraryStorage implements LibraryStorage {
 @Injectable()
 export class DocumentStorageService {
   private readonly logger = new Logger(DocumentStorageService.name);
-  private readonly s3 = !!(
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_S3_BUCKET_NAME
-  );
+  private readonly s3 = s3Settings().configured;
   private store: LibraryStorage | null = null;
 
   /** The configured store. Production needs S3 or an explicit volume. */
@@ -212,6 +207,13 @@ export class DocumentStorageService {
       if (!dir)
         this.logger.warn(
           `Customer documents are stored on local disk under ${root} (development only).`,
+        );
+      else if (process.env.NODE_ENV === 'production')
+        // A local directory is visible to one machine only: with several API
+        // instances it must be a volume they all mount, or uploads made on
+        // one are missing on the others. S3 has no such limit.
+        this.logger.warn(
+          `Customer documents are stored under DOCUMENT_STORAGE_DIR=${root}; every API instance must mount the same volume.`,
         );
       this.store = new LocalLibraryStorage(root);
     }

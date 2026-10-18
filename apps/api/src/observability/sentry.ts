@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { operationalConfig } from '../config/operational-config';
 
 // Error tracking + light performance tracing. No-op unless SENTRY_DSN is set,
 // so local/dev and un-provisioned deploys are unaffected.
@@ -10,7 +11,7 @@ export function initSentry(): boolean {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV || 'development',
-    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
+    tracesSampleRate: operationalConfig().sentryTracesSampleRate,
     // Railway injects the commit SHA — ties errors to a release.
     release: process.env.RAILWAY_GIT_COMMIT_SHA || undefined,
   });

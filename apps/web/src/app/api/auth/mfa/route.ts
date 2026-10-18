@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setAuthCookies } from '../login/route';
-
-const API_BASE = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1';
+import { apiBaseUrl } from '@/lib/server-api-url';
 
 /**
  * POST /api/auth/mfa
@@ -14,7 +13,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        const res = await fetch(`${API_BASE}/auth/mfa/authenticate`, {
+        const res = await fetch(`${apiBaseUrl()}/auth/mfa/authenticate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),

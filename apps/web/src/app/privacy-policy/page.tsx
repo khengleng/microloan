@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { site } from "@/lib/site";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -9,8 +10,8 @@ export default function PrivacyPolicyPage() {
 
         <section className="mt-8 space-y-4 text-sm leading-6">
           <p>
-            This Privacy Policy explains how DBank Cambodia collects, uses, stores, and protects personal
-            and financial information processed through the MicroLoan platform.
+            This Privacy Policy explains how {site.operatorName} collects, uses, stores, and protects personal
+            and financial information processed through the {site.productName} platform.
           </p>
           <h2 className="text-lg font-semibold">1. Information we collect</h2>
           <p>
@@ -45,8 +46,8 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-lg font-semibold">7. Contact</h2>
           <p>
             Privacy inquiries can be sent to{" "}
-            <a className="text-primary hover:underline" href="mailto:privacy@dbankcambodia.com">
-              privacy@dbankcambodia.com
+            <a className="text-primary hover:underline" href={`mailto:${site.contact.privacy}`}>
+              {site.contact.privacy}
             </a>.
           </p>
         </section>

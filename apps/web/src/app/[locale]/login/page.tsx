@@ -152,7 +152,7 @@ export default function LoginPage() {
                                     type="email"
                                     data-clarity-mask="true"
                                     autoComplete="email"
-                                    placeholder="name@company.com"
+                                    placeholder="name@example.com"
                                     className={inputClass}
                                     required
                                     value={email}

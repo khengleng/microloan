@@ -4,6 +4,7 @@ import { PrismaHealthIndicator } from './prisma.health';
 import { Roles } from '../auth/roles.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/auth-scope.decorator';
+import { operationalConfig } from '../config/operational-config';
 @Controller('health')
 export class HealthController {
     constructor(
@@ -44,7 +45,7 @@ export class HealthController {
     @SkipThrottle()
     @Get('ready')
     async ready() {
-        const up = await this.db.ping(Number(process.env.READINESS_DB_TIMEOUT_MS || 2000));
+        const up = await this.db.ping(operationalConfig().readinessDbTimeoutMs);
         if (!up) {
             throw new ServiceUnavailableException({ status: 'unavailable', checks: { database: 'down' } });
         }

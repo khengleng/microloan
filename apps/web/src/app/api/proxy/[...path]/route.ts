@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-function apiUrl(): string {
-    const configured = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-    if (configured && configured.trim()) return configured.trim();
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_URL (or NEXT_PUBLIC_API_URL) is required in production.');
-    }
-    return 'http://localhost:3001/v1';
-}
+import { apiBaseUrl } from '@/lib/server-api-url';
 
 /**
  * Next.js API Proxy Route
@@ -42,7 +34,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ p
 async function proxy(req: NextRequest, params: { path: string[] }) {
     const path = params.path.join('/');
     const url = new URL(req.url);
-    const targetUrl = `${apiUrl()}/${path}${url.search}`;
+    const targetUrl = `${apiBaseUrl()}/${path}${url.search}`;
 
     // 1. Extract tokens from cookies. Staff access_token takes precedence; the
     //    borrower-portal token is forwarded when no staff session is present.

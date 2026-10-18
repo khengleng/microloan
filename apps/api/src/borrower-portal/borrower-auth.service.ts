@@ -3,15 +3,18 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { borrowerJwtSecret, BORROWER_TOKEN_TTL } from './borrower-jwt';
+import { borrowerJwtSecret, borrowerTokenTtl } from './borrower-jwt';
+import { operationalConfig } from '../config/operational-config';
 import { blindIndex } from '../common/field-crypto';
 import { SystemContext } from '../prisma/tenant-context';
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-/** Codes a phone may be sent per window, so the attempt limit cannot be reset by re-requesting. */
-const MAX_ISSUES_PER_WINDOW = 3;
-const ISSUE_WINDOW_MS = 15 * 60 * 1000;
+/**
+ * Code lifetime, guesses per code, and codes a phone may be sent per window
+ * (so the attempt limit cannot be reset by re-requesting) are deployment
+ * settings: BORROWER_OTP_* in .env.example (defaults 5 minutes, 5 guesses,
+ * 3 codes per 15 minutes).
+ */
+const otpPolicy = () => operationalConfig().borrowerPortal;
 
 @Injectable()
 export class BorrowerAuthService {
@@ -44,13 +47,16 @@ export class BorrowerAuthService {
   async requestOtp(phoneRaw: string): Promise<{ sent: true }> {
     const phone = phoneRaw.trim();
     const phoneHash = blindIndex(phone, 'phone') as string;
+    const policy = otpPolicy();
     const recent = await this.prisma.borrowerOtp.count({
       where: {
         phone: phoneHash,
-        createdAt: { gt: new Date(Date.now() - ISSUE_WINDOW_MS) },
+        createdAt: {
+          gt: new Date(Date.now() - policy.otpWindowMinutes * 60_000),
+        },
       },
     });
-    if (recent >= MAX_ISSUES_PER_WINDOW) return { sent: true };
+    if (recent >= policy.otpMaxPerWindow) return { sent: true };
 
     const borrowers = await this.prisma.borrower.findMany({
       where: { phoneHash, tenant: { status: 'ACTIVE' } },
@@ -70,15 +76,17 @@ export class BorrowerAuthService {
           borrowerId: b.id,
           tenantId: b.tenantId,
           codeHash: this.hash(code),
-          expiresAt: new Date(Date.now() + OTP_TTL_MS),
+          expiresAt: new Date(Date.now() + policy.otpTtlSeconds * 1_000),
         },
       });
       lines.push(borrowers.length > 1 ? `${b.tenant.name}: ${code}` : code);
     }
+    const minutes = Math.round(policy.otpTtlSeconds / 60);
+    const expiry = `${minutes} minute${minutes === 1 ? '' : 's'}`;
     const message =
       borrowers.length > 1
-        ? `Your login codes (enter the one for the lender you want): ${lines.join('; ')}. They expire in 5 minutes. Do not share them.`
-        : `Your login code is ${lines[0]}. It expires in 5 minutes. Do not share it.`;
+        ? `Your login codes (enter the one for the lender you want): ${lines.join('; ')}. They expire in ${expiry}. Do not share them.`
+        : `Your login code is ${lines[0]}. It expires in ${expiry}. Do not share it.`;
     // Fire-and-forget SMS; never leak delivery status to the caller.
     this.notifications
       .sendSms(phone, message)
@@ -92,23 +100,24 @@ export class BorrowerAuthService {
   async verifyOtp(phoneRaw: string, code: string) {
     const phone = phoneRaw.trim();
     const phoneHash = blindIndex(phone, 'phone') as string;
+    const maxAttempts = otpPolicy().otpMaxAttempts;
     const live = await this.prisma.borrowerOtp.findMany({
       where: {
         phone: phoneHash,
         consumedAt: null,
         expiresAt: { gt: new Date() },
-        attempts: { lt: MAX_ATTEMPTS },
+        attempts: { lt: maxAttempts },
       },
     });
     if (!live.length)
       throw new UnauthorizedException('Invalid or expired code');
 
     // Spend an attempt before comparing, atomically: parallel guesses each
-    // pay, so no code can be tried more than MAX_ATTEMPTS times.
+    // pay, so no code can be tried more than maxAttempts times.
     const spent = await this.prisma.borrowerOtp.updateMany({
       where: {
         id: { in: live.map((o) => o.id) },
-        attempts: { lt: MAX_ATTEMPTS },
+        attempts: { lt: maxAttempts },
       },
       data: { attempts: { increment: 1 } },
     });
@@ -142,7 +151,7 @@ export class BorrowerAuthService {
 
     const token = await this.jwt.signAsync(
       { sub: borrower.id, typ: 'borrower', tenantId: borrower.tenantId },
-      { secret: borrowerJwtSecret(), expiresIn: BORROWER_TOKEN_TTL },
+      { secret: borrowerJwtSecret(), expiresIn: borrowerTokenTtl() as any },
     );
 
     return {

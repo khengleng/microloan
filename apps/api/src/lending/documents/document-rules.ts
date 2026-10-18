@@ -1,4 +1,5 @@
 import { lending } from '@microloan/shared';
+import { operationalConfig } from '../../config/operational-config';
 
 /** Document categories of the customer library (DOC-1). */
 export const DOCUMENT_CATEGORIES = [
@@ -29,8 +30,8 @@ export const DEFAULT_RETENTION_YEARS: Record<DocumentCategory, number> = {
 
 /** Reminder lead time before a document expires (DOC-6). */
 export function expiryReminderDays(): number {
-  const n = Number(process.env.DOCUMENT_EXPIRY_REMINDER_DAYS || 30);
-  return Number.isInteger(n) && n >= 1 && n <= 365 ? n : 30;
+  // DOCUMENT_EXPIRY_REMINDER_DAYS (1..365, default 30), validated at boot.
+  return operationalConfig().documents.expiryReminderDays;
 }
 
 export interface RetentionRuleRow {

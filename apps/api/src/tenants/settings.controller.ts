@@ -4,7 +4,8 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { BotService } from '../bot/bot.service';
-import { normalizeCurrency, NBC_ANNUAL_INTEREST_CAP_PCT } from '@microloan/shared';
+import { normalizeCurrency } from '@microloan/shared';
+import { operationalConfig } from '../config/operational-config';
 import { Currency } from '@microloan/db';
 import { blindIndex, encryptField } from '../common/field-crypto';
 
@@ -60,11 +61,13 @@ export class SettingsController {
     ) {
         if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
 
-        // Feature #1: never allow a tenant cap above the NBC regulatory ceiling.
+        // Feature #1: never allow a tenant cap above the regulatory ceiling
+        // (REGULATORY_MAX_ANNUAL_RATE_PCT, default the NBC 18%).
         let cap: number | undefined;
         if (data.maxAnnualInterestRatePct !== undefined) {
-            cap = Math.min(Number(data.maxAnnualInterestRatePct), NBC_ANNUAL_INTEREST_CAP_PCT);
-            if (!(cap > 0)) cap = NBC_ANNUAL_INTEREST_CAP_PCT;
+            const ceiling = operationalConfig().regulatoryMaxAnnualRatePct;
+            cap = Math.min(Number(data.maxAnnualInterestRatePct), ceiling);
+            if (!(cap > 0)) cap = ceiling;
         }
         const baseCurrency = data.baseCurrency
             ? (normalizeCurrency(data.baseCurrency) as unknown as Currency)

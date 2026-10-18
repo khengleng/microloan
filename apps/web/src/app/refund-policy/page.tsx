@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { site } from "@/lib/site";
 
 export default function RefundPolicyPage() {
   return (
@@ -10,7 +11,7 @@ export default function RefundPolicyPage() {
         <section className="mt-8 space-y-4 text-sm leading-6">
           <p>
             This Refund Policy describes when refunds are issued for paid subscriptions or services for
-            the MicroLoan platform.
+            the {site.productName} platform.
           </p>
           <h2 className="text-lg font-semibold">1. Monthly subscriptions</h2>
           <p>
@@ -35,8 +36,8 @@ export default function RefundPolicyPage() {
           <h2 className="text-lg font-semibold">5. Contact</h2>
           <p>
             Refund requests can be sent to{" "}
-            <a className="text-primary hover:underline" href="mailto:billing@dbankcambodia.com">
-              billing@dbankcambodia.com
+            <a className="text-primary hover:underline" href={`mailto:${site.contact.billing}`}>
+              {site.contact.billing}
             </a>{" "}
             with your account identifier and invoice reference.
           </p>

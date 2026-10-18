@@ -5,6 +5,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { loadRuntimeConfig } from './config/runtime-config';
+import { operationalConfig } from './config/operational-config';
 import { initSentry } from './observability/sentry';
 import { SentryExceptionFilter } from './observability/sentry-exception.filter';
 
@@ -40,35 +41,42 @@ async function bootstrap() {
   // app, the same three origins must be allowed THERE or the button will not
   // render.
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID?.trim());
-  const GOOGLE_ORIGINS = ['https://accounts.google.com', 'https://www.gstatic.com'];
-  const allowGoogle = (base: string[]) => (googleEnabled ? [...base, ...GOOGLE_ORIGINS] : base);
+  const GOOGLE_ORIGINS = [
+    'https://accounts.google.com',
+    'https://www.gstatic.com',
+  ];
+  const allowGoogle = (base: string[]) =>
+    googleEnabled ? [...base, ...GOOGLE_ORIGINS] : base;
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: allowGoogle(["'self'"]),
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: allowGoogle(["'self'"]),
-        frameSrc: googleEnabled ? GOOGLE_ORIGINS : ["'none'"],
-        objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: allowGoogle(["'self'"]),
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: allowGoogle(["'self'"]),
+          frameSrc: googleEnabled ? GOOGLE_ORIGINS : ["'none'"],
+          objectSrc: ["'none'"],
+          upgradeInsecureRequests: [],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    xFrameOptions: { action: 'deny' },
-    xContentTypeOptions: true,
-    referrerPolicy: { policy: 'strict-origin' },
-    permittedCrossDomainPolicies: false,
-  }));
+      crossOriginEmbedderPolicy: false,
+      hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+      xFrameOptions: { action: 'deny' },
+      xContentTypeOptions: true,
+      referrerPolicy: { policy: 'strict-origin' },
+      permittedCrossDomainPolicies: false,
+    }),
+  );
 
-  // ── Body size limit (DoS protection — 5 MB max) ───────────────────────────
+  // ── Body size limit (DoS protection — API_BODY_LIMIT, default 5 MB) ───────
   // NestExpressApplication exposes useBodyParser which uses
   // the already-bundled express parser — no separate require() needed.
-  app.useBodyParser('json', { limit: '5mb' });
-  app.useBodyParser('urlencoded', { limit: '5mb', extended: true });
+  const { bodyLimit } = operationalConfig();
+  app.useBodyParser('json', { limit: bodyLimit });
+  app.useBodyParser('urlencoded', { limit: bodyLimit, extended: true });
 
   // ── CORS ───────────────────────────────────────────────────────────────────
   app.enableCors({
@@ -81,18 +89,21 @@ async function bootstrap() {
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Accept,Authorization,Idempotency-Key,X-Service-Key',
+    allowedHeaders:
+      'Content-Type,Accept,Authorization,Idempotency-Key,X-Service-Key',
     maxAge: 86400,
   });
 
   // ── Validation ────────────────────────────────────────────────────────────
   app.setGlobalPrefix('v1');
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,  // Strip unknown properties
-    forbidNonWhitelisted: true,  // Reject extra properties (prevents injection)
-    transform: true,
-    transformOptions: { enableImplicitConversion: true },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Strip unknown properties
+      forbidNonWhitelisted: true, // Reject extra properties (prevents injection)
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   // Report unhandled/5xx exceptions to Sentry (no-op when disabled).
   const httpAdapter = app.get(HttpAdapterHost).httpAdapter;

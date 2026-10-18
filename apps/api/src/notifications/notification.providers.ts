@@ -6,6 +6,8 @@
 // "not configured" (never throws), so the rest of the app can call notifications
 // unconditionally and they simply activate once a provider is set.
 
+import { operationalConfig } from '../config/operational-config';
+
 export interface SendResult {
     sent: boolean;
     provider: string;
@@ -29,8 +31,11 @@ export async function sendEmailViaProvider(
     if (!isEmailConfigured()) {
         return { sent: false, provider: 'none', reason: 'Email provider not configured (set RESEND_API_KEY).' };
     }
-    const from = process.env.EMAIL_FROM?.trim() || 'no-reply@localhost';
-    const res = await fetch('https://api.resend.com/emails', {
+    // Production refuses to boot with RESEND_API_KEY but no EMAIL_FROM
+    // (runtime-config.ts); the placeholder sender is for development only.
+    const { email } = operationalConfig();
+    const from = email.from || 'no-reply@localhost';
+    const res = await fetch(email.apiUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

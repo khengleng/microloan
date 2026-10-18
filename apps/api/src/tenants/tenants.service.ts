@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { operationalConfig } from '../config/operational-config';
 
 @Injectable()
 export class TenantsService {
@@ -295,7 +296,8 @@ export class TenantsService {
             targetType: 'Tenant',
             targetId: id,
             action: 'TENANT_ERASURE_REQUEST',
-            newValue: { scheduledPurgeAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+            // TENANT_ERASURE_GRACE_DAYS (default 30): the notice recorded with the request.
+            newValue: { scheduledPurgeAfter: new Date(Date.now() + operationalConfig().tenantErasureGraceDays * 86_400_000).toISOString() },
             result: 'SUCCESS',
         });
         return result;

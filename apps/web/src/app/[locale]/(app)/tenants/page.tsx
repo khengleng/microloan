@@ -456,7 +456,7 @@ export default function TenantsPage() {
                                         <Input
                                             value={form.adminEmail}
                                             onChange={e => setForm({ ...form, adminEmail: e.target.value })}
-                                            placeholder="admin@tenant.com"
+                                            placeholder="owner@example.com"
                                             autoComplete="email"
                                             className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
                                             required={!editTenant}

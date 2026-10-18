@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-function apiBaseUrl(): string {
-    const url = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-    if (url && url.trim()) return url.trim();
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_URL (or NEXT_PUBLIC_API_URL) is required in production.');
-    }
-    return 'http://localhost:3001/v1';
-}
+import { apiBaseUrl } from '@/lib/server-api-url';
 
 /**
  * POST /api/borrower/otp-verify

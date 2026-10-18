@@ -19,6 +19,7 @@ import type { JwtPayload } from './jwt.strategy';
 import { AnyAuthenticated, Public } from './auth-scope.decorator';
 import { GoogleLoginDto, GoogleRegisterTenantDto } from './dto/google-auth.dto';
 import { SignupPaymentService } from '../billing/signup-payment.service';
+import { webOrigin } from '../config/operational-config';
 
 /** Extract real client IP — works with Railway proxy (app.set('trust proxy', 1) in main.ts) */
 function getIp(req: any): string {
@@ -112,11 +113,7 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   forgotPassword(@Body() dto: { email: string }) {
-    const origin =
-      process.env.WEB_URL?.trim() ||
-      (process.env.CORS_ORIGINS || '').split(',')[0]?.trim() ||
-      '';
-    return this.authService.forgotPassword(dto?.email, `${origin}/en`);
+    return this.authService.forgotPassword(dto?.email, `${webOrigin()}/en`);
   }
 
   /** Complete a self-service reset with the emailed token. */

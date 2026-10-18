@@ -18,10 +18,10 @@ import type { Response } from 'express';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { Permission } from '../authz/permission.enum';
+import { operationalConfig } from '../config/operational-config';
 
-const MAX_UPLOAD_BYTES = Number(
-  process.env.DOCUMENT_UPLOAD_MAX_BYTES || 10 * 1024 * 1024,
-);
+/** DOCUMENT_UPLOAD_MAX_BYTES (default 10 MiB), validated at boot. */
+const MAX_UPLOAD_BYTES = operationalConfig().documents.uploadMaxBytes;
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'image/jpeg',

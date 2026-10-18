@@ -24,7 +24,8 @@ pnpm demo:lending        # requires the API to have booted once (catalogue sync)
 ```
 
 Creates **Demo Lending Co** with a user per role (`<role>@demo-lending.test`,
-password `Demo#Lending2026` or `$DEMO_PASSWORD`), branch-scoped relationship
+password `$DEMO_PASSWORD`, or a random one the run prints when it is unset —
+users created by an earlier run keep theirs), branch-scoped relationship
 officers, approval authorities, the `KH` holiday calendar, the five Phase 1
 products already approved by a different checker and active, and verified
 borrowers. It refuses to run in production unless `DEMO_SEED_ALLOW=true`.

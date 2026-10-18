@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateLoanProductDto } from './dto/create-loan-product.dto';
 import { UpdateLoanProductDto } from './dto/update-loan-product.dto';
 import { checkInterestRateCap, normalizeCurrency } from '@microloan/shared';
+import { operationalConfig } from '../config/operational-config';
 import { Currency } from '@microloan/db';
 
 @Injectable()
@@ -18,7 +19,11 @@ export class LoanProductsService {
         });
         const cap = tenant ? Number(tenant.maxAnnualInterestRatePct) : undefined;
         for (const p of policies) {
-            const result = checkInterestRateCap(Number(p.interestRate), cap);
+            const result = checkInterestRateCap(
+                Number(p.interestRate),
+                cap,
+                operationalConfig().regulatoryMaxAnnualRatePct,
+            );
             if (!result.ok) {
                 throw new BadRequestException(
                     `Policy "${p.creditRating}": ${result.message}`,

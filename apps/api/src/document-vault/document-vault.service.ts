@@ -18,18 +18,16 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { s3Settings } from '../config/s3';
 
 @Injectable()
 export class DocumentVaultService {
   private s3Client: S3Client;
   private readonly logger = new Logger(DocumentVaultService.name);
-  private bucketName = process.env.AWS_S3_BUCKET_NAME || '';
+  private readonly s3 = s3Settings();
+  private bucketName = this.s3.bucket;
   // Fix 6: S3 is required — no silent DB fallback
-  private s3Configured = !!(
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_S3_BUCKET_NAME
-  );
+  private s3Configured = this.s3.configured;
 
   constructor(
     private prisma: PrismaService,
@@ -37,11 +35,8 @@ export class DocumentVaultService {
     private authz: AuthzService,
   ) {
     this.s3Client = new S3Client({
-      region: process.env.AWS_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-      },
+      region: this.s3.region,
+      credentials: this.s3.credentials,
     });
   }
 
