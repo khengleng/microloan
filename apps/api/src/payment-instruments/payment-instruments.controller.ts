@@ -36,6 +36,14 @@ export class PaymentInstrumentsController {
     return this.service.resolveForLoan(user, loanId);
   }
 
+  /** The organisation's branches, to pin a collection QR to one of them. */
+  @Roles('ADMIN', 'TENANT_ADMIN')
+  @RequirePermissions(Permission.CONFIG_UPDATE)
+  @Get('branches')
+  branches(@CurrentUser() user: JwtPayload) {
+    return this.service.branches(user);
+  }
+
   @Roles('ADMIN', 'TENANT_ADMIN', 'SUPERADMIN')
   @RequirePermissions(Permission.CONFIG_UPDATE)
   @Post()

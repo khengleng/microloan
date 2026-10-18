@@ -832,6 +832,8 @@
     "provisionBasis": "Days past due are counted to the business date. A run posts to the ledger immediately; it is not reviewed by a second person.",
     "provisionRunDone": "Provisioning run complete as of {date}: {total} across {loans} loans.",
     "confirmPlanPayment": "Confirm plan payment",
-    "planRetired": "retired"
+    "planRetired": "retired",
+    "branch": "Branch",
+    "allBranches": "All branches"
   }
 }

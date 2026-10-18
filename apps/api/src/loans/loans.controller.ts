@@ -77,8 +77,13 @@ export class LoansController {
     return this.loansService.findOne(user, id);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
-  @RequirePermissions(Permission.LOAN_APPLICATION_REVIEW)
+  // Approve, reject and disburse are different people with different
+  // permissions; the service checks the one each transition needs
+  // (LOAN_APPROVE, LOAN_REJECT, LOAN_DISBURSE). Requiring
+  // LOAN_APPLICATION_REVIEW here as well locked out the Approver role
+  // (and Finance, for disbursement), who do not hold it.
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'APPROVER', 'BRANCH_MANAGER')
+  @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Put(':id/status')
   changeStatus(
     @CurrentUser() user: JwtPayload,
