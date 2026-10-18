@@ -7,6 +7,8 @@ import { ActionPanel, Btn, ErrorBox, Field, Table, TextInput, td, tdR } from '..
 import { idem, qs, useAction, useIdempotencyKey } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
 import type { SettlementQuote } from '../types';
+import { useTranslations } from 'next-intl';
+import { useBusinessDate } from '../useBusinessDate';
 
 export function SettlementPanel({ loanId, can, onDone, onClose }: {
     loanId: string; can: (code: string) => { allowed: boolean; reason?: string }; onDone: (msg: string) => void; onClose: () => void;
@@ -17,6 +19,11 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
     const { busy, error, run, clearError } = useAction();
     const key = useIdempotencyKey();
     const allowed = can('loan.repayment.post');
+    const t = useTranslations('Servicing.settlement');
+    const businessDate = useBusinessDate();
+    // The settlement is posted on the quote's own date, so what is paid is what was quoted.
+    // A quote dated after the business date is for information only: the API refuses future value dates.
+    const futureQuote = !!quote && quote.asOf > businessDate;
 
     const getQuote = async () => {
         const res = await run('quote', () => api.get<SettlementQuote>(`/lending/loans/${loanId}/settlement-quote${qs({ asOf })}`));
@@ -27,12 +34,12 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
         if (!quote) return;
         const ok = await confirm({
             title: 'Settle loan',
-            message: `Post a settlement of ${quote.currency} ${quote.payable} and close the loan?`,
+            message: t('confirm', { currency: quote.currency, amount: quote.payable, date: quote.asOf }),
             confirmLabel: 'Settle',
             variant: 'warning',
         });
         if (!ok) return;
-        const body = { amount: quote.payable };
+        const body = { amount: quote.payable, ...(quote.asOf !== businessDate ? { valueDate: quote.asOf } : {}) };
         const k = key.keyFor({ ...body, asOf: quote.asOf });
         const res = await run('settle', () => api.post(`/lending/loans/${loanId}/settlement`, body, idem(k)));
         if (res) {
@@ -56,7 +63,7 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
     return (
         <ActionPanel title="Early settlement" onClose={onClose}>
             <div className="flex flex-wrap items-end gap-2">
-                <Field label="Quote as of" hint="Optional — defaults to the business date">
+                <Field label="Quote as of" hint={t('asOfHint', { date: businessDate })}>
                     <TextInput type="date" value={asOf} onChange={(v) => { setAsOf(v); setQuote(null); }} className="w-44" />
                 </Field>
                 <Btn onClick={getQuote} busy={busy === 'quote'}>Get quote</Btn>
@@ -79,7 +86,14 @@ export function SettlementPanel({ loanId, can, onDone, onClose }: {
                             <tr className="bg-[#F7FAFC]"><td className={`${td} font-bold`}>Payable</td><td className={tdR}><MoneyCell value={quote.payable} currency={quote.currency} strong /></td></tr>
                         </tbody>
                     </Table>
-                    <Btn variant="primary" onClick={settle} busy={busy === 'settle'} disabled={!allowed.allowed} reason={allowed.reason}>Settle {quote.currency} {quote.payable}</Btn>
+                    {futureQuote ? (
+                        <p className="text-[12px] text-amber-800">{t('futureQuote', { asOf: quote.asOf, date: businessDate })}</p>
+                    ) : (
+                        <>
+                            {quote.asOf !== businessDate && <p className="text-[12px] text-[#697386]">{t('backdated', { asOf: quote.asOf, date: businessDate })}</p>}
+                            <Btn variant="primary" onClick={settle} busy={busy === 'settle'} disabled={!allowed.allowed} reason={allowed.reason}>{t('settleOn', { currency: quote.currency, amount: quote.payable, date: quote.asOf })}</Btn>
+                        </>
+                    )}
                 </div>
             )}
             <ErrorBox error={error} onDismiss={clearError} />

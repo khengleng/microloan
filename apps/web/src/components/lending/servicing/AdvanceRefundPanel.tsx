@@ -48,7 +48,7 @@ export function AdvanceRefundPanel({ loanId, currency, held, tasks, can, onDone,
             <p className="text-[12px] text-[#697386]">Held on advance: <b><Money value={held} currency={currency} /></b>. It is applied to instalments as they fall due unless refunded.</p>
             {pending.map((t) => (
                 <Notice key={t.id} tone="warn" title={`Refund of ${currency} ${t.amount} awaiting approval`}>
-                    <p className="mb-2">Proposed by <span className="font-mono">{t.makerId.slice(0, 8)}</span>. A different user must approve it.</p>
+                    <p className="mb-2">Proposed by <span>{t.makerEmail ?? t.makerId.slice(0, 8)}</span>. A different user must approve it.</p>
                     <div className="flex gap-2">
                         <Btn size="sm" variant="primary" onClick={() => decide(t.id, true)} busy={busy === `${t.id}:true`} disabled={!approve.allowed} reason={approve.reason}>Approve and pay</Btn>
                         <Btn size="sm" variant="danger" onClick={() => decide(t.id, false)} busy={busy === `${t.id}:false`} disabled={!approve.allowed} reason={approve.reason}>Reject</Btn>
