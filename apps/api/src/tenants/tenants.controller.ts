@@ -43,7 +43,7 @@ export class TenantsController {
     @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_CREATE)
     @Post()
-    create(@CurrentUser() user: JwtPayload, @Body() data: { name: string; adminEmail?: string; adminPassword?: string }) {
+    create(@CurrentUser() user: JwtPayload, @Body() data: { name: string; plan?: string; adminEmail?: string; adminPassword?: string }) {
         return this.tenantsService.create(user, data);
     }
 

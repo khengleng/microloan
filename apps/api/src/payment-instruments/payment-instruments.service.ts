@@ -59,6 +59,17 @@ export class PaymentInstrumentsService {
     }
   }
 
+  /** Branches a collection QR can be pinned to: the caller's organisation only. */
+  async branches(actor: JwtPayload) {
+    this.authz.assertPermission(actor, Permission.CONFIG_UPDATE);
+    if (!actor.tenantId) return [];
+    return this.prisma.branch.findMany({
+      where: { tenantId: actor.tenantId },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   private async assertBranchInTenant(actor: JwtPayload, branchId?: string) {
     if (!branchId) return;
     const branch = await this.prisma.branch.findFirst({

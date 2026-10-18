@@ -18,6 +18,7 @@ type Instrument = {
     qrPayload?: string | null;
     qrImage?: string | null;
     currency: 'USD' | 'KHR';
+    branchId?: string | null;
     isActive: boolean;
     isDefault: boolean;
     qrRendered?: string | null;
@@ -31,16 +32,19 @@ type FormState = {
     qrPayload: string;
     qrImage: string;
     currency: 'USD' | 'KHR';
+    /** '' = every branch (the organisation-wide QR). */
+    branchId: string;
     isDefault: boolean;
 };
 
 const emptyForm: FormState = {
     label: '', bankName: '', accountName: '', accountNumber: '',
-    qrPayload: '', qrImage: '', currency: 'USD', isDefault: false,
+    qrPayload: '', qrImage: '', currency: 'USD', branchId: '', isDefault: false,
 };
 
 export function PaymentInstruments() {
     const t = useTranslations('Payments');
+    const o = useTranslations('Overview');
     const { showToast } = useToast();
     const [items, setItems] = useState<Instrument[]>([]);
     const [loading, setLoading] = useState(true);
@@ -48,6 +52,14 @@ export function PaymentInstruments() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [saving, setSaving] = useState(false);
+    const [branches, setBranches] = useState<{ id: string; name: string; code: string | null }[]>([]);
+    useEffect(() => {
+        api.get('/payment-instruments/branches').then(
+            (r) => setBranches(Array.isArray(r.data) ? r.data : []),
+            () => setBranches([]),
+        );
+    }, []);
+    const branchName = (id?: string | null) => branches.find((b) => b.id === id)?.name ?? null;
 
     const load = () => {
         setLoading(true);
@@ -63,7 +75,7 @@ export function PaymentInstruments() {
         setForm({
             label: i.label, bankName: i.bankName || '', accountName: i.accountName || '',
             accountNumber: i.accountNumber || '', qrPayload: i.qrPayload || '', qrImage: i.qrImage || '',
-            currency: i.currency, isDefault: i.isDefault,
+            currency: i.currency, branchId: i.branchId || '', isDefault: i.isDefault,
         });
         setEditingId(i.id);
         setShowForm(true);
@@ -82,8 +94,10 @@ export function PaymentInstruments() {
         if (!form.qrPayload.trim() && !form.qrImage.trim()) { showToast(t('qrRequired'), 'error'); return; }
         setSaving(true);
         try {
-            if (editingId) await api.put(`/payment-instruments/${editingId}`, form);
-            else await api.post('/payment-instruments', form);
+            // A QR pinned to a branch is offered for that branch's loans; none = every branch.
+            const body = { ...form, branchId: form.branchId || (editingId ? null : undefined) };
+            if (editingId) await api.put(`/payment-instruments/${editingId}`, body);
+            else await api.post('/payment-instruments', body);
             showToast(t('saved'), 'success');
             setShowForm(false);
             load();
@@ -142,7 +156,7 @@ export function PaymentInstruments() {
                                         {!i.isActive && <span className="text-[11px] text-muted-foreground bg-slate-100 px-1.5 py-0.5 rounded">{t('inactive')}</span>}
                                     </div>
                                     <p className="text-xs text-muted-foreground truncate">
-                                        {[i.bankName, i.accountName, i.accountNumber].filter(Boolean).join(' · ') || '—'} · {i.currency}
+                                        {[i.bankName, i.accountName, i.accountNumber].filter(Boolean).join(' · ') || '—'} · {i.currency} · {branchName(i.branchId) ?? o('allBranches')}
                                     </p>
                                 </div>
                                 <button onClick={() => openEdit(i)} className="text-xs font-medium text-primary hover:underline">{t('edit')}</button>
@@ -191,6 +205,15 @@ export function PaymentInstruments() {
                                         <img src={form.qrImage} alt="QR preview" className="w-20 h-20 mt-2 rounded border border-border object-contain bg-white" />
                                     )}
                                 </div>
+                                {branches.length > 0 && (
+                                    <div>
+                                        <label className={labelCls}>{o('branch')}</label>
+                                        <select className={fieldCls} value={form.branchId} onChange={e => setForm({ ...form, branchId: e.target.value })}>
+                                            <option value="">{o('allBranches')}</option>
+                                            {branches.map(b => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                                        </select>
+                                    </div>
+                                )}
                                 <label className="flex items-center gap-2 text-sm text-foreground">
                                     <input type="checkbox" checked={form.isDefault} onChange={e => setForm({ ...form, isDefault: e.target.checked })} />
                                     {t('setDefault')}

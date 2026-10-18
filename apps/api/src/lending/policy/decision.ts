@@ -115,7 +115,7 @@ export interface DecisionInput {
   environment: Environment;
   flags: FlagSnapshot;
   policies: CompiledPolicy[];
-  /** Approved FX rate: units of `to` per unit of `from`. Null when none is approved. */
+  /** Recorded FX rate (tenant FX table): units of `to` per unit of `from`. Null when none is recorded. */
   fx: (from: string, to: string) => FxQuote | null;
   /** Maximum age of an FX rate usable for approval limits. */
   fxMaxAgeDays?: number;
@@ -450,6 +450,11 @@ function checkAuthority(
       detail: 'no authority rows',
     };
   const notes: string[] = [];
+  // Limits that could not be applied because no usable FX rate exists, and
+  // limits the amount genuinely exceeded — so the denial says which it was.
+  const fxMissing: string[] = [];
+  const fxStale: string[] = [];
+  let exceeded = false;
   for (const a of candidates) {
     if (a.currency === r.currency) {
       if (amount.lte(a.maxAmount))
@@ -459,17 +464,23 @@ function checkAuthority(
           detail: `${r.amount} ${r.currency} ≤ ${a.maxAmount} (${a.source})`,
         };
       notes.push(`${a.maxAmount} ${a.currency} < amount`);
+      exceeded = true;
       continue;
     }
-    // Cross-currency limits need an approved FX source and timestamp; otherwise deny.
+    // Cross-currency limits need a recorded, recent FX rate; otherwise deny.
+    // Rates are entered by FX managers and are not separately approved.
     const q = input.fx(r.currency, a.currency);
     if (!q) {
-      notes.push(`no approved FX ${r.currency}->${a.currency}`);
+      notes.push(`no recorded FX ${r.currency}->${a.currency}`);
+      fxMissing.push(`${r.currency}→${a.currency}`);
       continue;
     }
     if (input.environment.now.getTime() - q.asOf.getTime() > maxAge) {
       notes.push(
         `FX ${r.currency}->${a.currency} from ${q.asOf.toISOString()} is stale`,
+      );
+      fxStale.push(
+        `${r.currency}→${a.currency} (${q.asOf.toISOString().slice(0, 10)})`,
       );
       continue;
     }
@@ -482,6 +493,25 @@ function checkAuthority(
       };
     }
     notes.push(`${converted.toString()} ${a.currency} exceeds ${a.maxAmount}`);
+    exceeded = true;
+  }
+  if (!exceeded && (fxMissing.length || fxStale.length)) {
+    const days = input.fxMaxAgeDays ?? 3;
+    const parts = [
+      ...(fxMissing.length
+        ? [`no exchange rate is recorded for ${fxMissing.join(', ')}`]
+        : []),
+      ...(fxStale.length
+        ? [
+            `the latest rate for ${fxStale.join(', ')} is older than ${days} days`,
+          ]
+        : []),
+    ];
+    return {
+      ok: false,
+      message: `Your approval authority is set in another currency and cannot be applied: ${parts.join('; ')}. Record a current rate in FX rates, then try again.`,
+      detail: notes.join('; '),
+    };
   }
   return {
     ok: false,

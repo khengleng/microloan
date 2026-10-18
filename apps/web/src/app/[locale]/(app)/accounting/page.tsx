@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
-import { money } from '@/lib/currency';
-import { Loader2, BookOpen, Scale, ListTree } from 'lucide-react';
+import { money, CURRENCY_OPTIONS } from '@/lib/currency';
+import { Loader2, BookOpen, Scale, ListTree, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface Account {
     id: string;
@@ -23,6 +24,8 @@ interface TrialBalanceRow {
 }
 
 interface TrialBalance {
+    /** The single currency this trial balance is drawn up in (ledgers are per currency). */
+    currency: string;
     rows: TrialBalanceRow[];
     totals: { debit: number; credit: number; balanced: boolean };
 }
@@ -45,30 +48,50 @@ interface JournalEntry {
 
 type Tab = 'accounts' | 'trial-balance' | 'journal';
 
+const JOURNAL_PAGE_SIZE = 25;
+
 export default function AccountingPage() {
     const [tab, setTab] = useState<Tab>('accounts');
     const [loading, setLoading] = useState(true);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [trialBalance, setTrialBalance] = useState<TrialBalance | null>(null);
     const [journal, setJournal] = useState<JournalEntry[]>([]);
+    const o = useTranslations('Overview');
+    // Trial balance currency: '' = the tenant's base currency (the API default).
+    const [tbCurrency, setTbCurrency] = useState('');
+    const [journalPage, setJournalPage] = useState(1);
+    const [journalPages, setJournalPages] = useState(1);
+    const [journalTotal, setJournalTotal] = useState(0);
 
     const fetchData = useCallback(() => {
         setLoading(true);
         Promise.all([
             api.get('/ledger/accounts'),
-            api.get('/ledger/trial-balance'),
-            api.get('/ledger/journal', { params: { page: 1, limit: 25 } }),
         ])
-            .then(([acc, tb, jr]) => {
+            .then(([acc]) => {
                 setAccounts(acc.data);
-                setTrialBalance(tb.data);
-                setJournal(jr.data?.data ?? []);
             })
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        api.get('/ledger/trial-balance', { params: tbCurrency ? { currency: tbCurrency } : {} })
+            .then((tb) => setTrialBalance(tb.data))
+            .catch(err => console.error(err));
+    }, [tbCurrency]);
+
+    useEffect(() => {
+        api.get('/ledger/journal', { params: { page: journalPage, limit: JOURNAL_PAGE_SIZE } })
+            .then((jr) => {
+                setJournal(jr.data?.data ?? []);
+                setJournalPages(Math.max(1, jr.data?.pages ?? 1));
+                setJournalTotal(jr.data?.total ?? 0);
+            })
+            .catch(err => console.error(err));
+    }, [journalPage]);
 
     if (loading) return (
         <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
@@ -144,7 +167,15 @@ export default function AccountingPage() {
             {tab === 'trial-balance' && trialBalance && (
                 <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between px-6 py-4 border-b border-[#E3E8EE]">
-                        <h2 className="text-[15px] font-bold text-[#1A1F36]">Trial Balance</h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-[15px] font-bold text-[#1A1F36]">Trial Balance</h2>
+                            <label className="flex items-center gap-1.5 text-[12px] text-[#697386]">
+                                {o('currency')}
+                                <select value={tbCurrency || trialBalance.currency} onChange={(e) => setTbCurrency(e.target.value)} className="h-8 px-2 bg-white border border-[#E3E8EE] rounded text-[12px]">
+                                    {CURRENCY_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                </select>
+                            </label>
+                        </div>
                         {trialBalance.totals.balanced ? (
                             <span className="px-3 py-1 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[12px] font-bold">Balanced</span>
                         ) : (
@@ -169,17 +200,17 @@ export default function AccountingPage() {
                                     <tr key={r.code} className="hover:bg-[#F7FAFC]/50 transition-colors">
                                         <td className="px-6 py-4 text-[13px] font-bold text-[#635BFF] font-mono">{r.code}</td>
                                         <td className="px-6 py-4 text-[14px] font-medium text-[#1A1F36]">{r.name}</td>
-                                        <td className="px-6 py-4 text-right text-[13px] text-[#4F566B] font-medium">{money(r.debit, 'USD')}</td>
-                                        <td className="px-6 py-4 text-right text-[13px] text-[#4F566B] font-medium">{money(r.credit, 'USD')}</td>
-                                        <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(r.balance, 'USD')}</td>
+                                        <td className="px-6 py-4 text-right text-[13px] text-[#4F566B] font-medium">{money(r.debit, trialBalance.currency)}</td>
+                                        <td className="px-6 py-4 text-right text-[13px] text-[#4F566B] font-medium">{money(r.credit, trialBalance.currency)}</td>
+                                        <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(r.balance, trialBalance.currency)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                             <tfoot>
                                 <tr className="border-t-2 border-[#E3E8EE] bg-[#F7FAFC]">
                                     <td className="px-6 py-4 text-[12px] font-bold text-[#1A1F36] uppercase tracking-wider" colSpan={2}>Totals</td>
-                                    <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.debit, 'USD')}</td>
-                                    <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.credit, 'USD')}</td>
+                                    <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.debit, trialBalance.currency)}</td>
+                                    <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.credit, trialBalance.currency)}</td>
                                     <td className="px-6 py-4"></td>
                                 </tr>
                             </tfoot>
@@ -190,6 +221,17 @@ export default function AccountingPage() {
 
             {tab === 'journal' && (
                 <div className="space-y-4">
+                    <div className="flex items-center justify-between text-[13px] text-[#697386]">
+                        <span>{o('journalCount', { total: journalTotal, page: journalPage, pages: journalPages })}</span>
+                        <div className="flex items-center gap-2">
+                            <button type="button" disabled={journalPage <= 1} onClick={() => setJournalPage((p) => Math.max(1, p - 1))} className="btn-ghost disabled:opacity-40" aria-label={o('previousPage')}>
+                                <ChevronLeft size={14} />
+                            </button>
+                            <button type="button" disabled={journalPage >= journalPages} onClick={() => setJournalPage((p) => Math.min(journalPages, p + 1))} className="btn-ghost disabled:opacity-40" aria-label={o('nextPage')}>
+                                <ChevronRight size={14} />
+                            </button>
+                        </div>
+                    </div>
                     {journal.length === 0 ? (
                         <div className="bg-white border border-[#E3E8EE] rounded-lg p-16 text-center shadow-sm">
                             <div className="w-16 h-16 bg-[#F7FAFC] text-[#AAB7C4] rounded-full flex items-center justify-center mx-auto mb-4">
