@@ -1,5 +1,5 @@
 /**
- * Learning centre content (D-090…D-093): every reference in the lessons and
+ * Learning centre content (D-092…D-095): every reference in the lessons and
  * tours resolves — tours named by lessons exist, tour steps point at
  * data-tour ids that are on a screen, and manual links name an existing
  * chapter and heading of docs/user-guide.

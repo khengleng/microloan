@@ -317,7 +317,7 @@ On a product version's **Policies** step, the **Policy menus** box lists, for ea
 
 When an application is booked, the product's default policy (or the chosen one) is resolved and frozen into the loan's agreement. The loan's **Agreement versions** card shows, for example, "prepayment: **P-LOCK12** v2 (lockInMonths=12)". A loan with no policies shows "product terms".
 
-Note: There is no screen yet for a loan officer to pick a non-default policy from the menu, or a parameter value, on an application. New contracts therefore use the product's default policy at its default parameters. Choosing from the menu is available to the IT team through the API.
+A loan officer can pick a non-default policy from the menu, or set a parameter within the product's bounds, under **Contract policies** on the application (see [Applications and credit decisions](05-applications-and-credit-decisions.md#contract-policies)). Left blank, the product's default policy applies at its default parameters.
 
 ---
 

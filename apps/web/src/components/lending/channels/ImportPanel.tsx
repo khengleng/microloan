@@ -4,7 +4,7 @@ import { useState } from 'react';
 import api from '@/lib/api';
 import { Btn, Card, Disclosure, ErrorBox, Field, Notice, SelectInput, TextArea, TextInput } from '../ui';
 import { useAction } from '../useAsync';
-import { todayIso } from '../format';
+import { useBusinessDate } from '../useBusinessDate';
 import { FileLinesTable } from './FileLinesTable';
 import { PAYROLL_SAMPLE, SETTLEMENT_CHANNELS, SETTLEMENT_SAMPLE } from './types';
 import type { FileView, SettlementChannel } from './types';
@@ -17,12 +17,13 @@ type Kind = 'SETTLEMENT' | 'PAYROLL';
  * malformed nothing is imported and every error is listed.
  */
 export function ImportPanel({ onImported }: { onImported: () => void }) {
+    const businessDate = useBusinessDate();
     const [kind, setKind] = useState<Kind>('SETTLEMENT');
     const [channel, setChannel] = useState<SettlementChannel>('WALLET');
     const [employer, setEmployer] = useState('');
-    const [period, setPeriod] = useState(todayIso().slice(0, 7));
+    const [period, setPeriod] = useState(businessDate.slice(0, 7));
     const [currency, setCurrency] = useState('USD');
-    const [valueDate, setValueDate] = useState(todayIso());
+    const [valueDate, setValueDate] = useState(businessDate);
     const [fileName, setFileName] = useState('');
     const [content, setContent] = useState('');
     const [result, setResult] = useState<FileView | null>(null);
@@ -36,7 +37,7 @@ export function ImportPanel({ onImported }: { onImported: () => void }) {
     };
 
     const submit = async () => {
-        const name = fileName.trim() || `${kind.toLowerCase()}-${todayIso()}.csv`;
+        const name = fileName.trim() || `${kind.toLowerCase()}-${businessDate}.csv`;
         const res = await run('import', () =>
             kind === 'SETTLEMENT'
                 ? api.post<FileView>('/lending/payment-channels/settlement-files', { channel, fileName: name, content })

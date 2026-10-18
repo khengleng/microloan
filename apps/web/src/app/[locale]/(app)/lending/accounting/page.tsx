@@ -3,11 +3,17 @@
 import Link from 'next/link';
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { ChartOfAccounts } from '@/components/lending/accounting/ChartOfAccounts';
+import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
+import { useToast } from '@/components/ui/toast';
 import { LendingShell, useLendingHref } from '@/components/lending/LendingShell';
 import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, Tabs, TextInput, th, thR, td, tdR } from '@/components/lending/ui';
 import { MoneyCell } from '@/components/lending/MoneyCell';
 import { StatusBadge } from '@/components/lending/StatusBadge';
 import { Pager } from '@/components/lending/Pager';
+import { LoanPicker } from '@/components/lending/LoanPicker';
 import { qs, useApi } from '@/components/lending/useAsync';
 import { addDecimal, fmtDateTime, subDecimal } from '@/components/lending/format';
 import type { JournalEntry, Paged, Reconciliation, TrialBalance } from '@/components/lending/types';
@@ -119,7 +125,7 @@ function JournalView() {
         <div className="space-y-4">
             <Card>
                 <form className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(filters); setPage(1); }}>
-                    <Field label="Loan account id"><TextInput value={filters.loanAccountId} onChange={(v) => setFilters((f) => ({ ...f, loanAccountId: v.trim() }))} placeholder="uuid" /></Field>
+                    <Field label="Loan" hint="Optional — search by loan reference"><LoanPicker value={filters.loanAccountId} onChange={(id) => setFilters((f) => ({ ...f, loanAccountId: id }))} /></Field>
                     <Field label="From"><TextInput type="date" value={filters.from} onChange={(v) => setFilters((f) => ({ ...f, from: v }))} /></Field>
                     <Field label="To"><TextInput type="date" value={filters.to} onChange={(v) => setFilters((f) => ({ ...f, to: v }))} /></Field>
                     <Btn variant="primary" type="submit">Apply</Btn>
@@ -183,31 +189,85 @@ function JournalView() {
     );
 }
 
+/** Fetch a CSV through the API proxy and save it; errors come back as readable messages, not a raw JSON page. */
+async function downloadCsv(path: string, filename: string): Promise<{ headers: Record<string, string> }> {
+    try {
+        const res = await api.get<Blob>(path, { responseType: 'blob' });
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return { headers: res.headers as Record<string, string> };
+    } catch (e) {
+        const data = (e as { response?: { data?: Blob } }).response?.data;
+        let message: string | undefined;
+        if (data instanceof Blob) {
+            try { message = JSON.parse(await data.text())?.message; } catch { /* not JSON */ }
+        }
+        throw new Error(Array.isArray(message) ? message[0] : message || (e as Error).message);
+    }
+}
+
 function ExportsView() {
+    const t = useTranslations('LendingAccounting');
+    const { can } = useWorkspace();
+    const { showToast } = useToast();
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
-    const linkCls = 'inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]';
+    const [busy, setBusy] = useState<'gl' | 'bureau' | null>(null);
+    const [totals, setTotals] = useState<{ from: string; to: string; debit: string; credit: string } | null>(null);
     const ready = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
+    const gl = async () => {
+        setBusy('gl');
+        try {
+            const { headers } = await downloadCsv(`/lending/ops/gl-export.csv${qs({ from, to })}`, `gl-${from}-${to}.csv`);
+            // The API returns the period's totals as response headers alongside the file.
+            setTotals({ from, to, debit: headers['x-total-debit'] ?? '—', credit: headers['x-total-credit'] ?? '—' });
+        } catch (e) {
+            showToast(t('downloadFailed', { message: (e as Error).message }), 'error');
+        } finally { setBusy(null); }
+    };
+    const bureau = async () => {
+        setBusy('bureau');
+        try { await downloadCsv('/lending/ops/bureau-export.csv', 'credit-bureau.csv'); }
+        catch (e) { showToast(t('downloadFailed', { message: (e as Error).message }), 'error'); }
+        finally { setBusy(null); }
+    };
     return (
         <div className="space-y-4">
-            <Card title="General-ledger export" subtitle="Every lending journal line in the period, for posting to the general ledger. The debit and credit totals are returned with the file.">
-                <div className="flex flex-wrap items-end gap-2">
-                    <Field label="From"><TextInput type="date" value={from} onChange={setFrom} className="w-44" /></Field>
-                    <Field label="To"><TextInput type="date" value={to} onChange={setTo} className="w-44" /></Field>
-                    {ready
-                        ? <a className={linkCls} href={`/api/proxy/lending/ops/gl-export.csv${qs({ from, to })}`}>Download GL lines (CSV)</a>
-                        : <span className="text-[12px] text-[#697386]">Choose the period to export.</span>}
-                </div>
-            </Card>
-            <Card title="Credit bureau file" subtitle="One record per loan you may export — status, balance, days past due and classification at the business date. Closed loans are reported as paid.">
-                <a className={linkCls} href="/api/proxy/lending/ops/bureau-export.csv">Download bureau file (CSV)</a>
-            </Card>
+            {can('accounting.read') && (
+                <Card title={t('glTitle')} subtitle={t('glSubtitle')}>
+                    <div className="flex flex-wrap items-end gap-2">
+                        <Field label={t('from')}><TextInput type="date" value={from} onChange={setFrom} className="w-44" /></Field>
+                        <Field label={t('to')}><TextInput type="date" value={to} onChange={setTo} className="w-44" /></Field>
+                        {ready
+                            ? <Btn onClick={gl} busy={busy === 'gl'}>{t('glDownload')}</Btn>
+                            : <span className="text-[12px] text-[#697386]">{t('choosePeriod')}</span>}
+                    </div>
+                    {totals && (
+                        <p className="mt-3 text-[13px] text-[#3C4257]">
+                            {t.rich('glTotals', { from: totals.from, to: totals.to, debit: totals.debit, credit: totals.credit, b: (c) => <b className="tabular-nums">{c}</b> })}
+                        </p>
+                    )}
+                </Card>
+            )}
+            {can('loan_data.export') && (
+                <Card title={t('bureauTitle')} subtitle={t('bureauSubtitle')}>
+                    <Btn onClick={bureau} busy={busy === 'bureau'}>{t('bureauDownload')}</Btn>
+                </Card>
+            )}
+            {!can('accounting.read') && !can('loan_data.export') && <Card><Empty>{t('noExports')}</Empty></Card>}
         </div>
     );
 }
 
 export default function LendingAccountingPage() {
-    const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports'>('rec');
+    const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports' | 'accounts'>('rec');
+    const tg = useTranslations('Governance.coa');
     return (
         <LendingShell title="Accounting reconciliation" subtitle="Lending sub-ledger journals, trial balance and sub-ledger-to-ledger reconciliation.">
             <Tabs value={tab} onChange={setTab} tabs={[
@@ -215,11 +275,13 @@ export default function LendingAccountingPage() {
                 { value: 'tb', label: 'Trial balance' },
                 { value: 'journal', label: 'Journal' },
                 { value: 'exports', label: 'Exports' },
+                { value: 'accounts', label: tg('tab') },
             ]} />
             {tab === 'tb' && <TrialBalanceView />}
             {tab === 'rec' && <ReconciliationView />}
             {tab === 'journal' && <JournalView />}
             {tab === 'exports' && <ExportsView />}
+            {tab === 'accounts' && <ChartOfAccounts />}
         </LendingShell>
     );
 }

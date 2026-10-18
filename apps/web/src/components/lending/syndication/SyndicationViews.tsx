@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
@@ -68,6 +69,8 @@ type Row = { lenderName: string; isAgent: boolean; share: string; amount: string
 export function SyndicateDetail({ loanId }: { loanId: string }) {
     const href = useLendingHref();
     const confirm = useConfirm();
+    const { can, access } = useWorkspace();
+    const me = access?.principal.id;
     const view = useApi<SyndicateView>(`/lending/loans/${loanId}/syndicate`);
     const { busy, error, run, clearError } = useAction();
     const fundKey = useIdempotencyKey();
@@ -130,7 +133,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
                 />
             </Card>
 
-            {(!s || s.status === 'DRAFT') && loan.status === 'BOOKED' && (
+            {(!s || s.status === 'DRAFT') && loan.status === 'BOOKED' && (can('syndication.manage') || (s && can('syndication.approve') && s.makerId !== me)) && (
                 <Card title={s ? 'Participants (draft)' : 'Set up participants'} subtitle="Shares must sum to 100% (or amounts to the loan). Exactly one participant is this lender, as agent.">
                     <div className="mb-3"><Checkbox checked={byAmount} onChange={setByAmount} label="Enter amounts instead of shares" /></div>
                     <div className="space-y-2">
@@ -147,14 +150,14 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
                         ))}
                     </div>
                     <div className="mt-3 flex gap-2">
-                        <Btn onClick={() => setRows([...rows, { lenderName: '', isAgent: false, share: '', amount: '', feeShare: '' }])}>Add participant</Btn>
-                        <Btn variant="primary" onClick={save} busy={busy === 'save'}>Save draft</Btn>
-                        {s?.status === 'DRAFT' && <Btn variant="primary" busy={busy === 'approve'} onClick={async () => { if (await confirm({ title: 'Approve syndicate', message: 'Approve these participants and shares?', confirmLabel: 'Approve' })) await post('approve', 'approve', {}, 'Syndicate approved — record the participants’ funding next'); }}>Approve (checker)</Btn>}
+                        {can('syndication.manage') && <Btn onClick={() => setRows([...rows, { lenderName: '', isAgent: false, share: '', amount: '', feeShare: '' }])}>Add participant</Btn>}
+                        {can('syndication.manage') && <Btn variant="primary" onClick={save} busy={busy === 'save'}>Save draft</Btn>}
+                        {s?.status === 'DRAFT' && can('syndication.approve') && s.makerId !== me && <Btn variant="primary" busy={busy === 'approve'} onClick={async () => { if (await confirm({ title: 'Approve syndicate', message: 'Approve these participants and shares?', confirmLabel: 'Approve' })) await post('approve', 'approve', {}, 'Syndicate approved — record the participants’ funding next'); }}>Approve (checker)</Btn>}
                     </div>
                 </Card>
             )}
 
-            {s?.status === 'APPROVED' && (
+            {s?.status === 'APPROVED' && can('loan.disbursement.prepare') && (
                 <Card title="Participant funding" subtitle="Record that the other participants have paid their shares; the loan cannot be disbursed before.">
                     <div className="flex flex-wrap items-end gap-2">
                         <Field label="Payment reference"><TextInput value={fundRef} onChange={setFundRef} maxLength={120} className="w-64" /></Field>
@@ -168,7 +171,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
                     title="Participants"
                     subtitle="Each collection is split by share (fees by fee share); the agent takes the rounding."
                     bodyClass="p-0"
-                    actions={['ACTIVE', 'CLOSED'].includes(loan.status) ? <Btn busy={busy === 'distribute'} onClick={() => post('distribute', 'distribute', {}, 'Collections shared')}>Share new collections</Btn> : undefined}
+                    actions={['ACTIVE', 'CLOSED'].includes(loan.status) && can('loan.repayment.post') ? <Btn busy={busy === 'distribute'} onClick={() => post('distribute', 'distribute', {}, 'Collections shared')}>Share new collections</Btn> : undefined}
                 >
                     <Table>
                         <thead>
@@ -192,8 +195,8 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
                                         <td className={tdR}><MoneyCell value={p.paidOut} currency={ccy} /></td>
                                         <td className={tdR}><MoneyCell value={p.payable} currency={ccy} highlightNonZero /></td>
                                         <td className={`${td} whitespace-nowrap`}>
-                                            {!p.isAgent && !pending && Number(p.payable) > 0 && <Btn size="sm" busy={busy === `propose-${p.id}`} onClick={() => post(`propose-${p.id}`, `participants/${p.id}/payouts`, {}, `Payout to ${p.lenderName} proposed`)}>Propose payout</Btn>}
-                                            {pending && (
+                                            {!p.isAgent && !pending && Number(p.payable) > 0 && can('loan.repayment.post') && <Btn size="sm" busy={busy === `propose-${p.id}`} onClick={() => post(`propose-${p.id}`, `participants/${p.id}/payouts`, {}, `Payout to ${p.lenderName} proposed`)}>Propose payout</Btn>}
+                                            {pending && can('loan.repayment.reverse') && pending.makerId !== me && (
                                                 <div className="flex gap-1.5">
                                                     <Btn size="sm" variant="primary" busy={busy === `decide-${pending.id}`} onClick={() => decide(pending.id, true)}>Approve {pending.amount}</Btn>
                                                     <Btn size="sm" variant="danger" onClick={() => decide(pending.id, false)}>Reject</Btn>

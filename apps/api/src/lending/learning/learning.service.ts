@@ -31,7 +31,7 @@ const view = (r: LearningProgress) => ({
 });
 
 /**
- * Learning centre progress (D-092, D-093).
+ * Learning centre progress (D-094, D-095).
  *
  * A person reads and writes only their own rows: the user id always comes
  * from the signed-in principal, never from the request. Quizzes are marked

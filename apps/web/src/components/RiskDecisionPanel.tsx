@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { useWorkspace } from '@/lib/workspace';
 import { Gauge, Loader2, PlayCircle, RefreshCw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 
 type Factor = { key: string; label: string; points: number; max: number; detail: string };
@@ -25,6 +26,7 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
     const [showRestruct, setShowRestruct] = useState(false);
     const [rform, setRform] = useState({ newTermMonths: '', newAnnualInterestRate: '', reason: '' });
     const [restructuring, setRestructuring] = useState(false);
+    const { legacyCan } = useWorkspace();
 
     const load = useCallback(() => {
         setLoading(true);
@@ -129,7 +131,8 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
                 )}
 
                 {/* Restructure */}
-                {loanStatus === 'DISBURSED' && (
+                {/* The API requires LOAN_APPROVE to restructure an original-module loan. */}
+                {loanStatus === 'DISBURSED' && legacyCan('LOAN_APPROVE') && (
                     <div className="pt-2 border-t border-border">
                         {!showRestruct ? (
                             <button onClick={() => setShowRestruct(true)} className="text-sm font-medium text-primary hover:underline">

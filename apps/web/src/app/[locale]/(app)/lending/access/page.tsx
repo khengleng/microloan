@@ -15,8 +15,10 @@ import { PoliciesTab } from '@/components/lending/access/PoliciesTab';
 import { FlagsTab } from '@/components/lending/access/FlagsTab';
 import { ServiceAccountsTab } from '@/components/lending/access/ServiceAccountsTab';
 import { SimulatorTab } from '@/components/lending/access/SimulatorTab';
+import { BranchesTab } from '@/components/lending/access/BranchesTab';
+import { useTranslations } from 'next-intl';
 
-const TAB_KEYS = ['roles', 'assignments', 'delegations', 'authorities', 'policies', 'flags', 'service-accounts', 'simulator'] as const;
+const TAB_KEYS = ['roles', 'assignments', 'delegations', 'authorities', 'policies', 'flags', 'service-accounts', 'branches', 'simulator'] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 function isTab(v: string | null): v is TabKey {
@@ -38,6 +40,7 @@ function AccessPageInner() {
     const raw = params.get('tab');
     const tab: TabKey = isTab(raw) ? raw : 'roles';
     const { data, error, loading, reload } = useApi<AccessOverview>('/lending/access');
+    const tg = useTranslations('Governance');
 
     const setTab = (t: TabKey) => {
         const next = new URLSearchParams(params.toString());
@@ -56,11 +59,12 @@ function AccessPageInner() {
         { value: 'policies', label: <>ABAC policies{pendingCount(pendingPolicies)}</> },
         { value: 'flags', label: 'Feature flags' },
         { value: 'service-accounts', label: 'Service accounts' },
+        { value: 'branches', label: tg('branches.tab') },
         { value: 'simulator', label: <span data-tour="access-tab-simulator">Policy simulator</span> },
     ];
 
     // Service accounts load their own list and don't need the overview.
-    const needsOverview = tab !== 'service-accounts';
+    const needsOverview = tab !== 'service-accounts' && tab !== 'branches';
 
     return (
         <LendingShell
@@ -70,6 +74,7 @@ function AccessPageInner() {
         >
             <Tabs tabs={tabs} value={tab} onChange={setTab} />
             {tab === 'service-accounts' && <ServiceAccountsTab />}
+            {tab === 'branches' && <BranchesTab onChanged={reload} />}
             {needsOverview && (
                 <>
                     <ErrorBox error={error} />

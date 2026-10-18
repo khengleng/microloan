@@ -129,7 +129,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'AltDataConsent',
   'AltDataRecord',
   'AltDataProviderConfig',
-  // Learning centre progress, per person and lesson (D-092)
+  // Learning centre progress, per person and lesson (D-094)
   'LearningProgress',
   'PricingConfiguration',
   'RepaymentConfiguration',

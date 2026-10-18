@@ -12,16 +12,14 @@ import { StatusBadge } from '../StatusBadge';
 import { JsonDiff } from '../JsonDiff';
 import { fmtDateTime } from '../format';
 import { useMyId } from '../access/common';
+import { useWorkspace } from '@/lib/workspace';
+import { Person } from '../People';
 import { KIND_INFO, jsonDiff } from './types';
 import type { LendingPolicy, LendingPolicyVersion } from './types';
 import { NewVersionForm } from './NewVersionForm';
 
 type Act = 'submit' | 'approve' | 'reject' | 'retire';
 const PAST: Record<Act, string> = { submit: 'submitted for approval', approve: 'approved', reject: 'rejected', retire: 'retired' };
-
-function shortId(id: string | null | undefined) {
-    return id ? <span className="font-mono text-[11px]" title={id}>{id.slice(0, 8)}</span> : '—';
-}
 
 export function PolicyDetailView({ id, initialVersionId }: { id: string; initialVersionId?: string | null }) {
     const { showToast } = useToast();
@@ -43,6 +41,12 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const live = versions.find((v) => v.status === 'APPROVED');
     const hasOpenDraft = versions.some((v) => v.status === 'DRAFT' || v.status === 'SUBMITTED');
     const iAmMaker = !!myId && !!selected && selected.makerId === myId;
+    const { can } = useWorkspace();
+    // Policy versions are governed like product versions (policy/actions.ts lending_policy.*).
+    const canDraft = can('loan_product.create');
+    const canSubmit = can('loan_product.submit');
+    const canApprove = can('loan_product.approve') && !iAmMaker;
+    const canRetire = can('loan_product.retire');
 
     const transition = async (v: LendingPolicyVersion, act: Act, body?: { reason: string }) => {
         if (act === 'retire') {
@@ -68,7 +72,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
             back={{ href: '/lending/policies', label: 'Policy library' }}
             title={<span className="flex items-center gap-2"><span className="font-mono">{policy.code}</span> {policy.name}</span>}
             subtitle={<>{KIND_INFO[policy.kind]?.label ?? policy.kind} · replaces <span className="font-mono text-[12px]">{KIND_INFO[policy.kind]?.path}</span></>}
-            actions={!adding && (
+            actions={!adding && canDraft && (
                 <Btn variant="primary" onClick={() => { setAdding(true); clearError(); }} reason={hasOpenDraft ? 'A version is already in draft or awaiting approval' : undefined}>
                     <Plus size={15} /> New version
                 </Btn>
@@ -95,7 +99,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                         ['Kind', <span key="k" className="font-mono text-[12px]">{policy.kind}</span>],
                         ['Live version', live ? `v${live.version}` : <span key="n" className="text-amber-700">none approved</span>],
                         ['Created', fmtDateTime(policy.createdAt)],
-                        ['Created by', shortId(policy.createdBy)],
+                        ['Created by', <Person key="c" id={policy.createdBy} />],
                     ]} />
                     {policy.description && <p className="mt-3 text-[13px] text-[#3C4257] whitespace-pre-wrap">{policy.description}</p>}
                     {!live && <div className="mt-3"><Notice tone="warn">Products cannot go live with this policy on a menu until a version is approved.</Notice></div>}
@@ -118,7 +122,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                                     <td className={`${td} font-semibold`}>v{v.version}</td>
                                     <td className={td}><StatusBadge status={v.status} /></td>
                                     <td className={td}>{v.changeSummary || <span className="text-[#AAB7C4]">—</span>}</td>
-                                    <td className={`${td} text-[#697386]`}>{shortId(v.makerId)} / {shortId(v.checkerId)}</td>
+                                    <td className={`${td} text-[#697386]`}><Person id={v.makerId} /> / {v.checkerId ? <Person id={v.checkerId} /> : '—'}</td>
                                     <td className={`${tdR} text-[12px]`}>{fmtDateTime(v.createdAt)}</td>
                                 </tr>
                             ))}
@@ -133,13 +137,13 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                     subtitle={selected.changeSummary || undefined}
                     className={selected.status === 'SUBMITTED' ? 'border-[#635BFF] ring-1 ring-[#635BFF]/20' : ''}
                     actions={<>
-                        {selected.status === 'DRAFT' && <Btn variant="primary" busy={busy === 'submit'} onClick={() => transition(selected, 'submit')}>Submit for approval</Btn>}
-                        {selected.status === 'SUBMITTED' && <>
+                        {selected.status === 'DRAFT' && canSubmit && <Btn variant="primary" busy={busy === 'submit'} onClick={() => transition(selected, 'submit')}>Submit for approval</Btn>}
+                        {selected.status === 'SUBMITTED' && canApprove && <>
                             <Btn variant="primary" busy={busy === 'approve'} onClick={() => transition(selected, 'approve')}
                                 title={iAmMaker ? 'You made this version; the server requires a different user to approve it.' : undefined}>Approve</Btn>
                             <Btn variant="danger" onClick={() => setRejecting(true)}>Reject</Btn>
                         </>}
-                        {selected.status === 'APPROVED' && <Btn variant="danger" busy={busy === 'retire'} onClick={() => transition(selected, 'retire')}>Retire</Btn>}
+                        {selected.status === 'APPROVED' && canRetire && <Btn variant="danger" busy={busy === 'retire'} onClick={() => transition(selected, 'retire')}>Retire</Btn>}
                     </>}
                 >
                     <div className="space-y-4">
@@ -160,9 +164,9 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
                         )}
 
                         <KV cols={4} items={[
-                            ['Maker', shortId(selected.makerId)],
+                            ['Maker', <Person key="m" id={selected.makerId} />],
                             ['Submitted', fmtDateTime(selected.submittedAt)],
-                            ['Checker', shortId(selected.checkerId)],
+                            ['Checker', selected.checkerId ? <Person key="k" id={selected.checkerId} /> : '—'],
                             ['Approved', fmtDateTime(selected.approvedAt)],
                             ['Retired', fmtDateTime(selected.retiredAt)],
                             ['Body hash', <span key="h" className="font-mono text-[11px] break-all" title={selected.bodyHash}>{selected.bodyHash?.slice(0, 16)}…</span>],

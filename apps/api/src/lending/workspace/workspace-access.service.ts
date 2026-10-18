@@ -49,6 +49,47 @@ export class WorkspaceAccessService {
     private readonly businessDate: BusinessDateService,
   ) {}
 
+  /**
+   * Colleagues of the signed-in staff user, for showing a person instead of
+   * an id and for user pickers: by id (at most 200) or by an email fragment
+   * (at most 20 active users). Only users of the caller's own organisation are
+   * ever returned; platform operators and borrowers get nothing.
+   */
+  async people(
+    actor: LendingActor,
+    q: { ids?: string[]; search?: string },
+  ): Promise<
+    { id: string; email: string; active: boolean; branchId: string | null }[]
+  > {
+    if (actor.type !== 'USER' || !actor.tenantId) return [];
+    const tenantId = actor.tenantId;
+    const ids = [
+      ...new Set((q.ids ?? []).filter((i) => /^[0-9a-f-]{36}$/i.test(i))),
+    ].slice(0, 200);
+    const search = (q.search ?? '').trim().slice(0, 80);
+    if (!ids.length && search.length < 2) return [];
+    const rows = await this.lp.tenantTx(tenantId, (tx) =>
+      tx.user.findMany({
+        where: ids.length
+          ? { tenantId, id: { in: ids } }
+          : {
+              tenantId,
+              isActive: true,
+              email: { contains: search, mode: 'insensitive' },
+            },
+        select: { id: true, email: true, isActive: true, branchId: true },
+        orderBy: { email: 'asc' },
+        take: ids.length ? 200 : 20,
+      }),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      active: r.isActive,
+      branchId: r.branchId,
+    }));
+  }
+
   async access(actor: LendingActor, who: StaffIdentity = {}) {
     if (actor.type === 'PLATFORM') return this.platformAccess(actor, who);
     if (actor.type === 'CUSTOMER') return this.borrowerAccess(actor);

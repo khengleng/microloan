@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,6 +19,14 @@ import { tenantResource } from '../policy/resources';
 import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 
 type Json = Prisma.InputJsonValue;
+type LedgerType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE';
+const LEDGER_ACCOUNT_TYPES: LedgerType[] = [
+  'ASSET',
+  'LIABILITY',
+  'EQUITY',
+  'INCOME',
+  'EXPENSE',
+];
 
 /**
  * The lender's own operating parameters (TenantLendingSettings, DECISIONS
@@ -35,6 +44,95 @@ export class LendingSettingsService {
     private readonly ledger: LedgerService,
     private readonly settings: TenantSettingsService,
   ) {}
+
+  // ── Chart of accounts ─────────────────────────────────────────────────────
+
+  /** The tenant's ledger accounts (the default chart is provisioned first). */
+  async accounts(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    await this.policy.enforce(
+      actor,
+      'accounting.read',
+      tenantResource(tenantId),
+    );
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.ledger.ensureChartOfAccounts(tenantId, tx);
+      return tx.ledgerAccount.findMany({
+        where: { tenantId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          isActive: true,
+        },
+        orderBy: { code: 'asc' },
+      });
+    });
+  }
+
+  /**
+   * Add an account to the chart, so the lending settings can name it (e.g. a
+   * separate income account). Adding one posts nothing and changes no
+   * existing posting rule — those change only through approved settings —
+   * so finance (tenant_settings.manage) adds it alone; it is audited.
+   */
+  async createAccount(
+    actor: LendingActor,
+    body: { code: string; name: string; type: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    const code = (body.code ?? '').trim().toUpperCase();
+    const name = (body.name ?? '').trim();
+    if (!/^[0-9A-Z][0-9A-Z.-]{1,15}$/.test(code))
+      throw new BadRequestException(
+        'Account code must be 2–16 of 0–9, A–Z, . or -, starting with a letter or digit.',
+      );
+    if (name.length < 2)
+      throw new BadRequestException('An account needs a name.');
+    if (!LEDGER_ACCOUNT_TYPES.includes(body.type as LedgerType))
+      throw new BadRequestException(
+        `Account type must be one of ${LEDGER_ACCOUNT_TYPES.join(', ')}.`,
+      );
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      await this.policy.enforce(
+        actor,
+        'tenant_settings.manage',
+        tenantResource(tenantId),
+        tx,
+      );
+      await this.ledger.ensureChartOfAccounts(tenantId, tx);
+      if (await tx.ledgerAccount.findFirst({ where: { tenantId, code } }))
+        throw new ConflictException(`Account ${code} is already in the chart.`);
+      const a = await tx.ledgerAccount.create({
+        data: {
+          tenantId,
+          code,
+          name: name.slice(0, 120),
+          type: body.type as LedgerType,
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          isActive: true,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'accounting.account_create',
+          resourceType: 'LedgerAccount',
+          resourceId: a.id,
+          outcome: 'SUCCESS',
+          details: { code: a.code, name: a.name, type: a.type },
+        },
+        tx,
+      );
+      return a;
+    });
+  }
 
   async list(actor: LendingActor) {
     const tenantId = requireTenant(actor);

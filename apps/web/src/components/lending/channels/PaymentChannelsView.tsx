@@ -10,7 +10,9 @@ import { Btn, Card, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Ta
 import { qs, useAction, useApi } from '../useAsync';
 import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
-import { fmtDateTime, todayIso } from '../format';
+import { fmtDateTime } from '../format';
+import { useBusinessDate } from '../useBusinessDate';
+import { useWorkspace } from '@/lib/workspace';
 import { ImportPanel } from './ImportPanel';
 import { FileLinesTable } from './FileLinesTable';
 import { PayrollSummaryPanel, ReconciliationPanel } from './ReconciliationPanel';
@@ -26,8 +28,12 @@ type Tab = 'import' | 'files' | 'reconciliation' | 'payroll' | 'auto-debit' | 's
 export function PaymentChannelsView() {
     const params = useSearchParams();
     const fileParam = params?.get('file') ?? null;
-    const [tab, setTab] = useState<Tab>(fileParam ? 'files' : 'import');
+    const { can } = useWorkspace();
+    // Importing a file posts repayments (payment.channel_file.import → loan.repayment.post).
+    const canImport = can('loan.repayment.post');
+    const [tab, setTab] = useState<Tab>(fileParam || !canImport ? 'files' : 'import');
     const [version, setVersion] = useState(0);
+    const businessDate = useBusinessDate();
     return (
         <LendingShell
             title="Payment channels"
@@ -37,7 +43,7 @@ export function PaymentChannelsView() {
                 value={tab}
                 onChange={setTab}
                 tabs={[
-                    { value: 'import', label: 'Import file' },
+                    ...(canImport ? [{ value: 'import' as Tab, label: 'Import file' }] : []),
                     { value: 'files', label: 'Files' },
                     { value: 'reconciliation', label: 'Daily reconciliation' },
                     { value: 'payroll', label: 'Payroll by employer' },
@@ -45,9 +51,9 @@ export function PaymentChannelsView() {
                     { value: 'settings', label: 'Settings' },
                 ]}
             />
-            {tab === 'import' && <ImportPanel onImported={() => setVersion((v) => v + 1)} />}
+            {tab === 'import' && canImport && <ImportPanel onImported={() => setVersion((v) => v + 1)} />}
             {tab === 'files' && <FilesPanel key={version} initialFile={fileParam} />}
-            {tab === 'reconciliation' && <ReconciliationPanel defaultDate={todayIso()} />}
+            {tab === 'reconciliation' && <ReconciliationPanel defaultDate={businessDate} />}
             {tab === 'payroll' && <PayrollSummaryPanel />}
             {tab === 'auto-debit' && <AutoDebitPanel />}
             {tab === 'settings' && <SettingsPanel />}
@@ -107,11 +113,20 @@ function FilesPanel({ initialFile }: { initialFile: string | null }) {
     );
 }
 
+/** Shown wherever auto-debit appears while the bank adapter is a mock, not only on Settings. */
+export function MockBankNotice({ className }: { className?: string }) {
+    const view = useApi<SettingsView>('/lending/payment-channels/settings');
+    if (!view.data || view.data.adapters.bankDebit.real) return null;
+    return <div className={className}><Notice tone="warn" title="Auto-debit uses a mock bank">No money moves: accounts ending in 000 are refused for insufficient funds, in 999 as closed, anything else succeeds. Production refuses the mock, so no debit is attempted there until a bank is connected.</Notice></div>;
+}
+
 function AutoDebitPanel() {
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const rows = useApi<DebitAttempt[]>(`/lending/payment-channels/auto-debit/attempts${qs({ status })}`);
     return (
+        <>
+        <MockBankNotice />
         <Card
             title="Collection attempts"
             subtitle="End of day collects instalments due under active mandates; failed attempts are retried per the settings and the borrower is notified. Mandates are set up on the loan screen."
@@ -146,6 +161,7 @@ function AutoDebitPanel() {
                 </Table>
             )}
         </Card>
+        </>
     );
 }
 
@@ -158,6 +174,9 @@ function SettingsPanel() {
 
 function SettingsForm({ view, onSaved }: { view: SettingsView; onSaved: () => void }) {
     const { showToast } = useToast();
+    const { can } = useWorkspace();
+    // Reading the settings needs loan.read; changing them is payment.channel.configure (rate_observation.manage).
+    const canConfigure = can('rate_observation.manage');
     const s = view.settings;
     const [form, setForm] = useState<Record<keyof ChannelSettings, string>>({
         fxSpreadBps: String(s.fxSpreadBps),
@@ -185,14 +204,16 @@ function SettingsForm({ view, onSaved }: { view: SettingsView; onSaved: () => vo
             </Card>
             <Card title="Settings" subtitle="Changes apply from the next payment or end-of-day run.">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <Field label="FX spread (basis points)" hint="Taken off the mid rate when the bank buys the payment currency; 0–1000"><TextInput value={form.fxSpreadBps} onChange={set('fxSpreadBps')} inputMode="numeric" /></Field>
-                    <Field label="Rate may be up to (days old)" hint="0 = only a rate published for the value date"><TextInput value={form.fxMaxRateAgeDays} onChange={set('fxMaxRateAgeDays')} inputMode="numeric" /></Field>
-                    <Field label="Auto-debit attempts per due date" hint="Including the first; 1–10"><TextInput value={form.autoDebitMaxAttempts} onChange={set('autoDebitMaxAttempts')} inputMode="numeric" /></Field>
-                    <Field label="Days between attempts" hint="1–31"><TextInput value={form.autoDebitRetryDays} onChange={set('autoDebitRetryDays')} inputMode="numeric" /></Field>
+                    <Field label="FX spread (basis points)" hint="Taken off the mid rate when the bank buys the payment currency; 0–1000"><TextInput value={form.fxSpreadBps} onChange={set('fxSpreadBps')} inputMode="numeric" disabled={!canConfigure} /></Field>
+                    <Field label="Rate may be up to (days old)" hint="0 = only a rate published for the value date"><TextInput value={form.fxMaxRateAgeDays} onChange={set('fxMaxRateAgeDays')} inputMode="numeric" disabled={!canConfigure} /></Field>
+                    <Field label="Auto-debit attempts per due date" hint="Including the first; 1–10"><TextInput value={form.autoDebitMaxAttempts} onChange={set('autoDebitMaxAttempts')} inputMode="numeric" disabled={!canConfigure} /></Field>
+                    <Field label="Days between attempts" hint="1–31"><TextInput value={form.autoDebitRetryDays} onChange={set('autoDebitRetryDays')} inputMode="numeric" disabled={!canConfigure} /></Field>
                 </div>
                 <div className="mt-3 space-y-2">
                     <ErrorBox error={error} onDismiss={clearError} />
-                    <Btn variant="primary" onClick={save} busy={busy === 'save'}>Save settings</Btn>
+                    {canConfigure
+                        ? <Btn variant="primary" onClick={save} busy={busy === 'save'}>Save settings</Btn>
+                        : <p className="text-[12px] text-[#697386]">Read only — changing these settings needs the rate-observation management permission.</p>}
                 </div>
             </Card>
         </div>

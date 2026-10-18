@@ -4655,7 +4655,7 @@ model AltDataProviderConfig {
   @@index([tenantId, source, status])
 }
 
-/// One person's progress on one Learning centre lesson (D-092). Lessons are
+/// One person's progress on one Learning centre lesson (D-094). Lessons are
 /// content (packages/shared/src/learning), identified by id; the API grades
 /// quizzes, so a pass is never the browser's word. The orientation lesson's
 /// row also remembers that the first-login tour prompt was dismissed.

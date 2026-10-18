@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
+import { useWorkspace } from '@/lib/workspace';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -27,12 +28,13 @@ export function LoansList() {
     const rows = data?.data ?? [];
     const total = data?.total ?? 0;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const canExport = useWorkspace().can('loan_data.export');
 
     return (
         <LendingShell
             title="Loans"
             subtitle="Booked loan accounts with live sub-ledger balances."
-            actions={
+            actions={canExport &&
                 <a href="/api/proxy/lending/loans/export.csv" className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">
                     <Download size={14} /> Export CSV
                 </a>

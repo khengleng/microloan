@@ -39,7 +39,7 @@ serviced in that stack.
 * **Loan products & loans** — flat and reducing-balance products with credit-rating pricing policies, NBC interest-rate cap (18%), approval with maker-checker, disbursement with origination fees, write-off, restructuring, collateral, guarantors, interactions, documents (S3).
 * **Repayments** — idempotent posting, reversals, penalties (daily cron), payoff quotes, KHQR static payment QR per tenant / branch.
 * **Agreements** — key facts statement with EIR / total cost of credit and e-signature (hash-anchored).
-* **Risk & credit** — internal scorecard, Credit Bureau Cambodia (CBC) checks (sandbox when not configured).
+* **Risk & credit** — internal scorecard; Credit Bureau Cambodia (CBC) checks only once CBC credentials (`CBC_API_URL` / `CBC_API_KEY`) are configured — until then the check answers "CBC integration is not ready." and there is no sandbox.
 * **Finance** — dual currency (USD / KHR) with FX rates, general ledger with trial balance, NBC loan-loss provisioning runs, KPIs, portfolio-at-risk dashboard and reports, CSV / Excel exports.
 * **Collections** — overdue queue and promise-to-pay tracking.
 * **Borrower portal** — phone + OTP sign-in, loan view, e-KYC uploads, agreement signing.

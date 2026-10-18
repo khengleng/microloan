@@ -371,6 +371,9 @@ export const S = {
   groupStatus: z
     .object({ status: z.enum(['ACTIVE', 'DORMANT', 'DISBANDED']) })
     .strict(),
+  groupLeader: z
+    .object({ borrowerId: uuid, reason: z.string().max(500).optional() })
+    .strict(),
   updateTerms: z
     .object({ terms: termsSchema, purpose: z.string().max(500).optional() })
     .strict(),
@@ -665,6 +668,27 @@ export const S = {
       subjectType: z.enum(['BRANCH', 'USER', 'BORROWER']),
       subjectId: z.string().max(64),
       member: z.boolean(),
+      reason: z.string().max(300).optional(),
+    })
+    .strict(),
+  ledgerAccount: z
+    .object({
+      code: z.string().trim().min(2).max(16),
+      name: z.string().trim().min(2).max(120),
+      type: z.enum(['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']),
+    })
+    .strict(),
+  branchCreate: z
+    .object({
+      name: z.string().trim().min(2).max(80),
+      code: z.string().trim().max(12).optional(),
+    })
+    .strict(),
+  branchUpdate: z
+    .object({
+      name: z.string().trim().min(2).max(80).optional(),
+      code: z.string().trim().max(12).nullable().optional(),
+      isActive: z.boolean().optional(),
     })
     .strict(),
   serviceAccount: z

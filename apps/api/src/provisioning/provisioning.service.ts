@@ -9,6 +9,8 @@ import { LoanStatus, JournalSource, Currency, LoanClassification as PrismaClassi
 import { classifyByDaysOverdue, provisionAmount, LoanClassification } from '@microloan/shared';
 import type { ClassificationTier } from '@microloan/shared';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { BusinessDateService } from '../lending/common/business-date.service';
+import { fromLocalDate, toLocalDate } from '../lending/common/util';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const CENTS = (n: number) => Math.round(n * 100) / 100;
@@ -33,6 +35,12 @@ export class ProvisioningService {
         this.authz.assertPermission(actor, Permission.PROVISION_RUN);
         const tenantId = this.requireTenant(actor);
         const now = new Date();
+        // Days past due are counted to the tenant's BUSINESS date (the date end
+        // of day has reached), not the calendar clock — the same basis as the
+        // lending platform's delinquency and the regulatory classification.
+        const bdRow = await this.prisma.tenantBusinessDate.findUnique({ where: { tenantId } });
+        const businessDate = (bdRow && toLocalDate(bdRow.businessDate)) || BusinessDateService.calendarToday();
+        const asOf = fromLocalDate(businessDate);
         const settings = await this.settings.get(tenantId);
         const tiers: ClassificationTier[] = settings.regulatory.classes.map((c) => ({
             classification: c.code as LoanClassification,
@@ -57,8 +65,9 @@ export class ProvisioningService {
             for (const s of loan.schedules) {
                 const remaining = Number(s.principalAmount) - Number(s.paidPrincipal);
                 if (remaining > 0) outstandingPrincipal += remaining;
-                if (!s.isPaid && s.dueDate < now) {
-                    const days = Math.floor((now.getTime() - s.dueDate.getTime()) / MS_PER_DAY);
+                const due = fromLocalDate(s.dueDate.toISOString().slice(0, 10));
+                if (!s.isPaid && due < asOf) {
+                    const days = Math.floor((asOf.getTime() - due.getTime()) / MS_PER_DAY);
                     if (days > maxDaysOverdue) maxDaysOverdue = days;
                 }
             }
@@ -167,6 +176,7 @@ export class ProvisioningService {
         await this.audit.logAction(tenantId, actorId, 'CREATE', 'ProvisionRun', runResult.id, {
             totalProvisionBase,
             baseCurrency,
+            businessDate,
             movements,
             loanCount: provisionRows.length,
         });
@@ -174,6 +184,7 @@ export class ProvisioningService {
         return {
             id: runResult.id,
             runDate: runResult.runDate,
+            businessDate,
             totalProvision: totalProvisionBase,
             baseCurrency,
             movements,

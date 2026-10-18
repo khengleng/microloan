@@ -180,8 +180,11 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.covenant.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  // Whoever recorded the breaching test may not waive it (covenants.service
+  // passes the test recorders as the makers).
   A('loan.covenant.waive', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.reverse',
+    makerChecker: true,
   }),
   // Project finance (LT-17): applying a period's receipts through the cash
   // waterfall posts debt service, reserve and lock-up movements — money on a
@@ -307,7 +310,7 @@ export const ACTIONS: ActionDefinition[] = [
   // Scorecards are risk models: one person drafts and tests a version,
   // another approves it and puts it in force.
   A('scorecard.read', 'TENANT', 'READ'),
-  // Learning centre (D-093): the team's progress report. Everyone reads and
+  // Learning centre (D-095): the team's progress report. Everyone reads and
   // writes their own progress without a permission.
   A('learning.report.read', 'TENANT', 'READ'),
   A('scorecard.manage', 'TENANT', 'CONFIG'),

@@ -199,13 +199,13 @@ UC-39, UC-40, UC-44, UC-52).
 | ID | Status | Stack | Evidence | Gap |
 |---|---|---|---|---|
 | UC-63 | ✅ | L, G | api/restructuring/restructuring.service.ts; int/restructure.int-spec.ts | Legacy restructure has no maker-checker |
-| UC-64 | ✅ | L | Negotiated settlement `svc`; int/settlement.int-spec.ts:114 | No web screen |
+| UC-64 | ✅ | L | Negotiated settlement `svc`; int/settlement.int-spec.ts:114 | Screen: loan screen › Negotiated settlement |
 | UC-65 | ✅ | L | Seize (maker-checker) → value → sell; proceeds waterfall eng/recovery.ts `applyRecoveryProceeds`; surplus to a borrower payable paid out under maker-checker; deficiency stays on the open loan; pledge SOLD: api/recovery/recovery.service.ts; int/recovery.int-spec.ts (surplus, deficiency, write-off then recovery) | Proceeds order and costs are assumptions (DECISIONS D-011, D-012) |
 | UC-66 | ✅ | L | Forfeiture after the deadline (maker-checker), auction through the same waterfall: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | — |
 | UC-67 | ✅ | L | End-of-day batch puts an invoice unpaid after due date + grace into RECOURSE: fee frozen at that date, advance + fee owed by the borrower, days past due / bucket / stage from the recourse date; recourse payments capped at what is owed: `InvoiceFinanceService.recourseHook`; int/trade.int-spec.ts "UC-67" | No late penalty on recourse arrears (D-025); factoring with FULL / LIMITED / NONE recourse: factoring.int-spec (D-055) |
 | UC-68 | ✅ | L | Policy per loan; claim approved by a second user settles the loan against an insurer receivable (1410), excess to the estate; insurer payment clears it: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | D-013 |
 | UC-69 | ✅ | L, G | Write-off propose/approve `svc`; int/settlement.int-spec.ts:275 | Legacy write-off has no maker-checker |
-| UC-70 | ✅ | L | Recovery `svc`; int/settlement.int-spec.ts:296 | No web screen |
+| UC-70 | ✅ | L | Recovery `svc`; int/settlement.int-spec.ts:296 | Screen: Lending › Recovery (`/lending/recovery`) and the loan screen |
 | UC-71 | ✅ | L | Debt sale of a delinquent or written-off loan under maker-checker and authority; gain/loss net of allowance (eng/recovery.ts `debtSaleResult`, 4400 / 5400); status SOLD, no further servicing: api/recovery/recovery.service.ts; int/recovery.int-spec.ts | D-015 |
 
 ### J. Closure

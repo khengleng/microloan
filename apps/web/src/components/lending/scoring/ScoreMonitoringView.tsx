@@ -6,7 +6,8 @@ import { Btn, Card, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Ta
 import { qs, useApi } from '../useAsync';
 import { fmtRate } from '../format';
 import { OutcomeBadge } from './ScoreResultView';
-import { psiLabel, versionLabel } from './types';
+import { useScoringText } from './i18n';
+import { psiLabel } from './types';
 import type { MonitoredVersion, MonitoringReport, ScorecardList } from './types';
 
 interface Filters {
@@ -24,6 +25,7 @@ function dec(v: string | null | undefined, digits = 3): string {
 
 /** Champion and challenger performance: distribution, approvals, bad rates, discrimination and stability. */
 export function ScoreMonitoringView() {
+    const { t } = useScoringText();
     const [form, setForm] = useState<Filters>(EMPTY);
     const [applied, setApplied] = useState<Filters>(EMPTY);
     const list = useApi<ScorecardList>('/lending/scorecards');
@@ -35,22 +37,22 @@ export function ScoreMonitoringView() {
 
     return (
         <LendingShell
-            title="Scorecard monitoring"
-            subtitle="How each scorecard version is scoring and performing. Figures are recomputed on every load."
-            actions={<Btn variant="ghost" onClick={report.reload}>Refresh</Btn>}
+            title={t('monitoring.title')}
+            subtitle={t('monitoring.subtitle')}
+            actions={<Btn variant="ghost" onClick={report.reload}>{t('common.refresh')}</Btn>}
         >
-            <Card title="Filters">
+            <Card title={t('monitoring.filters')}>
                 <form data-tour="scorecard-monitoring-filters" className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(form); }}>
-                    <Field label="Scorecard"><SelectInput value={form.scorecardCode} onChange={set('scorecardCode')} options={codes} placeholder="All" /></Field>
-                    <Field label="Bad at DPD ≥"><TextInput inputMode="numeric" value={form.badDaysPastDue} onChange={set('badDaysPastDue')} placeholder={p ? String(p.badDaysPastDue) : ''} /></Field>
-                    <Field label="Performance months"><TextInput inputMode="numeric" value={form.performanceMonths} onChange={set('performanceMonths')} placeholder={p ? String(p.performanceMonths) : ''} /></Field>
-                    <Field label="Baseline from"><TextInput type="date" value={form.baselineFrom} onChange={set('baselineFrom')} /></Field>
-                    <Field label="Baseline to"><TextInput type="date" value={form.baselineTo} onChange={set('baselineTo')} /></Field>
-                    <Field label="Recent from"><TextInput type="date" value={form.recentFrom} onChange={set('recentFrom')} /></Field>
-                    <Field label="Recent to"><TextInput type="date" value={form.recentTo} onChange={set('recentTo')} /></Field>
+                    <Field label={t('monitoring.scorecard')}><SelectInput value={form.scorecardCode} onChange={set('scorecardCode')} options={codes} placeholder={t('monitoring.all')} /></Field>
+                    <Field label={t('monitoring.badAtDpd')}><TextInput inputMode="numeric" value={form.badDaysPastDue} onChange={set('badDaysPastDue')} placeholder={p ? String(p.badDaysPastDue) : ''} /></Field>
+                    <Field label={t('monitoring.performanceMonths')}><TextInput inputMode="numeric" value={form.performanceMonths} onChange={set('performanceMonths')} placeholder={p ? String(p.performanceMonths) : ''} /></Field>
+                    <Field label={t('monitoring.baselineFrom')}><TextInput type="date" value={form.baselineFrom} onChange={set('baselineFrom')} /></Field>
+                    <Field label={t('monitoring.baselineTo')}><TextInput type="date" value={form.baselineTo} onChange={set('baselineTo')} /></Field>
+                    <Field label={t('monitoring.recentFrom')}><TextInput type="date" value={form.recentFrom} onChange={set('recentFrom')} /></Field>
+                    <Field label={t('monitoring.recentTo')}><TextInput type="date" value={form.recentTo} onChange={set('recentTo')} /></Field>
                     <div className="col-span-2 md:col-span-4 lg:col-span-7 flex gap-2">
-                        <Btn data-tour="scorecard-monitoring-apply" variant="primary" type="submit">Apply</Btn>
-                        <Btn variant="ghost" onClick={() => { setForm(EMPTY); setApplied(EMPTY); }}>Reset</Btn>
+                        <Btn data-tour="scorecard-monitoring-apply" variant="primary" type="submit">{t('monitoring.apply')}</Btn>
+                        <Btn variant="ghost" onClick={() => { setForm(EMPTY); setApplied(EMPTY); }}>{t('monitoring.reset')}</Btn>
                     </div>
                 </form>
             </Card>
@@ -59,13 +61,18 @@ export function ScoreMonitoringView() {
             {report.loading && !report.data ? <Spinner /> : report.data && (
                 <>
                     <Notice>
-                        As of {report.data.asOf}. A loan counts as <b>bad</b> when it reached {report.data.parameters.badDaysPastDue}+ days past due within
-                        {' '}{report.data.parameters.performanceMonths} months of booking; only loans that have been on book that long (<b>mature</b>) count towards bad rates,
-                        Gini, AUC and KS. Stability compares the grade mix of applications scored {report.data.parameters.baseline.from} – {report.data.parameters.baseline.to} (baseline)
-                        with {report.data.parameters.recent.from} – {report.data.parameters.recent.to} (recent). <b>Challenger</b> rows are shadow evaluations: they are scored
-                        alongside the champion but never affect a decision, so their approval figures reflect the champion&apos;s decisions.
+                        {t.rich('monitoring.explain', {
+                            asOf: report.data.asOf,
+                            dpd: report.data.parameters.badDaysPastDue,
+                            months: report.data.parameters.performanceMonths,
+                            baselineFrom: report.data.parameters.baseline.from,
+                            baselineTo: report.data.parameters.baseline.to,
+                            recentFrom: report.data.parameters.recent.from,
+                            recentTo: report.data.parameters.recent.to,
+                            b: (chunks) => <b>{chunks}</b>,
+                        })}
                     </Notice>
-                    {report.data.versions.length === 0 ? <Card><Empty>No scored applications in this window.</Empty></Card> : report.data.versions.map((v) => (
+                    {report.data.versions.length === 0 ? <Card><Empty>{t('monitoring.noneScored')}</Empty></Card> : report.data.versions.map((v) => (
                         <VersionCard key={`${v.scorecardCode}-${v.version}-${v.role}`} v={v} />
                     ))}
                 </>
@@ -75,31 +82,32 @@ export function ScoreMonitoringView() {
 }
 
 function VersionCard({ v }: { v: MonitoredVersion }) {
+    const { t, version: versionLabel } = useScoringText();
     const psi = psiLabel(v.stability.psi);
     const maxCount = Math.max(1, ...v.byGrade.map((g) => g.count));
     const d = v.discrimination;
     return (
         <Card
             title={<span className="flex items-center gap-2">{v.scorecardCode} {versionLabel(v.version)}
-                <span className={`inline-flex px-1.5 py-0.5 rounded border text-[11px] font-bold ${v.role === 'CHAMPION' ? 'bg-[#F0F5FF] text-[#4B45C6] border-[#C9D7FF]' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.role === 'CHAMPION' ? 'CHAMPION' : 'CHALLENGER · shadow'}</span>
+                <span className={`inline-flex px-1.5 py-0.5 rounded border text-[11px] font-bold ${v.role === 'CHAMPION' ? 'bg-[#F0F5FF] text-[#4B45C6] border-[#C9D7FF]' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.role === 'CHAMPION' ? t('monitoring.champion') : t('monitoring.challengerShadow')}</span>
             </span>}
-            subtitle={`Source ${v.source.toLowerCase()}`}
+            subtitle={t('monitoring.source', { source: v.source.toLowerCase() })}
         >
             <div data-tour="scorecard-monitoring-version" className="space-y-5">
                 <KV cols={4} items={[
-                    ['Applications', v.applications],
-                    ['Average score', v.averageScore === null ? '—' : dec(String(v.averageScore), 1)],
-                    ['Approval rate', fmtRate(v.approvalRate, 2)],
-                    ['Mature loans', `${d.matureLoans} (${d.goods} good · ${d.bads} bad)`],
+                    [t('monitoring.applications'), v.applications],
+                    [t('monitoring.averageScore'), v.averageScore === null ? '—' : dec(String(v.averageScore), 1)],
+                    [t('monitoring.approvalRate'), fmtRate(v.approvalRate, 2)],
+                    [t('monitoring.matureLoans'), t('monitoring.matureSplit', { mature: d.matureLoans, goods: d.goods, bads: d.bads })],
                     ['Gini', dec(d.gini)],
                     ['AUC', dec(d.auc)],
-                    ['KS', d.ks ? `${dec(d.ks.ks)} at score ${d.ks.atScore}` : '—'],
-                    ['PSI', <span key="psi">{dec(v.stability.psi)} <span className={`font-semibold ${psi.cls}`}>{psi.label}</span></span>],
+                    ['KS', d.ks ? t('monitoring.ksAt', { ks: dec(d.ks.ks), score: d.ks.atScore }) : '—'],
+                    ['PSI', <span key="psi">{dec(v.stability.psi)} <span className={`font-semibold ${psi.cls}`}>{t(`monitoring.psi.${psi.key}`)}</span></span>],
                 ]} />
 
                 <div data-tour="scorecard-monitoring-distribution">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Distribution by grade</p>
-                    {v.byGrade.length === 0 ? <Empty>No applications.</Empty> : (
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">{t('monitoring.distribution')}</p>
+                    {v.byGrade.length === 0 ? <Empty>{t('monitoring.noApplications')}</Empty> : (
                         <div className="space-y-1.5">
                             {v.byGrade.map((g) => (
                                 <div key={g.grade} className="flex items-center gap-3">
@@ -118,8 +126,8 @@ function VersionCard({ v }: { v: MonitoredVersion }) {
                     <Table className="border border-[#E3E8EE] rounded">
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Grade</th><th className={thR}>Count</th><th className={thR}>Share</th><th className={th}>Scores</th><th className={th}>Outcomes</th>
-                                <th className={thR}>Approved</th><th className={thR}>Rejected</th><th className={thR}>Approval rate</th><th className={thR}>Mature</th><th className={thR}>Bad</th><th className={thR}>Bad rate</th>
+                                <th className={th}>{t('monitoring.grade')}</th><th className={thR}>{t('monitoring.count')}</th><th className={thR}>{t('monitoring.share')}</th><th className={th}>{t('monitoring.scores')}</th><th className={th}>{t('monitoring.outcomes')}</th>
+                                <th className={thR}>{t('monitoring.approved')}</th><th className={thR}>{t('monitoring.rejected')}</th><th className={thR}>{t('monitoring.approvalRate')}</th><th className={thR}>{t('monitoring.mature')}</th><th className={thR}>{t('monitoring.bad')}</th><th className={thR}>{t('monitoring.badRate')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -150,9 +158,9 @@ function VersionCard({ v }: { v: MonitoredVersion }) {
 
                 {v.stability.bins.length > 0 && (
                     <div data-tour="scorecard-monitoring-stability">
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Stability (baseline → recent share)</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">{t('monitoring.stability')}</p>
                         <Table className="border border-[#E3E8EE] rounded">
-                            <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Grade</th><th className={thR}>Baseline</th><th className={thR}>Recent</th><th className={thR}>PSI contribution</th></tr></thead>
+                            <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('monitoring.grade')}</th><th className={thR}>{t('monitoring.baseline')}</th><th className={thR}>{t('monitoring.recent')}</th><th className={thR}>{t('monitoring.psiContribution')}</th></tr></thead>
                             <tbody className="divide-y divide-[#F0F2F5]">
                                 {v.stability.bins.map((b) => (
                                     <tr key={b.bin}>

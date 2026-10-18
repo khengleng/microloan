@@ -91,6 +91,8 @@ function ErrorLine({ error }: { error: PortalError | null | undefined }) {
 
 function RequestForm({ onCreated }: { onCreated: (id: string) => void }) {
     const [loanId, setLoanId] = useState('');
+    // The borrower's own active loans; a reference given by the branch can still be typed.
+    const myLoans = usePortalGet<{ id: string; reference: string; currency: string }[]>('/lending/portal/loans');
     const [hardshipCategory, setCategory] = useState('INCOME_REDUCTION');
     const [difficultyType, setDifficulty] = useState('TEMPORARY');
     const [statement, setStatement] = useState('');
@@ -103,7 +105,7 @@ function RequestForm({ onCreated }: { onCreated: (id: string) => void }) {
     const [error, setError] = useState<PortalError | null>(null);
 
     const breakN = posInt(breakMonths);
-    const problem = !UUID_RE.test(loanId.trim()) ? 'Enter the loan reference id given by your branch.'
+    const problem = !UUID_RE.test(loanId.trim()) ? 'Choose the loan you need help with.'
         : lowerInstalment && !MONEY_RE.test(lowerInstalment.trim()) ? 'Enter the instalment as a number, e.g. 150 or 150.50.'
             : longerTerm && !posInt(longerTerm) ? 'Enter the extra term as a whole number of months.'
                 : breakMonths && (!breakN || breakN > 24) ? 'A payment break can be 1 to 24 months.'
@@ -133,8 +135,15 @@ function RequestForm({ onCreated }: { onCreated: (id: string) => void }) {
     return (
         <div className="space-y-3 text-sm">
             <label className="block">
-                <span className="block text-xs font-medium text-muted-foreground mb-1">Loan reference id</span>
-                <input className={`${inputCls} font-mono`} value={loanId} onChange={(e) => setLoanId(e.target.value)} placeholder="Given to you by your branch" />
+                <span className="block text-xs font-medium text-muted-foreground mb-1">Which loan?</span>
+                {myLoans.data && myLoans.data.length > 0 ? (
+                    <select className={inputCls} value={loanId} onChange={(e) => setLoanId(e.target.value)}>
+                        <option value="">Choose a loan…</option>
+                        {myLoans.data.map((l) => <option key={l.id} value={l.id}>{l.reference} ({l.currency})</option>)}
+                    </select>
+                ) : (
+                    <input className={`${inputCls} font-mono`} value={loanId} onChange={(e) => setLoanId(e.target.value)} placeholder={myLoans.loading ? 'Loading your loans…' : 'Loan id given to you by your branch'} />
+                )}
             </label>
             <label className="block">
                 <span className="block text-xs font-medium text-muted-foreground mb-1">What happened?</span>

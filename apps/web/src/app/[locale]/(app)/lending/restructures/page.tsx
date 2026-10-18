@@ -12,6 +12,8 @@ import type { RestructureCaseSummary, RestructureTask } from '@/components/lendi
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, SelectInput, Spinner, Table, TextInput, td, th } from '@/components/lending/ui';
 import { qs, useAction, useApi } from '@/components/lending/useAsync';
 import { RequestRestructureForm } from '@/components/lending/restructure/RequestRestructureForm';
+import { LoanPicker } from '@/components/lending/LoanPicker';
+import { useWorkspace } from '@/lib/workspace';
 import { CASE_STATUSES, HARDSHIP_CATEGORIES, labelOf } from '@/components/lending/restructure/labels';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -71,6 +73,7 @@ export default function RestructuresPage() {
     const [status, setStatus] = useState('');
     const [requesting, setRequesting] = useState(false);
     const [loanId, setLoanId] = useState('');
+    const { can } = useWorkspace();
     const { data, error, loading } = useApi<RestructureCaseSummary[]>(`/lending/restructures${qs({ status })}`);
     const loanOk = UUID_RE.test(loanId.trim());
 
@@ -78,13 +81,13 @@ export default function RestructuresPage() {
         <LendingShell
             title="Restructuring & hardship"
             subtitle="Hardship cases, affordability assessments, proposals and monitoring."
-            actions={<Btn variant="primary" onClick={() => setRequesting((r) => !r)}>Request restructure</Btn>}
+            actions={can('restructure.request') && <Btn variant="primary" onClick={() => setRequesting((r) => !r)}>Request restructure</Btn>}
         >
             {requesting && (
                 <Card title="Request a restructure" actions={<Btn size="sm" variant="ghost" onClick={() => setRequesting(false)}>Close</Btn>}>
                     <div className="space-y-4">
-                        <Field label="Loan account id" className="max-w-md" error={loanId && !loanOk ? 'Enter the loan account UUID' : undefined}>
-                            <TextInput value={loanId} onChange={setLoanId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        <Field label="Loan" className="max-w-md" hint="Search active loans by reference">
+                            <LoanPicker value={loanId} onChange={(id) => setLoanId(id)} status="ACTIVE" />
                         </Field>
                         {loanOk && (
                             <RequestRestructureForm
@@ -125,7 +128,7 @@ export default function RestructuresPage() {
                                         <td className={`${td} text-[12px]`}>{c.trigger.replace(/_/g, ' ')}</td>
                                         <td className={`${td} text-[12px]`}>{labelOf(HARDSHIP_CATEGORIES, c.hardshipCategory)}</td>
                                         <td className={`${td} text-[12px]`}>{c.difficultyType}</td>
-                                        <td className={td}><Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[11px] text-[#635BFF] hover:underline">{c.loanAccountId.slice(0, 8)}…</Link></td>
+                                        <td className={td}><Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[11px] text-[#635BFF] hover:underline">{c.loanReference ?? `${c.loanAccountId.slice(0, 8)}…`}</Link></td>
                                         <td className={td}>{c.previousRestructures > 0 ? <span className="font-bold text-amber-700">{c.previousRestructures}</span> : 0}</td>
                                         <td className={`${td} whitespace-nowrap text-[12px]`}>{fmtDateTime(c.createdAt)}</td>
                                     </tr>

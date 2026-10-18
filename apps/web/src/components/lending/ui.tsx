@@ -2,6 +2,7 @@
 
 import { ReactNode, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Inbox, ShieldAlert } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { ApiErrorInfo } from './useAsync';
 
 /* ── Layout primitives ───────────────────────────────────────────────────── */
@@ -25,7 +26,9 @@ export function Card({ title, subtitle, actions, children, className = '', bodyC
     );
 }
 
-export function Spinner({ label = 'Loading…' }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+    const t = useTranslations('LendingUi');
+    if (label === undefined) label = t('loading');
     return (
         <div className="flex items-center justify-center gap-2 py-12 text-[#697386] text-sm">
             <Loader2 className="animate-spin text-[#635BFF]" size={20} /> {label}
@@ -59,6 +62,7 @@ export function Notice({ tone = 'info', title, children }: { tone?: 'info' | 'wa
 
 /** Inline API error: message, code, policy layers that blocked, and validation issues. */
 export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | undefined; onDismiss?: () => void }) {
+    const t = useTranslations('LendingUi');
     if (!error) return null;
     return (
         <div className="border border-red-200 bg-red-50 rounded-md px-4 py-3 text-[13px] text-red-900 space-y-2" role="alert">
@@ -67,11 +71,11 @@ export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | un
                     <ShieldAlert size={14} /> {error.message}
                     {error.code && <span className="ml-1 font-mono text-[11px] px-1.5 py-0.5 rounded bg-red-100">{error.code}</span>}
                 </p>
-                {onDismiss && <button onClick={onDismiss} className="text-[12px] underline opacity-70 hover:opacity-100">dismiss</button>}
+                {onDismiss && <button onClick={onDismiss} className="text-[12px] underline opacity-70 hover:opacity-100">{t('dismiss')}</button>}
             </div>
             {error.blockedBy && error.blockedBy.length > 0 && (
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">Blocked by</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">{t('blockedBy')}</p>
                     <ul className="mt-1 space-y-0.5">
                         {error.blockedBy.map((b, i) => (
                             <li key={i} className="flex gap-2"><span className="font-mono text-[11px] font-bold px-1.5 rounded bg-red-100 h-fit">{b.layer}</span><span>{b.message}</span></li>
@@ -81,7 +85,7 @@ export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | un
             )}
             {error.issues && error.issues.length > 0 && (
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">Validation issues</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">{t('validationIssues')}</p>
                     <IssueList issues={error.issues} />
                 </div>
             )}
@@ -89,11 +93,17 @@ export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | un
     );
 }
 
-export function IssueList({ issues }: { issues: { path: string; message: string }[] }) {
+/**
+ * Validation and assessment issues. A field path is shown as a readable label
+ * ("terms › principal"); an issue about the whole request (no path — e.g. an
+ * eligibility or document check) shows its message alone.
+ */
+export function IssueList({ issues }: { issues: { path?: string; code?: string; message: string }[] }) {
+    const label = (path: string) => path.replace(/\[(\d+)\]/g, ' $1').split('.').map((p) => p.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()).join(' › ');
     return (
-        <ul className="mt-1 space-y-0.5">
+        <ul className="mt-1 space-y-0.5 list-disc pl-4">
             {issues.map((i, k) => (
-                <li key={k} className="text-[12px]"><span className="font-mono text-[11px] text-red-700">{i.path || '(root)'}</span> — {i.message}</li>
+                <li key={k} className="text-[12px]">{i.path ? <><span className="font-semibold text-red-700">{label(i.path)}</span>: </> : null}{i.message}</li>
             ))}
         </ul>
     );
@@ -244,11 +254,12 @@ export function KV({ items, cols = 3 }: { items: [ReactNode, ReactNode][]; cols?
 
 /** A modal-less inline panel used for small action forms. */
 export function ActionPanel({ title, children, onClose }: { title: ReactNode; children: ReactNode; onClose?: () => void }) {
+    const t = useTranslations('LendingUi');
     return (
         <div className="border border-[#C9D7FF] bg-[#F8F9FF] rounded-md p-4 space-y-3">
             <div className="flex items-center justify-between">
                 <p className="text-[13px] font-bold text-[#1A1F36]">{title}</p>
-                {onClose && <button type="button" onClick={onClose} className="text-[12px] text-[#697386] hover:text-[#1A1F36]">Close</button>}
+                {onClose && <button type="button" onClick={onClose} className="text-[12px] text-[#697386] hover:text-[#1A1F36]">{t('close')}</button>}
             </div>
             {children}
         </div>

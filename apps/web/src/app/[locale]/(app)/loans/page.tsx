@@ -10,11 +10,14 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
+import { money } from '@/lib/currency';
+import { useWorkspace } from '@/lib/workspace';
 
 interface Loan {
     id: string;
     borrower: { firstName: string; lastName: string; };
     principal: number;
+    currency?: string;
     annualInterestRate: number;
     termMonths: number;
     startDate: string;
@@ -33,13 +36,14 @@ const STATUS_BADGE: Record<string, string> = {
     DEFAULTED: 'badge-danger',
 };
 
-const STATUSES = ['ALL', 'PENDING', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
+const STATUSES = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'DISBURSED', 'CLOSED', 'DEFAULTED'];
 const LIMIT = 50;
 
 export default function LoansPage() {
     const { locale } = useParams();
     const t = useTranslations('Loans');
     const legacy = useLegacyStatus();
+    const { legacyCan } = useWorkspace();
     const tc = useTranslations('Common');
     const { showToast } = useToast();
     const STATUS_LABELS: Record<string, string> = {
@@ -137,7 +141,7 @@ export default function LoansPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
-                    {!legacy?.readonly && (
+                    {!legacy?.readonly && legacyCan('LOAN_APPLICATION_CREATE') && (
                         <button onClick={() => {
                             clarityEvent('loan_application_start');
                             setIsModalOpen(true);
@@ -229,7 +233,7 @@ export default function LoansPage() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className="text-sm font-bold text-foreground">${Number(loan.principal).toLocaleString()}</span>
+                                            <span className="text-sm font-bold text-foreground">{money(loan.principal, loan.currency)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right hidden md:table-cell">
                                             <span className="text-sm text-muted-foreground">{loan.annualInterestRate}%</span>

@@ -218,7 +218,7 @@ export class RestructuringService implements OnModuleInit {
     }
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
     if (!scope) return [];
-    return this.prisma.restructureCase.findMany({
+    const cases = await this.prisma.restructureCase.findMany({
       where: {
         tenantId,
         ...(scope as Prisma.RestructureCaseWhereInput),
@@ -227,6 +227,27 @@ export class RestructuringService implements OnModuleInit {
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
+    });
+    // The loan's reference, so the list can name the loan instead of an id.
+    const loans = await this.prisma.loanAccount.findMany({
+      where: { tenantId, id: { in: [...new Set(cases.map((c) => c.loanAccountId))] } },
+      select: { id: true, reference: true },
+    });
+    const refs = new Map(loans.map((l) => [l.id, l.reference]));
+    return cases.map((c) => ({
+      ...c,
+      loanReference: refs.get(c.loanAccountId) ?? null,
+    }));
+  }
+
+  /** A signed-in borrower's own active lending loans (reference, currency). */
+  async portalLoans(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    if (actor.type !== 'CUSTOMER') return [];
+    return this.prisma.loanAccount.findMany({
+      where: { tenantId, borrowerId: actor.id, status: 'ACTIVE' },
+      select: { id: true, reference: true, currency: true, status: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

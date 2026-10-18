@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { renewSession } from '@/lib/session-refresh';
 
 /**
  * Axios instance for the NestJS API.
@@ -49,29 +50,75 @@ function friendlyMessage(status: number, apiMessage?: string): string | null {
     }
 }
 
+declare module 'axios' {
+    interface AxiosRequestConfig {
+        /** The caller shows its own message for 4xx answers: skip the global toast. */
+        quiet?: boolean;
+    }
+}
+
+type SessionConfig = InternalAxiosRequestConfig & { _sentAt?: number; _retried?: boolean };
+
+/**
+ * Sign-in flows that answer 401 for a wrong password or code. They run with
+ * no session to renew, and a 401 from them must reach the form — never a
+ * refresh or a bounce to the login page.
+ */
+const SIGN_IN_FLOW = /^\/?auth\/(login|refresh|logout|forgot-password|reset-password|mfa\/authenticate|register-tenant|google)(\/|\?|$)/;
+
+// Remember when each request left, so a tab that waited for another tab's
+// refresh can tell whether its own request already used the new cookie.
+api.interceptors.request.use((config) => {
+    (config as SessionConfig)._sentAt = Date.now();
+    return config;
+});
+
+/** End this device's session (revoking its refresh token) and go to Sign in. */
+export function signOut(locale?: string) {
+    const target = locale || window.location.pathname.split('/')[1] || 'en';
+    return fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+        window.location.href = `/${target}/login`;
+    });
+}
+
+function signOutAndRedirect() {
+    void signOut();
+}
+
 // ── Global response interceptor ───────────────────────────────────────────
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error: AxiosError<{ message?: string | string[] }>) => {
         if (typeof window === 'undefined') return Promise.reject(error);
 
         const status: number | undefined = error.response?.status;
-        const apiMessage: string | undefined = error.response?.data?.message;
+        const rawMessage = error.response?.data?.message;
+        const apiMessage: string | undefined = Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
+        const config = error.config as SessionConfig | undefined;
 
-        // 401 — session expired or invalid token → redirect to login
+        // 401 — the access token lapsed or was refused. Renew the session once
+        // (silently, serialised across tabs) and replay the request; only when
+        // the session cannot be renewed does the person go back to Sign in.
         if (status === 401) {
-            const segments = window.location.pathname.split('/');
-            const locale = segments[1] || 'en';
-            fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
-                window.location.href = `/${locale}/login`;
-            });
+            if (config && SIGN_IN_FLOW.test(config.url ?? '')) return Promise.reject(error);
+            if (config && !config._retried) {
+                const outcome = await renewSession(config._sentAt ?? 0);
+                if (outcome === 'refreshed') {
+                    config._retried = true;
+                    return api.request(config);
+                }
+                // The API could not be reached: keep the person where they are.
+                if (outcome === 'unavailable') return Promise.reject(error);
+            }
+            signOutAndRedirect();
             return Promise.reject(error);
         }
 
         // For all other restriction codes, fire a browser custom event so that
         // the <ApiErrorListener> component (mounted inside the React tree) can
         // pick it up and show a toast — without needing React context here.
-        const message = status ? friendlyMessage(status, Array.isArray(apiMessage) ? apiMessage[0] : apiMessage) : null;
+        const quiet = !!config?.quiet && !!status && status < 500;
+        const message = status && !quiet ? friendlyMessage(status, apiMessage) : null;
         if (message) {
             window.dispatchEvent(new CustomEvent('api:error', { detail: { message, status } }));
         }

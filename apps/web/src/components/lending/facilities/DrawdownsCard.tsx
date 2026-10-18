@@ -4,6 +4,9 @@ import { type ReactNode, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useWorkspace } from '@/lib/workspace';
+import { Person } from '../People';
+import { useMyId } from '../access/common';
 import { useLendingHref } from '../LendingShell';
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, Table, TextArea, TextInput, td, tdR, th, thR } from '../ui';
 import { idem, useAction, useIdempotencyKey } from '../useAsync';
@@ -14,7 +17,7 @@ import type { Drawdown } from './types';
 
 type Pending = { kind: 'reject' | 'release'; drawdown: Drawdown };
 
-const who = (id: string | null | undefined) => (id ? <span className="font-mono text-[11px]" title={id}>{id.slice(0, 8)}</span> : '—');
+const who = (id: string | null | undefined) => (id ? <Person id={id} className="text-[12px]" /> : '—');
 
 /**
  * Drawdown history and the maker-checker lifecycle:
@@ -28,6 +31,12 @@ export function DrawdownsCard({ facilityId, loanAccountId, drawdowns, actions, o
     const { busy, error, run, clearError } = useAction();
     const releaseKey = useIdempotencyKey();
     const [pending, setPending] = useState<Pending | null>(null);
+    // Buttons follow the server's rules: the permission, and never the requester deciding their own.
+    const { can } = useWorkspace();
+    const me = useMyId();
+    const mine = (d: Drawdown) => !!me && d.requestedBy === me;
+    const canApprove = (d: Drawdown) => can('facility.drawdown.approve') && !mine(d);
+    const canRelease = (d: Drawdown) => can('facility.drawdown.release') && !mine(d);
     const [text, setText] = useState('');
     const [problem, setProblem] = useState('');
 
@@ -168,12 +177,12 @@ export function DrawdownsCard({ facilityId, loanAccountId, drawdowns, actions, o
                                     <div className="flex flex-wrap justify-end gap-1.5">
                                         {d.status === 'REQUESTED' && (
                                             <>
-                                                <Btn size="sm" variant="primary" onClick={() => approve(d)} busy={busy === `approve-${d.id}`}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" onClick={() => open({ kind: 'reject', drawdown: d })}>Reject</Btn>
-                                                <Btn size="sm" variant="ghost" onClick={() => cancel(d)} busy={busy === `cancel-${d.id}`}>Cancel</Btn>
+                                                {canApprove(d) && <Btn size="sm" variant="primary" onClick={() => approve(d)} busy={busy === `approve-${d.id}`}>Approve</Btn>}
+                                                {canApprove(d) && <Btn size="sm" variant="danger" onClick={() => open({ kind: 'reject', drawdown: d })}>Reject</Btn>}
+                                                {can('facility.drawdown.request') && <Btn size="sm" variant="ghost" onClick={() => cancel(d)} busy={busy === `cancel-${d.id}`}>Cancel</Btn>}
                                             </>
                                         )}
-                                        {d.status === 'APPROVED' && (
+                                        {d.status === 'APPROVED' && canRelease(d) && (
                                             <Btn size="sm" variant="primary" onClick={() => open({ kind: 'release', drawdown: d })}>Release…</Btn>
                                         )}
                                         {d.status === 'RELEASED' && d.eventId && (

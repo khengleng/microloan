@@ -497,6 +497,13 @@ export class RestructuringPortalController {
     return this.svc.list(actor(req), {});
   }
 
+  /** The borrower's own active loans, to pick one when asking for help. */
+  @LendingAction('restructure.read_own')
+  @Get('loans')
+  myLoans(@Req() req: Request) {
+    return this.svc.portalLoans(actor(req));
+  }
+
   @LendingAction('restructure.read_own')
   @Get('restructures/:id')
   get(@Req() req: Request, @Param('id', ID) id: string) {

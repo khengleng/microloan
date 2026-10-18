@@ -2,7 +2,7 @@
 
 Who this is for: collections officers, loan operations makers and checkers, finance officers who run end of day, and managers who follow up loans in arrears, through write-off and recovery after write-off.
 
-This chapter covers loans on the lending platform (**Loans › Loan accounts**). Loans in the original module have their own, simpler collections screen; see [21-original-loan-module.md](21-original-loan-module.md#collections-original).
+This chapter covers loans on the lending platform (**Loans › Loan accounts**). Loans in the original module have their own, simpler collections screen; see [21-original-loan-module.md](21-original-loan-module.md#6-collections-original).
 
 What is covered:
 

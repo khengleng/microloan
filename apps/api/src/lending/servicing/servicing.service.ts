@@ -130,7 +130,7 @@ export class ServicingService {
 
   async list(
     actor: LendingActor,
-    q: { status?: string; search?: string; page?: number },
+    q: { status?: string; search?: string; page?: number; pastDue?: boolean },
   ) {
     const tenantId = requireTenant(actor);
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
@@ -141,18 +141,119 @@ export class ServicingService {
     };
     if (q.status) where.status = q.status;
     if (q.search) where.reference = { contains: q.search, mode: 'insensitive' };
+    // The collections list: only loans in arrears, worst first, paged here
+    // rather than by walking the whole book in the browser.
+    if (q.pastDue) where.daysPastDue = { gt: 0 };
     const take = 50;
-    const skip = (Math.max(1, q.page ?? 1) - 1) * take;
+    const page = Number.isFinite(q.page) ? Math.max(1, Math.floor(q.page!)) : 1;
+    const skip = (page - 1) * take;
     const [data, total] = await Promise.all([
       this.prisma.loanAccount.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: q.pastDue
+          ? [{ daysPastDue: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }]
+          : { createdAt: 'desc' },
         take,
         skip,
       }),
       this.prisma.loanAccount.count({ where }),
     ]);
     return { data: data.map(view), total };
+  }
+
+  /**
+   * Maker-checker tasks on loans still awaiting a second person — fee
+   * waivers, advance refunds and set-offs — for the screen the work queues
+   * open. Confined to the loans the caller may read; whether the caller may
+   * decide each one is still the decision engine's call at the click.
+   */
+  async pendingApprovals(actor: LendingActor, q: { action?: string }) {
+    const tenantId = requireTenant(actor);
+    const actions = q.action
+      ? q.action.split(',').filter((a) => PENDING_APPROVAL_ACTIONS.includes(a))
+      : PENDING_APPROVAL_ACTIONS;
+    if (!actions.length)
+      throw new BadRequestException(
+        `action must be one of ${PENDING_APPROVAL_ACTIONS.join(', ')}.`,
+      );
+    const scope = await this.policy.scopeFilter(actor, 'loan.read');
+    if (!scope) return { data: [], total: 0 };
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const tasks = await tx.approvalTask.findMany({
+        where: {
+          tenantId,
+          subjectType: 'LOAN_ACCOUNT',
+          status: 'PENDING',
+          action: { in: actions },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 2000,
+      });
+      const loans = await tx.loanAccount.findMany({
+        where: {
+          tenantId,
+          id: { in: [...new Set(tasks.map((t) => t.subjectId))] },
+          ...(scope as Prisma.LoanAccountWhereInput),
+        },
+        select: {
+          id: true,
+          reference: true,
+          borrowerId: true,
+          currency: true,
+          status: true,
+        },
+      });
+      const loanById = new Map(loans.map((l) => [l.id, l]));
+      const visible = tasks.filter((t) => loanById.has(t.subjectId));
+      const [borrowers, makers] = await Promise.all([
+        tx.borrower.findMany({
+          where: { tenantId, id: { in: [...new Set(loans.map((l) => l.borrowerId))] } },
+          select: { id: true, firstName: true, lastName: true },
+        }),
+        tx.user.findMany({
+          where: { tenantId, id: { in: [...new Set(visible.map((t) => t.makerId))] } },
+          select: { id: true, email: true },
+        }),
+      ]);
+      const borrowerName = new Map(
+        borrowers.map((b) => [
+          b.id,
+          [b.firstName, b.lastName].filter(Boolean).join(' '),
+        ]),
+      );
+      const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
+      const data = visible.slice(0, 200).map((t) => {
+        const loan = loanById.get(t.subjectId)!;
+        const payload = (t.payload ?? {}) as Record<string, unknown>;
+        const text = (k: string) =>
+          typeof payload[k] === 'string' ? (payload[k] as string) : null;
+        return {
+          id: t.id,
+          action: t.action,
+          requiredPermission: t.requiredPermission,
+          amount: t.amount === null ? null : decStr(t.amount),
+          currency: t.currency ?? loan.currency,
+          createdAt: t.createdAt,
+          makerId: t.makerId,
+          makerEmail: makerEmail.get(t.makerId) ?? null,
+          mine: t.makerId === actor.id,
+          loan: {
+            id: loan.id,
+            reference: loan.reference,
+            status: loan.status,
+            borrowerName: borrowerName.get(loan.borrowerId) ?? null,
+          },
+          // Only the descriptive fields the checker needs; never the whole payload.
+          detail: {
+            kind: text('kind'),
+            reason: text('reason'),
+            sourceAccount: text('sourceAccount'),
+            expiresOn: text('expiresOn'),
+          },
+        };
+      });
+      return { data, total: visible.length };
+    });
   }
 
   async get(actor: LendingActor, id: string) {
@@ -190,8 +291,21 @@ export class ServicingService {
           },
         }),
       ]);
+      // Who made each open task, by email rather than a bare id.
+      const makers = await tx.user.findMany({
+        where: { tenantId, id: { in: [...new Set(tasks.map((t) => t.makerId))] } },
+        select: { id: true, email: true },
+      });
+      const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
+      // A facility's drawn balance is serviced on this account, but money
+      // goes out through the facility's drawdowns, never a disbursement.
+      const facility = await tx.facility.findFirst({
+        where: { tenantId, agreementId: state.account.agreementId },
+        select: { id: true, reference: true, facilityType: true },
+      });
       return {
         account: view(state.account),
+        facility,
         productCode: state.productCode,
         productVersionStatus: state.productVersionStatus,
         agreementVersion: state.agreementVersion,
@@ -201,7 +315,10 @@ export class ServicingService {
         })),
         schedule: allLines.map(lineView),
         events,
-        tasks,
+        tasks: tasks.map((t) => ({
+          ...t,
+          makerEmail: makerEmail.get(t.makerId) ?? null,
+        })),
         // Specialised product behaviour the UI offers on this loan (LT-07, LT-11, LT-15).
         specialised: state.config.card
           ? {
@@ -4608,6 +4725,9 @@ export function delinquency(
       .find((s) => dpd >= s.fromDpd)?.code ?? null;
   return { dpd, bucket, stage };
 }
+
+/** Loan maker-checker tasks listed for checkers by `pendingApprovals`. */
+export const PENDING_APPROVAL_ACTIONS = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
 
 function view<T extends Record<string, unknown>>(a: T) {
   const out: Record<string, unknown> = { ...a };

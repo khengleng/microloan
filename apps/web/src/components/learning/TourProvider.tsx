@@ -9,7 +9,7 @@ import { learning } from '@microloan/shared';
 import { useLearning } from '@/lib/learning';
 
 /**
- * Guided tours (D-090): a compact engine over the portal's own screens.
+ * Guided tours (D-092): a compact engine over the portal's own screens.
  *
  * A step highlights the element carrying its `data-tour` id with a spotlight
  * that glides from one target to the next, and shows a popover with Back /

@@ -256,8 +256,9 @@ new loans and disbursements (`409 LEGACY_LOANS_READONLY`) while repayments,
 payoff, reversals, write-offs and restructuring of existing legacy loans go
 on. Legacy screens hide "new loan" and "disburse" and show a banner pointing
 to Lending › Applications and Lending › Migration
-(`GET /v1/loans/legacy-status`). The legacy menus are grouped and labelled
-"Legacy". Nothing is deleted.
+(`GET /v1/loans/legacy-status`). The original screens stay in the menu,
+labelled "(original)" — Loans (original), Collections (original), Accounting
+(original), Products (original). Nothing is deleted.
 
 ## Taking over a loan book (migration)
 
@@ -299,7 +300,7 @@ them as instalment loans).
 
 ## Webhooks
 
-Lending › Webhooks (administrators: `access_policy.manage` registers,
+The Webhooks screen (menu: Webhooks; administrators: `access_policy.manage` registers,
 `access_policy.approve` — a different person — activates). An endpoint is an
 HTTPS URL on the public internet (private, loopback and link-local addresses
 are refused when registered and again before every delivery;
@@ -355,7 +356,12 @@ rotates the secret.
 
 Revolving lines, overdrafts and staged drawdowns are live. Each type is behind
 its own flag, all **off by default**; switch one on under Access → Feature
-flags (two administrators), then activate a facility product:
+flags (two administrators), then activate a facility product. Every drawdown
+(request, approval, release) and every card purchase or cash advance checks
+the facility-type flag, the product family's flag, `lending.accounting.posting`
+and `lending.servicing`; cards are revolving lines and need
+`lending.revolving.drawdown` (D-085). Rejecting or cancelling a pending
+drawdown is never blocked by a flag.
 
 | Type | Flag | Templates |
 |---|---|---|
@@ -394,15 +400,6 @@ Day-to-day operation:
 
 Nothing is reversed by editing: a released drawdown is immutable at the
 database level, and a correction is a reversal of its disbursement.
-
-Not yet covered for groups:
-
-* **Contributions are recorded with the repayment.** A group repayment may
-  carry `contributions` by member (they must add up to the payment); the loan
-  is still repaid as a whole, and reversed repayments drop out of members'
-  totals.
-* **Delinquency is at loan level**, not per member: the group is in arrears or
-  it is not.
 
 Not yet covered for facilities:
 
@@ -474,6 +471,15 @@ Removing a member:
 * Leaving cannot drop the group below the product minimum, and the leader
   cannot leave without a successor.
 * A group with a live loan cannot be disbanded.
+
+Not yet covered for groups:
+
+* **Contributions are recorded with the repayment.** A group repayment may
+  carry `contributions` by member (they must add up to the payment); the loan
+  is still repaid as a whole, and reversed repayments drop out of members'
+  totals.
+* **Delinquency is at loan level**, not per member: the group is in arrears or
+  it is not.
 
 ## Settling for less, and recoveries
 
@@ -992,20 +998,18 @@ verify the customer's documents' data, then submit the application.
 
 ## Known limitations
 
-* Not implemented (templates seeded unavailable): connected-party exposure, documentary trade finance,
-  factoring, forfaiting, supply-chain finance, income-contingent education,
-  institutional lending, Murabaha, emergency (break-glass) access.
+* Not implemented: connected-party (group) exposure checks
+  (`limits.connected_exposure`) and emergency (break-glass) access
+  (`access.emergency_break_glass`). Everything else listed in the generated
+  [capability matrix](CAPABILITY_MATRIX.md) as ✅ is live; integrations marked
+  🔌 (payment rails, external KYC, live credit bureau, notifications delivery,
+  external accounting, alternative-data providers) have adapter interfaces or
+  mocks only. The matrix is the source of truth — regenerate it with
+  `pnpm docs:capabilities` rather than listing families here.
 * Project finance: one senior tranche; CFADS and receipts are entered by
   operations; no hedging, subordinated debt or multi-account cash management.
 * Borrowing bases: certificates are keyed from the borrower's report; no
   stock-system or ledger feed.
-* Not implemented (templates seeded unavailable): borrowing bases, connected-party exposure, credit cards, BNPL,
-  income-contingent education,
-  syndication, project finance, institutional lending, Murabaha, Ijarah,
-* Not implemented (templates seeded unavailable): see the generated
-  [capability matrix](CAPABILITY_MATRIX.md) — e.g. borrowing bases,
-  connected-party (group) exposure, project finance and some trade products,
-  emergency (break-glass) access.
 * Institutional limits are per currency (no FX conversion of exposures) and
   per counterparty and country only; connected groups are not aggregated.
 * Reversal is latest-first and not available for repayments that triggered a

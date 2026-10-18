@@ -67,6 +67,22 @@ export class FacilitiesService {
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
   ) {
+    // A facility's loan account carries the drawn balance; money goes out
+    // through the facility's drawdowns, so it is never disbursed directly.
+    this.servicing.registerDisbursementGuard(async (tx, state) => {
+      const facility = await tx.facility.findFirst({
+        where: {
+          tenantId: state.account.tenantId,
+          agreementId: state.account.agreementId,
+        },
+        select: { reference: true },
+      });
+      if (facility)
+        throw new ConflictException({
+          message: `This account carries the drawn balance of facility ${facility.reference}: money goes out through the facility's drawdowns, not a disbursement.`,
+          code: 'FACILITY_ACCOUNT',
+        });
+    });
     // UC-38: a line with no schedule still has payments due — each
     // statement's minimum payment — and arrears on them age like any other.
     this.servicing.registerBatchHook(async (tx, state, businessDate) => {
@@ -224,6 +240,9 @@ export class FacilitiesService {
         : null;
       return {
         facility: view(state.facility),
+        // Invoice finance, factoring, supply-chain finance or forfaiting move
+        // through the receivables register, never a plain drawdown.
+        receivablesKind: lending.receivablesKind(state.config),
         card,
         borrowingBase,
         project: project

@@ -125,6 +125,38 @@ d('Credit cards (integration)', () => {
     expect(r.body.code).toBe('CARD_FACILITY');
   });
 
+  it('card postings are refused until the revolving drawdown flag is on', async () => {
+    await setBusinessDate('2026-01-10');
+    for (const [path, body] of [
+      ['purchases', { amount: '10', merchantName: 'Before the flag' }],
+      ['cash-advances', { amount: '10', externalReference: 'ATM-OFF' }],
+    ] as const) {
+      const res = await f
+        .as('opsMaker')
+        .post(`/lending/cards/${cardId}/${path}`, body, key('flag-off'));
+      expect(res.status).toBe(403);
+      expect(res.body.blockedBy.map((b: any) => b.message)).toContain(
+        'lending.revolving.drawdown is currently unavailable',
+      );
+    }
+    // Two-administrator flag change, as the access model requires.
+    const r = expectOk(
+      await f.as('admin1').post('/lending/access/flags/rules', {
+        flagKey: 'lending.revolving.drawdown',
+        scopeType: 'TENANT',
+        enabled: true,
+        reason: 'card integration tests',
+      }),
+    );
+    expectOk(
+      await f
+        .as('admin2')
+        .post(`/lending/access/flags/changes/${r.approval.id}/decision`, {
+          approve: true,
+        }),
+    );
+  });
+
   it('a purchase raises the purchase balance and posts a balanced journal', async () => {
     await setBusinessDate('2026-01-10');
     const k = key('purchase');

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { Btn, Checkbox, Field, SelectInput, Table, TextInput, inputCls, td, th } from '../ui';
+import { useScoringText } from './i18n';
 import type {
     Bin, CategoryRule, Characteristic, CharacteristicType, GradeBand, LinearRule, ScoreVariable, ScorecardDefinition,
 } from './types';
@@ -34,11 +35,7 @@ function IntInput({ value, onChange, disabled, nullable, placeholder }: {
     );
 }
 
-const TYPES: { value: CharacteristicType; label: string }[] = [
-    { value: 'BINS', label: 'Bins (value ≤ upper bound)' },
-    { value: 'CATEGORIES', label: 'Categories' },
-    { value: 'LINEAR', label: 'Linear (weight × (value − centre))' },
-];
+const TYPES: CharacteristicType[] = ['BINS', 'CATEGORIES', 'LINEAR'];
 
 function newCharacteristic(n: number): Characteristic {
     return {
@@ -60,8 +57,8 @@ function withType(c: Characteristic, type: CharacteristicType): Characteristic {
     return out;
 }
 
-function variableOption(v: ScoreVariable) {
-    return { value: v.code, label: `${v.code} — ${v.label} · ${v.source.toLowerCase()}${v.consent ? ' · consent' : ''}` };
+function variableOption(v: ScoreVariable, consent: string) {
+    return { value: v.code, label: `${v.code} — ${v.label} · ${v.source.toLowerCase()}${v.consent ? ` · ${consent}` : ''}` };
 }
 
 /**
@@ -71,6 +68,7 @@ function variableOption(v: ScoreVariable) {
 export function ScorecardEditor({ value, onChange, variables, readOnly }: {
     value: ScorecardDefinition; onChange: (d: ScorecardDefinition) => void; variables: ScoreVariable[]; readOnly?: boolean;
 }) {
+    const { t } = useScoringText();
     const set = (patch: Partial<ScorecardDefinition>) => onChange({ ...value, ...patch });
     const setGrade = (i: number, patch: Partial<GradeBand>) => set({ grades: value.grades.map((g, k) => (k === i ? { ...g, ...patch } : g)) });
     const setChar = (i: number, c: Characteristic) => set({ characteristics: value.characteristics.map((x, k) => (k === i ? c : x)) });
@@ -85,19 +83,19 @@ export function ScorecardEditor({ value, onChange, variables, readOnly }: {
     return (
         <fieldset data-tour="scorecards-editor" disabled={readOnly} className="space-y-5">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Field label="Base score"><IntInput value={value.baseScore} onChange={(v) => set({ baseScore: v ?? 0 })} /></Field>
-                <Field label="Minimum score"><IntInput value={value.minScore} onChange={(v) => set({ minScore: v ?? 0 })} /></Field>
-                <Field label="Maximum score"><IntInput value={value.maxScore} onChange={(v) => set({ maxScore: v ?? 0 })} /></Field>
-                <Field label="Adverse reasons given" hint="0–10"><IntInput value={value.adverseReasonCount} onChange={(v) => set({ adverseReasonCount: v ?? 0 })} /></Field>
+                <Field label={t('editor.baseScore')}><IntInput value={value.baseScore} onChange={(v) => set({ baseScore: v ?? 0 })} /></Field>
+                <Field label={t('editor.minScore')}><IntInput value={value.minScore} onChange={(v) => set({ minScore: v ?? 0 })} /></Field>
+                <Field label={t('editor.maxScore')}><IntInput value={value.maxScore} onChange={(v) => set({ maxScore: v ?? 0 })} /></Field>
+                <Field label={t('editor.adverseCount')} hint="0–10"><IntInput value={value.adverseReasonCount} onChange={(v) => set({ adverseReasonCount: v ?? 0 })} /></Field>
             </div>
 
             <div>
                 <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[12px] font-bold text-[#3C4257]">Grade bands <span className="font-normal text-[#697386]">— highest first; the last band must start at or below the minimum score</span></p>
-                    {!readOnly && <Btn size="sm" onClick={() => set({ grades: [...value.grades, { grade: '', label: '', minScore: value.minScore }] })}><Plus size={13} /> Band</Btn>}
+                    <p className="text-[12px] font-bold text-[#3C4257]">{t('editor.gradeBands')} <span className="font-normal text-[#697386]">— {t('editor.gradeBandsHint')}</span></p>
+                    {!readOnly && <Btn size="sm" onClick={() => set({ grades: [...value.grades, { grade: '', label: '', minScore: value.minScore }] })}><Plus size={13} /> {t('editor.band')}</Btn>}
                 </div>
                 <Table className="border border-[#E3E8EE] rounded">
-                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Grade</th><th className={th}>Label</th><th className={th}>From score</th><th className={th} /></tr></thead>
+                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('editor.grade')}</th><th className={th}>{t('editor.label')}</th><th className={th}>{t('editor.fromScore')}</th><th className={th} /></tr></thead>
                     <tbody className="divide-y divide-[#F0F2F5]">
                         {value.grades.map((g, i) => (
                             <tr key={i}>
@@ -105,7 +103,7 @@ export function ScorecardEditor({ value, onChange, variables, readOnly }: {
                                 <td className={td}><TextInput value={g.label} onChange={(v) => setGrade(i, { label: v })} /></td>
                                 <td className={`${td} w-32`}><IntInput value={g.minScore} onChange={(v) => setGrade(i, { minScore: v ?? 0 })} /></td>
                                 <td className={`${td} w-10`}>
-                                    {!readOnly && <Btn size="sm" variant="ghost" aria-label="Remove band" onClick={() => set({ grades: value.grades.filter((_, k) => k !== i) })}><Trash2 size={13} /></Btn>}
+                                    {!readOnly && <Btn size="sm" variant="ghost" aria-label={t('editor.removeBand')} onClick={() => set({ grades: value.grades.filter((_, k) => k !== i) })}><Trash2 size={13} /></Btn>}
                                 </td>
                             </tr>
                         ))}
@@ -115,8 +113,8 @@ export function ScorecardEditor({ value, onChange, variables, readOnly }: {
 
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <p className="text-[12px] font-bold text-[#3C4257]">Characteristics ({value.characteristics.length})</p>
-                    {!readOnly && <Btn size="sm" onClick={() => set({ characteristics: [...value.characteristics, newCharacteristic(value.characteristics.length + 1)] })}><Plus size={13} /> Characteristic</Btn>}
+                    <p className="text-[12px] font-bold text-[#3C4257]">{t('editor.characteristics', { count: value.characteristics.length })}</p>
+                    {!readOnly && <Btn size="sm" onClick={() => set({ characteristics: [...value.characteristics, newCharacteristic(value.characteristics.length + 1)] })}><Plus size={13} /> {t('editor.characteristic')}</Btn>}
                 </div>
                 {value.characteristics.map((c, i) => (
                     <CharacteristicEditor
@@ -139,33 +137,34 @@ function CharacteristicEditor({ value: c, onChange, variables, readOnly, onRemov
     value: Characteristic; onChange: (c: Characteristic) => void; variables: ScoreVariable[]; readOnly?: boolean;
     onRemove: () => void; onUp?: () => void; onDown?: () => void;
 }) {
+    const { t } = useScoringText();
     const v = variables.find((x) => x.code === c.variable);
     const set = (patch: Partial<Characteristic>) => onChange({ ...c, ...patch });
     const booleans = variables.filter((x) => x.type === 'BOOLEAN');
-    const varOptions = variables.map(variableOption);
-    if (c.variable && !v) varOptions.unshift({ value: c.variable, label: `${c.variable} (unknown variable)` });
+    const varOptions = variables.map((x) => variableOption(x, t('editor.consent')));
+    if (c.variable && !v) varOptions.unshift({ value: c.variable, label: `${c.variable} (${t('test.unknownVariable')})` });
 
     return (
         <div className="border border-[#E3E8EE] rounded-md p-4 space-y-3 bg-[#FBFCFE]">
             <div className="flex items-start justify-between gap-3">
-                <p className="text-[13px] font-bold text-[#1A1F36]">{c.label || c.code || 'New characteristic'}</p>
+                <p className="text-[13px] font-bold text-[#1A1F36]">{c.label || c.code || t('editor.newCharacteristic')}</p>
                 {!readOnly && (
                     <div className="flex gap-1">
-                        <Btn size="sm" variant="ghost" disabled={!onUp} onClick={onUp} aria-label="Move up"><ArrowUp size={13} /></Btn>
-                        <Btn size="sm" variant="ghost" disabled={!onDown} onClick={onDown} aria-label="Move down"><ArrowDown size={13} /></Btn>
-                        <Btn size="sm" variant="danger" onClick={onRemove}><Trash2 size={13} /> Remove</Btn>
+                        <Btn size="sm" variant="ghost" disabled={!onUp} onClick={onUp} aria-label={t('editor.moveUp')}><ArrowUp size={13} /></Btn>
+                        <Btn size="sm" variant="ghost" disabled={!onDown} onClick={onDown} aria-label={t('editor.moveDown')}><ArrowDown size={13} /></Btn>
+                        <Btn size="sm" variant="danger" onClick={onRemove}><Trash2 size={13} /> {t('editor.remove')}</Btn>
                     </div>
                 )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Field label="Code" hint="A–Z, 0–9 and _"><TextInput value={c.code} onChange={(x) => set({ code: x.toUpperCase().replace(/[^A-Z0-9_]/g, '_') })} /></Field>
-                <Field label="Label"><TextInput value={c.label} onChange={(x) => set({ label: x })} /></Field>
-                <Field label="Group" hint="Optional, e.g. CAPACITY"><TextInput value={c.group ?? ''} onChange={(x) => set({ group: x.toUpperCase().replace(/[^A-Z0-9_]/g, '_') || undefined })} /></Field>
-                <Field label="Variable" className="md:col-span-2"
-                    hint={v ? `${v.type.toLowerCase()}${v.unit ? ` (${v.unit})` : ''} · source ${v.source.toLowerCase().replace(/_/g, ' ')}${v.consent ? ` · requires ${v.consent} consent` : ' · no consent needed'}${v.description ? ` — ${v.description}` : ''}` : undefined}>
-                    <SelectInput value={c.variable} onChange={(x) => set({ variable: x })} options={varOptions} placeholder="Choose a variable…" />
+                <Field label={t('editor.code')} hint={t('scorecards.codeHint')}><TextInput value={c.code} onChange={(x) => set({ code: x.toUpperCase().replace(/[^A-Z0-9_]/g, '_') })} /></Field>
+                <Field label={t('editor.label')}><TextInput value={c.label} onChange={(x) => set({ label: x })} /></Field>
+                <Field label={t('editor.group')} hint={t('editor.groupHint')}><TextInput value={c.group ?? ''} onChange={(x) => set({ group: x.toUpperCase().replace(/[^A-Z0-9_]/g, '_') || undefined })} /></Field>
+                <Field label={t('editor.variable')} className="md:col-span-2"
+                    hint={v ? `${v.type.toLowerCase()}${v.unit ? ` (${v.unit})` : ''} · ${t('editor.sourceIs', { source: v.source.toLowerCase().replace(/_/g, ' ') })} · ${v.consent ? t('editor.requiresConsent', { consent: v.consent }) : t('editor.noConsentNeeded')}${v.description ? ` — ${v.description}` : ''}` : undefined}>
+                    <SelectInput value={c.variable} onChange={(x) => set({ variable: x })} options={varOptions} placeholder={t('editor.chooseVariable')} />
                 </Field>
-                <Field label="Type"><SelectInput value={c.type} onChange={(x) => onChange(withType(c, x as CharacteristicType))} options={TYPES} /></Field>
+                <Field label={t('editor.type')}><SelectInput value={c.type} onChange={(x) => onChange(withType(c, x as CharacteristicType))} options={TYPES.map((x) => ({ value: x, label: t(`editor.types.${x}`) }))} /></Field>
             </div>
 
             {c.type === 'BINS' && <BinsEditor bins={c.bins ?? []} onChange={(bins) => set({ bins })} readOnly={readOnly} />}
@@ -173,19 +172,19 @@ function CharacteristicEditor({ value: c, onChange, variables, readOnly, onRemov
             {c.type === 'LINEAR' && c.linear && <LinearEditor rule={c.linear} onChange={(linear) => set({ linear })} />}
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <Field label="When missing — points"><IntInput value={c.missing.points} onChange={(x) => set({ missing: { ...c.missing, points: x ?? 0 } })} /></Field>
-                <Field label="When missing — reason" className="md:col-span-2"><TextInput value={c.missing.reason} onChange={(x) => set({ missing: { ...c.missing, reason: x } })} /></Field>
-                <div className="pb-1.5"><Checkbox checked={!!c.missing.omit} disabled={readOnly} onChange={(x) => set({ missing: { ...c.missing, omit: x || undefined } })} label="Omit when missing" /></div>
+                <Field label={t('editor.missingPoints')}><IntInput value={c.missing.points} onChange={(x) => set({ missing: { ...c.missing, points: x ?? 0 } })} /></Field>
+                <Field label={t('editor.missingReason')} className="md:col-span-2"><TextInput value={c.missing.reason} onChange={(x) => set({ missing: { ...c.missing, reason: x } })} /></Field>
+                <div className="pb-1.5"><Checkbox checked={!!c.missing.omit} disabled={readOnly} onChange={(x) => set({ missing: { ...c.missing, omit: x || undefined } })} label={t('editor.omitWhenMissing')} /></div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                <Field label="Skip when" className="md:col-span-2" hint="Skip this characteristic when a yes/no variable has the given value">
-                    <SelectInput value={c.skipWhen?.variable ?? ''} placeholder="Never skip"
+                <Field label={t('editor.skipWhen')} className="md:col-span-2" hint={t('editor.skipWhenHint')}>
+                    <SelectInput value={c.skipWhen?.variable ?? ''} placeholder={t('editor.neverSkip')}
                         onChange={(x) => set({ skipWhen: x ? { variable: x, equals: c.skipWhen?.equals ?? true } : undefined })}
-                        options={booleans.map(variableOption)} />
+                        options={booleans.map((x) => variableOption(x, t('editor.consent')))} />
                 </Field>
                 {c.skipWhen && (
-                    <Field label="equals">
+                    <Field label={t('editor.equals')}>
                         <SelectInput value={String(c.skipWhen.equals)} onChange={(x) => set({ skipWhen: { variable: c.skipWhen!.variable, equals: x === 'true' } })} options={['true', 'false']} />
                     </Field>
                 )}
@@ -193,13 +192,13 @@ function CharacteristicEditor({ value: c, onChange, variables, readOnly, onRemov
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                 <div className="pb-1.5">
-                    <Checkbox checked={!!c.adverseReason} disabled={readOnly} label="Adverse reason"
+                    <Checkbox checked={!!c.adverseReason} disabled={readOnly} label={t('editor.adverseReason')}
                         onChange={(x) => set({ adverseReason: x ? { code: c.code, text: '' } : null })} />
                 </div>
                 {c.adverseReason && (
                     <>
-                        <Field label="Reason code"><TextInput value={c.adverseReason.code} onChange={(x) => set({ adverseReason: { ...c.adverseReason!, code: x.toUpperCase() } })} /></Field>
-                        <Field label="Text shown to the customer" className="md:col-span-2"><TextInput value={c.adverseReason.text} onChange={(x) => set({ adverseReason: { ...c.adverseReason!, text: x } })} /></Field>
+                        <Field label={t('editor.reasonCode')}><TextInput value={c.adverseReason.code} onChange={(x) => set({ adverseReason: { ...c.adverseReason!, code: x.toUpperCase() } })} /></Field>
+                        <Field label={t('editor.customerText')} className="md:col-span-2"><TextInput value={c.adverseReason.text} onChange={(x) => set({ adverseReason: { ...c.adverseReason!, text: x } })} /></Field>
                     </>
                 )}
             </div>
@@ -208,28 +207,29 @@ function CharacteristicEditor({ value: c, onChange, variables, readOnly, onRemov
 }
 
 function BinsEditor({ bins, onChange, readOnly }: { bins: Bin[]; onChange: (b: Bin[]) => void; readOnly?: boolean }) {
+    const { t } = useScoringText();
     const setBin = (i: number, patch: Partial<Bin>) => onChange(bins.map((b, k) => (k === i ? { ...b, ...patch } : b)));
     return (
         <div>
             <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[12px] text-[#697386]">Ascending upper bounds; the value falls in the first bin it is ≤. The last bin has no bound. Reasons may use {'{value}'} and {'{percent}'}.</p>
-                {!readOnly && <Btn size="sm" onClick={() => onChange([...bins.slice(0, -1), { upTo: '', points: 0, reason: '' }, ...bins.slice(-1)])}><Plus size={13} /> Bin</Btn>}
+                <p className="text-[12px] text-[#697386]">{t('editor.binsHint')} {'{value}'} / {'{percent}'}</p>
+                {!readOnly && <Btn size="sm" onClick={() => onChange([...bins.slice(0, -1), { upTo: '', points: 0, reason: '' }, ...bins.slice(-1)])}><Plus size={13} /> {t('editor.bin')}</Btn>}
             </div>
             <Table className="border border-[#E3E8EE] rounded bg-white">
-                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Up to (≤)</th><th className={th}>Points</th><th className={th}>Reason</th><th className={th}>Omit</th><th className={th} /></tr></thead>
+                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('editor.upTo')}</th><th className={th}>{t('editor.points')}</th><th className={th}>{t('editor.reason')}</th><th className={th}>{t('editor.omit')}</th><th className={th} /></tr></thead>
                 <tbody className="divide-y divide-[#F0F2F5]">
                     {bins.map((b, i) => {
                         const last = i === bins.length - 1;
                         return (
                             <tr key={i}>
                                 <td className={`${td} w-32`}>
-                                    {last ? <span className="text-[12px] text-[#697386]">and above</span> : <TextInput value={b.upTo ?? ''} onChange={(x) => setBin(i, { upTo: x.trim() })} placeholder="0.25" />}
+                                    {last ? <span className="text-[12px] text-[#697386]">{t('editor.andAbove')}</span> : <TextInput value={b.upTo ?? ''} onChange={(x) => setBin(i, { upTo: x.trim() })} placeholder="0.25" />}
                                 </td>
                                 <td className={`${td} w-24`}><IntInput value={b.points} onChange={(x) => setBin(i, { points: x ?? 0 })} /></td>
                                 <td className={td}><TextInput value={b.reason} onChange={(x) => setBin(i, { reason: x })} /></td>
                                 <td className={`${td} w-14`}><Checkbox checked={!!b.omit} disabled={readOnly} onChange={(x) => setBin(i, { omit: x || undefined })} label="" /></td>
                                 <td className={`${td} w-10`}>
-                                    {!readOnly && !last && <Btn size="sm" variant="ghost" aria-label="Remove bin" onClick={() => onChange(bins.filter((_, k) => k !== i))}><Trash2 size={13} /></Btn>}
+                                    {!readOnly && !last && <Btn size="sm" variant="ghost" aria-label={t('editor.removeBin')} onClick={() => onChange(bins.filter((_, k) => k !== i))}><Trash2 size={13} /></Btn>}
                                 </td>
                             </tr>
                         );
@@ -241,16 +241,17 @@ function BinsEditor({ bins, onChange, readOnly }: { bins: Bin[]; onChange: (b: B
 }
 
 function CategoriesEditor({ rules, onChange, variable, readOnly }: { rules: CategoryRule[]; onChange: (r: CategoryRule[]) => void; variable?: ScoreVariable; readOnly?: boolean }) {
+    const { t } = useScoringText();
     const setRule = (i: number, patch: Partial<CategoryRule>) => onChange(rules.map((r, k) => (k === i ? { ...r, ...patch } : r)));
     const domain = variable?.type === 'BOOLEAN' ? ['true', 'false'] : variable?.domain ?? null;
     return (
         <div>
             <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[12px] text-[#697386]">{domain ? 'Tick the values each rule matches.' : 'Comma-separated values each rule matches.'}</p>
-                {!readOnly && <Btn size="sm" onClick={() => onChange([...rules, { values: [], points: 0, reason: '' }])}><Plus size={13} /> Category</Btn>}
+                <p className="text-[12px] text-[#697386]">{domain ? t('editor.tickValues') : t('editor.commaValues')}</p>
+                {!readOnly && <Btn size="sm" onClick={() => onChange([...rules, { values: [], points: 0, reason: '' }])}><Plus size={13} /> {t('editor.category')}</Btn>}
             </div>
             <Table className="border border-[#E3E8EE] rounded bg-white">
-                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>Values</th><th className={th}>Points</th><th className={th}>Reason</th><th className={th}>Omit</th><th className={th} /></tr></thead>
+                <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('editor.values')}</th><th className={th}>{t('editor.points')}</th><th className={th}>{t('editor.reason')}</th><th className={th}>{t('editor.omit')}</th><th className={th} /></tr></thead>
                 <tbody className="divide-y divide-[#F0F2F5]">
                     {rules.map((r, i) => (
                         <tr key={i}>
@@ -270,7 +271,7 @@ function CategoriesEditor({ rules, onChange, variable, readOnly }: { rules: Cate
                             <td className={td}><TextInput value={r.reason} onChange={(x) => setRule(i, { reason: x })} /></td>
                             <td className={`${td} w-14`}><Checkbox checked={!!r.omit} disabled={readOnly} onChange={(x) => setRule(i, { omit: x || undefined })} label="" /></td>
                             <td className={`${td} w-10`}>
-                                {!readOnly && <Btn size="sm" variant="ghost" aria-label="Remove category" onClick={() => onChange(rules.filter((_, k) => k !== i))}><Trash2 size={13} /></Btn>}
+                                {!readOnly && <Btn size="sm" variant="ghost" aria-label={t('editor.removeCategory')} onClick={() => onChange(rules.filter((_, k) => k !== i))}><Trash2 size={13} /></Btn>}
                             </td>
                         </tr>
                     ))}
@@ -281,14 +282,15 @@ function CategoriesEditor({ rules, onChange, variable, readOnly }: { rules: Cate
 }
 
 function LinearEditor({ rule, onChange }: { rule: LinearRule; onChange: (r: LinearRule) => void }) {
+    const { t } = useScoringText();
     const set = (patch: Partial<LinearRule>) => onChange({ ...rule, ...patch });
     return (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Field label="Centre" hint="decimal"><TextInput value={rule.centre} onChange={(x) => set({ centre: x.trim() })} /></Field>
-            <Field label="Weight" hint="points per unit"><TextInput value={rule.weight} onChange={(x) => set({ weight: x.trim() })} /></Field>
-            <Field label="Min points" hint="blank = none"><IntInput nullable value={rule.minPoints} onChange={(x) => set({ minPoints: x })} /></Field>
-            <Field label="Max points" hint="blank = none"><IntInput nullable value={rule.maxPoints} onChange={(x) => set({ maxPoints: x })} /></Field>
-            <Field label="Reason" className="col-span-2 md:col-span-1"><TextInput value={rule.reason} onChange={(x) => set({ reason: x })} /></Field>
+            <Field label={t('editor.centre')} hint={t('editor.decimal')}><TextInput value={rule.centre} onChange={(x) => set({ centre: x.trim() })} /></Field>
+            <Field label={t('editor.weight')} hint={t('editor.pointsPerUnit')}><TextInput value={rule.weight} onChange={(x) => set({ weight: x.trim() })} /></Field>
+            <Field label={t('editor.minPoints')} hint={t('editor.blankNone')}><IntInput nullable value={rule.minPoints} onChange={(x) => set({ minPoints: x })} /></Field>
+            <Field label={t('editor.maxPoints')} hint={t('editor.blankNone')}><IntInput nullable value={rule.maxPoints} onChange={(x) => set({ maxPoints: x })} /></Field>
+            <Field label={t('editor.reason')} className="col-span-2 md:col-span-1"><TextInput value={rule.reason} onChange={(x) => set({ reason: x })} /></Field>
         </div>
     );
 }

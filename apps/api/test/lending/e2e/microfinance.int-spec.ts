@@ -14,7 +14,7 @@
  *      flat late fee and the guarantor paying the arrears (UC-01, UC-20,
  *      UC-55)
  */
-import { TEST_DB } from '../harness';
+import { TEST_DB, serviceAccount } from '../harness';
 import { Journey, c2, expectOk, key, lending, sum } from './journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -572,12 +572,10 @@ d(
     });
 
     it('UC-18: the third fortnight is paid from a mobile wallet through the integration API', async () => {
-      const sa = expectOk(
-        await j.as('admin2').post('/lending/access/service-accounts', {
-          name: 'Wallet settlement feed',
-          scopes: ['loan.repayment.post'],
-        }),
-      );
+      const sa = await serviceAccount(j, 'admin2', 'admin1', {
+        name: 'Wallet settlement feed',
+        scopes: ['loan.repayment.post'],
+      });
       const l = await j.loan(loanId);
       const third = Journey.due(l).find((x: any) => x.number === 3);
       await j.moveTo(third.dueDate);

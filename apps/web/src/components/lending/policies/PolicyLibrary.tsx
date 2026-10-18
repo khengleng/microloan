@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { useWorkspace } from '@/lib/workspace';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Spinner, Table, Tabs, td, th } from '../ui';
 import { qs, useApi } from '../useAsync';
@@ -24,6 +25,7 @@ export function PolicyLibrary() {
     const href = useLendingHref();
     const router = useRouter();
     const { showToast } = useToast();
+    const { can } = useWorkspace();
     const [kind, setKind] = useState<KindFilter>('');
     const [creating, setCreating] = useState(false);
     const { data, error, loading, reload } = useApi<LendingPolicy[]>(`/lending/policies${qs({ kind })}`);
@@ -34,7 +36,7 @@ export function PolicyLibrary() {
         <LendingShell
             title="Policy library"
             subtitle="Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker."
-            actions={!creating && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> New policy</Btn>}
+            actions={!creating && can('loan_product.create') && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> New policy</Btn>}
         >
             {creating && (
                 <NewPolicyForm

@@ -1,5 +1,5 @@
 /**
- * The Learning centre's content model (D-090…D-093).
+ * The Learning centre's content model (D-092…D-095).
  *
  * Lessons, learning paths, quizzes and guided tours are data: the web app
  * renders them, the API grades quizzes and reports progress against them, and

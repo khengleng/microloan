@@ -371,7 +371,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Audit',
     platformAllowed: true,
   },
-  // Learning centre (D-093): everyone keeps their own progress; this reads the team's.
+  // Learning centre (D-095): everyone keeps their own progress; this reads the team's.
   {
     code: 'learning.report.read',
     description: "View the team's Learning centre progress report",

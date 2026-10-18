@@ -250,10 +250,18 @@ export class Journey {
   }
 
   async verifyKyc(borrowerId: string) {
-    const v = expectOk(
+    // Two people: one records the verification, another confirms it.
+    const recorded = expectOk(
       await this.as('admin1').post(`/kyc/${borrowerId}/verify`, {
         status: 'VERIFIED',
         reason: 'Identity document checked against the original',
+      }),
+    );
+    expect(recorded.kycStatus).toBe('PENDING');
+    const v = expectOk(
+      await this.as('admin2').post(`/kyc/${borrowerId}/verify`, {
+        status: 'VERIFIED',
+        reason: 'Second check of the identity document',
       }),
     );
     expect(v.kycStatus).toBe('VERIFIED');

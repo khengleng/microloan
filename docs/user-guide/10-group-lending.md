@@ -85,7 +85,7 @@ If it is blocked:
 | "A member cannot join on …, which is after the business date." | Use a date up to today's business date. |
 | "This group has been disbanded." | A disbanded group cannot be changed. |
 
-Note: There is no screen to change a member's role (for example to replace the leader). To change the leader, remove the current leader (only possible when no live loan binds them) and add the new one as leader, or ask your system administrator / IT team.
+To change the leader, click **Make leader** on the new leader's row, optionally give a reason, and click **Change leader**. The previous leader stays in the group as a member. Loans already booked keep the roles they were booked with.
 
 ---
 
@@ -99,11 +99,11 @@ To disband, click **Disband**, read the warning in **Disband this group?** and c
 
 ## The group page
 
-- **Group** — code, status, formed on, branch, **Active members**, **Leader**, **Past members**, **Loan bindings**.
+- **Group** — code, status, formed on, branch, **Active members**, **Leader**, **Past members**, **Loans**.
 - **Members** — each member (click the name to open the borrower), **Role** (Leader / Member), **Current share** on the latest group loan, **Joined**, and **Status**: **ACTIVE**, or **INACTIVE** with "Left …", the reason and any **Settlement**.
 - **Loans** — each member's liability as fixed onto the group's booked loans, newest first: **Member**, **Role**, **Liability**, **Share**, **Fraction**, **Liable for**.
 
-Note: The **Loan** column of the **Loans** card currently shows "—" because the loan reference is not supplied to this screen. To find the loan, open the leader's loans in **Loans › Loan accounts**.
+The **Loans** card lists the group's booked loans by reference (click to open), with who signed, the status and the principal outstanding; **Applications** lists the group's applications; **Member shares** shows each member's liability frozen onto each loan.
 
 ---
 
@@ -111,7 +111,7 @@ Note: The **Loan** column of the **Loans** card currently shows "—" because th
 
 A group loan is a normal application for a group product, with the **group leader as the borrower** and the group named on the application.
 
-Note: **There is no screen to create a group application yet** — the **New application** form has no group field, and choosing a group product there gives "This product lends to a group; name the group the loan is for." Ask your system administrator / IT team (it is available to the IT team via the API). After it is created, the application is handled on the normal application page — see [Applications and credit decisions](05-applications-and-credit-decisions.md).
+To start one, click **Start group application** on the group's page (an **ACTIVE** group), or choose a group product in **New application** and pick the **Group**. The leader is proposed as the member who signs. After it is created, the application is handled on the normal application page — see [Applications and credit decisions](05-applications-and-credit-decisions.md).
 
 What the system does for a group loan:
 

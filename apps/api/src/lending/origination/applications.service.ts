@@ -1985,6 +1985,7 @@ export class ApplicationsService {
       downPayment: t.downPayment,
       promotionCode: t.promotionCode,
       financials: t.financials,
+      declaredAnnualIncome: t.declaredAnnualIncome,
       policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)

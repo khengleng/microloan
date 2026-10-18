@@ -175,6 +175,8 @@ export interface Terms {
     financials?: { annualNetOperatingIncome: Money; otherAnnualDebtService?: Money };
     /** Income-contingent loans: the income declared at origination. */
     declaredAnnualIncome?: Money;
+    /** Non-default policy choices and adjusted parameters (POLICY_MODEL.md); a kind left out uses the product default. */
+    policies?: Partial<Record<'PREPAYMENT' | 'LATE_CHARGES' | 'ALLOCATION' | 'NON_ACCRUAL', { code?: string; parameters?: Record<string, number> }>>;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */
@@ -185,6 +187,8 @@ export interface WorkflowVersion { id: string; code: string; version: number; na
 export interface WorkflowsResponse {
     supportedSteps: string[];
     mandatorySteps: string[];
+    /** Steps a new version cannot drop (e.g. CONDITIONS_PRECEDENT, enforced from the product). */
+    alwaysOnSteps?: string[];
     builtIn: Record<string, { name: string; definition: WorkflowDefinition }>;
     versions: WorkflowVersion[];
 }
@@ -215,6 +219,9 @@ export interface PolicyRule { id: string; effect: 'DENY' | 'REQUIRE'; actions: s
 export interface PolicyVersion { id: string; version: number; rules: PolicyRule[]; status: string; makerId: string | null }
 export interface Policy { id: string; code: string; name: string; description?: string | null; versions: PolicyVersion[] }
 
+export interface BranchRef { id: string; name: string; code: string | null; isActive: boolean }
+export interface PortfolioRef { id: string; code: string; name: string; branchId: string | null; isActive: boolean }
+
 export interface AccessOverview {
     permissions: Permission[];
     roles: Role[];
@@ -223,6 +230,9 @@ export interface AccessOverview {
     authorities: Authority[];
     users: LendingUser[];
     policies: Policy[];
+    /** Scope pickers (absent on an older API). */
+    branches?: BranchRef[];
+    portfolios?: PortfolioRef[];
     /** The lender's limits (lending settings), checked again by the API. */
     limits?: { maxDelegationDays: number };
 }
@@ -305,7 +315,7 @@ export interface FinancialEvent {
     journal: { lines: JournalLine[] } | null; allocations: unknown[];
 }
 
-export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; payload?: unknown; createdAt?: string }
+export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; makerEmail?: string | null; payload?: unknown; createdAt?: string }
 
 /** A policy the contract was composed from, frozen at booking (POLICY_MODEL.md). */
 export interface ContractPolicy { kind: string; code: string; version: number; policyVersionId: string; parameters: Record<string, number> }
@@ -321,6 +331,8 @@ export interface LoanDetail {
     schedule: LoanScheduleLine[];
     events: FinancialEvent[];
     tasks: ApprovalTask[];
+    /** Set when this account carries a facility's drawn balance (money goes out by drawdown, never a disbursement). */
+    facility?: { id: string; reference: string; facilityType: string } | null;
     /** Card, BNPL or lease behaviour on this loan (LT-07, LT-11, LT-15). */
     specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | { kind: 'PROJECT_FINANCE' } | { kind: 'TRADE'; direction: 'IMPORT' | 'EXPORT' } | { kind: 'MURABAHA' } | { kind: 'INCOME_CONTINGENT' } | { kind: 'INSTITUTIONAL' } | null;
 }
@@ -465,7 +477,7 @@ export interface RestructureProposal {
 
 export interface RestructureCaseSummary {
     id: string; reference: string; status: string; trigger: string; hardshipCategory: string; difficultyType: string;
-    loanAccountId: string; previousRestructures: number; createdAt: string;
+    loanAccountId: string; loanReference?: string | null; previousRestructures: number; createdAt: string;
 }
 
 export interface RestructureCase extends RestructureCaseSummary {

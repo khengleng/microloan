@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { LogOut, Menu, X, ChevronRight, CircleHelp } from 'lucide-react';
+import { LogOut, Menu, X, ChevronRight, UserCog, CircleHelp } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
 import { useEffect } from 'react';
 import { clarityIdentify, claritySetTag } from '@/lib/clarity';
@@ -21,6 +21,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const { locale } = useParams();
     const t = useTranslations('Nav');
     const tw = useTranslations('Workspace');
+    const ta = useTranslations('Account');
     const ws = useWorkspace();
     const queueCount = useQueueCount();
     const pathname = usePathname();
@@ -134,6 +135,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             </p>
                         </div>
                     </div>
+                    <Link
+                        href={`/${locale}/account`}
+                        onClick={() => setSidebarOpen(false)}
+                        className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-sidebar-foreground/70 hover:text-white hover:bg-sidebar-accent/60 rounded transition-colors"
+                    >
+                        <UserCog size={14} />
+                        {ta('menuLink')}
+                    </Link>
                     <button
                         onClick={async () => {
                             await fetch('/api/auth/logout', { method: 'POST' });

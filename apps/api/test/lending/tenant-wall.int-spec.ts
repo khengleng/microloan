@@ -28,6 +28,7 @@ import {
   expectOk,
   grant,
   key,
+  serviceAccount,
 } from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
@@ -85,6 +86,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'changes/:id': 'flagChangeApproval',
       'rules/:id': 'flagRule',
       'service-accounts/:id': 'serviceAccount',
+      'service-account-requests/:taskId': 'approvalTask',
+      'cohort-changes/:taskId': 'approvalTask',
+      'branches/:id': 'branch',
       'suspense/:id': 'unidentifiedPayment',
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
@@ -557,11 +561,13 @@ d('Tenant wall (integration)', () => {
       { sub: own.id, typ: 'borrower', tenantId: attacker },
       { expiresIn: '1h' },
     );
-    serviceKey = expectOk(
-      await f.as('t2admin').post('/lending/access/service-accounts', {
+    // A second administrator in the attacking tenant approves its feed.
+    await grant(f, attacker, 't2ops', 'TENANT_ADMIN');
+    serviceKey = (
+      await serviceAccount(f, 't2admin', 't2ops', {
         name: 'Attacker feed',
         scopes: ['loan.repayment.post', 'loan.read'],
-      }),
+      })
     ).key;
   }, 120_000);
   afterAll(async () => f?.app.close());
