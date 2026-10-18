@@ -12,6 +12,7 @@ import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, Tabs, TextIn
 import { MoneyCell } from '@/components/lending/MoneyCell';
 import { StatusBadge } from '@/components/lending/StatusBadge';
 import { Pager } from '@/components/lending/Pager';
+import { LoanPicker } from '@/components/lending/LoanPicker';
 import { qs, useApi } from '@/components/lending/useAsync';
 import { addDecimal, fmtDateTime, subDecimal } from '@/components/lending/format';
 import type { JournalEntry, Paged, Reconciliation, TrialBalance } from '@/components/lending/types';
@@ -123,7 +124,7 @@ function JournalView() {
         <div className="space-y-4">
             <Card>
                 <form className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(filters); setPage(1); }}>
-                    <Field label="Loan account id"><TextInput value={filters.loanAccountId} onChange={(v) => setFilters((f) => ({ ...f, loanAccountId: v.trim() }))} placeholder="uuid" /></Field>
+                    <Field label="Loan" hint="Optional — search by loan reference"><LoanPicker value={filters.loanAccountId} onChange={(id) => setFilters((f) => ({ ...f, loanAccountId: id }))} /></Field>
                     <Field label="From"><TextInput type="date" value={filters.from} onChange={(v) => setFilters((f) => ({ ...f, from: v }))} /></Field>
                     <Field label="To"><TextInput type="date" value={filters.to} onChange={(v) => setFilters((f) => ({ ...f, to: v }))} /></Field>
                     <Btn variant="primary" type="submit">Apply</Btn>

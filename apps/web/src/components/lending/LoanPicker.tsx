@@ -43,6 +43,7 @@ export function LoanPicker({ value, onChange, status, placeholder, className = '
                 onChange={(e) => {
                     setQ(e.target.value);
                     if (UUID.test(e.target.value.trim())) { setChosen(null); onChange(e.target.value.trim(), null); }
+                    else if (!e.target.value.trim()) { setChosen(null); onChange('', null); }
                 }}
             />
             {open && (
