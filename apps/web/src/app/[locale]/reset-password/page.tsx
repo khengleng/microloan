@@ -17,6 +17,7 @@ export default function ResetPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [done, setDone] = useState(false);
+    const [linkDead, setLinkDead] = useState(false);
 
     // Read the token from the URL client-side (avoids useSearchParams Suspense).
     useEffect(() => {
@@ -33,11 +34,14 @@ export default function ResetPasswordPage() {
         if (password !== confirm) { setError(t('passwordsNoMatch')); return; }
         setLoading(true);
         try {
-            await api.post('/auth/reset-password', { token, newPassword: password });
+            await api.post('/auth/reset-password', { token, newPassword: password }, { quiet: true });
             setDone(true);
             setTimeout(() => router.push(`/${locale}/login`), 2500);
         } catch (err: any) {
-            setError(err?.response?.data?.message || t('invalidLink'));
+            // 410: the link is unknown, used or expired — only a new link helps.
+            if (err?.response?.status === 410) { setLinkDead(true); return; }
+            const message = err?.response?.data?.message;
+            setError((Array.isArray(message) ? message[0] : message) || t('invalidLink'));
         } finally {
             setLoading(false);
         }
@@ -53,6 +57,11 @@ export default function ResetPasswordPage() {
                     <div className="rounded-lg border border-border bg-secondary p-5 text-center">
                         <CheckCircle2 className="mx-auto mb-2 text-green-500" size={28} />
                         <p className="text-[13px] text-foreground font-medium">{t('resetDone')}</p>
+                    </div>
+                ) : linkDead ? (
+                    <div className="rounded-lg border border-border bg-secondary p-5 text-center" role="alert">
+                        <p className="text-[13px] text-foreground">{t('invalidLink')}</p>
+                        <Link href={`/${locale}/forgot-password`} className="inline-block mt-3 text-[13px] text-primary hover:underline">{t('requestResetLink')}</Link>
                     </div>
                 ) : !token ? (
                     <div className="rounded-lg border border-border bg-secondary p-5 text-center">

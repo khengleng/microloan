@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound } from 'lucide-react';
+import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound, ShieldOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useWorkspace } from '@/lib/workspace';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
 // Platform team can hold any tenant-equivalent role; they operate against platform data
@@ -33,6 +34,8 @@ interface TeamMember {
 
 export default function UsersPage() {
     const t = useTranslations('Users');
+    const ta = useTranslations('Account.team');
+    const { legacyCan } = useWorkspace();
     const { showToast } = useToast();
     const { user, loading: authLoading } = useAuth();
     const [users, setUsers] = useState<TeamMember[]>([]);
@@ -41,9 +44,16 @@ export default function UsersPage() {
     const [submitting, setSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [resettingId, setResettingId] = useState<string | null>(null);
+    const [mfaResettingId, setMfaResettingId] = useState<string | null>(null);
+    const [reactivatingId, setReactivatingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
 
     const isSuperAdmin = user?.role === 'SUPERADMIN';
+    // Mirrors the API: only the platform operator manages an administrator.
+    const isAdminRole = (role: string) => ['ADMIN', 'TENANT_ADMIN', 'SUPERADMIN'].includes(role);
+    const canManage = (m: TeamMember) => m.id !== user?.sub && (isSuperAdmin || !isAdminRole(m.role));
+    // Resetting someone's authenticator needs the actor's own code-verified sign-in.
+    const stepUpDone = (user as { amr?: string } | null)?.amr === 'mfa';
     const ROLES = isSuperAdmin ? PLATFORM_ROLES : TENANT_ROLES;
 
     const fetchUsers = useCallback(async () => {
@@ -102,6 +112,35 @@ export default function UsersPage() {
             showToast(err.response?.data?.message || t('suspendFailed'), 'error');
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    const handleResetMfa = async (id: string, email: string) => {
+        if (!confirm(ta('resetMfaConfirm', { email }))) return;
+        setMfaResettingId(id);
+        try {
+            await api.post(`/users/${id}/mfa/reset`);
+            showToast(ta('resetMfaDone', { email }), 'success');
+            fetchUsers();
+        } catch (err: any) {
+            // 4xx answers already raise the API's own message as a toast.
+            if (!err?.response) showToast(ta('resetMfaFailed'), 'error');
+        } finally {
+            setMfaResettingId(null);
+        }
+    };
+
+    const handleReactivate = async (id: string, email: string) => {
+        if (!confirm(ta('reactivateConfirm', { email }))) return;
+        setReactivatingId(id);
+        try {
+            await api.post(`/users/${id}/reactivate`);
+            showToast(ta('reactivated', { email }), 'success');
+            fetchUsers();
+        } catch (err: any) {
+            if (!err?.response) showToast(ta('reactivateFailed'), 'error');
+        } finally {
+            setReactivatingId(null);
         }
     };
 
@@ -245,6 +284,28 @@ export default function UsersPage() {
                                                         {resettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
                                                     </button>
                                                 )}
+                                                {user.isActive && user.twoFactorEnabled && legacyCan('USER_UPDATE') && canManage(user) && (
+                                                    <button
+                                                        onClick={() => handleResetMfa(user.id, user.email)}
+                                                        disabled={mfaResettingId === user.id || !stepUpDone}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={stepUpDone ? ta('resetMfaTitle') : ta('resetMfaNeedsStepUp')}
+                                                        aria-label={ta('resetMfaTitle')}
+                                                    >
+                                                        {mfaResettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <ShieldOff size={16} />}
+                                                    </button>
+                                                )}
+                                                {!user.isActive && legacyCan('USER_DISABLE') && canManage(user) && (
+                                                    <button
+                                                        onClick={() => handleReactivate(user.id, user.email)}
+                                                        disabled={reactivatingId === user.id}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
+                                                        title={ta('reactivateTitle')}
+                                                        aria-label={ta('reactivateTitle')}
+                                                    >
+                                                        {reactivatingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
+                                                    </button>
+                                                )}
                                                 {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.isActive && (
                                                     <button
                                                         onClick={() => handleDelete(user.id, user.email)}
@@ -296,7 +357,7 @@ export default function UsersPage() {
                                 type="password"
                                 autoComplete="new-password"
                                 required
-                                minLength={6}
+                                minLength={12}
                                 className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-5"
                                 placeholder={t('credentialPlaceholder')}
                                 value={form.password}
