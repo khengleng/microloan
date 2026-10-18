@@ -1,7 +1,11 @@
 "use client";
 
 import { type ReactNode, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
+import { Person } from '../People';
+import { useMyId } from '../access/common';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, SelectInput, Table, TextArea, TextInput, td, tdR, th, thR } from '../ui';
 import { clean, useAction } from '../useAsync';
@@ -10,7 +14,7 @@ import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
 import { LIMIT_CHANGE_TYPES, MONEY_RE, type FacilityLimitChange } from './types';
 
-const who = (id: string | null | undefined) => (id ? <span className="font-mono text-[11px]" title={id}>{id.slice(0, 8)}</span> : null);
+const who = (id: string | null | undefined) => (id ? <Person id={id} className="text-[12px]" /> : null);
 
 /** Request form for a change to the committed limit (maker side). */
 export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, onClose }: {
@@ -20,7 +24,11 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
     const [changeType, setChangeType] = useState('');
     const [reason, setReason] = useState('');
     const [effectiveDate, setEffectiveDate] = useState('');
-    const [problem, setProblem] = useState<{ newLimit?: string; changeType?: string; reason?: string }>({});
+    const [renewalMonths, setRenewalMonths] = useState('12');
+    const [problem, setProblem] = useState<{ newLimit?: string; changeType?: string; reason?: string; renewalMonths?: string }>({});
+    const t = useTranslations('Servicing.facility');
+    const renewal = changeType === 'RENEWAL';
+    const typeOptions = LIMIT_CHANGE_TYPES.map((v) => ({ value: v, label: t(`changeType.${v}`) }));
     const { busy, error, run, clearError } = useAction();
 
     // Suggest the change type from the direction of the new limit.
@@ -40,9 +48,11 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
         if (!MONEY_RE.test(l) || !/[1-9]/.test(l)) p.newLimit = 'Enter a positive decimal amount (up to 4 decimals).';
         if (!changeType) p.changeType = 'Choose the kind of change.';
         if (!reason.trim()) p.reason = 'Give a reason for the limit change.';
+        const months = Number(renewalMonths);
+        if (renewal && !(Number.isInteger(months) && months >= 1 && months <= 120)) p.renewalMonths = t('renewalMonthsInvalid');
         setProblem(p);
         if (Object.keys(p).length) return;
-        const body = clean({ newLimit: l, changeType, reason: reason.trim(), effectiveDate });
+        const body = clean({ newLimit: l, changeType, reason: reason.trim(), effectiveDate, ...(renewal ? { renewalMonths: months } : {}) });
         const res = await run('limit', () => api.post(`/lending/facilities/${facilityId}/limit-changes`, body));
         if (res) onDone('Limit change requested — awaiting approval');
     };
@@ -54,8 +64,13 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
                     <TextInput value={newLimit} onChange={onLimit} inputMode="decimal" />
                 </Field>
                 <Field label="Change type" error={problem.changeType}>
-                    <SelectInput value={changeType} onChange={setChangeType} options={LIMIT_CHANGE_TYPES} placeholder="Select…" />
+                    <SelectInput value={changeType} onChange={(v) => { setChangeType(v); if (v === 'RENEWAL' && !newLimit.trim()) setNewLimit(currentLimit); }} options={typeOptions} placeholder="Select…" />
                 </Field>
+                {renewal && (
+                    <Field label={t('renewalMonths')} hint={t('renewalMonthsHint')} error={problem.renewalMonths}>
+                        <TextInput value={renewalMonths} onChange={setRenewalMonths} inputMode="numeric" />
+                    </Field>
+                )}
                 <Field label="Effective date" hint="Recorded on the change; the new limit applies when approved">
                     <TextInput type="date" value={effectiveDate} onChange={setEffectiveDate} />
                 </Field>
@@ -64,6 +79,7 @@ export function LimitChangePanel({ facilityId, currency, currentLimit, onDone, o
                 <TextArea value={reason} onChange={setReason} maxLength={500} rows={2} />
             </Field>
             <p className="text-[11px] text-[#697386]">The limit cannot be cut below what is already drawn. Only one change can await a decision at a time.</p>
+            <p className="text-[11px] text-[#697386]">{t('limitChangeScope')}</p>
             <ErrorBox error={error} onDismiss={clearError} />
             <Btn variant="primary" onClick={submit} busy={busy === 'limit'}>Request change</Btn>
         </ActionPanel>
@@ -76,6 +92,10 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
 }) {
     const confirm = useConfirm();
     const { busy, error, run, clearError } = useAction();
+    const t = useTranslations('Servicing.facility');
+    const canDecide = useWorkspace().can('facility.limit.approve');
+    const me = useMyId();
+    const typeLabel = (v: string) => (t.has(`changeType.${v}`) ? t(`changeType.${v}`) : v.replace(/_/g, ' ').toLowerCase());
 
     const decide = async (c: FacilityLimitChange, outcome: 'APPROVE' | 'REJECT') => {
         const approve = outcome === 'APPROVE';
@@ -111,7 +131,7 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
                     <tbody className="divide-y divide-[#F0F2F5]">
                         {changes.map((c) => (
                             <tr key={c.id} className={c.status === 'REQUESTED' ? 'bg-[#F8F9FF]' : ''}>
-                                <td className={td}><span className="font-mono text-[12px]">{c.changeType}</span></td>
+                                <td className={td}>{typeLabel(c.changeType)}{c.renewalMonths ? <div className="text-[11px] text-[#697386]">{t('renewalBy', { months: c.renewalMonths })}</div> : null}</td>
                                 <td className={td}><StatusBadge status={c.status} /></td>
                                 <td className={tdR}><MoneyCell value={c.previousLimit} /></td>
                                 <td className={tdR}><MoneyCell value={c.newLimit} strong /></td>
@@ -127,7 +147,7 @@ export function LimitChangesCard({ facilityId, currency, changes, actions, onDon
                                     {!c.approvedBy && !c.rejectedBy && '—'}
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
-                                    {c.status === 'REQUESTED' && (
+                                    {c.status === 'REQUESTED' && canDecide && c.requestedBy !== me && (
                                         <div className="flex justify-end gap-1.5">
                                             <Btn size="sm" variant="primary" onClick={() => decide(c, 'APPROVE')} busy={busy === `APPROVE-${c.id}`}>Approve</Btn>
                                             <Btn size="sm" variant="danger" onClick={() => decide(c, 'REJECT')} busy={busy === `REJECT-${c.id}`}>Reject</Btn>

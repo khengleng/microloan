@@ -1039,5 +1039,154 @@
     "recordsPage": "{count} records · page {page} of {pages}",
     "prev": "Prev",
     "next": "Next"
+  },
+  "Servicing": {
+    "downloadError": {
+      "title": "This download could not be produced",
+      "body": "The server could not produce this file. Go back and try again; if it keeps happening, tell your administrator.",
+      "signedOutTitle": "Your session has ended",
+      "signedOutBody": "Sign in again, then open the download from the page you were on.",
+      "forbiddenTitle": "You cannot download this",
+      "notFoundTitle": "Nothing to download",
+      "back": "Go back",
+      "signIn": "Sign in",
+      "code": "Error"
+    },
+    "facility": {
+      "changeType": {
+        "INCREASE": "Increase",
+        "DECREASE": "Decrease",
+        "RENEWAL": "Renewal (extend dates)",
+        "EXTENSION": "Extension (limit only)",
+        "SUSPENSION": "Suspension (limit only)",
+        "REINSTATEMENT": "Reinstatement (limit only)"
+      },
+      "renewalMonths": "Extend by (months)",
+      "renewalMonthsHint": "Availability end and maturity both move by this many months when approved",
+      "renewalMonthsInvalid": "Enter a whole number of months from 1 to 120.",
+      "renewalBy": "extends by {months} months",
+      "limitChangeScope": "A limit change sets a new limit; a renewal also extends availability and maturity and brings an expired line back into use. To suspend or reinstate the line, use Change status.",
+      "noActions": "No facility actions are open to you in this state.",
+      "receivablesNote": "This is a receivables facility: money is advanced and repaid through its receivables register, not by drawdowns.",
+      "openRegister": "Open the register →"
+    },
+    "loan": {
+      "facilityAccount": "This account carries the drawn balance of facility {reference}: money goes out by drawdowns on the facility, never a disbursement here.",
+      "openFacility": "Open the facility →"
+    },
+    "collateral": {
+      "pledge": "Pledge collateral",
+      "none": "No collateral is pledged to this loan.",
+      "valuationDate": "Valuation date",
+      "valuationDateHint": "On or before the business date ({date})",
+      "valueInvalid": "Enter a positive amount (up to 4 decimals).",
+      "valuerInvalid": "Name the valuer (at least 2 characters).",
+      "dateInvalid": "Choose the valuation date.",
+      "dateFuture": "A valuation cannot be dated after the business date ({date}).",
+      "referenceInvalid": "Enter the returned-document reference (at least 2 characters)."
+    },
+    "settlement": {
+      "asOfHint": "Optional — defaults to the business date ({date})",
+      "confirm": "Post a settlement of {currency} {amount} dated {date} and close the loan?",
+      "settleOn": "Settle {currency} {amount} on {date}",
+      "backdated": "This quote is as of {asOf}, before the business date {date}: the settlement is posted with value date {asOf}, if the product allows backdating that far.",
+      "futureQuote": "This quote is as of {asOf}, after the business date {date}. It is for information only: a settlement cannot be posted on a future date. Get a quote on or before {date} to settle."
+    },
+    "collections": {
+      "pastDueCount": "{count, plural, =0 {No loans past due} one {# loan past due} other {# loans past due}}"
+    },
+    "approvals": {
+      "title": "Approvals",
+      "subtitle": "Fee waivers, advance refunds and set-offs waiting for a second person. You cannot decide your own.",
+      "tab": {
+        "FEE_WAIVER": "Fee waivers",
+        "ADVANCE_REFUND": "Advance refunds",
+        "SET_OFF": "Set-offs"
+      },
+      "kind": {
+        "FEE_WAIVER": "fee waiver",
+        "ADVANCE_REFUND": "advance refund",
+        "SET_OFF": "set-off"
+      },
+      "feeKind": {
+        "EARLY_SETTLEMENT": "Early settlement fee",
+        "PARTIAL_PREPAYMENT": "Partial prepayment fee"
+      },
+      "count": "{count, plural, =0 {Nothing waiting} one {# waiting} other {# waiting}}",
+      "none": "Nothing is waiting for approval.",
+      "refresh": "Refresh",
+      "colLoan": "Loan",
+      "colBorrower": "Borrower",
+      "colAmount": "Amount",
+      "colDetail": "Details",
+      "colMaker": "Proposed by",
+      "colSince": "Since",
+      "depositAccount": "From deposit account {account}",
+      "expiresOn": "Expires {date}",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approveTitle": "Approve",
+      "rejectTitle": "Reject",
+      "confirm": "Decide the {what} on {loan} ({borrower})?",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "yours": "Yours — another person decides",
+      "notYours": "Needs an approver",
+      "suspenseNote": "Refunds of unidentified payments are approved on the Unidentified payments screen.",
+      "openSuspense": "Open unidentified payments →"
+    },
+    "legacy": {
+      "promiseToPay": "Promise to pay",
+      "promisesTitle": "Promises to pay",
+      "noPromises": "No promises recorded.",
+      "by": "by {date}",
+      "ptp": {
+        "PENDING": "Pending",
+        "KEPT": "Kept",
+        "BROKEN": "Broken"
+      },
+      "markKept": "Mark kept",
+      "markBroken": "Mark broken",
+      "markedKept": "Promise marked kept",
+      "markedBroken": "Promise marked broken",
+      "newPromise": "Record a promise",
+      "amount": "Amount",
+      "notes": "Notes (optional)",
+      "record": "Record",
+      "promiseRecorded": "Promise recorded",
+      "promiseAmountInvalid": "Enter a positive amount (up to 2 decimals).",
+      "promiseDateInvalid": "Choose the date the borrower promised to pay by.",
+      "promiseHint": "Once the date passes, the promise is marked kept or broken automatically from the repayments received.",
+      "repaymentsTitle": "Repayments",
+      "reverse": "Reverse",
+      "reversalReason": "Reason for the reversal",
+      "confirmReverse": "Reverse repayment",
+      "reversed": "Repayment reversed",
+      "reversedOn": "Reversed {date}",
+      "documentsTitle": "Documents",
+      "noDocuments": "No documents.",
+      "upload": "Upload a document",
+      "uploaded": "Document uploaded",
+      "fileTooLarge": "Files must be 5 MB or smaller.",
+      "fileUnreadable": "Could not read the file.",
+      "deleteDocTitle": "Delete document",
+      "deleteDocMessage": "Delete {name}? This cannot be undone.",
+      "docDeleted": "Document deleted",
+      "dangerTitle": "Write-off and deletion",
+      "writeOff": "Write off",
+      "writeOffTitle": "Write off this loan",
+      "writeOffMessage": "The outstanding principal is written off and the loan closed as written off. This cannot be undone.",
+      "writeOffHint": "Writes off the outstanding principal and posts it to the ledger. Record why.",
+      "writeOffReason": "Reason for the write-off",
+      "writtenOff": "Loan written off",
+      "deleteLoan": "Delete pending loan",
+      "deleteLoanTitle": "Delete this loan",
+      "deleteLoanMessage": "Only a pending application can be deleted. It is removed permanently.",
+      "loanDeleted": "Loan deleted",
+      "reasonRequired": "Give a reason.",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "failed": "That did not work. Try again."
+    }
   }
 }
