@@ -3,7 +3,14 @@
  * coverage (LT-16), then DSCR, LTV and financial-statement covenants tested
  * over the life of the loan, with breach, cure and waiver.
  */
-import { Fixture, TEST_DB, bootstrap, borrower, expectOk } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  borrower,
+  expectOk,
+  grant,
+} from './harness';
 import {
   activeProduct,
   docs,
@@ -152,6 +159,46 @@ d('Credit score, DSCR and covenants (integration)', () => {
     );
     expect(list[0].status).toBe('WAIVED');
     expect(list[0].tests[0].kind).toBe('WAIVER');
+  });
+
+  it('LT-16: whoever recorded the breaching test cannot waive it, even holding the waiver permission', async () => {
+    // opsChecker holds both the testing and the waiving permission here.
+    await grant(f, f.t1, 'opsChecker', 'LOAN_OPS_MAKER');
+    await grant(f, f.t1, 'approver2', 'LOAN_OPS_CHECKER');
+    const cov = expectOk(
+      await f.as('opsMaker').post(`/lending/loans/${loanId}/covenants`, {
+        type: 'MIN_DSCR',
+        threshold: '1.25',
+        frequencyMonths: 12,
+        description: 'Annual DSCR ≥ 1.25x (maker-checker)',
+      }),
+    );
+    const breach = expectOk(
+      await f
+        .as('opsChecker')
+        .post(`/lending/loans/${loanId}/covenants/${cov.id}/tests`, {
+          periodEnd: '2026-01-05',
+          annualNetOperatingIncome: '10000',
+          evidence: 'FY2025 accounts',
+        }),
+    );
+    expect(breach.status).toBe('BREACHED');
+    const own = await f
+      .as('opsChecker')
+      .post(`/lending/loans/${loanId}/covenants/${cov.id}/waive`, {
+        reason: 'Waiving my own test',
+      });
+    expect(own.status).toBe(403);
+    expect(
+      own.body.blockedBy.map((b: any) => b.message).join(' '),
+    ).toMatch(/created or proposed/);
+    expectOk(
+      await f
+        .as('approver2')
+        .post(`/lending/loans/${loanId}/covenants/${cov.id}/waive`, {
+          reason: 'Independent waiver after review',
+        }),
+    );
   });
 
   it('LT-16: a financial-statements covenant needs no threshold and fails when nothing arrives', async () => {
