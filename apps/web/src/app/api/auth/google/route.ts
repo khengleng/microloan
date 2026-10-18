@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setAuthCookies } from '../login/route';
+import { setAuthCookies } from '@/lib/auth-cookies';
 import { apiBaseUrl } from '@/lib/server-api-url';
 
 /**
