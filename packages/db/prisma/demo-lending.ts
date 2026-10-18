@@ -256,6 +256,8 @@ async function main() {
     await prisma.borrower.create({ data: { tenantId: t, branchId: branches[b.branch].id, firstName: b.firstName, lastName: b.lastName, monthlyIncome: b.monthlyIncome, dateOfBirth: new Date(`${b.dob}T00:00:00Z`), occupation: b.occupation, kycStatus: 'VERIFIED' } });
   }
 
+  await demoScoring(t, users);
+
   // Institutional counterparties, so the interbank, municipal, sovereign and
   // development loan types can be originated: each borrows through its own
   // borrower record, carries a rating and has an approved limit (proposed by
@@ -287,6 +289,8 @@ async function main() {
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
   console.log(`Demo tenant "${TENANT}" ready.`);
+  console.log('  Scorecards STANDARD_RETAIL and THIN_FILE are in force; PL-STD runs THIN_FILE as a silent challenger, MF-IND scores thin-file borrowers on THIN_FILE.');
+  console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
   if (created.size)
     console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
   if (created.size < USERS.length + 4)
@@ -297,6 +301,161 @@ async function main() {
   for (const [key, secret] of Object.entries(qaSecrets))
     console.log(`  ${key}@demo-lending.test  →  authenticator secret ${secret}  (otpauth://totp/${ISSUER}:${key}%40demo-lending.test?secret=${secret}&issuer=${ISSUER})`);
   console.log('Approvals and executions require MFA: enrol TOTP for approver, approver2, ops.checker and committee in Settings first.');
+}
+
+/**
+ * Scoring and alternative data (DECISIONS D-075…D-081): the two scorecard
+ * templates installed as the tenant's own scorecards and put in force by a
+ * risk reviewer other than the analyst who drafted them; a silent challenger
+ * on the personal loan and the thin-file switch on the microenterprise loan;
+ * and, for two borrowers, consents with verified utility, telco and
+ * cash-flow data backed by a filed (demo) document.
+ */
+async function demoScoring(t: string, users: Record<string, string>) {
+  const canonical = (d: unknown) => createHash('sha256').update(lending.canonicalJson(d)).digest('hex');
+  for (const tpl of lending.SCORECARD_TEMPLATES) {
+    if (await prisma.scorecard.findFirst({ where: { tenantId: t, code: tpl.code } })) continue;
+    const sc = await prisma.scorecard.create({ data: { tenantId: t, code: tpl.code, name: tpl.name, description: tpl.description, templateCode: tpl.code, createdBy: users.analyst } });
+    const v = await prisma.scorecardVersion.create({
+      data: { tenantId: t, scorecardId: sc.id, version: 1, definition: tpl.definition as never, definitionHash: canonical(tpl.definition), changeSummary: `Installed from template ${tpl.code}`, makerId: users.analyst },
+    });
+    // The database lets the status move one step at a time.
+    const now = new Date();
+    await prisma.scorecardVersion.update({ where: { id: v.id }, data: { status: 'SUBMITTED', submittedAt: now } });
+    await prisma.scorecardVersion.update({ where: { id: v.id }, data: { status: 'APPROVED', checkerId: users.risk, approvedAt: now } });
+    await prisma.scorecardVersion.update({ where: { id: v.id }, data: { status: 'ACTIVE', activatedBy: users.risk, activatedAt: now } });
+  }
+
+  // Product scoring: a new product version where the active one predates it.
+  const scoringFor: Record<string, unknown> = {
+    'PL-STD': { championCode: 'STANDARD_RETAIL', challengerCode: 'THIN_FILE' },
+    'MF-IND': { thinFile: { enabled: true, scorecardCode: 'THIN_FILE', maxInternalHistoryMonths: 6 } },
+  };
+  for (const [code, scoring] of Object.entries(scoringFor)) {
+    const product = await prisma.lendingProduct.findFirst({ where: { tenantId: t, code } });
+    const active = product && (await prisma.productVersion.findFirst({ where: { tenantId: t, productId: product.id, status: 'ACTIVE' }, orderBy: { version: 'desc' } }));
+    if (!product || !active) continue;
+    const current = lending.validateProductConfig(active.config);
+    if (!current.ok || JSON.stringify(current.config.scoring) === JSON.stringify(lending.productScoringSchema.parse(scoring))) continue;
+    const next = lending.validateProductConfig({ ...current.config, scoring });
+    if (!next.ok) continue;
+    const latest = await prisma.productVersion.findFirst({ where: { tenantId: t, productId: product.id }, orderBy: { version: 'desc' } });
+    const now = new Date();
+    const v = await prisma.productVersion.create({
+      data: {
+        tenantId: t,
+        productId: product.id,
+        version: (latest?.version ?? 0) + 1,
+        status: 'DRAFT',
+        config: next.config as never,
+        configHash: canonical(next.config),
+        requiredCapabilities: active.requiredCapabilities,
+        engineVersion: lending.LENDING_ENGINE_VERSION,
+        makerId: users['product.maker'],
+        changeSummary: 'Demo: scorecard strategy (challenger / thin-file scoring)',
+      },
+    });
+    const pricing = await prisma.pricingConfiguration.findFirst({ where: { tenantId: t, productVersionId: active.id } });
+    const repayment = await prisma.repaymentConfiguration.findFirst({ where: { tenantId: t, productVersionId: active.id } });
+    if (pricing) await prisma.pricingConfiguration.create({ data: { ...pricing, id: undefined, productVersionId: v.id } as never });
+    if (repayment) await prisma.repaymentConfiguration.create({ data: { ...repayment, id: undefined, productVersionId: v.id } as never });
+    const today = new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+    await prisma.productVersion.update({ where: { id: active.id }, data: { status: 'RETIRED', retiredAt: now, effectiveTo: today } });
+    await prisma.productVersion.update({
+      where: { id: v.id },
+      data: { status: 'ACTIVE', submittedAt: now, checkerId: users['product.checker'], approvedAt: now, activatedBy: users['product.checker'], activatedAt: now, effectiveFrom: today },
+    });
+  }
+
+  // Consents and verified alternative data for two thin-file borrowers.
+  const { DocumentStorageService, libraryKey } = await import('../../../apps/api/src/lending/documents/document-storage');
+  const storage = new DocumentStorageService().storage();
+  const pdf = Buffer.from('%PDF-1.4\n% Demo document: stands in for a scanned statement in the demo tenant only.\n');
+  const year = new Date().getUTCFullYear() - 1;
+  const file = async (borrowerId: string, typeCode: string, title: string, officer: string) => {
+    const existing = await prisma.customerDocument.findFirst({ where: { tenantId: t, borrowerId, typeCode } });
+    if (existing) return existing.id;
+    const doc = await prisma.customerDocument.create({
+      data: { tenantId: t, borrowerId, category: 'OTHER', typeCode, title, origin: 'STAFF', reviewStatus: 'ACCEPTED', createdBy: officer },
+    });
+    const key = libraryKey(t, borrowerId, doc.id, 1);
+    await storage.put(key, pdf, 'application/pdf');
+    await prisma.customerDocumentVersion.create({
+      data: {
+        tenantId: t,
+        documentId: doc.id,
+        version: 1,
+        fileName: `${typeCode.toLowerCase()}.pdf`,
+        mimeType: 'application/pdf',
+        sizeBytes: pdf.length,
+        sha256: createHash('sha256').update(pdf).digest('hex'),
+        storageProvider: storage.provider,
+        storageKey: key,
+        uploadedBy: officer,
+        uploaderType: 'USER',
+        reviewStatus: 'ACCEPTED',
+        reviewedBy: users.analyst,
+        reviewedAt: new Date(),
+      },
+    });
+    return doc.id;
+  };
+  const people = [
+    {
+      firstName: 'Srey',
+      lastName: 'Mom',
+      officer: users['officer.rep'],
+      sources: ['INTERNAL_BEHAVIOUR', 'UTILITY_BILLS', 'TELCO_STATEMENT', 'BUSINESS_CASH_FLOW'],
+      records: [
+        { kind: 'UTILITY_BILLS', typeCode: 'EDC_BILLS', title: 'EDC electricity bills (12 months)', data: { utility: 'ELECTRICITY', issuer: 'EDC', accountReference: 'EDC-SR-0412', monthsObserved: 12, monthsOnTime: 11 } },
+        { kind: 'TELCO_STATEMENT', typeCode: 'TELCO_STATEMENT', title: 'Mobile top-up statement', data: { operator: 'Mobile operator', monthsObserved: 12, monthsWithTopUp: 12 } },
+        { kind: 'BUSINESS_CASH_FLOW', typeCode: 'CASH_BOOK', title: 'Rice trading cash book', data: { method: 'SITE_VISIT', monthsObserved: 6, averageMonthlyInflow: '6000000', averageMonthlyOutflow: '4200000', currency: 'KHR' } },
+      ],
+    },
+    {
+      firstName: 'Sokha',
+      lastName: 'Chan',
+      officer: users['officer.pnh'],
+      sources: ['UTILITY_BILLS', 'RENT_HISTORY'],
+      records: [
+        { kind: 'UTILITY_BILLS', typeCode: 'WATER_BILLS', title: 'Water bills (12 months)', data: { utility: 'WATER', issuer: 'Phnom Penh Water Supply Authority', accountReference: 'W-SC-2231', monthsObserved: 12, monthsOnTime: 12 } },
+        { kind: 'RENT_HISTORY', typeCode: 'RENT_RECEIPTS', title: 'Rent receipts', data: { landlord: 'Landlord (receipts on file)', monthsObserved: 12, monthsOnTime: 10 } },
+      ],
+    },
+  ];
+  const expires = new Date(Date.now() + 365 * 86_400_000);
+  for (const p of people) {
+    const b = await prisma.borrower.findFirst({ where: { tenantId: t, firstName: p.firstName, lastName: p.lastName } });
+    if (!b) continue;
+    const consents: Record<string, string> = {};
+    for (const source of p.sources) {
+      const g =
+        (await prisma.altDataConsent.findFirst({ where: { tenantId: t, borrowerId: b.id, source, action: 'GRANT' }, orderBy: { createdAt: 'desc' } })) ??
+        (await prisma.altDataConsent.create({
+          data: { tenantId: t, borrowerId: b.id, action: 'GRANT', source, purpose: 'Credit assessment of loan applications', scope: 'Statements and history of the last 12 months', method: 'RECORDED_VERBAL', effectiveAt: new Date(), expiresAt: expires, recordedBy: p.officer },
+        }));
+      consents[source] = g.id;
+    }
+    for (const r of p.records) {
+      if (await prisma.altDataRecord.findFirst({ where: { tenantId: t, borrowerId: b.id, kind: r.kind } })) continue;
+      const documentId = await file(b.id, r.typeCode, r.title, p.officer);
+      const rec = await prisma.altDataRecord.create({
+        data: {
+          tenantId: t,
+          borrowerId: b.id,
+          kind: r.kind,
+          data: r.data as never,
+          periodFrom: new Date(`${year}-01-01T00:00:00Z`),
+          periodTo: new Date(`${year}-12-31T00:00:00Z`),
+          documentId,
+          consentId: consents[r.kind],
+          note: 'Demo data',
+          recordedBy: p.officer,
+        },
+      });
+      await prisma.altDataRecord.update({ where: { id: rec.id }, data: { status: 'VERIFIED', verifiedBy: users.analyst, verifiedAt: new Date() } });
+    }
+  }
 }
 
 main()

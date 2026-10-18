@@ -287,9 +287,18 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Customer outputs and reporting** — statements for any period, due-soon
   and overdue notices, closure letters, the credit bureau file and a
   general-ledger export.
-* **Underwriting and commercial loans** — an explainable origination credit
-  score, DSCR gate, and DSCR / LTV / financial-statement covenants with
+* **Underwriting and commercial loans** — configurable, versioned scorecards
+  under maker-checker (defaults shipped as templates), a per-product decision
+  strategy (grade outcomes, knock-outs, limits and risk pricing by grade), a
+  silent champion/challenger, every score stored with its inputs and
+  explained, scorecard monitoring (bad rate, Gini, KS, PSI) on the lender's
+  own data; DSCR gate, and DSCR / LTV / financial-statement covenants with
   breach, cure and waiver.
+* **Alternative data for thin-file borrowers** — per-source consent with
+  revocation, the lender's own repayment / KHQR-wallet / group-contribution
+  history, officer-captured utility, telco, rent and cash-flow data verified
+  by a second person, and a thin-file scorecard. Smartphone, telco and
+  e-wallet providers are adapter interfaces only (requires integration).
 * **Recovery** — repossession, pawn custody and auction, credit insurance
   claims and debt sale.
 * **Payment channels** — direct-debit mandates and auto-debit (mock bank),
@@ -352,15 +361,17 @@ implemented, so the matrix is enforced, not aspirational. As it stands:
 
 | | Count |
 |---|---|
-| ✅ Fully implemented | 50 |
-| 🔌 Requires integration (adapter ships, no real provider) | 5 |
-| ⛔ Not implemented | 12 |
+| ✅ Fully implemented | 67 |
+| 🔌 Requires integration (adapter ships, no real provider) | 8 |
+| ⛔ Not implemented | 2 |
 
 **Needs a third-party provider** — payment rails, external KYC, credit bureau,
 notifications and external accounting have adapter interfaces with clearly
 labelled mocks that are refused in production. These stay at "requires
 integration" until a real provider is wired and tested; the matrix will not
-claim otherwise.
+claim otherwise. Alternative-data providers (smartphone, telco, e-wallet) have
+adapter interfaces and encrypted configuration but no mock at all: their
+inputs stay missing until a real adapter is added.
 
 **Still to build** — borrowing bases, connected-party exposure, break-glass
 access, and the remaining specialised modules: income-contingent education,

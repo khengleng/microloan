@@ -899,6 +899,97 @@ Decision D-067 (flagged for Sharia board and finance sign-off). Switch on
   it); a product without ibra' collects the remaining sale price in full.
   No partial prepayment, restructuring or refinancing.
 
+## Credit scoring, scorecards and alternative data
+
+Every assessment of an application (submission, recommendation, each
+approval) scores it and stores the evaluation; the application page shows
+the score, grade, each characteristic's points and reason, the adverse
+reasons, the strategy outcome, the explanation a customer may be given, the
+input snapshot with each input's source and consent, and any challenger
+(shadow) result. Credit analysts and approvers can **re-run** the score
+while the application is undecided. Decisions D-075…D-081.
+
+**Scorecards** (Lending › Scorecards). Until an organisation has its own
+ACTIVE version of a scorecard code, the shipped template of that code scores:
+`STANDARD_RETAIL` (the original origination score, base 450 on 300–850,
+grades A ≥ 700, B ≥ 620, C ≥ 550, D) and `THIN_FILE`. To change one:
+
+1. A credit analyst (`scorecard.manage`) installs the template (or writes a
+   scorecard from scratch), edits the DRAFT in the structured editor —
+   base and scale, grade bands, and per characteristic the input variable,
+   bins (`value ≤ upTo`, ascending, the last open-ended) or categories or a
+   linear term, the points and staff reason of each, the missing-value
+   outcome and the customer-facing adverse reason — and tries it on the
+   **Test score** tab. Then **Submit**.
+2. A risk / compliance reviewer (`scorecard.approve`), never the maker,
+   **Approves** (or rejects with a reason) and **Activates** it. Activation
+   retires the version previously in force. Versions are frozen once
+   submitted; change means a new version.
+
+Inputs are ratios, counts, months, days or scores — never amounts — so one
+scorecard serves USD and KHR loans alike.
+
+**Strategy** (product configuration, `scoring`, maker-checker with the
+product): `championCode` (default `STANDARD_RETAIL`), an optional
+`challengerCode` scored silently on the same inputs and stored (it never
+affects the decision), `thinFile` (enable, scorecard, months of history
+below which a borrower without a bureau score is thin-file) and `strategy`:
+grade rules (`AUTO_APPROVE` / `REFER` / `DECLINE`, maximum amount, rate
+add-on in bp), a default outcome, a decline cut-off and knock-outs
+(write-off, current days past due, age, debt-service ratio).
+`eligibility.minCreditScore` keeps working and combines with the cut-off.
+At approval a decline, an amount above the grade's maximum and (if
+`enforceRateAddOn`) a rate below default + add-on block approval.
+**`AUTO_APPROVE` only recommends approval**: the workflow's approvers, within
+their authority, still approve. The defaults refer every grade, so existing
+products behave as before.
+
+**Monitoring** (Lending › Scorecard monitoring, `scorecard.read`): per
+scorecard version and role, the distribution and approval rate by grade, the
+bad rate of mature booked loans, Gini/AUC and KS, and PSI between a baseline
+and a recent window. Bad = any instalment 30+ days late (or a write-off)
+within 12 months of disbursement by default; the thresholds and windows are
+tenant lending settings (`scoring.monitoring.*`) and can be changed per
+report. Use it to compare a challenger with the champion before promoting it,
+and to re-weight a scorecard once enough loans are mature.
+
+**Consent and alternative data** (customer page › Alternative data &
+consent). Nothing beyond the lender's standard checks is fetched or used
+without the customer's consent for that source, in force at the moment of
+use:
+
+* A relationship officer or analyst (`alt_data.consent.manage`) records
+  each consent with its purpose, scope, method and expiry (at most
+  `scoring.consent.maxValidityDays`, default 730 days). A signed form must
+  first be filed in the customer's documents. Withdrawing it is a new entry;
+  from then on the source is not used (earlier evaluations keep what they
+  used). The history is append-only.
+* **Internal behavioural data** (consent `INTERNAL_BEHAVIOUR`): on-time
+  ratio, average and worst lateness and instalments observed on the
+  customer's loans with the lender, the share of repayments arriving through
+  KHQR / wallet / mobile channel files (`scoring.alternativeData.digitalChannels`)
+  and months of solidarity-group contributions. There is no savings or
+  deposit product in the platform, so no savings history is used.
+* **Officer-captured data** (`alt_data.record`): utility bills (EDC
+  electricity, water: months observed / paid on time), a telco statement
+  (months with top-ups), rent history, or an observed business cash flow
+  (inflow, outflow and the currency it is kept in), each backed by a
+  document in the customer's library and a consent in force. It counts only
+  after another person verifies it (`alt_data.verify`); records older than
+  `scoring.alternativeData.maxRecordAgeDays` (365) are ignored. A cash flow
+  in riel is converted to the loan's currency at the organisation's own
+  published rate (Settings › FX rates) before it is compared with the
+  instalment; without a rate it is left out.
+* **External providers** (smartphone, telco, e-wallet data) **require an
+  integration**: Lending › Scorecards › Data providers stores a provider's
+  endpoint and encrypted credentials (one administrator proposes, another
+  activates), but no provider adapter ships, so these inputs are always
+  missing and reported as "requires integration".
+
+To score thin-file borrowers: enable `scoring.thinFile` on the product (and
+optionally install and adjust `THIN_FILE`), collect consents, capture and
+verify the customer's documents' data, then submit the application.
+
 ## Known limitations
 
 * Not implemented (templates seeded unavailable): connected-party exposure, documentary trade finance,
@@ -949,6 +1040,8 @@ Decision D-067 (flagged for Sharia board and finance sign-off). Switch on
 | Project finance | `GET loans/:id/project`, `POST loans/:id/project/waterfall-preview`, `POST loans/:id/project/waterfall`; `POST facilities/:id/sculpting-preview`, `POST facilities/:id/term-out` (with `cfads`) |
 | Borrowing base | `GET facilities/:id/borrowing-base`, `POST facilities/:id/borrowing-base/preview`, `POST facilities/:id/borrowing-base/certificates`, `POST facilities/:id/borrowing-base/certificates/:certificateId/decision` |
 | Covenants | `GET/POST loans/:id/covenants`, `POST loans/:id/covenants/:covenantId/{tests,waive}` |
+| Scoring | `GET/POST scorecards`, `GET scorecards/:scorecardId`, `POST scorecards/:scorecardId/versions`, `PUT scorecard-versions/:versionId`, `POST scorecard-versions/:versionId/{submit,approve,reject,activate,retire}`, `POST scorecard-test`, `GET scorecard-monitoring`, `GET/POST applications/:id/scores` |
+| Alternative data | `GET customers/:borrowerId/alternative-data`, `POST customers/:borrowerId/consents`, `POST consents/:consentId/revoke`, `POST customers/:borrowerId/alternative-data`, `POST alternative-data/:recordId/decision`, `GET/POST alternative-data-providers`, `POST alternative-data-providers/:configId/decision` |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
 Money endpoints require an `Idempotency-Key` header.
