@@ -5,6 +5,7 @@ import { EngineError, dec } from './decimal.js';
 import { buildPeriods, type ScheduleInput } from './schedule.js';
 import type { FeeDefinition } from './fees.js';
 import { COUNTERPARTY_TYPES, RATING_SCALE } from './institutional.js';
+import { productScoringSchema, validateProductScoring } from './scoring-strategy.js';
 
 /**
  * Product configuration schema.
@@ -630,6 +631,13 @@ export const productConfigSchema = z
       .strict()
       .default({}),
     /**
+     * Origination scoring (DECISIONS D-075…D-079): the champion scorecard,
+     * an optional silent challenger, the thin-file switch and the decision
+     * strategy. Defaults reproduce the score before scorecards were
+     * configurable, with every grade referred to a credit officer.
+     */
+    scoring: productScoringSchema.default({}),
+    /**
      * Policy kinds this product composes from the policy library. A kind not
      * listed uses this configuration's own section for every contract.
      */
@@ -948,6 +956,9 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   const add = (path: string, message: string) => issues.push({ path, message });
 
   if (dec(c.limits.minAmount).gt(dec(c.limits.maxAmount))) add('limits', 'minAmount exceeds maxAmount');
+  for (const i of validateProductScoring(c.scoring)) add(i.path, i.message);
+  for (const r of c.scoring.strategy.gradeRules)
+    if (r.maxAmount !== null && dec(r.maxAmount).gt(dec(c.limits.maxAmount))) add('scoring.strategy.gradeRules', `grade ${r.grade}: maxAmount exceeds the product's maximum amount`);
   if (c.limits.minInstalments > c.limits.maxInstalments) add('limits', 'minInstalments exceeds maxInstalments');
   try {
     validateRoundingRule(c.identity.currency, c.pricing.rounding);

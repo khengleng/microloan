@@ -104,6 +104,45 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /** Scorecard monitoring, consent and alternative data (DECISIONS D-078…D-080). */
+    scoring: z
+      .object({
+        monitoring: z
+          .object({
+            /** A booked loan is "bad" once any instalment is this many days late… */
+            badDaysPastDue: z.number().int().min(1).max(365).default(30),
+            /** …within this many months of disbursement; younger loans that have not gone bad are immature. */
+            performanceMonths: z.number().int().min(1).max(60).default(12),
+            /** Population stability compares the recent window with the baseline window before it. */
+            baselineWindowDays: z.number().int().min(7).max(1095).default(180),
+            recentWindowDays: z.number().int().min(7).max(1095).default(90),
+            /** Proportion an empty bin takes in the stability index, so its logarithm stays finite. */
+            psiEpsilon: decimalString.default('0.0001'),
+          })
+          .strict()
+          .default({}),
+        consent: z
+          .object({
+            /** The longest a borrower's consent to an alternative data source may run before it must be renewed. */
+            maxValidityDays: z.number().int().min(1).max(3650).default(730),
+          })
+          .strict()
+          .default({}),
+        alternativeData: z
+          .object({
+            /** A verified record whose observed period ended longer ago than this no longer counts. */
+            maxRecordAgeDays: z.number().int().min(1).max(3650).default(365),
+            /** Payment channels counted as digital repayments (KHQR, wallets, mobile banking). */
+            digitalChannels: z
+              .array(z.enum(['MOBILE', 'QR', 'WALLET', 'AGENT', 'PAYROLL']))
+              .max(5)
+              .default(['MOBILE', 'QR', 'WALLET']),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({
@@ -143,6 +182,8 @@ export function validateTenantLendingSettings(s: TenantLendingSettings): string[
     if (r.lte(0)) issues.push('regulatory.rateBandEdgesPct must be greater than zero.');
     if (i > 0 && r.lte(rates[i - 1])) issues.push('regulatory.rateBandEdgesPct must increase.');
   });
+  if (dec(s.scoring.monitoring.psiEpsilon).lte(0) || dec(s.scoring.monitoring.psiEpsilon).gte('0.1'))
+    issues.push('scoring.monitoring.psiEpsilon must be greater than 0 and below 0.1.');
   return [...new Set(issues)];
 }
 
