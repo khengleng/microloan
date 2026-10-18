@@ -37,6 +37,12 @@ export default function AuditPage() {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
+    // Search runs on the server over the whole log; debounce typing.
+    const [query, setQuery] = useState('');
+    useEffect(() => {
+        const timer = setTimeout(() => setQuery(search.trim()), 350);
+        return () => clearTimeout(timer);
+    }, [search]);
     const [action, setAction] = useState('All');
     const [entity, setEntity] = useState('All');
     const [from, setFrom] = useState('');
@@ -55,14 +61,15 @@ export default function AuditPage() {
             if (entity !== 'All') params.entity = entity;
             if (from) params.from = from;
             if (to) params.to = to;
+            if (query) params.search = query;
             const r = await api.get('/audit-logs', { params });
             setLogs(r.data.data);
             setMeta(r.data.meta);
         } catch { showToast('Failed to load audit logs', 'error'); }
         finally { setLoading(false); }
-    }, [action, entity, from, to]);
+    }, [action, entity, from, to, query]);
 
-    useEffect(() => { fetchSummary(); fetchLogs(1); setPage(1); }, [action, entity, from, to]);
+    useEffect(() => { fetchSummary(); fetchLogs(1); setPage(1); }, [action, entity, from, to, query]);
 
     const handleExport = async () => {
         try {
@@ -71,6 +78,7 @@ export default function AuditPage() {
             if (entity !== 'All') params.entity = entity;
             if (from) params.from = from;
             if (to) params.to = to;
+            if (query) params.search = query;
             const r = await api.get('/audit-logs/export/csv', { params, responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([r.data]));
             const a = document.createElement('a'); a.href = url;
@@ -80,14 +88,7 @@ export default function AuditPage() {
         } catch { showToast('Export failed', 'error'); }
     };
 
-    const filtered = search
-        ? logs.filter(l =>
-            (l.user?.email || l.userId).toLowerCase().includes(search.toLowerCase()) ||
-            l.entity.toLowerCase().includes(search.toLowerCase()) ||
-            l.action.toLowerCase().includes(search.toLowerCase()) ||
-            JSON.stringify(l.metadata || {}).toLowerCase().includes(search.toLowerCase())
-        )
-        : logs;
+    const filtered = logs;
 
     return (
         <div className="max-w-6xl space-y-5">
