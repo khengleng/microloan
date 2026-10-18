@@ -26,6 +26,7 @@ const AGING_BRACKETS = [
 export default function CollectionsPage() {
     const { locale } = useParams();
     const t = useTranslations('Collections');
+    const ts = useTranslations('Servicing.legacy');
     const { showToast } = useToast();
     const [loans, setLoans] = useState<OverdueLoan[]>([]);
     const [loading, setLoading] = useState(true);
@@ -157,6 +158,9 @@ export default function CollectionsPage() {
                                                     >
                                                         <CreditCard size={12} /> {t('recordPayment')}
                                                     </button>
+                                                    <Link href={`/${locale}/loans/${loan.id}#promises`} className="btn-ghost text-xs px-3 py-1 h-auto">
+                                                        <MessageSquare size={12} /> {ts('promiseToPay')}
+                                                    </Link>
                                                     <Link href={`/${locale}/loans/${loan.id}`}>
                                                         <button className="btn-ghost text-xs px-3 py-1 h-auto">
                                                             <Eye size={12} /> {t('view')}
