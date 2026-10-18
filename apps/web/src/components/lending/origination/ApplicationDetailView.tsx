@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import api from '@/lib/api';
+import { useBorrowerNames } from '../groups/borrowers';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LendingShell, useLendingHref } from '../LendingShell';
@@ -32,6 +34,7 @@ interface AppPledge {
 interface AppDetail {
     id: string; reference: string; status: string; currency: string; requestedAmount: string; createdAt: string; submittedAt?: string | null; decidedAt?: string | null;
     borrowerId: string; borrower?: { firstName?: string; lastName?: string } | null; productId: string; productVersionId: string; channel?: string;
+    groupId?: string | null;
     terms: Partial<Terms> & Record<string, unknown>; purpose?: string | null;
     product: { id: string; code: string; name: string } | null;
     productVersion: { id: string; version: number; status: string } | null;
@@ -72,6 +75,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
     const app = useApi<AppDetail>(`/lending/applications/${id}`);
     const caps = useCapabilities('APPLICATION', id);
     const pv = useApi<{ config?: ProductConfig }>(app.data?.productVersionId ? `/lending/product-versions/${app.data.productVersionId}` : null);
+    const groupName = useApi<{ name: string }>(app.data?.groupId ? `/lending/applications/groups/${app.data.groupId}` : null);
     const [panel, setPanel] = useState<Panel | null>(null);
     const [sim, setSim] = useState<SimulationResult | null>(null);
     const action = useAction();
@@ -157,7 +161,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
                     <WhyBlocked caps={caps.caps} actions={ACTIONS} />
 
                     {panel?.kind === 'terms' && (
-                        <EditTermsForm appId={id} terms={a.terms} purpose={a.purpose} currency={a.currency} onDone={() => refresh('Terms updated')} onClose={() => setPanel(null)} />
+                        <EditTermsForm appId={id} terms={a.terms} purpose={a.purpose} currency={a.currency} productVersionId={a.productVersionId} onDone={() => refresh('Terms updated')} onClose={() => setPanel(null)} />
                     )}
                     {panel?.kind === 'document' && (
                         <DocumentUploadForm appId={id} required={requiredDocs} onDone={() => refresh('Document uploaded')} onClose={() => setPanel(null)} />
@@ -205,7 +209,11 @@ export function ApplicationDetailView({ id }: { id: string }) {
                         ['Created', fmtDateTime(a.createdAt)],
                         ['Submitted', fmtDateTime(a.submittedAt)],
                         ['Decided', fmtDateTime(a.decidedAt)],
-                        ['Borrower ID', <span key="b" className="font-mono text-[11px]">{a.borrowerId}</span>],
+                        ['Borrower', <BorrowerName key="b" id={a.borrowerId} borrower={a.borrower} />],
+                        ...(a.groupId ? [['Group', <Link key="g" href={href(`/lending/groups/${a.groupId}`)} className="font-semibold text-[#635BFF] hover:underline">{groupName.data?.name ?? 'Group'}</Link>] as [string, React.ReactNode]] : []),
+                        ...(t.policies && Object.keys(t.policies).length
+                            ? [['Policies', <span key="pol" className="text-[12px]">{Object.entries(t.policies).map(([k, v]) => `${k}: ${v?.code ?? 'default'}${v?.parameters ? ` (${Object.entries(v.parameters).map(([n, x]) => `${n}=${x}`).join(', ')})` : ''}`).join(' · ')}</span>] as [string, React.ReactNode]]
+                            : []),
                     ]}
                 />
                 <div className="mt-3"><Disclosure summary="Raw terms"><JsonBlock value={a.terms} /></Disclosure></div>
@@ -335,4 +343,12 @@ export function ApplicationDetailView({ id }: { id: string }) {
             </Card>
         </LendingShell>
     );
+}
+
+/** The applicant by name, linked to their profile (the id only while the name loads or is out of reach). */
+function BorrowerName({ id, borrower }: { id: string; borrower?: { firstName?: string; lastName?: string } | null }) {
+    const { locale } = useParams();
+    const nameOf = useBorrowerNames(borrower ? [] : [id]);
+    const label = borrower ? fullName(borrower) : nameOf(id);
+    return <Link href={`/${locale}/borrowers/${id}`} className="font-semibold text-[#635BFF] hover:underline">{label}</Link>;
 }

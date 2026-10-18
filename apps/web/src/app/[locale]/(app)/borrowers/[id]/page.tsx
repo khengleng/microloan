@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Phone, MapPin, CreditCard, FileText, Eye, Plus, UserCheck, Wallet, Activity, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
+import { ChevronLeft, Phone, MapPin, CreditCard, FileText, Eye, Plus, UserCheck, Wallet, Activity, Calendar, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Building2, Briefcase, Cake } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BorrowerModal } from '@/components/BorrowerModal';
 import { BorrowerKycReview } from '@/components/BorrowerKycReview';
@@ -45,7 +47,16 @@ interface Borrower {
     idNumber: string;
     telegramChatId?: string;
     createdAt: string;
-    loans: {
+    kycStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED' | string;
+    amlStatus?: string | null;
+    dateOfBirth?: string | null;
+    idType?: string | null;
+    occupation?: string | null;
+    branchId?: string | null;
+    branch?: { id: string; name: string; code: string | null } | null;
+    monthlyIncome?: number | null;
+    monthlyExpenses?: number | null;
+    loans?: {
         id: string;
         principal: number;
         status: string;
@@ -59,6 +70,8 @@ interface Borrower {
 export default function BorrowerProfilePage() {
     const { id, locale } = useParams();
     const { showToast } = useToast();
+    const tc = useTranslations('Customers');
+    const { legacyCan } = useWorkspace();
     const [borrower, setBorrower] = useState<Borrower | null>(null);
     const [loading, setLoading] = useState(true);
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -110,9 +123,16 @@ export default function BorrowerProfilePage() {
     if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">Loading Profile...</div>;
     if (!borrower) return <div className="text-center py-20 font-black text-rose-500">Borrower not found.</div>;
 
-    const totalBorrowed = borrower.loans.reduce((s, l) => s + Number(l.principal), 0);
-    const activeLoans = borrower.loans.filter(l => l.status === 'DISBURSED').length;
-    const closedLoans = borrower.loans.filter(l => l.status === 'CLOSED').length;
+    const loans = borrower.loans ?? [];
+    const totalBorrowed = loans.reduce((s, l) => s + Number(l.principal), 0);
+    const activeLoans = loans.filter(l => l.status === 'DISBURSED').length;
+    const closedLoans = loans.filter(l => l.status === 'CLOSED').length;
+    // The badge shows the customer's recorded KYC status, never a fixed label.
+    const kyc = borrower.kycStatus === 'VERIFIED'
+        ? { cls: 'bg-emerald-100 text-emerald-700', icon: <UserCheck size={12} />, label: tc('kycBadge.VERIFIED') }
+        : borrower.kycStatus === 'REJECTED'
+            ? { cls: 'bg-rose-100 text-rose-700', icon: <ShieldAlert size={12} />, label: tc('kycBadge.REJECTED') }
+            : { cls: 'bg-amber-100 text-amber-700', icon: <ShieldQuestion size={12} />, label: tc('kycBadge.PENDING') };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -140,6 +160,7 @@ export default function BorrowerProfilePage() {
                             Alternative data
                         </Button>
                     </Link>
+                {legacyCan('CUSTOMER_UPDATE') && (
                 <Button
                         onClick={() => setIsEditOpen(true)}
                         variant="secondary"
@@ -147,6 +168,7 @@ export default function BorrowerProfilePage() {
                     >
                         Modify Profile
                     </Button>
+                )}
                 </div>
             </div>
 
@@ -161,7 +183,10 @@ export default function BorrowerProfilePage() {
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <h2 className="text-3xl font-black text-slate-900 tracking-tight">{borrower.firstName} {borrower.lastName}</h2>
-                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5"><UserCheck size={12} /> Verified Client</span>
+                            <span className={`${kyc.cls} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5`}>{kyc.icon} {kyc.label}</span>
+                            {borrower.amlStatus === 'FLAGGED' && (
+                                <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5"><ShieldAlert size={12} /> {tc('aml.FLAGGED')}</span>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8 mt-4">
                             {borrower.phone && (
@@ -182,6 +207,22 @@ export default function BorrowerProfilePage() {
                                     <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm truncate max-w-xs"><MapPin size={14} className="text-indigo-500" />{borrower.address}</p>
                                 </div>
                             )}
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tc('branch')}</p>
+                                <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><Building2 size={14} className="text-indigo-500" />{borrower.branch ? borrower.branch.name : <span className="text-amber-700">{tc('noBranchYet')}</span>}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tc('dateOfBirth')}</p>
+                                <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><Cake size={14} className="text-indigo-500" />{borrower.dateOfBirth ? String(borrower.dateOfBirth).slice(0, 10) : tc('notRecorded')}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tc('idType')} · {tc('occupation')}</p>
+                                <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><Briefcase size={14} className="text-indigo-500" />{borrower.idType ? tc.has(`idTypes.${borrower.idType}`) ? tc(`idTypes.${borrower.idType}`) : borrower.idType : tc('notRecorded')} · {borrower.occupation || tc('notRecorded')}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tc('amlStatus')}</p>
+                                <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><ShieldCheck size={14} className="text-indigo-500" />{tc(`aml.${borrower.amlStatus && ['NOT_SCREENED', 'CLEAR', 'FLAGGED'].includes(borrower.amlStatus) ? borrower.amlStatus : 'NOT_SCREENED'}`)}</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-1.5 mt-6 text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
                             <Calendar size={12} /> Originated in system {new Date(borrower.createdAt).toLocaleDateString()}
@@ -193,7 +234,7 @@ export default function BorrowerProfilePage() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-slate-100/50">
                     <div className="p-5 bg-slate-50/50 rounded-3xl border border-slate-100/50 text-center">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Historical Count</p>
-                        <p className="text-2xl font-black text-slate-900">{borrower.loans.length} <span className="text-xs text-slate-300">Loans</span></p>
+                        <p className="text-2xl font-black text-slate-900">{loans.length} <span className="text-xs text-slate-300">Loans</span></p>
                     </div>
                     <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100/20 text-center">
                         <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest mb-1.5">Active Portfolios</p>
@@ -213,7 +254,7 @@ export default function BorrowerProfilePage() {
             {/* Content Tabs / Sections */}
             <div className="grid grid-cols-1 gap-8">
                 {/* Manual e-KYC review (borrower-uploaded documents) */}
-                <BorrowerKycReview borrowerId={String(id)} />
+                <BorrowerKycReview borrowerId={String(id)} onChange={fetch} />
 
                 {/* Loan History Table */}
                 <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
@@ -228,7 +269,7 @@ export default function BorrowerProfilePage() {
                         </Link>
                     </div>
 
-                    {borrower.loans.length === 0 ? (
+                    {loans.length === 0 ? (
                         <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                             <FileText size={48} strokeWidth={1} className="mx-auto text-slate-300 mb-4" />
                             <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Zero historical engagements found.</p>
@@ -247,7 +288,7 @@ export default function BorrowerProfilePage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/50">
-                                    {borrower.loans.map(loan => (
+                                    {loans.map(loan => (
                                         <tr key={loan.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="py-5">
                                                 <p className="text-base font-black text-slate-900 tracking-tight">${Number(loan.principal).toLocaleString()}</p>

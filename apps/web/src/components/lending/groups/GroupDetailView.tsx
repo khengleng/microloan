@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Crown, UserPlus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Crown, FilePlus2, UserPlus } from 'lucide-react';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useToast } from '@/components/ui/toast';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, Spinner, Table, TextArea, TextInput, td, tdR, th, thR } from '../ui';
@@ -13,7 +15,7 @@ import { MoneyCell } from '../MoneyCell';
 import { StatusBadge } from '../StatusBadge';
 import { fmtRate } from '../format';
 import { BorrowerPicker, shortId, useBorrowerNames } from './borrowers';
-import type { AddMemberBody, BorrowerGroupDetail, GroupMembership, LoanBinding, RemoveMemberResult } from './types';
+import type { AddMemberBody, BorrowerGroupDetail, GroupApplication, GroupLoan, GroupMembership, LoanBinding, RemoveMemberResult } from './types';
 
 const TRANSITIONS: { status: 'ACTIVE' | 'DORMANT' | 'DISBANDED'; label: string; variant: 'primary' | 'secondary' | 'danger' }[] = [
     { status: 'ACTIVE', label: 'Activate', variant: 'primary' },
@@ -24,9 +26,16 @@ const TRANSITIONS: { status: 'ACTIVE' | 'DORMANT' | 'DISBANDED'; label: string; 
 export function GroupDetailView({ id }: { id: string }) {
     const { showToast } = useToast();
     const { locale } = useParams();
+    const tc = useTranslations('Customers');
+    const { can } = useWorkspace();
+    const href = useLendingHref();
+    const mayManage = can('borrower_group.manage');
+    const mayApply = can('loan_application.create');
     const group = useApi<BorrowerGroupDetail>(`/lending/applications/groups/${id}`);
+    const branches = useApi<{ id: string; name: string; code: string | null }[]>('/borrowers/branches');
     const [adding, setAdding] = useState(false);
     const [removing, setRemoving] = useState<GroupMembership | null>(null);
+    const [promoting, setPromoting] = useState<GroupMembership | null>(null);
     const [confirmDisband, setConfirmDisband] = useState(false);
     const status = useAction();
 
@@ -34,6 +43,8 @@ export function GroupDetailView({ id }: { id: string }) {
     const nameOf = useBorrowerNames([
         ...(g?.members.map((m) => m.borrowerId) ?? []),
         ...(g?.loanBindings.map((b) => b.borrowerId) ?? []),
+        ...(g?.loans?.map((l) => l.borrowerId) ?? []),
+        ...(g?.applications?.map((a) => a.borrowerId) ?? []),
     ]);
 
     if (!g) {
@@ -65,8 +76,11 @@ export function GroupDetailView({ id }: { id: string }) {
         showToast(msg, 'success');
         setAdding(false);
         setRemoving(null);
+        setPromoting(null);
         group.reload();
     };
+    const branch = branches.data?.find((b) => b.id === g.branchId);
+    const loanRef = new Map((g.loans ?? []).map((l) => [l.id, l.reference]));
 
     const borrowerLink = (borrowerId: string) => (
         <Link href={`/${locale}/borrowers/${borrowerId}`} className="font-semibold text-[#635BFF] hover:underline">{nameOf(borrowerId)}</Link>
@@ -79,7 +93,18 @@ export function GroupDetailView({ id }: { id: string }) {
             back={{ href: '/lending/groups', label: 'Borrower groups' }}
             actions={
                 <>
-                    {TRANSITIONS.filter((t) => t.status !== g.status).map((t) => (
+                    {mayApply && (
+                        <Link href={href(`/lending/applications?group=${id}`)}>
+                            <Btn
+                                variant="primary"
+                                disabled={g.status !== 'ACTIVE'}
+                                reason={g.status !== 'ACTIVE' ? tc('groupApp.onlyActive') : undefined}
+                            >
+                                <FilePlus2 size={14} /> {tc('groupApp.start')}
+                            </Btn>
+                        </Link>
+                    )}
+                    {mayManage && TRANSITIONS.filter((t) => t.status !== g.status).map((t) => (
                         <Btn
                             key={t.status}
                             variant={t.variant}
@@ -112,11 +137,11 @@ export function GroupDetailView({ id }: { id: string }) {
                         ['Code', <span key="c" className="font-mono">{g.code}</span>],
                         ['Status', <StatusBadge key="s" status={g.status} />],
                         ['Formed on', g.formedOn ?? '—'],
-                        ['Branch', <span key="b" className="font-mono text-[12px]" title={g.branchId ?? undefined}>{shortId(g.branchId)}</span>],
+                        ['Branch', branch ? branch.name : <span key="b" className="font-mono text-[12px]" title={g.branchId ?? undefined}>{shortId(g.branchId)}</span>],
                         ['Active members', String(g.memberCount)],
                         ['Leader', leader ? nameOf(leader.borrowerId) : '—'],
                         ['Past members', String(past.length)],
-                        ['Loan bindings', String(g.loanBindings.length)],
+                        ['Loans', String(g.loans?.length ?? new Set(g.loanBindings.map((b) => b.loanAccountId)).size)],
                     ]}
                 />
             </Card>
@@ -125,16 +150,17 @@ export function GroupDetailView({ id }: { id: string }) {
                 title="Members"
                 subtitle="A member named on a booked or active loan may be refused exit, depending on the product's group terms."
                 bodyClass="p-0"
-                actions={
-                    <Btn variant="primary" disabled={disbanded} reason={disbanded ? 'This group has been disbanded.' : undefined} onClick={() => { setAdding(true); setRemoving(null); }}>
+                actions={mayManage ? (
+                    <Btn variant="primary" disabled={disbanded} reason={disbanded ? 'This group has been disbanded.' : undefined} onClick={() => { setAdding(true); setRemoving(null); setPromoting(null); }}>
                         <UserPlus size={14} /> Add member
                     </Btn>
-                }
+                ) : undefined}
             >
-                {(adding || removing) && (
+                {(adding || removing || promoting) && (
                     <div className="p-4 border-b border-[#E3E8EE]">
                         {adding && <AddMemberForm groupId={id} hasLeader={!!leader} exclude={active.map((m) => m.borrowerId)} onDone={done} onClose={() => setAdding(false)} />}
                         {removing && <RemoveMemberForm groupId={id} member={removing} name={nameOf(removing.borrowerId)} onDone={done} onClose={() => setRemoving(null)} />}
+                        {promoting && <ChangeLeaderForm groupId={id} member={promoting} name={nameOf(promoting.borrowerId)} currentLeader={leader ? nameOf(leader.borrowerId) : null} onDone={done} onClose={() => setPromoting(null)} />}
                     </div>
                 )}
                 {g.members.length === 0 ? <Empty>No members yet. Add borrowers to form the group.</Empty> : (
@@ -179,8 +205,13 @@ export function GroupDetailView({ id }: { id: string }) {
                                             ) : <StatusBadge status="ACTIVE" />}
                                         </td>
                                         <td className={`${td} text-right`}>
-                                            {!m.leftOn && (
-                                                <Btn size="sm" variant="danger" onClick={() => { setRemoving(m); setAdding(false); }}>Remove</Btn>
+                                            {!m.leftOn && mayManage && (
+                                                <div className="flex justify-end gap-1.5">
+                                                    {m.role !== 'LEADER' && !disbanded && (
+                                                        <Btn size="sm" variant="secondary" onClick={() => { setPromoting(m); setAdding(false); setRemoving(null); }}><Crown size={12} /> {tc('leader.make')}</Btn>
+                                                    )}
+                                                    <Btn size="sm" variant="danger" onClick={() => { setRemoving(m); setAdding(false); setPromoting(null); }}>Remove</Btn>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>
@@ -191,7 +222,9 @@ export function GroupDetailView({ id }: { id: string }) {
                 )}
             </Card>
 
-            <LoanBindingsCard bindings={g.loanBindings} nameOf={nameOf} />
+            <GroupLoansCard loans={g.loans ?? []} nameOf={nameOf} />
+            <GroupApplicationsCard applications={g.applications ?? []} nameOf={nameOf} />
+            <LoanBindingsCard bindings={g.loanBindings} nameOf={nameOf} loanRef={loanRef} />
         </LendingShell>
     );
 }
@@ -281,10 +314,96 @@ function RemoveMemberForm({ groupId, member, name, onDone, onClose }: {
     );
 }
 
-function LoanBindingsCard({ bindings, nameOf }: { bindings: LoanBinding[]; nameOf: (id: string) => string }) {
+function ChangeLeaderForm({ groupId, member, name, currentLeader, onDone, onClose }: {
+    groupId: string; member: GroupMembership; name: string; currentLeader: string | null; onDone: (msg: string) => void; onClose: () => void;
+}) {
+    const tc = useTranslations('Customers');
+    const [reason, setReason] = useState('');
+    const { busy, error, run, clearError } = useAction();
+    const submit = async () => {
+        const res = await run('leader', () => api.post(`/lending/applications/groups/${groupId}/leader`, clean({ borrowerId: member.borrowerId, reason: reason.trim() })));
+        if (res) onDone(tc('leader.done', { name }));
+    };
+    return (
+        <ActionPanel title={tc('leader.title', { name })} onClose={onClose}>
+            <p className="text-[13px] text-[#3C4257]">
+                {currentLeader ? tc('leader.explainFrom', { from: currentLeader, to: name }) : tc('leader.explain', { to: name })}
+            </p>
+            <Field label={tc('leader.reason')} hint={tc('leader.reasonHint')}>
+                <TextArea value={reason} onChange={setReason} rows={2} maxLength={500} />
+            </Field>
+            <ErrorBox error={error} onDismiss={clearError} />
+            <Btn variant="primary" onClick={submit} busy={busy === 'leader'}><Crown size={14} /> {tc('leader.confirm')}</Btn>
+        </ActionPanel>
+    );
+}
+
+function GroupLoansCard({ loans, nameOf }: { loans: GroupLoan[]; nameOf: (id: string) => string }) {
+    const tc = useTranslations('Customers');
     const href = useLendingHref();
     return (
-        <Card title="Loans" subtitle="Each member's liability as frozen onto the group's booked loans (newest first)." bodyClass="p-0">
+        <Card title={tc('groupLoans.title')} subtitle={tc('groupLoans.subtitle')} bodyClass="p-0">
+            {loans.length === 0 ? <Empty>{tc('groupLoans.none')}</Empty> : (
+                <Table>
+                    <thead>
+                        <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                            <th className={th}>{tc('groupLoans.loan')}</th>
+                            <th className={th}>{tc('groupLoans.signatory')}</th>
+                            <th className={th}>{tc('groupLoans.status')}</th>
+                            <th className={thR}>{tc('groupLoans.outstanding')}</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F0F2F5]">
+                        {loans.map((l) => (
+                            <tr key={l.id} className="hover:bg-[#F7FAFC]">
+                                <td className={td}><Link href={href(`/lending/loans/${l.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{l.reference}</Link></td>
+                                <td className={td}>{nameOf(l.borrowerId)}</td>
+                                <td className={td}><StatusBadge status={l.status} /></td>
+                                <td className={tdR}><MoneyCell value={l.principalOutstanding} currency={l.currency} /></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+        </Card>
+    );
+}
+
+function GroupApplicationsCard({ applications, nameOf }: { applications: GroupApplication[]; nameOf: (id: string) => string }) {
+    const tc = useTranslations('Customers');
+    const href = useLendingHref();
+    if (applications.length === 0) return null;
+    return (
+        <Card title={tc('groupApps.title')} bodyClass="p-0">
+            <Table>
+                <thead>
+                    <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
+                        <th className={th}>{tc('groupApps.application')}</th>
+                        <th className={th}>{tc('groupLoans.signatory')}</th>
+                        <th className={th}>{tc('groupLoans.status')}</th>
+                        <th className={thR}>{tc('groupApps.requested')}</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F0F2F5]">
+                    {applications.map((a) => (
+                        <tr key={a.id} className="hover:bg-[#F7FAFC]">
+                            <td className={td}><Link href={href(`/lending/applications/${a.id}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{a.reference}</Link></td>
+                            <td className={td}>{nameOf(a.borrowerId)}</td>
+                            <td className={td}><StatusBadge status={a.status} /></td>
+                            <td className={tdR}><MoneyCell value={a.requestedAmount} currency={a.currency} /></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </Table>
+        </Card>
+    );
+}
+
+function LoanBindingsCard({ bindings, nameOf, loanRef }: { bindings: LoanBinding[]; nameOf: (id: string) => string; loanRef: Map<string, string> }) {
+    const href = useLendingHref();
+    const tc = useTranslations('Customers');
+    return (
+        <Card title={tc('groupLoans.sharesTitle')} subtitle="Each member's liability as frozen onto the group's booked loans (newest first)." bodyClass="p-0">
             {bindings.length === 0 ? <Empty>This group has no booked loans.</Empty> : (
                 <Table>
                     <thead>
@@ -303,7 +422,7 @@ function LoanBindingsCard({ bindings, nameOf }: { bindings: LoanBinding[]; nameO
                             <tr key={`${b.loanAccountId ?? i}-${b.borrowerId}`} className="hover:bg-[#F7FAFC]">
                                 <td className={td}>
                                     {b.loanAccountId
-                                        ? <Link href={href(`/lending/loans/${b.loanAccountId}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{shortId(b.loanAccountId)}</Link>
+                                        ? <Link href={href(`/lending/loans/${b.loanAccountId}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{loanRef.get(b.loanAccountId) ?? shortId(b.loanAccountId)}</Link>
                                         : <span className="text-[#AAB7C4]">—</span>}
                                 </td>
                                 <td className={td}>{nameOf(b.borrowerId)}</td>

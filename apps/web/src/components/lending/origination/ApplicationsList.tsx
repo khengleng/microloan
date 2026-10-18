@@ -23,8 +23,11 @@ export function ApplicationsList() {
     const [query, setQuery] = useState('');
     const [page, setPage] = useState(1);
     // Arriving from a loan's "Refinance" action opens the form pre-filled.
-    const refinance = useSearchParams().get('refinance') ?? '';
-    const [creating, setCreating] = useState(!!refinance);
+    const params = useSearchParams();
+    const refinance = params.get('refinance') ?? '';
+    // Arriving from a group's "Start group application" opens the form for that group.
+    const groupId = params.get('group') ?? '';
+    const [creating, setCreating] = useState(!!refinance || !!groupId);
 
     const { data, error, loading, reload } = useApi<Paged<ApplicationSummary>>(`/lending/applications${qs({ status, search: query, page })}`);
     const rows = data?.data ?? [];
@@ -40,6 +43,7 @@ export function ApplicationsList() {
             {creating && (
                 <NewApplicationForm
                     refinancesLoanId={refinance}
+                    groupId={groupId}
                     onClose={() => setCreating(false)}
                     onCreated={(id) => router.push(href(`/lending/applications/${id}`))}
                 />
