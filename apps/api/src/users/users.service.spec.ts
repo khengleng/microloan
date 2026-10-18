@@ -6,6 +6,7 @@ import { AuthzService } from '../authz/authz.service';
 describe('UsersService security', () => {
   const prisma: any = {
     user: {
+      findMany: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -22,6 +23,14 @@ describe('UsersService security', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('the platform team lists only platform operators, not every organisation\'s users', async () => {
+    prisma.user.findMany.mockResolvedValue([]);
+    await service.findAll({ sub: 'p1', role: 'SUPERADMIN', tenantId: null, branchId: null, permissions: [] } as any);
+    expect(prisma.user.findMany.mock.calls[0][0].where).toEqual({ tenantId: null });
+    await service.findAll({ sub: 'a1', role: 'TENANT_ADMIN', tenantId: 't1', branchId: null, permissions: [] } as any);
+    expect(prisma.user.findMany.mock.calls[1][0].where).toEqual({ tenantId: 't1' });
   });
 
   it('TENANT_ADMIN cannot create SUPERADMIN', async () => {

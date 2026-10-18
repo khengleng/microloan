@@ -12,8 +12,9 @@ import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, Us
 import { useAuth } from '@/lib/auth-context';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
-// Platform team can hold any tenant-equivalent role; they operate against platform data
-const PLATFORM_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
+// Platform operators have no organisation (tenantId null); the API accepts
+// only SUPERADMIN for such users, so that is the one platform role.
+const PLATFORM_ROLES = ['SUPERADMIN'];
 const ROLE_COLORS: Record<string, string> = {
     ADMIN: 'bg-indigo-100 text-indigo-700 shadow-sm',
     FINANCE: 'bg-purple-100 text-purple-700 shadow-sm',
@@ -64,8 +65,8 @@ export default function UsersPage() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post('/users', form);
-            showToast(t('invited', { email: form.email, role: form.role }), 'success');
+            await api.post('/users', { ...form, role: isSuperAdmin ? 'SUPERADMIN' : form.role });
+            showToast(t('invited', { email: form.email, role: isSuperAdmin ? 'SUPERADMIN' : form.role }), 'success');
             setIsModalOpen(false);
             setForm({ email: '', password: '', role: 'SALES' });
             fetchUsers();
@@ -308,7 +309,7 @@ export default function UsersPage() {
                             <div className="relative">
                                 <select
                                     id="inv-role"
-                                    value={form.role}
+                                    value={isSuperAdmin ? 'SUPERADMIN' : form.role}
                                     onChange={e => setForm({ ...form, role: e.target.value })}
                                     className="w-full h-14 pl-5 pr-10 appearance-none text-sm font-black border border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
                                 >

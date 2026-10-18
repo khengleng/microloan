@@ -33,8 +33,13 @@ export class UsersService {
 
   async findAll(actor: UserActor): Promise<any[]> {
     this.authz.assertPermission(actor, Permission.USER_UPDATE);
+    // The platform team is the platform's own operators (tenantId null), not
+    // every organisation's staff; those are listed per organisation.
+    const where = this.authz.isPlatform(actor) && !actor.tenantId
+      ? { tenantId: null }
+      : this.authz.scopeWhere(actor, {});
     return this.prisma.user.findMany({
-      where: this.authz.scopeWhere(actor, {}),
+      where,
       select: {
         id: true,
         email: true,
