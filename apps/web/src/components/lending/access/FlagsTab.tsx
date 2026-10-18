@@ -10,6 +10,10 @@ import { clean, qs, useAction, useApi } from '../useAsync';
 import { fmtDateTime, localToIso } from '../format';
 import type { Flag, FlagApproval, FlagRule, FlagsResponse } from '../types';
 import { useMyId, useUserName, type TabProps } from './common';
+import { useTranslations } from 'next-intl';
+import { useWorkspace } from '@/lib/workspace';
+import { Person, UserPicker } from '../People';
+import type { BranchRef } from '../types';
 
 const CHANNELS = ['BRANCH', 'STAFF_PORTAL', 'BORROWER_PORTAL', 'AGENT', 'API'];
 const SCOPES = ['TENANT', 'PRODUCT', 'BRANCH', 'CHANNEL', 'SEGMENT', 'COHORT'];
@@ -31,7 +35,7 @@ export function FlagsTab({ data: overview }: TabProps) {
             <Card title="Evaluation context" subtitle="Flags are evaluated for this context. Leave fields empty to use defaults (channel defaults to STAFF_PORTAL).">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                     <Field label="Product code"><TextInput value={draft.productCode} onChange={(productCode) => setDraft((d) => ({ ...d, productCode }))} /></Field>
-                    <Field label="Branch ID"><TextInput value={draft.branchId} onChange={(branchId) => setDraft((d) => ({ ...d, branchId }))} /></Field>
+                    <Field label="Branch"><SelectInput value={draft.branchId} onChange={(branchId) => setDraft((d) => ({ ...d, branchId }))} options={(overview.branches ?? []).map((b) => ({ value: b.id, label: b.name }))} placeholder="(any)" /></Field>
                     <Field label="Channel"><SelectInput value={draft.channel} onChange={(channel) => setDraft((d) => ({ ...d, channel }))} options={CHANNELS} placeholder="(default)" /></Field>
                     <Field label="Segment"><TextInput value={draft.segment} onChange={(segment) => setDraft((d) => ({ ...d, segment }))} /></Field>
                     <Field label="Cohort"><TextInput value={draft.cohort} onChange={(cohort) => setDraft((d) => ({ ...d, cohort }))} /></Field>
@@ -62,7 +66,7 @@ export function FlagsTab({ data: overview }: TabProps) {
                     <TenantRules rules={data.tenantRules} reload={reload} />
                     <PlatformRules rules={data.platformRules as PlatformRuleRow[]} userName={userName} />
                     <ProposeRuleForm flags={data.flags} reload={reload} />
-                    <CohortForm />
+                    <Cohorts branches={overview.branches ?? []} />
                 </>
             )}
         </div>
@@ -118,6 +122,7 @@ function FlagGroup({ category, flags }: { category: string; flags: Flag[] }) {
 function Approvals({ approvals, rules, userName, reload }: { approvals: ApprovalRow[]; rules: FlagRule[]; userName: (id: string | null | undefined) => string; reload: () => void }) {
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
+    const { can } = useWorkspace();
     const me = useMyId();
     const pending = approvals.filter((a) => a.status === 'PENDING');
     const ruleById = new Map(rules.map((r) => [r.id, r]));
@@ -153,8 +158,8 @@ function Approvals({ approvals, rules, userName, reload }: { approvals: Approval
                                     <td className={`${td} whitespace-nowrap`}>
                                         {a.status === 'PENDING' && (
                                             <div className="flex gap-1.5 justify-end">
-                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy} reason={own ? 'You proposed this change — a second admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
-                                                <Btn size="sm" variant="danger" disabled={own || !!busy} reason={own ? 'You proposed this change — a second admin must decide' : undefined} onClick={() => decide(a, false)}>Reject</Btn>
+                                                <Btn size="sm" variant="primary" busy={busy === `decide-${a.id}`} disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? 'Needs feature_flag.approve' : own ? 'You proposed this change — a second admin must approve' : undefined} onClick={() => decide(a, true)}>Approve</Btn>
+                                                <Btn size="sm" variant="danger" disabled={own || !!busy || !can('feature_flag.approve')} reason={!can('feature_flag.approve') ? 'Needs feature_flag.approve' : own ? 'You proposed this change — a second admin must decide' : undefined} onClick={() => decide(a, false)}>Reject</Btn>
                                             </div>
                                         )}
                                     </td>
@@ -186,6 +191,7 @@ function RuleRowCells({ r }: { r: FlagRule }) {
 function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void }) {
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
+    const { can } = useWorkspace();
     const [removing, setRemoving] = useState<FlagRule | null>(null);
     const [reason, setReason] = useState('');
 
@@ -210,7 +216,7 @@ function TenantRules({ rules, reload }: { rules: FlagRule[]; reload: () => void 
                                 <RuleRowCells r={r} />
                                 <td className={td}>{r.priority ?? '—'}</td>
                                 <td className={`${td} text-right`}>
-                                    {r.status === 'ACTIVE' && <Btn size="sm" variant="danger" onClick={() => { setRemoving(r); setReason(''); clearError(); }}>Propose removal</Btn>}
+                                    {r.status === 'ACTIVE' && <Btn size="sm" variant="danger" disabled={!can('feature_flag.manage')} reason={!can('feature_flag.manage') ? 'Needs feature_flag.manage' : undefined} onClick={() => { setRemoving(r); setReason(''); clearError(); }}>Propose removal</Btn>}
                                 </td>
                             </tr>
                         ))}
@@ -258,6 +264,7 @@ function PlatformRules({ rules, userName }: { rules: PlatformRuleRow[]; userName
 function ProposeRuleForm({ flags, reload }: { flags: Flag[]; reload: () => void }) {
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
+    const { can } = useWorkspace();
     const [flagKey, setFlagKey] = useState('');
     const [scopeType, setScopeType] = useState('TENANT');
     const [scopeValue, setScopeValue] = useState('');
@@ -313,41 +320,129 @@ function ProposeRuleForm({ flags, reload }: { flags: Flag[]; reload: () => void 
                 <Checkbox checked={emergency} onChange={setEmergency} label="Emergency rule (cannot be overridden by narrower tenant rules)" />
                 <ErrorBox error={error} onDismiss={clearError} />
                 <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'propose'} disabled={!valid} reason={!valid ? 'Flag, scope value (unless TENANT) and reason are required' : undefined} onClick={submit}>Propose rule</Btn>
+                    <Btn variant="primary" busy={busy === 'propose'} disabled={!valid || !can('feature_flag.manage')} reason={!can('feature_flag.manage') ? 'Needs feature_flag.manage' : !valid ? 'Flag, scope value (unless TENANT) and reason are required' : undefined} onClick={submit}>Propose rule</Btn>
                 </div>
             </div>
         </Card>
     );
 }
 
-function CohortForm() {
+interface CohortChange {
+    id: string; status: string; cohortCode: string; subjectType: 'BRANCH' | 'USER' | 'BORROWER'; subjectId: string; member: boolean;
+    makerId: string; decidedBy: string | null; reason: string | null; createdAt: string;
+}
+interface CohortMember { id: string; cohortCode: string; subjectType: string; subjectId: string; addedBy: string; createdAt: string }
+
+/**
+ * Cohort membership is maker-checker controlled: one person proposes adding
+ * or removing a member (feature_flag.manage); a second person — never the
+ * proposer, nor a user being placed in the cohort — applies it
+ * (feature_flag.approve).
+ */
+function Cohorts({ branches }: { branches: BranchRef[] }) {
+    const t = useTranslations('Governance.cohort');
     const { showToast } = useToast();
+    const { can, access, reloadWork } = useWorkspace();
+    const me = access?.principal.id;
+    const { data, error: loadError, reload } = useApi<{ members: CohortMember[]; changes: CohortChange[] }>('/lending/access/cohorts');
     const { busy, error, run, clearError } = useAction();
     const [cohortCode, setCohortCode] = useState('');
-    const [subjectType, setSubjectType] = useState('USER');
+    const [subjectType, setSubjectType] = useState<'BRANCH' | 'USER' | 'BORROWER'>('BRANCH');
     const [subjectId, setSubjectId] = useState('');
     const [member, setMember] = useState('true');
-    const valid = cohortCode.trim() && subjectId.trim();
+    const [reason, setReason] = useState('');
+    const canManage = can('feature_flag.manage');
+    const canApprove = can('feature_flag.approve');
+    const codeErr = cohortCode && !/^[A-Z0-9_]{2,40}$/.test(cohortCode.trim()) ? t('codeInvalid') : undefined;
+    const valid = !!cohortCode.trim() && !codeErr && !!subjectId.trim();
+    const branchName = new Map(branches.map((b) => [b.id, b.name]));
+    const subject = (type: string, id: string) =>
+        type === 'USER' ? <Person id={id} /> : type === 'BRANCH' ? <span>{branchName.get(id) ?? id}</span> : <span className="font-mono text-[12px]">{id}</span>;
 
-    const submit = async () => {
-        const r = await run('cohort', () => api.post('/lending/access/cohorts', { cohortCode: cohortCode.trim(), subjectType, subjectId: subjectId.trim(), member: member === 'true' }));
-        if (r) { showToast(member === 'true' ? 'Added to cohort' : 'Removed from cohort', 'success'); setSubjectId(''); }
+    const propose = async () => {
+        const r = await run('cohort', () => api.post('/lending/access/cohorts', { cohortCode: cohortCode.trim(), subjectType, subjectId: subjectId.trim(), member: member === 'true', ...(reason.trim() ? { reason: reason.trim() } : {}) }));
+        if (r) { showToast(t('proposed'), 'success'); setSubjectId(''); setReason(''); reload(); }
+    };
+    const decide = async (c: CohortChange, approve: boolean) => {
+        const r = await run(`decide-${c.id}`, () => api.post(`/lending/access/cohort-changes/${c.id}/decision`, { approve }));
+        if (r) { showToast(approve ? t('applied') : t('rejected'), 'success'); reload(); reloadWork(); }
     };
 
+    const pending = (data?.changes ?? []).filter((c) => c.status === 'PENDING');
     return (
-        <Card title="Cohort membership" subtitle="Add or remove a branch, user or borrower from a rollout cohort.">
-            <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <Field label="Cohort code"><TextInput value={cohortCode} onChange={setCohortCode} maxLength={40} placeholder="PILOT_2026" /></Field>
-                    <Field label="Subject type"><SelectInput value={subjectType} onChange={setSubjectType} options={['BRANCH', 'USER', 'BORROWER']} /></Field>
-                    <Field label="Subject ID"><TextInput value={subjectId} onChange={setSubjectId} maxLength={64} /></Field>
-                    <Field label="Membership"><SelectInput value={member} onChange={setMember} options={[{ value: 'true', label: 'Member' }, { value: 'false', label: 'Not a member' }]} /></Field>
-                </div>
-                <ErrorBox error={error} onDismiss={clearError} />
-                <div className="flex justify-end">
-                    <Btn variant="primary" busy={busy === 'cohort'} disabled={!valid} onClick={submit}>Save membership</Btn>
-                </div>
-            </div>
-        </Card>
+        <>
+            <Card title={t('title')} subtitle={t('subtitle')} bodyClass="p-0">
+                <div className="p-4 pb-0 space-y-2"><ErrorBox error={loadError} /><ErrorBox error={error} onDismiss={clearError} /></div>
+                {!data ? <Spinner /> : (
+                    <>
+                        <div className="px-4 pt-3 text-[12px] font-semibold text-[#3C4257]">{t('pending')}</div>
+                        {pending.length === 0 ? <Empty>{t('noPending')}</Empty> : (
+                            <Table>
+                                <thead><tr className="border-b border-[#E3E8EE]"><th className={th}>{t('cohort')}</th><th className={th}>{t('change')}</th><th className={th}>{t('subject')}</th><th className={th}>{t('proposedBy')}</th><th className={th}></th></tr></thead>
+                                <tbody className="divide-y divide-[#F0F2F5]">
+                                    {pending.map((c) => {
+                                        const own = !!me && (c.makerId === me || (c.subjectType === 'USER' && c.subjectId === me));
+                                        const why = !canApprove ? t('needApprove') : own ? t('ownChange') : undefined;
+                                        return (
+                                            <tr key={c.id} className="bg-amber-50/60">
+                                                <td className={td}><span className="font-mono text-[12px]">{c.cohortCode}</span></td>
+                                                <td className={td}>{c.member ? t('add') : t('remove')}{c.reason && <div className="text-[11px] text-[#697386]">{c.reason}</div>}</td>
+                                                <td className={td}>{t(`type.${c.subjectType}`)}: {subject(c.subjectType, c.subjectId)}</td>
+                                                <td className={td}><Person id={c.makerId} /><div className="text-[11px] text-[#697386]">{fmtDateTime(c.createdAt)}</div></td>
+                                                <td className={`${td} text-right whitespace-nowrap space-x-1`}>
+                                                    <Btn size="sm" variant="primary" busy={busy === `decide-${c.id}`} disabled={!!busy || !!why} reason={why} onClick={() => decide(c, true)}>{t('approve')}</Btn>
+                                                    <Btn size="sm" variant="danger" disabled={!!busy || !!why} reason={why} onClick={() => decide(c, false)}>{t('reject')}</Btn>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </Table>
+                        )}
+                        <div className="px-4 pt-3 text-[12px] font-semibold text-[#3C4257]">{t('members')}</div>
+                        {data.members.length === 0 ? <Empty>{t('noMembers')}</Empty> : (
+                            <Table>
+                                <thead><tr className="border-b border-[#E3E8EE]"><th className={th}>{t('cohort')}</th><th className={th}>{t('subject')}</th><th className={th}>{t('proposedBy')}</th></tr></thead>
+                                <tbody className="divide-y divide-[#F0F2F5]">
+                                    {data.members.map((m) => (
+                                        <tr key={m.id}>
+                                            <td className={td}><span className="font-mono text-[12px]">{m.cohortCode}</span></td>
+                                            <td className={td}>{t(`type.${m.subjectType}`)}: {subject(m.subjectType, m.subjectId)}</td>
+                                            <td className={td}><Person id={m.addedBy} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        )}
+                    </>
+                )}
+            </Card>
+            {canManage && (
+                <Card title={t('proposeTitle')} subtitle={t('proposeSubtitle')}>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <Field label={t('cohortCode')} error={codeErr}><TextInput value={cohortCode} onChange={(v) => setCohortCode(v.toUpperCase())} maxLength={40} placeholder="PILOT_2026" /></Field>
+                            <Field label={t('subjectType')}>
+                                <SelectInput value={subjectType} onChange={(v) => { setSubjectType(v as 'BRANCH' | 'USER' | 'BORROWER'); setSubjectId(''); }} options={(['BRANCH', 'USER', 'BORROWER'] as const).map((v) => ({ value: v, label: t(`type.${v}`) }))} />
+                            </Field>
+                            <Field label={t('subject')} hint={subjectType === 'BORROWER' ? t('borrowerHint') : undefined}>
+                                {subjectType === 'BRANCH' ? (
+                                    <SelectInput value={subjectId} onChange={setSubjectId} options={branches.map((b) => ({ value: b.id, label: b.name }))} placeholder={t('pickBranch')} />
+                                ) : subjectType === 'USER' ? (
+                                    <UserPicker value={subjectId} onChange={(id) => setSubjectId(id)} placeholder={t('pickUser')} />
+                                ) : (
+                                    <TextInput value={subjectId} onChange={setSubjectId} maxLength={64} placeholder={t('borrowerId')} />
+                                )}
+                            </Field>
+                            <Field label={t('membership')}><SelectInput value={member} onChange={setMember} options={[{ value: 'true', label: t('add') }, { value: 'false', label: t('remove') }]} /></Field>
+                        </div>
+                        <Field label={t('reason')}><TextInput value={reason} onChange={setReason} maxLength={300} /></Field>
+                        <div className="flex justify-end">
+                            <Btn variant="primary" busy={busy === 'cohort'} disabled={!valid} onClick={propose}>{t('propose')}</Btn>
+                        </div>
+                    </div>
+                </Card>
+            )}
+        </>
     );
 }
