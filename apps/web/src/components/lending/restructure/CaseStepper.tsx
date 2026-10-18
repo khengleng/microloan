@@ -1,15 +1,17 @@
 import { Check, Ban } from 'lucide-react';
-import { TERMINAL_STATUSES } from './labels';
+import { useTranslations } from 'next-intl';
+import { TERMINAL_STATUSES, useRestructureLabels } from './labels';
 
-const STEPS: { key: string; label: string; branches?: string[] }[] = [
-    { key: 'REQUESTED', label: 'Requested' },
-    { key: 'AFFORDABILITY_ASSESSED', label: 'Affordability assessed', branches: ['SPECIALIST_REVIEW', 'MORE_INFO_REQUIRED'] },
-    { key: 'OPTIONS_PROPOSED', label: 'Options proposed' },
-    { key: 'APPROVED', label: 'Approved' },
-    { key: 'CUSTOMER_ACCEPTED', label: 'Customer accepted' },
-    { key: 'CONDITIONS_SATISFIED', label: 'Conditions satisfied' },
-    { key: 'MONITORING', label: 'Monitoring' },
-    { key: 'COMPLETED', label: 'Completed' },
+/** Step labels are LendingRestructure.stepper.steps.<key>. */
+const STEPS: { key: string; branches?: string[] }[] = [
+    { key: 'REQUESTED' },
+    { key: 'AFFORDABILITY_ASSESSED', branches: ['SPECIALIST_REVIEW', 'MORE_INFO_REQUIRED'] },
+    { key: 'OPTIONS_PROPOSED' },
+    { key: 'APPROVED' },
+    { key: 'CUSTOMER_ACCEPTED' },
+    { key: 'CONDITIONS_SATISFIED' },
+    { key: 'MONITORING' },
+    { key: 'COMPLETED' },
 ];
 
 function stepIndex(status: string): number {
@@ -17,15 +19,10 @@ function stepIndex(status: string): number {
     return i;
 }
 
-const TERMINAL_TEXT: Record<string, string> = {
-    REJECTED: 'This case was rejected. No change was made to the loan.',
-    WITHDRAWN: 'This case was withdrawn. No change was made to the loan.',
-    EXPIRED: 'This case expired before it was completed. No change was made to the loan.',
-    REVERSED: 'The executed amendment was reversed. The loan has been restored to its previous terms.',
-};
-
 /** Workflow progress for a restructure case, with branch and terminal states. */
 export function CaseStepper({ status, lastActiveStatus }: { status: string; lastActiveStatus?: string }) {
+    const t = useTranslations('LendingRestructure.stepper');
+    const L = useRestructureLabels();
     const terminal = TERMINAL_STATUSES.includes(status);
     const current = terminal ? stepIndex(lastActiveStatus ?? '') : stepIndex(status);
     const branch = !terminal && (status === 'SPECIALIST_REVIEW' || status === 'MORE_INFO_REQUIRED') ? status : null;
@@ -35,8 +32,8 @@ export function CaseStepper({ status, lastActiveStatus }: { status: string; last
                 <div className={`flex items-start gap-2 rounded-md border px-4 py-3 text-[13px] ${status === 'REJECTED' || status === 'REVERSED' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
                     <Ban size={16} className="mt-0.5 shrink-0" />
                     <div>
-                        <p className="font-bold">{status.replace(/_/g, ' ')}</p>
-                        <p>{TERMINAL_TEXT[status]}</p>
+                        <p className="font-bold">{L.status(status)}</p>
+                        <p>{t.has(`terminal.${status}`) ? t(`terminal.${status}`) : null}</p>
                     </div>
                 </div>
             )}
@@ -58,10 +55,10 @@ export function CaseStepper({ status, lastActiveStatus }: { status: string; last
                                 <span className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[12px] font-bold ${circle}`}>
                                     {done ? <Check size={14} /> : i + 1}
                                 </span>
-                                <span className={`mt-1 text-[11px] leading-tight ${active || done ? 'text-[#1A1F36] font-semibold' : 'text-[#8792A2]'} ${terminal ? 'opacity-60' : ''}`}>{s.label}</span>
+                                <span className={`mt-1 text-[11px] leading-tight ${active || done ? 'text-[#1A1F36] font-semibold' : 'text-[#8792A2]'} ${terminal ? 'opacity-60' : ''}`}>{t(`steps.${s.key}`)}</span>
                                 {isBranch && (
                                     <span className="mt-1 text-[10px] font-bold uppercase text-amber-800 bg-amber-100 border border-amber-300 rounded px-1">
-                                        {branch.replace(/_/g, ' ')}
+                                        {L.status(branch)}
                                     </span>
                                 )}
                             </div>

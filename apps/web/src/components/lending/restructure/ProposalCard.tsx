@@ -1,23 +1,27 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import type { RestructureProposal } from '../types';
 import { StatusBadge } from '../StatusBadge';
 import { fmtDateTime } from '../format';
+import { Person } from '../People';
 import { ActionPanel, Btn, Card, Disclosure, ErrorBox, Field, KV, SelectInput, TextArea, TextInput } from '../ui';
 import { clean, useAction } from '../useAsync';
 import { AcceptanceTimeline } from './AcceptanceTimeline';
 import { ApprovalTimeline } from './ApprovalTimeline';
 import { SimulationView, WarningsView, ComparisonTable } from './SimulationView';
-import { shortHash } from './labels';
+import { shortHash, useRestructureLabels } from './labels';
 import { useBusinessDate } from '../useBusinessDate';
 
 /** One proposal version: terms, approval and acceptance timelines, and its actions. */
 export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
     caseId: string; proposal: RestructureProposal; onChanged: () => void; defaultOpen?: boolean;
 }) {
+    const t = useTranslations('LendingRestructure');
+    const L = useRestructureLabels();
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
     const [panel, setPanel] = useState<'none' | 'approve' | 'accept'>('none');
@@ -38,63 +42,59 @@ export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
 
     const approve = async () => {
         const res = await run('approve', () => api.post(`/lending/restructures/${caseId}/proposals/${p.id}/approve`, { note: note.trim() }));
-        if (res) { showToast(`Approval recorded for v${p.version}`, 'success'); setNote(''); setPanel('none'); onChanged(); }
+        if (res) { showToast(t('proposal.toastApproved', { version: p.version }), 'success'); setNote(''); setPanel('none'); onChanged(); }
     };
     const accept = async () => {
         const body = clean({ proposalHash: p.proposalHash, method, evidence: evidence.trim() });
         const res = await run('accept', () => api.post(`/lending/restructures/${caseId}/proposals/${p.id}/acceptance`, body));
-        if (res) { showToast(`Customer acceptance recorded for v${p.version}`, 'success'); setEvidence(''); setPanel('none'); onChanged(); }
+        if (res) { showToast(t('proposal.toastAccepted', { version: p.version }), 'success'); setEvidence(''); setPanel('none'); onChanged(); }
     };
 
     return (
         <Card
-            title={<span className="flex items-center gap-2">Proposal v{p.version} <StatusBadge status={p.status} />{expired && p.status !== 'EXECUTED' && <StatusBadge status="EXPIRED" />}</span>}
-            subtitle={<span>Effective {p.effectiveDate} · hash <span className="font-mono">{shortHash(p.proposalHash)}</span></span>}
+            title={<span className="flex items-center gap-2">{t('proposal.title', { version: p.version })} <StatusBadge status={p.status} />{expired && p.status !== 'EXECUTED' && <StatusBadge status="EXPIRED" />}</span>}
+            subtitle={<span>{t.rich('proposal.subtitle', { date: p.effectiveDate, hash: shortHash(p.proposalHash), h: (c) => <span className="font-mono">{c}</span> })}</span>}
             actions={
                 <>
-                    {canApprove && <Btn size="sm" variant="primary" onClick={() => setPanel(panel === 'approve' ? 'none' : 'approve')}>Approve…</Btn>}
-                    {canAccept && <Btn size="sm" variant="primary" onClick={() => setPanel(panel === 'accept' ? 'none' : 'accept')}>Record customer acceptance…</Btn>}
+                    {canApprove && <Btn size="sm" variant="primary" onClick={() => setPanel(panel === 'approve' ? 'none' : 'approve')}>{t('proposal.approveOpen')}</Btn>}
+                    {canAccept && <Btn size="sm" variant="primary" onClick={() => setPanel(panel === 'accept' ? 'none' : 'accept')}>{t('proposal.acceptOpen')}</Btn>}
                 </>
             }
         >
             <div className="space-y-4">
                 <KV cols={4} items={[
-                    ['Status', <StatusBadge key="s" status={p.status} />],
-                    ['Effective date', p.effectiveDate],
-                    ['Expires', p.expiresAt ? <span key="e" className={expired ? 'text-red-700 font-semibold' : ''}>{expiresOn}</span> : '—'],
-                    ['Approvals', <span key="a" className={approvedCount >= (p.approvalsRequired ?? 1) ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>{approvedCount} of {p.approvalsRequired ?? 1} required</span>],
-                    ['Proposed by', p.makerId ?? (p as { proposedBy?: string }).proposedBy ?? '—'],
-                    ['Created', fmtDateTime(p.createdAt)],
-                    ['Policy exceptions', exceptions.length ? <span key="x" className="text-red-700 font-semibold">{exceptions.length}</span> : 'none'],
-                    ['Full hash', <span key="h" className="font-mono text-[10px] break-all">{p.proposalHash}</span>],
+                    [t('common.status'), <StatusBadge key="s" status={p.status} />],
+                    [t('common.effectiveDate'), p.effectiveDate],
+                    [t('proposal.expires'), p.expiresAt ? <span key="e" className={expired ? 'text-red-700 font-semibold' : ''}>{expiresOn}</span> : '—'],
+                    [t('proposal.approvals'), <span key="a" className={approvedCount >= (p.approvalsRequired ?? 1) ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>{t('proposal.approvalsValue', { count: approvedCount, required: p.approvalsRequired ?? 1 })}</span>],
+                    [t('proposal.proposedBy'), p.makerId ?? (p as { proposedBy?: string }).proposedBy ? <Person key="pb" id={p.makerId ?? (p as { proposedBy?: string }).proposedBy} /> : '—'],
+                    [t('proposal.created'), fmtDateTime(p.createdAt)],
+                    [t('proposal.policyExceptions'), exceptions.length ? <span key="x" className="text-red-700 font-semibold">{exceptions.length}</span> : t('common.none')],
+                    [t('proposal.fullHash'), <span key="h" className="font-mono text-[10px] break-all">{p.proposalHash}</span>],
                 ]} />
 
                 {panel === 'approve' && (
-                    <ActionPanel title={`Approve proposal v${p.version}`} onClose={() => setPanel('none')}>
-                        <p className="text-[12px] text-[#697386]">Approval is a credit decision on these exact terms. The customer must still accept them separately.</p>
-                        <Field label="Approval comment" hint="At least 3 characters."><TextArea value={note} onChange={setNote} rows={2} maxLength={500} /></Field>
+                    <ActionPanel title={t('proposal.approveTitle', { version: p.version })} onClose={() => setPanel('none')}>
+                        <p className="text-[12px] text-[#697386]">{t('proposal.approveBody')}</p>
+                        <Field label={t('proposal.approvalComment')} hint={t('common.atLeast3')}><TextArea value={note} onChange={setNote} rows={2} maxLength={500} /></Field>
                         <ErrorBox error={error} onDismiss={clearError} />
-                        <Btn variant="primary" busy={busy === 'approve'} disabled={note.trim().length < 3} onClick={approve}>Approve</Btn>
+                        <Btn variant="primary" busy={busy === 'approve'} disabled={note.trim().length < 3} onClick={approve}>{t('proposal.approve')}</Btn>
                     </ActionPanel>
                 )}
                 {panel === 'accept' && (
-                    <ActionPanel title={`Record customer acceptance of v${p.version} (branch)`} onClose={() => setPanel('none')}>
+                    <ActionPanel title={t('proposal.acceptTitle', { version: p.version })} onClose={() => setPanel('none')}>
                         <p className="text-[12px] text-[#697386]">
-                            Confirm the customer was shown the comparison, total cost and new schedule. The acceptance is bound to hash{' '}
-                            <span className="font-mono">{shortHash(p.proposalHash)}</span>.
+                            {t.rich('proposal.acceptBody', { hash: shortHash(p.proposalHash), h: (c) => <span className="font-mono">{c}</span> })}
                         </p>
                         {p.comparison?.lowerInstalmentHigherCost && <WarningsView sim={{ ...p, affordability: null, requiredFlags: [] }} />}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <Field label="Method">
-                                <SelectInput value={method} onChange={setMethod} options={[
-                                    { value: 'SIGNED_FORM', label: 'Signed form' },
-                                    { value: 'WITNESSED_VERBAL', label: 'Witnessed verbal acceptance' },
-                                ]} />
+                            <Field label={t('common.method')}>
+                                <SelectInput value={method} onChange={setMethod} options={L.options('acceptForm', ['SIGNED_FORM', 'WITNESSED_VERBAL'])} />
                             </Field>
-                            <Field label="Evidence" hint="Form number, witness name, recording id…"><TextInput value={evidence} onChange={setEvidence} maxLength={500} /></Field>
+                            <Field label={t('common.evidence')} hint={t('proposal.evidenceHint')}><TextInput value={evidence} onChange={setEvidence} maxLength={500} /></Field>
                         </div>
                         <ErrorBox error={error} onDismiss={clearError} />
-                        <Btn variant="primary" busy={busy === 'accept'} disabled={evidence.trim().length < 3} reason={evidence.trim().length < 3 ? 'Evidence is required' : undefined} onClick={accept}>Record acceptance</Btn>
+                        <Btn variant="primary" busy={busy === 'accept'} disabled={evidence.trim().length < 3} reason={evidence.trim().length < 3 ? t('proposal.evidenceRequired') : undefined} onClick={accept}>{t('proposal.recordAcceptance')}</Btn>
                     </ActionPanel>
                 )}
 
@@ -106,10 +106,10 @@ export function ProposalCard({ caseId, proposal: p, onChanged, defaultOpen }: {
                 </div>
 
                 {p.comparison && <ComparisonTable comparison={p.comparison} currency={p.snapshot?.currency} />}
-                <Disclosure summary="Full terms: snapshot, warnings, calculation and schedule" defaultOpen={defaultOpen}>
+                <Disclosure summary={t('proposal.fullTerms')} defaultOpen={defaultOpen}>
                     {p.calculation && p.comparison ? (
                         <SimulationView sim={{ snapshot: p.snapshot, calculation: p.calculation, comparison: p.comparison, policyExceptions: exceptions, requiredFlags: (p as { requiredFlags?: string[] }).requiredFlags, concessions: p.concessions }} />
-                    ) : <p className="text-[12px] text-[#697386]">No calculation stored.</p>}
+                    ) : <p className="text-[12px] text-[#697386]">{t('proposal.noCalculation')}</p>}
                 </Disclosure>
             </div>
         </Card>

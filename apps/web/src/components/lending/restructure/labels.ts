@@ -1,5 +1,7 @@
 /** Shared enum labels for restructuring screens. */
 
+import { useTranslations } from 'next-intl';
+
 export type Opt = { value: string; label: string };
 
 export const HARDSHIP_CATEGORIES: Opt[] = [
@@ -59,3 +61,31 @@ export function intOrUndef(v: string): number | undefined {
 }
 
 export const MONEY_RE = /^\d+(\.\d{1,4})?$/;
+
+/** Option groups translated under LendingRestructure.options.<group>.<VALUE>. */
+export type OptGroup =
+    | 'hardship' | 'difficulty' | 'trigger' | 'evidenceType' | 'evidenceQuality' | 'template' | 'taskType'
+    | 'method' | 'frequency' | 'deferredInterest' | 'arrears' | 'acceptanceMethod' | 'acceptForm' | 'actorType';
+
+/**
+ * Translated enum labels for the restructuring screens. Falls back to the
+ * English `label` in `fallback` (or the code with spaces) when no key exists.
+ */
+export function useRestructureLabels() {
+    const t = useTranslations('LendingRestructure.options');
+    const ts = useTranslations('Status');
+    const label = (group: OptGroup, value: string | null | undefined, fallback?: Opt[]): string => {
+        if (!value) return '—';
+        const k = `${group}.${value}`;
+        if (t.has(k)) return t(k);
+        return fallback ? labelOf(fallback, value) : value.replace(/_/g, ' ');
+    };
+    const options = (group: OptGroup, values: (string | Opt)[]): Opt[] =>
+        values.map((v) => {
+            const value = typeof v === 'string' ? v : v.value;
+            return { value, label: label(group, value, typeof v === 'string' ? undefined : [v]) };
+        });
+    /** A case / workflow status code via the shared "Status" messages. */
+    const status = (s: string | null | undefined): string => (!s ? '—' : ts.has(s) ? ts(s) : s.replace(/_/g, ' '));
+    return { label, options, status };
+}
