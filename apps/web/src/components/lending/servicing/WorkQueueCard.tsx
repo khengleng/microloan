@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useLendingHref } from '../LendingShell';
 import { Btn, Card, Empty, ErrorBox, Field, SelectInput, Spinner, Table, TextInput, td, tdR, th, thR } from '../ui';
 import { qs, useAction, useApi } from '../useAsync';
@@ -25,6 +26,8 @@ export function WorkQueueCard() {
     const r = useApi<Task[]>(`/lending/collections/tasks${qs({ queue, status })}`);
     const [working, setWorking] = useState<{ id: string; outcome: string; note: string } | null>(null);
     const { busy, error, run, clearError } = useAction();
+    // Working a task is collection.task.work, held through loan.repayment.post.
+    const canWork = useWorkspace().can('loan.repayment.post');
     const queues = Array.from(new Set((r.data ?? []).map((t) => t.queue))).sort();
 
     const claim = async (t: Task) => { if (await run(`claim-${t.id}`, () => api.post(`/lending/collections/tasks/${t.id}/claim`))) r.reload(); };
@@ -68,8 +71,8 @@ export function WorkQueueCard() {
                                     {t.assignedTo && t.status === 'OPEN' && <div className="text-[11px] text-[#8792A2]">claimed</div>}
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
-                                    {t.status === 'OPEN' && !t.assignedTo && <Btn size="sm" onClick={() => claim(t)} busy={busy === `claim-${t.id}`}>Claim</Btn>}
-                                    {t.status === 'OPEN' && working?.id !== t.id && <Btn size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '' })}>Record outcome</Btn>}
+                                    {t.status === 'OPEN' && !t.assignedTo && canWork && <Btn size="sm" onClick={() => claim(t)} busy={busy === `claim-${t.id}`}>Claim</Btn>}
+                                    {t.status === 'OPEN' && working?.id !== t.id && canWork && <Btn size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '' })}>Record outcome</Btn>}
                                     {working?.id === t.id && (
                                         <div className="space-y-1">
                                             <SelectInput value={working.outcome} onChange={(v) => setWorking({ ...working, outcome: v })} options={OUTCOMES.map((o) => ({ value: o, label: o.replace(/_/g, ' ').toLowerCase() }))} />
