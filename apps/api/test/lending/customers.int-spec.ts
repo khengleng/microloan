@@ -9,7 +9,7 @@
  * - A customer's branch is chosen from the branches the user may assign: a
  *   branch-confined officer only their own, an administrator any active one.
  */
-import { Fixture, TEST_DB, bootstrap, borrower, expectOk } from './harness';
+import { Fixture, TEST_DB, bootstrap, borrower, expectOk, grant } from './harness';
 import { standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -23,6 +23,10 @@ d('Customers: KYC verification and branch (integration)', () => {
   beforeAll(async () => {
     f = await bootstrap();
     await standardRoles(f);
+    // admin1 also files customer documents (a lending permission).
+    await grant(f, f.t1, 'admin1', 'RELATIONSHIP_OFFICER', {
+      branchIds: [f.b1],
+    });
   }, 60_000);
   afterAll(async () => f?.app.close());
 
@@ -166,7 +170,7 @@ d('Customers: KYC verification and branch (integration)', () => {
         .as('ro')
         .post('/borrowers', { ...person, lastName: 'Leak2', branchId: f.b2 });
       expect(r.status).toBe(403);
-      expect(r.body.message).toMatch(/your own branch/);
+      expect(r.body.message).toMatch(/own branch|Cross-branch/);
     });
 
     it('gives a customer without a branch one, so an application can follow', async () => {

@@ -106,8 +106,9 @@ export class BorrowersService {
   async assignableBranches(actor: JwtPayload) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     if (!actor.tenantId) return [];
+    const confined = this.authz.branchFilter(actor).branchId;
     return this.prisma.branch.findMany({
-      where: { tenantId: actor.tenantId, isActive: true, ...this.authz.branchFilter(actor) },
+      where: { tenantId: actor.tenantId, isActive: true, ...(confined ? { id: confined } : {}) },
       select: { id: true, name: true, code: true },
       orderBy: { name: 'asc' },
     });
