@@ -27,7 +27,6 @@ export interface BorrowerGroup {
 
 /** A member's liability frozen onto a booked loan. */
 export interface LoanBinding {
-    /** Not returned by the API today; linked when present. */
     loanAccountId?: string;
     borrowerId: string;
     role: string;
@@ -37,8 +36,31 @@ export interface LoanBinding {
     liableFor: string;
 }
 
+/** One of the group's booked loans, as the group view names it. */
+export interface GroupLoan {
+    id: string;
+    reference: string;
+    status: string;
+    currency: string;
+    principalOutstanding: string;
+    borrowerId: string;
+}
+
+/** An application made for the group (newest first). */
+export interface GroupApplication {
+    id: string;
+    reference: string;
+    status: string;
+    currency: string;
+    requestedAmount: string;
+    borrowerId: string;
+    createdAt: string;
+}
+
 export interface BorrowerGroupDetail extends BorrowerGroup {
     loanBindings: LoanBinding[];
+    loans?: GroupLoan[];
+    applications?: GroupApplication[];
 }
 
 export interface CreateGroupBody {

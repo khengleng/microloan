@@ -1706,5 +1706,136 @@
     "bureauDownload": "Download bureau file (CSV)",
     "downloadFailed": "Download failed: {message}",
     "noExports": "Your roles do not include an export."
+  },
+  "Customers": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "pleaseFix": "Please check these details:",
+    "saveFailed": "The customer could not be saved. Please try again.",
+    "notRecorded": "Not recorded",
+    "idType": "ID document type",
+    "idTypes": {
+      "NATIONAL_ID": "National ID card",
+      "PASSPORT": "Passport",
+      "FAMILY_BOOK": "Family book",
+      "RESIDENCE_BOOK": "Residence book",
+      "DRIVING_LICENCE": "Driving licence",
+      "OTHER": "Other document"
+    },
+    "dateOfBirth": "Date of birth",
+    "dobHint": "Needed for products with an age rule; without it the application cannot be submitted.",
+    "occupation": "Occupation",
+    "occupationPlaceholder": "e.g. Rice farmer",
+    "branch": "Branch",
+    "noBranch": "No branch",
+    "noBranchYet": "No branch yet — set one to open an application",
+    "otherBranch": "Current branch (not in your list)",
+    "branchHint": "The branch that serves this customer. An application can only be opened for a customer who has one.",
+    "amlStatus": "AML screening",
+    "aml": {
+      "NOT_SCREENED": "Not screened",
+      "CLEAR": "Clear",
+      "FLAGGED": "Flagged"
+    },
+    "amlHint": "Record the result of the anti-money-laundering screening check.",
+    "monthlyIncome": "Monthly income",
+    "monthlyExpenses": "Monthly expenses",
+    "errDobFormat": "Enter the date of birth as a full date.",
+    "errDobFuture": "The date of birth cannot be in the future.",
+    "errDobPast": "Please check the year of the date of birth.",
+    "errAmount": "{field} must be zero or a positive amount.",
+    "kycBadge": {
+      "VERIFIED": "Identity verified",
+      "REJECTED": "Identity rejected",
+      "PENDING": "Identity not verified"
+    },
+    "kyc": {
+      "title": "Identity verification (KYC)",
+      "awaitingConfirmation": "Awaiting second check",
+      "verifiedBy": "Verified by {name} on {date}.",
+      "pendingBy": "{name} recorded the verification on {date}. A second person must confirm it.",
+      "aColleague": "a colleague",
+      "noDocuments": "No identity documents yet.",
+      "fileDocument": "File one in the customer's documents",
+      "filedByStaff": "filed by staff",
+      "fromPortal": "from the portal",
+      "record": "Record verification",
+      "confirm": "Confirm verification",
+      "reject": "Reject",
+      "confirmReject": "Reject verification",
+      "rejectReason": "Why is the identity rejected?",
+      "reasonNeeded": "Give a reason for rejecting the verification.",
+      "youUploaded": "You filed one of this customer's identity documents, so a colleague must verify their identity.",
+      "youRecorded": "You recorded this verification; a colleague must confirm it.",
+      "twoPeopleHint": "Verification takes two people: you record it, and a colleague confirms it.",
+      "recordedToast": "Verification recorded — a colleague must now confirm it",
+      "confirmedToast": "Identity verified",
+      "rejectedToast": "Verification rejected",
+      "failed": "That did not work. Please try again.",
+      "docTypes": {
+        "NATIONAL_ID_FRONT": "National ID (front)",
+        "NATIONAL_ID_BACK": "National ID (back)",
+        "NATIONAL_ID": "National ID",
+        "PASSPORT": "Passport",
+        "SELFIE": "Selfie",
+        "PROOF_OF_ADDRESS": "Proof of address",
+        "OTHER": "Other"
+      }
+    },
+    "bookDateHint": "Optional — if left blank, today's business date is used (not the disbursement date in the terms).",
+    "policy": {
+      "title": "Contract policies",
+      "hint": "Optional — choose a different policy from the product's menu or adjust a parameter. Left blank, the product default applies.",
+      "kinds": {
+        "PREPAYMENT": "Prepayment and early settlement",
+        "LATE_CHARGES": "Late charges",
+        "ALLOCATION": "Payment allocation",
+        "NON_ACCRUAL": "Non-accrual"
+      },
+      "default": "Product default ({code})",
+      "paramHint": "Between {min} and {max}",
+      "paramDefault": "Policy default",
+      "errNumber": "{name} must be a number.",
+      "errRange": "{name} must be between {min} and {max}."
+    },
+    "groupApp": {
+      "start": "Start group application",
+      "onlyActive": "Only an active group can apply for a loan.",
+      "group": "Group",
+      "groupHint": "Group products lend to a solidarity group; the application is signed by one of its members.",
+      "pickGroup": "Select a group",
+      "members": "{n} members",
+      "signatory": "Signed for the group by",
+      "signatoryHint": "Usually the group leader.",
+      "pickMember": "Select a member",
+      "leader": "leader",
+      "errNoGroup": "This product lends to a group — choose the group.",
+      "errNotMember": "The applicant must be an active member of the chosen group."
+    },
+    "leader": {
+      "make": "Make leader",
+      "title": "Make {name} the group leader",
+      "explainFrom": "{to} will lead the group and {from} stays as a member. Loans already booked keep the roles they were booked with.",
+      "explain": "{to} will lead the group. Loans already booked keep the roles they were booked with.",
+      "reason": "Reason",
+      "reasonHint": "Optional — recorded in the audit trail",
+      "confirm": "Change leader",
+      "done": "{name} now leads the group"
+    },
+    "groupLoans": {
+      "title": "Loans",
+      "subtitle": "The group's booked loans, newest first.",
+      "none": "This group has no booked loans.",
+      "loan": "Loan",
+      "signatory": "Signed by",
+      "status": "Status",
+      "outstanding": "Principal outstanding",
+      "sharesTitle": "Member shares"
+    },
+    "groupApps": {
+      "title": "Applications",
+      "application": "Application",
+      "requested": "Requested"
+    }
   }
 }

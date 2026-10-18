@@ -7,7 +7,7 @@
  * balance forgiven at the end of the term — reconciled throughout.
  */
 import { lending } from '@microloan/shared';
-import { Fixture, TEST_DB, bootstrap, expectOk, key } from './harness';
+import { Fixture, TEST_DB, borrower, bootstrap, expectOk, key } from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -301,6 +301,28 @@ d('Income-contingent education loans (integration)', () => {
       on: '2027-01-05',
     });
     await reconcile();
+  });
+
+  it('the declared annual income is kept on the application when it is created and edited', async () => {
+    const b = await borrower(f, f.t1, f.b1);
+    const terms = {
+      principal: '10000',
+      numberOfInstalments: 12,
+      disbursementDate: '2027-01-05',
+      declaredAnnualIncome: '42000',
+    };
+    const app = expectOk(
+      await f
+        .as('ro')
+        .post('/lending/applications', { borrowerId: b.id, productId, terms }),
+    );
+    expect(app.terms.declaredAnnualIncome).toBe('42000');
+    const edited = expectOk(
+      await f.as('ro').put(`/lending/applications/${app.id}/terms`, {
+        terms: { ...terms, declaredAnnualIncome: '18000' },
+      }),
+    );
+    expect(edited.terms.declaredAnnualIncome).toBe('18000');
   });
 
   it('only an income-contingent loan takes an income assessment', async () => {

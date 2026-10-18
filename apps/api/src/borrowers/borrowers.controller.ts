@@ -38,6 +38,15 @@ export class BorrowersController {
     return this.borrowersService.checkCrossTenantCredit(user, { idNumber, phone });
   }
 
+  // Branches a customer may be placed in by this user (picker on the
+  // customer form). Declared before ':id' so it is not read as an id.
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX')
+  @RequirePermissions(Permission.CUSTOMER_VIEW)
+  @Get('branches')
+  assignableBranches(@CurrentUser() user: JwtPayload) {
+    return this.borrowersService.assignableBranches(user);
+  }
+
   @Roles('ADMIN', 'OPERATOR', 'SALES')
   @CheckQuota('borrowers')
   @RequirePermissions(Permission.CUSTOMER_CREATE)

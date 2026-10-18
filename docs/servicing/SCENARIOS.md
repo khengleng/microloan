@@ -29,8 +29,10 @@ date (starting 5 Jan 2026).
 1. **Onboarding** — `POST /borrowers` by a branch relationship officer with
    the KYC fields (ID type and number, date of birth, phone, address,
    occupation, income and expenses); the borrower lands in the officer's
-   branch with `kycStatus: PENDING`. `POST /kyc/:id/verify` by an
-   administrator sets `VERIFIED` and writes `KYC_VERIFIED` to the audit log.
+   branch with `kycStatus: PENDING`. `POST /kyc/:id/verify` by one
+   administrator records the verification (`KYC_VERIFICATION_RECORDED`); the
+   same call by a second administrator confirms it, sets `VERIFIED` and writes
+   `KYC_VERIFIED` to the audit log.
    S01 shows an application cannot be submitted before that (`SUBMISSION_BLOCKED`, `KYC`).
 2. **Product** — drafted by the product maker from a template, approved and
    activated by the checker; the maker's own approval is refused (403).

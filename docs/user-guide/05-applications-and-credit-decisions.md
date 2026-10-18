@@ -79,8 +79,8 @@ If it is blocked:
 | "Requested terms are outside the product limits." (with a list) | Change the amount, term or rate to fit the product. |
 | "This product has no active version for new business." | Ask the product team to activate a version. |
 | "This product is not offered at the borrower's branch." | Choose another product. |
-| "The borrower must belong to a branch before an application can be created." | Ask your administrator to assign a branch. |
-| "This product lends to a group; name the group the loan is for." | Group products cannot be started from this form — see [Group applications](#group-applications). |
+| "The borrower must belong to a branch before an application can be created." | Open the borrower, click **Modify Profile** and choose a **Branch** (see [Customers and documents](03-customers-and-documents.md)). |
+| "This product lends to a group; name the group the loan is for." | Choose the **Group** on the form — see [Group applications](#group-applications). |
 | "This product does not permit refinancing an existing loan." / "A refinance must replace a loan of the same borrower." / "The loan to refinance is …; only an active loan can be replaced." | Check the loan ID and product. |
 | "This is a letter-of-credit product; request the credit from Trade finance, not as a loan application." | Use **Loans › Trade finance** (see [Specialised products](12-specialised-products.md)). |
 
@@ -291,7 +291,7 @@ For loan operations makers, when the application is **APPROVED**. Booking create
 
 What happens next: the status becomes **BOOKED** and a green **Booked** box links to the loan account (reference LN-…). For a facility product a credit limit is booked instead (see [Facilities](09-facilities.md)). Any covenants configured on the product start from booking (see [Covenants and collateral](13-covenants-and-collateral.md)). Next: satisfy conditions and disburse — see [Disbursement](06-disbursement.md).
 
-Note: If you leave **Planned disbursement date** empty, the system uses today's **business date**, not the disbursement date entered in the terms (the hint on screen says otherwise). Enter the date you intend to pay out. If money is paid out on a different day, the schedule is recalculated at disbursement.
+Note: If you leave **Planned disbursement date** empty, the system uses today's **business date**, not the disbursement date entered in the terms. Enter the date you intend to pay out. If money is paid out on a different day, the schedule is recalculated at disbursement.
 
 If it is blocked: "The planned disbursement date cannot precede the business date." — choose today's business date or later.
 
@@ -299,7 +299,11 @@ If it is blocked: "The planned disbursement date cannot precede the business dat
 
 ## Group applications
 
-Loans to solidarity groups (joint liability) must name the group, with the group leader as the borrower. **There is no screen for this yet** — the **New application** form has no group field; ask your system administrator / IT team (it is available to the IT team via the API). Once created, a group application is assessed, approved and booked on the same application page. See [Group lending](10-group-lending.md).
+Loans to solidarity groups (joint liability) must name the group, with a group member — usually the leader — signing for it. On the group's page click **Start group application**, or in **New application** choose a group product: a **Group** field appears, and the **Signed for the group by** list proposes the leader. Once created, a group application is assessed, approved and booked on the same application page. See [Group lending](10-group-lending.md).
+
+### Contract policies
+
+When the product offers a menu of policies (prepayment, late charges, allocation, non-accrual), **New application** and **Edit terms** show **Contract policies**: choose a policy other than the product default, or enter a value for a parameter the product lets you adjust (the allowed range is shown under the field). Leave them blank to use the product defaults. The choice is shown on the application as **Policies** and is frozen into the agreement at booking (see [Products and policies](04-products-and-policies.md)).
 
 ---
 

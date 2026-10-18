@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { ActionPanel, Btn, ErrorBox, Field, Notice, SelectInput, TextArea, TextInput } from '../ui';
 import { clean, useAction } from '../useAsync';
 import { todayIso } from '../format';
 import type { Terms } from '../types';
 import { draftFromTerms, TermsFields, termsFromDraft, validateTerms } from './TermsFields';
+import { PolicyChoices, policyProblems, usePolicyMenus, type PolicyChoicesValue } from './PolicyChoices';
 
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 
@@ -21,25 +23,31 @@ function Problems({ items }: { items: string[] }) {
 
 /* ── Edit terms ──────────────────────────────────────────────────────────── */
 
-export function EditTermsForm({ appId, terms, purpose, currency, onDone, onClose }: {
-    appId: string; terms: Partial<Terms> | null; purpose: string | null | undefined; currency?: string; onDone: () => void; onClose: () => void;
+export function EditTermsForm({ appId, terms, purpose, currency, productVersionId, onDone, onClose }: {
+    appId: string; terms: Partial<Terms> | null; purpose: string | null | undefined; currency?: string; productVersionId?: string | null; onDone: () => void; onClose: () => void;
 }) {
+    const tc = useTranslations('Customers');
     const [draft, setDraft] = useState(() => draftFromTerms(terms));
     const [purp, setPurp] = useState(purpose ?? '');
+    const [policies, setPolicies] = useState<PolicyChoicesValue | undefined>(terms?.policies ?? undefined);
+    const { menus } = usePolicyMenus(productVersionId);
     const [problems, setProblems] = useState<string[]>([]);
     const { busy, error, run, clearError } = useAction();
 
     const save = async () => {
-        const errs = validateTerms(draft);
+        const errs = [...validateTerms(draft), ...policyProblems(policies, menus, tc)];
         setProblems(errs);
         if (errs.length) return;
-        const res = await run('terms', () => api.put(`/lending/applications/${appId}/terms`, clean({ terms: termsFromDraft(draft, terms), purpose: purp.trim() })));
+        // The policy choice replaces the stored one; leaving every policy on its default removes it.
+        const next = { ...termsFromDraft(draft, terms), policies };
+        const res = await run('terms', () => api.put(`/lending/applications/${appId}/terms`, clean({ terms: next, purpose: purp.trim() })));
         if (res) onDone();
     };
 
     return (
         <ActionPanel title="Edit terms" onClose={onClose}>
             <TermsFields value={draft} onChange={setDraft} currency={currency} />
+            <PolicyChoices productVersionId={productVersionId} value={policies} onChange={setPolicies} />
             <Field label="Purpose" hint="Optional">
                 <TextArea value={purp} onChange={setPurp} rows={2} maxLength={500} />
             </Field>
@@ -258,6 +266,7 @@ export function DecisionForm({ appId, mode, onDone, onClose }: { appId: string; 
 /* ── Booking ─────────────────────────────────────────────────────────────── */
 
 export function BookForm({ appId, onBooked, onClose }: { appId: string; onBooked: (accountId: string | null) => void; onClose: () => void }) {
+    const tc = useTranslations('Customers');
     const [date, setDate] = useState('');
     const { busy, error, run, clearError } = useAction();
     const book = async () => {
@@ -266,7 +275,7 @@ export function BookForm({ appId, onBooked, onClose }: { appId: string; onBooked
     };
     return (
         <ActionPanel title="Book agreement" onClose={onClose}>
-            <Field label="Planned disbursement date" hint="Optional — defaults to the terms’ disbursement date">
+            <Field label="Planned disbursement date" hint={tc('bookDateHint')}>
                 <TextInput type="date" value={date} onChange={setDate} className="max-w-xs" />
             </Field>
             <ErrorBox error={error} onDismiss={clearError} />

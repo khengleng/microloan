@@ -42,17 +42,19 @@ To register a borrower:
    - **Phone Number** (required — use the full number, e.g. +855 …; the customer signs in to the borrower portal with it)
    - **National ID / Passport** (required)
    - **Address** (required)
+   - **ID document type**, **Date of birth** and **Occupation** (optional, but see the note on age rules below)
+   - **Branch** — the branch that serves the customer. It starts as your own branch; a branch officer can only choose their own branch, a head-office user can choose any active branch.
    - **Monthly Income (USD)** and **Monthly Expenses (USD)** (optional, but see the note below)
-3. Click **Add Borrower**. You see "Borrower saved".
+3. Click **Add Borrower**. You see "Borrower saved". If something is wrong (for example a date of birth in the future) the form lists what to fix.
 
 What happens next:
 
 - The borrower is created with KYC status **Pending review** (see [KYC statuses](#identity-verification-kyc)).
-- The borrower is placed in **your branch**. A borrower without a branch cannot have a loan application — see "If it is blocked" below.
+- The borrower is placed in the chosen branch. A borrower without a branch cannot have a loan application — open the profile, click **Modify Profile** and choose a **Branch**.
 
 Note: **Monthly Income** is used to work out the debt-service ratio (how much of the customer's income goes to instalments) when an application is assessed. If a product limits the debt-service ratio and the income is blank, approval is refused with "Monthly income is needed to assess affordability." See [Applications and credit decisions](05-applications-and-credit-decisions.md).
 
-Note: The form does not have a **date of birth** field. Products with an age rule (minimum age, maximum age at maturity) need the date of birth; there is no screen to enter it yet — ask your system administrator / IT team to record it. Without it, submission of an application for such a product is refused with "The borrower's date of birth is required for this product."
+Note: Products with an age rule (minimum age, maximum age at maturity) need the **Date of birth**. Without it, submission of an application for such a product is refused with "The borrower's date of birth is required for this product." — add it with **Modify Profile**.
 
 Note: Your organisation's subscription plan may limit how many borrowers you can register. When the limit is reached you see "Your organization has reached the maximum allowed limit of … borrowers for the … plan. Please upgrade to continue." Ask your tenant administrator.
 
@@ -85,12 +87,12 @@ Open a borrower from the list (**View**). The page shows:
 
 - **Documents** — opens the customer's document library (see [Customer document library](#the-customer-document-library)).
 - **Modify Profile** — edits the borrower.
-- Phone, **National ID / Passport**, **Registered Residence**, and loan counts from the original loan module.
-- **Identity Verification (KYC)** — the documents the customer uploaded in the borrower portal and the KYC decision (see below).
+- Phone, **National ID / Passport**, **Registered Residence**, **Branch**, **Date of birth**, ID type, occupation, AML screening, and loan counts from the original loan module.
+- **Identity Verification (KYC)** — the identity documents (uploaded by the customer in the borrower portal or filed by staff in the document library) and the KYC decision (see below).
 - **System Loan Register** — loans made in the **original** loan module only. Loans made through **Origination › Applications** are not listed here; find them in **Loans › Loan accounts**. The **Originate Engagement** button opens the original loan module, not a new application.
 - **Credit Bureau (CBC)** — bureau checks (see [Credit checks](#credit-checks)).
 
-Note: The green **Verified Client** label next to the name is always shown and does **not** reflect the KYC decision. Use the badge on the **Identity Verification (KYC)** card instead.
+The label next to the name shows the customer's KYC status: **Identity verified**, **Identity not verified** or **Identity rejected**, plus a red **Flagged** label when AML screening flagged them.
 
 ---
 
@@ -103,30 +105,29 @@ KYC (know your customer) confirms the customer is who they say they are. In this
 | Status shown | Stored value | Meaning |
 |---|---|---|
 | **Pending review** | PENDING | New customer, or documents not yet checked. |
-| **Verified** | VERIFIED | A staff member checked the documents and approved the identity. The system records who and when. |
+| **Verified** | VERIFIED | One staff member recorded the verification and a second confirmed it. The system records who confirmed and when. |
 | **Rejected** | REJECTED | The documents were not acceptable. The customer sees "Verification was rejected — please re-upload your documents." in the portal. |
 
 Why it matters: if the product's workflow includes a KYC check, an application cannot be submitted until the borrower is **Verified** — the message is "The borrower's KYC must be verified."
 
 ### Verify or reject a customer's identity
 
-The customer uploads their identity documents in the borrower portal (national ID front and back, selfie, proof of address).
+The customer uploads their identity documents in the borrower portal (national ID front and back, selfie, proof of address), or staff file the papers the customer brings to the branch in the document library under the **KYC** category. Both appear on the card.
 
-To decide:
+Verification takes **two people**:
 
 1. Open the borrower (**Customers › Borrowers** › **View**).
-2. In **Identity Verification (KYC)**, click each picture to open it full size and check it.
-3. Click **Approve** to verify, or **Reject** if the documents are not acceptable. You see "Identity verified" or "Verification rejected".
+2. In **Identity Verification (KYC)**, click each document to open it and check it.
+3. Click **Record verification**. You see "Verification recorded — a colleague must now confirm it" and the badge shows **Awaiting second check**.
+4. A colleague opens the same profile, checks the documents and clicks **Confirm verification**. The badge changes to **Identity verified** and the card shows who verified and when.
 
-What happens next: the badge changes to **Verified** or **Rejected**. Once verified, the **Approve** / **Reject** buttons disappear.
+To reject, click **Reject**, give a reason and click **Reject verification**. Rejection is one step and withdraws a verification awaiting confirmation.
 
-Note: The **Approve** / **Reject** buttons appear only when the customer has uploaded documents through the borrower portal. Identity documents that staff upload into the document library do not appear on this card, so a customer who brings papers to the branch cannot be verified from this screen yet — ask your system administrator / IT team (the IT team can set the KYC status through the API).
-
-Note: KYC verification is done by one person; it is not a two-person (maker-checker) step. Each portal upload is also filed in the document library, where it is reviewed separately (see [Review a document](#review-a-document-accept-or-reject)). Accepting the document in the library does not by itself change the KYC status.
+Note: The person who recorded the verification cannot confirm it, and anyone who filed one of the customer's identity documents can neither record nor confirm it; the card explains why the button is missing. Each portal upload is also filed in the document library, where it is reviewed separately (see [Review a document](#review-a-document-accept-or-reject)). Accepting the document in the library does not by itself change the KYC status.
 
 ### AML status
 
-Each borrower also has an anti-money-laundering (AML) status: **NOT_SCREENED** (default), **CLEAR** or **FLAGGED**. There is no automatic screening and no screen to view or set it yet; the IT team can set it through the API. The KYC status (not the AML status) appears in the borrowers report (see [Reports and regulatory returns](15-reports-and-regulatory-returns.md)).
+Each borrower also has an anti-money-laundering (AML) status: **Not screened** (default), **Clear** or **Flagged**. There is no automatic screening; record the result of your screening check with **Modify Profile** › **AML screening**. It is shown on the profile. The KYC status (not the AML status) appears in the borrowers report (see [Reports and regulatory returns](15-reports-and-regulatory-returns.md)).
 
 ---
 

@@ -175,6 +175,8 @@ export interface Terms {
     financials?: { annualNetOperatingIncome: Money; otherAnnualDebtService?: Money };
     /** Income-contingent loans: the income declared at origination. */
     declaredAnnualIncome?: Money;
+    /** Non-default policy choices and adjusted parameters (POLICY_MODEL.md); a kind left out uses the product default. */
+    policies?: Partial<Record<'PREPAYMENT' | 'LATE_CHARGES' | 'ALLOCATION' | 'NON_ACCRUAL', { code?: string; parameters?: Record<string, number> }>>;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */
