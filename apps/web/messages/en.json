@@ -3268,5 +3268,147 @@
       "colKind": "Kind",
       "colAmount": "Amount"
     }
+  },
+  "LendingCounterparties": {
+    "type": {
+      "BANK": "Bank",
+      "MUNICIPALITY": "Municipality",
+      "SOVEREIGN": "Sovereign",
+      "DEVELOPMENT_INSTITUTION": "Development institution"
+    },
+    "used": "{pct} used",
+    "review": "review {date}",
+    "counterparty": "Counterparty",
+    "countryCode": "Country {code}",
+    "unrated": "Unrated",
+    "subInvestmentLower": "sub-investment grade",
+    "optional": "Optional",
+    "reason": "Reason",
+    "proposeCountryLimit": "Propose a country limit",
+    "registerCounterparty": "Register a counterparty",
+    "col": {
+      "counterparty": "Counterparty",
+      "counterparties": "Counterparties",
+      "type": "Type",
+      "country": "Country",
+      "rating": "Rating",
+      "limit": "Limit",
+      "used": "Used",
+      "headroom": "Headroom",
+      "utilisation": "Utilisation",
+      "status": "Status",
+      "limitOn": "Limit on",
+      "loan": "Loan",
+      "booked": "Booked",
+      "outstanding": "Outstanding",
+      "maturity": "Maturity",
+      "dpd": "DPD"
+    },
+    "home": {
+      "title": "Counterparties & exposure",
+      "subtitle": "Banks, municipalities, sovereigns and development institutions, their ratings, and the counterparty and country limits every institutional loan is checked against at approval and at payout.",
+      "tabExposure": "Exposure",
+      "tabPending": "Limits awaiting approval",
+      "tabPendingCount": "Limits awaiting approval ({count})",
+      "pendingSubtitle": "A different person from the proposer approves, within their approval authority for the amount. An approved limit replaces the one in force.",
+      "nothingWaiting": "Nothing waiting.",
+      "byCounterparty": "By counterparty",
+      "byCounterpartySubtitle": "As of {date}. Utilisation = principal outstanding + loans booked but not paid out + approvals not yet booked.",
+      "noCounterparties": "No counterparties registered yet.",
+      "byCountry": "By country",
+      "byCountrySubtitle": "Every counterparty in a country counts against its country limit.",
+      "noCountry": "No country exposure.",
+      "byType": "By counterparty type"
+    },
+    "pending": {
+      "approved": "Limit approved and in force",
+      "rejected": "Limit rejected",
+      "line": "<b>{who}</b>: limit of <b>{currency} {amount}</b>, review by {date}",
+      "proposed": "Proposed {when}",
+      "comment": "Comment",
+      "approve": "Approve",
+      "reject": "Reject"
+    },
+    "register": {
+      "noName": "(no name)",
+      "problemName": "Name the counterparty.",
+      "problemCountry": "Country is a two-letter ISO code (KH, TH, LA…).",
+      "problemBorrower": "Pick the borrower record its applications are made under.",
+      "problemRatedOn": "Give the date of the rating.",
+      "done": "{name} registered — propose its limit next",
+      "intro": "The institution applies for loans as a borrower: create (or find) its borrower record first, then link it here with its type, country and rating.",
+      "name": "Name",
+      "type": "Type",
+      "country": "Country (risk country)",
+      "findBorrower": "Find borrower record",
+      "search": "Search",
+      "borrowerRecord": "Borrower record",
+      "select": "Select",
+      "noBorrowers": "No borrowers found",
+      "identifier": "LEI / SWIFT / registration no.",
+      "rating": "Long-term rating",
+      "ratingHint": "Optional — S&P/Fitch scale",
+      "agency": "Rating agency",
+      "ratedOn": "Rated on",
+      "submit": "Register"
+    },
+    "limit": {
+      "proposed": "Limit proposed — a credit approver must approve it",
+      "counterpartyTitle": "Propose a counterparty limit",
+      "country": "Country",
+      "limit": "Limit",
+      "currency": "Currency",
+      "reviewBy": "Review by",
+      "reviewByHint": "The limit lapses after this date until renewed",
+      "note": "Note",
+      "noteHint": "Optional — e.g. annual credit review",
+      "propose": "Propose"
+    },
+    "detail": {
+      "back": "Counterparties",
+      "proposeLimit": "Propose a limit",
+      "suspended": "Suspended",
+      "suspendedBody": "No new lending is approved or paid out to this counterparty while it is suspended.",
+      "grade": "Grade",
+      "investmentGrade": "Investment grade",
+      "subInvestmentGrade": "Sub-investment grade",
+      "identifier": "Identifier",
+      "limitsInForce": "Limits in force",
+      "thisCounterparty": "This counterparty",
+      "countryLine": "Country {code} ({count, plural, one {# counterparty} other {# counterparties}})",
+      "usedBreakdown": "Used = outstanding {outstanding} + booked, not paid out {booked} + approved, not booked {approved}.",
+      "loans": "Loans",
+      "noLending": "No lending yet.",
+      "notBooked": "Not yet booked",
+      "limitHistory": "Limit history"
+    },
+    "history": {
+      "none": "No limits proposed yet.",
+      "on": "On",
+      "proposed": "Proposed",
+      "decided": "Decided"
+    },
+    "rating": {
+      "title": "Record a rating",
+      "recorded": "Rating recorded",
+      "withdrawn": "Withdrawn / unrated",
+      "agency": "Agency",
+      "note": "A rating below a product's minimum stops new approvals and payouts to this counterparty under that product.",
+      "record": "Record"
+    },
+    "status": {
+      "suspend": "Suspend",
+      "reinstate": "Reinstate",
+      "suspended": "Counterparty suspended",
+      "reinstated": "Counterparty reinstated",
+      "suspendTitle": "Suspend new lending to this counterparty",
+      "reinstateTitle": "Reinstate this counterparty"
+    },
+    "loanCard": {
+      "title": "Institutional counterparty",
+      "subtitle": "This loan was checked against the counterparty's and its country's approved limits at approval and again at payout.",
+      "notRegistered": "The borrower is not registered as a counterparty.",
+      "typeCountry": "Type · country"
+    }
   }
 }
