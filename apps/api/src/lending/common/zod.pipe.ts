@@ -371,6 +371,9 @@ export const S = {
   groupStatus: z
     .object({ status: z.enum(['ACTIVE', 'DORMANT', 'DISBANDED']) })
     .strict(),
+  groupLeader: z
+    .object({ borrowerId: uuid, reason: z.string().max(500).optional() })
+    .strict(),
   updateTerms: z
     .object({ terms: termsSchema, purpose: z.string().max(500).optional() })
     .strict(),

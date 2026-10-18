@@ -168,6 +168,49 @@ d('Group lending (integration)', () => {
       expect(r.status).toBe(400);
       expect(r.body.message).toMatch(/after the business date/);
     });
+
+    it('hands the leadership to another active member', async () => {
+      expectOk(
+        await f
+          .as('ro')
+          .post(`/lending/applications/groups/${groupId}/leader`, {
+            borrowerId: members[2],
+            reason: 'Elected at the group meeting',
+          }),
+      );
+      const g = expectOk(await group(groupId));
+      const roleOf = (id: string) =>
+        g.members.find((m: any) => m.borrowerId === id && !m.leftOn)?.role;
+      expect(roleOf(members[2])).toBe('LEADER');
+      expect(roleOf(members[0])).toBe('MEMBER');
+      expect(g.members.filter((m: any) => m.role === 'LEADER')).toHaveLength(1);
+    });
+
+    it('refuses a leader who is not an active member', async () => {
+      const outsider = await borrower(f, f.t1, f.b1);
+      const r = await f
+        .as('ro')
+        .post(`/lending/applications/groups/${groupId}/leader`, {
+          borrowerId: outsider.id,
+        });
+      expect(r.status).toBe(400);
+      expect(r.body.message).toMatch(/active member of the group/);
+    });
+
+    it('lets a member leave a group with no live loan, with nothing to settle', async () => {
+      const r = expectOk(
+        await f
+          .as('ro')
+          .post(
+            `/lending/applications/groups/${groupId}/members/${members[4]}/remove`,
+            { reason: 'Moved to another village' },
+          ),
+      );
+      expect(r.settlementAmount).toBeNull();
+      const g = expectOk(await group(groupId));
+      expect(g.memberCount).toBe(4);
+      expect(g.loans).toEqual([]);
+    });
   });
 
   describe('lending to a group', () => {
@@ -361,6 +404,19 @@ d('Group lending (integration)', () => {
       expect(JSON.stringify(r.body.issues)).toMatch(
         /cannot leave until it is repaid/,
       );
+    });
+
+    it('the group view names its loans and applications', async () => {
+      const g = expectOk(await group(groupId));
+      expect(g.loans).toHaveLength(1);
+      expect(g.loans[0]).toMatchObject({
+        id: loanId,
+        status: expect.any(String),
+        currency: expect.any(String),
+      });
+      expect(g.loans[0].reference).toEqual(expect.any(String));
+      expect(g.applications.length).toBeGreaterThanOrEqual(1);
+      expect(g.applications[0].status).toBe('BOOKED');
     });
 
     it('the group cannot be disbanded with a loan running', async () => {

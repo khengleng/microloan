@@ -315,6 +315,17 @@ export class LendingApplicationsController {
   }
 
   @LendingAction('borrower_group.manage')
+  @Post('groups/:id/leader')
+  changeGroupLeader(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.groupLeader))
+    b: { borrowerId: string; reason?: string },
+  ) {
+    return this.groups.changeLeader(actor(req), id, b);
+  }
+
+  @LendingAction('borrower_group.manage')
   @Post('groups/:id/status')
   setGroupStatus(
     @Req() req: Req_,

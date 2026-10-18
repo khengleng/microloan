@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CreateBorrowerDto {
   @IsString()
@@ -52,6 +52,12 @@ export class CreateBorrowerDto {
   @Min(0)
   @IsOptional()
   monthlyExpenses?: number;
+
+  // The branch the customer belongs to; applications need one. A
+  // branch-confined user may only name their own branch.
+  @IsUUID()
+  @IsOptional()
+  branchId?: string;
 }
 
 export class UpdateBorrowerDto {
@@ -104,4 +110,10 @@ export class UpdateBorrowerDto {
   @Min(0)
   @IsOptional()
   monthlyExpenses?: number;
+
+  // The branch the customer belongs to; applications need one. A
+  // branch-confined user may only name their own branch.
+  @IsUUID()
+  @IsOptional()
+  branchId?: string;
 }

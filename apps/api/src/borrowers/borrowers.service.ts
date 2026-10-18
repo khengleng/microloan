@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { maskBorrowerDto, maskBorrowerForAudit } from '../common/mask';
@@ -22,11 +22,14 @@ export class BorrowersService {
 
   async create(actor: JwtPayload, dto: CreateBorrowerDto) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_CREATE);
-    const { dateOfBirth, ...rest } = dto;
+    const { dateOfBirth, branchId: requestedBranch, ...rest } = dto;
+    const branchId = requestedBranch
+      ? await this.assignableBranch(actor, requestedBranch)
+      : actor.branchId || null;
     const b = await this.prisma.borrower.create({
       data: {
         tenantId: actor.tenantId!,
-        branchId: actor.branchId || null,
+        branchId,
         ...rest,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       },
@@ -73,10 +76,54 @@ export class BorrowersService {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     const b = await this.prisma.borrower.findFirst({
       where: this.authz.scopeWhere(actor, { id }),
+      include: {
+        branch: { select: { id: true, name: true, code: true } },
+        loans: {
+          select: {
+            id: true,
+            principal: true,
+            status: true,
+            annualInterestRate: true,
+            termMonths: true,
+            startDate: true,
+            interestMethod: true,
+            currency: true,
+          },
+          orderBy: { startDate: 'desc' },
+        },
+      },
     });
     if (!b) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, b.branchId);
     return b;
+  }
+
+  /**
+   * Branches the actor may place a customer in: a branch-confined user
+   * (branch manager, loan officer, customer support) only their own; everyone
+   * else any active branch of the tenant.
+   */
+  async assignableBranches(actor: JwtPayload) {
+    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
+    if (!actor.tenantId) return [];
+    return this.prisma.branch.findMany({
+      where: { tenantId: actor.tenantId, isActive: true, ...this.authz.branchFilter(actor) },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  private async assignableBranch(actor: JwtPayload, branchId: string) {
+    const confined = this.authz.branchFilter(actor).branchId;
+    if (confined && confined !== branchId) {
+      throw new ForbiddenException('You can only place customers in your own branch.');
+    }
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, tenantId: actor.tenantId!, isActive: true },
+      select: { id: true },
+    });
+    if (!branch) throw new BadRequestException('Choose one of your organization\'s active branches.');
+    return branch.id;
   }
 
   async update(
@@ -90,11 +137,16 @@ export class BorrowersService {
     });
     if (!b) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, b.branchId);
-    const { dateOfBirth, ...rest } = dto;
+    const { dateOfBirth, branchId: requestedBranch, ...rest } = dto;
+    const branchId =
+      requestedBranch && requestedBranch !== b.branchId
+        ? await this.assignableBranch(actor, requestedBranch)
+        : undefined;
     const updated = await this.prisma.borrower.update({
       where: { id },
       data: {
         ...rest,
+        ...(branchId ? { branchId } : {}),
         ...(dateOfBirth !== undefined ? { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null } : {}),
       },
     });
@@ -126,6 +178,13 @@ export class BorrowersService {
     }
     if (dto.amlStatus && !amlAllowed.includes(dto.amlStatus)) {
       throw new BadRequestException('Invalid AML status.');
+    }
+    // Identity verification needs a second person (D-0XX): it is recorded and
+    // confirmed through the KYC review (POST /kyc/:id/verify), never set here.
+    if (dto.kycStatus === 'VERIFIED') {
+      throw new BadRequestException(
+        'Verify identity from the KYC review on the customer profile, where a second person confirms it.',
+      );
     }
 
     const data: any = {};
