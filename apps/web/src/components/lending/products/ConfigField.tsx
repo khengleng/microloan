@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Checkbox, Field, inputCls } from '../ui';
 import { fmtRate, isDecimalString } from '../format';
 import { ALLOCATION_COMPONENTS, FieldSpec, getPath } from './configSchema';
+import { GradeRulesEditor, OutcomeSelect } from '../scoring/GradeRulesEditor';
 
 interface Props {
     spec: FieldSpec;
@@ -120,6 +121,18 @@ export function ConfigField({ spec, config, onSet, error, disabled }: Props) {
                 </Field>
             );
         }
+        case 'outcome':
+            return (
+                <Field label={spec.label} hint={spec.hint} error={error}>
+                    <OutcomeSelect value={typeof value === 'string' ? value : undefined} disabled={ro} onChange={set} />
+                </Field>
+            );
+        case 'gradeRules':
+            return (
+                <Field label={spec.label} hint={spec.hint} error={error} className="sm:col-span-2">
+                    <GradeRulesEditor value={value} disabled={ro} onChange={set} />
+                </Field>
+            );
         case 'json':
             return (
                 <Field label={spec.label} hint={spec.hint ? `${spec.hint} — applied when you leave the box` : 'Applied when you leave the box'} error={error} className="sm:col-span-2">
