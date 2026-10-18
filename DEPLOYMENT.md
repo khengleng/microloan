@@ -127,6 +127,22 @@ made it useless as a gate for the api. In order:
 - **Plan prices** are rows in `PlanTier`, edited under Platform ops →
   Subscription Plans. The `PLAN_PRICE_*` environment variables were removed and
   are no longer read; the api logs a warning at boot if any are still set.
+- **Every environment variable** the code reads is documented in `.env.example`
+  with its default (CI fails otherwise — `pnpm security:config-audit`).
+  Operational limits (retries, batch sizes, lockout and OTP windows, cron
+  schedules, the regulator's rate ceiling, `PLATFORM_NAME`) are validated at
+  boot: a malformed value stops the api. Production also refuses to start with
+  `AWS_S3_BUCKET_NAME` but no `AWS_REGION`, or `RESEND_API_KEY` but no
+  `EMAIL_FROM`. Links in e-mails and payment redirects use `WEB_URL`, else the
+  first `CORS_ORIGINS` entry.
+- **Lender rules** (regulatory return bands and classes, tenant-level ledger
+  accounts, payment-file and delegation limits) are per tenant under
+  Lending › Operations › Lending settings, maker-checker. See
+  `docs/security/HARDCODING_AUDIT.md`.
+- **Several api instances** are supported: outbox and webhook deliveries,
+  legacy reminders and penalties, and Telegram polling are claimed in
+  PostgreSQL; rate limits share Redis. Customer documents need S3 (or one
+  volume every instance mounts).
 
 ## Monitoring
 
