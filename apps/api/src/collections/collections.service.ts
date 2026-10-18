@@ -98,7 +98,7 @@ export class CollectionsService {
 
     private readonly logger = new Logger(CollectionsService.name);
 
-    @Cron('30 1 * * *')
+    @Cron(process.env.COLLECTIONS_PTP_REVIEW_CRON || '30 1 * * *')
     @SystemContext('cron: reviews promises to pay across tenants')
     async reviewPromisesDaily() {
         if (process.env.NODE_ENV === 'test') return;

@@ -19,6 +19,7 @@ import { PolicyService } from '../policy/policy.service';
 import { publicExplanation } from '../policy/decision';
 import { tenantResource } from '../policy/resources';
 import { decryptField, encryptField } from '../../common/field-crypto';
+import { operationalConfig } from '../../config/operational-config';
 
 type Json = Prisma.InputJsonValue;
 
@@ -70,8 +71,8 @@ export const WEBHOOK_TOPICS: { topic: string; description: string }[] = [
 ];
 const KNOWN = new Set(WEBHOOK_TOPICS.map((t) => t.topic));
 
-const MAX_ATTEMPTS = 15;
-const DISABLE_AFTER_FAILURES = 50;
+/** Retry, switch-off, timeout and batch limits: LENDING_WEBHOOK_* (operational-config.ts). */
+const limits = () => operationalConfig().webhooks;
 
 function privateAddress(ip: string): boolean {
   if (isIP(ip) === 6) {
@@ -110,13 +111,17 @@ export function signWebhook(secret: string, timestamp: number, body: string) {
  *   sends customer and loan data outside the platform.
  * - Every event already goes through the transactional outbox; each message
  *   is fanned out to the matching active endpoints once, then delivered with
- *   a signature, retried with backoff, and given up after 15 attempts. An
- *   endpoint that keeps failing is switched off.
+ *   a signature, retried with backoff, and given up after
+ *   LENDING_WEBHOOK_MAX_ATTEMPTS (default 15) attempts. An endpoint that keeps
+ *   failing is switched off.
+ * - Every API instance runs the delivery tick. A delivery is claimed with a
+ *   lease on its due time before it is sent (LENDING_DELIVERY_LEASE_SECONDS),
+ *   so two instances never send the same delivery; fan-out is idempotent on
+ *   (endpoint, outbox message).
  */
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
-  private running = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -497,24 +502,41 @@ export class WebhooksService {
     );
   }
 
-  /** Fan out new outbox messages, then send what is due. Safe to call from tests. */
+  /**
+   * Fan out new outbox messages, then send what is due. Safe to call from
+   * tests and from several instances at once: each delivery is claimed
+   * before it is sent.
+   */
   async runOnce() {
-    if (this.running) return;
-    this.running = true;
-    try {
-      await this.fanOut();
-      const due = await runAsSystem('webhook delivery', () =>
-        this.prisma.webhookDelivery.findMany({
-          where: { status: 'PENDING', nextAttemptAt: { lte: new Date() } },
-          orderBy: { nextAttemptAt: 'asc' },
-          take: 100,
-          select: { id: true },
-        }),
-      );
-      for (const d of due) await this.deliver(d.id);
-    } finally {
-      this.running = false;
-    }
+    await this.fanOut();
+    const due = await runAsSystem('webhook delivery', () =>
+      this.prisma.webhookDelivery.findMany({
+        where: { status: 'PENDING', nextAttemptAt: { lte: new Date() } },
+        orderBy: { nextAttemptAt: 'asc' },
+        take: limits().batchSize,
+        select: { id: true },
+      }),
+    );
+    for (const d of due) await this.deliver(d.id);
+  }
+
+  /**
+   * Claim a due delivery for this instance: push its due time past the lease
+   * in one conditional update. Another instance (or an overlapping tick)
+   * finds it not yet due and leaves it alone; if this instance dies mid-send,
+   * the delivery becomes due again when the lease runs out.
+   */
+  private async claim(deliveryId: string): Promise<boolean> {
+    const now = new Date();
+    const res = await this.prisma.webhookDelivery.updateMany({
+      where: { id: deliveryId, status: 'PENDING', nextAttemptAt: { lte: now } },
+      data: {
+        nextAttemptAt: new Date(
+          now.getTime() + operationalConfig().deliveryLeaseSeconds * 1_000,
+        ),
+      },
+    });
+    return res.count === 1;
   }
 
   private async fanOut() {
@@ -529,11 +551,12 @@ export class WebhooksService {
         where: { webhooksQueuedAt: null, tenantId: { notIn: tenants } },
         data: { webhooksQueuedAt: new Date() },
       });
+      const batch = limits().fanOutBatchSize;
       for (let round = 0; round < 50; round++) {
         const messages = await this.prisma.outboxMessage.findMany({
           where: { webhooksQueuedAt: null, tenantId: { in: tenants } },
           orderBy: { createdAt: 'asc' },
-          take: 500,
+          take: batch,
         });
         if (!messages.length) return;
         const data: Prisma.WebhookDeliveryCreateManyInput[] = [];
@@ -559,13 +582,15 @@ export class WebhooksService {
           where: { id: { in: messages.map((m) => m.id) } },
           data: { webhooksQueuedAt: new Date() },
         });
-        if (messages.length < 500) return;
+        if (messages.length < batch) return;
       }
     });
   }
 
   private async deliver(deliveryId: string) {
     await runAsSystem('webhook delivery', async () => {
+      if (!(await this.claim(deliveryId))) return;
+      const { maxAttempts, disableAfterFailures, timeoutMs } = limits();
       const d = await this.prisma.webhookDelivery.findFirst({
         where: { id: deliveryId },
         include: { endpoint: true },
@@ -594,10 +619,10 @@ export class WebhooksService {
         const res = await fetch(e.url, {
           method: 'POST',
           redirect: 'manual',
-          signal: AbortSignal.timeout(10_000),
+          signal: AbortSignal.timeout(timeoutMs),
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'MagicMoney-Webhooks/1',
+            'User-Agent': `${operationalConfig().platformName.replace(/[^A-Za-z0-9]/g, '')}-Webhooks/1`,
             'X-Webhook-Id': d.outboxMessageId ?? d.id,
             'X-Webhook-Delivery': d.id,
             'X-Webhook-Timestamp': String(ts),
@@ -626,7 +651,7 @@ export class WebhooksService {
           ...(ok
             ? { status: 'SENT', deliveredAt: new Date() }
             : {
-                status: attempts >= MAX_ATTEMPTS ? 'FAILED' : 'PENDING',
+                status: attempts >= maxAttempts ? 'FAILED' : 'PENDING',
                 nextAttemptAt: new Date(
                   Date.now() +
                     Math.min(
@@ -637,21 +662,26 @@ export class WebhooksService {
               }),
         },
       });
-      const failures = ok ? 0 : e.consecutiveFailures + 1;
-      await this.prisma.webhookEndpoint.update({
+      // Counted in the database (increment), so failures delivered by
+      // different instances at the same time all count.
+      const counted = await this.prisma.webhookEndpoint.update({
         where: { id: e.id },
         data: {
           lastDeliveryAt: new Date(),
-          consecutiveFailures: failures,
+          consecutiveFailures: ok ? 0 : { increment: 1 },
           ...(ok ? { lastSuccessAt: new Date() } : {}),
-          ...(failures >= DISABLE_AFTER_FAILURES
-            ? {
-                status: 'DISABLED',
-                disabledReason: `Switched off after ${failures} failed deliveries in a row`,
-              }
-            : {}),
         },
+        select: { consecutiveFailures: true },
       });
+      const failures = counted.consecutiveFailures;
+      if (!ok && failures >= disableAfterFailures)
+        await this.prisma.webhookEndpoint.updateMany({
+          where: { id: e.id, status: 'ACTIVE' },
+          data: {
+            status: 'DISABLED',
+            disabledReason: `Switched off after ${failures} failed deliveries in a row`,
+          },
+        });
     });
   }
 }

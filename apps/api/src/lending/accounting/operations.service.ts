@@ -22,6 +22,7 @@ import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { AdapterRegistry } from '../integrations/adapters';
 import { principalRepaid } from '../facilities/facility-state';
+import { operationalConfig } from '../../config/operational-config';
 
 /** Account codes whose GL balance must equal a loan-account balance field. */
 const SUBLEDGER_FIELDS: {
@@ -667,7 +668,13 @@ export class LendingOperationsService {
           status: 'POSTED',
           type: {
             // TRADE_WRITE_OFF: a bought receivable lost without recourse (factoring, forfaiting).
-            in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION', 'TRADE_WRITE_OFF'],
+            in: [
+              'DISBURSEMENT',
+              'REPAYMENT',
+              'SETTLEMENT',
+              'CAPITALIZATION',
+              'TRADE_WRITE_OFF',
+            ],
           },
         },
         include: { journal: { include: { lines: true } } },
@@ -735,17 +742,31 @@ export class LendingOperationsService {
    * Delivers outbox messages written in the same transaction as the financial
    * change. Mock adapters are refused in production, so there messages stay
    * PENDING with the reason recorded rather than being marked sent.
+   *
+   * Every API instance runs this. A message is claimed before it is sent by
+   * moving its availability past a lease (LENDING_DELIVERY_LEASE_SECONDS) in
+   * one conditional update, so no two instances send the same message; one
+   * that dies mid-send leaves it to be retried when the lease runs out.
    */
   @Interval('lending-outbox', 60_000)
   async deliverOutbox(): Promise<void> {
     if (process.env.LENDING_OUTBOX_DISABLED === 'true') return;
+    const { outbox, deliveryLeaseSeconds } = operationalConfig();
     await runAsSystem('lending outbox delivery', async () => {
       const batch = await this.prisma.outboxMessage.findMany({
         where: { status: 'PENDING', availableAt: { lte: new Date() } },
         orderBy: { createdAt: 'asc' },
-        take: 50,
+        take: outbox.batchSize,
       });
       for (const m of batch) {
+        const now = new Date();
+        const claimed = await this.prisma.outboxMessage.updateMany({
+          where: { id: m.id, status: 'PENDING', availableAt: { lte: now } },
+          data: {
+            availableAt: new Date(now.getTime() + deliveryLeaseSeconds * 1_000),
+          },
+        });
+        if (claimed.count !== 1) continue;
         try {
           await this.adapters
             .notifications()
@@ -765,7 +786,7 @@ export class LendingOperationsService {
             data: {
               attempts,
               lastError: (e as Error).message.slice(0, 300),
-              status: attempts >= 20 ? 'FAILED' : 'PENDING',
+              status: attempts >= outbox.maxAttempts ? 'FAILED' : 'PENDING',
               availableAt: new Date(
                 Date.now() +
                   Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 6)),

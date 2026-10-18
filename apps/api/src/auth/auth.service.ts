@@ -26,10 +26,12 @@ import { GoogleRegisterTenantDto } from './dto/google-auth.dto';
 import { SignupPaymentService } from '../billing/signup-payment.service';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
 import type { PlanTierView } from '../plan-tiers/plan-tier.service';
+import { durationMs, operationalConfig } from '../config/operational-config';
 
 // ── Security constants ───────────────────────────────────────────────────────
-const MAX_FAILED_ATTEMPTS = 5;              // Lock after 5 failed logins
-const LOCK_DURATION_MS = 30 * 60 * 1000; // Locked for 30 minutes
+// Lockout threshold and duration, MFA-challenge and reset-link lifetimes are
+// deployment settings (AUTH_* in .env.example; defaults 5 attempts, 30 minutes,
+// 5 minutes and 60 minutes), read through operationalConfig().
 const GENERIC_AUTH_ERROR = 'Invalid credentials'; // Never reveal which field failed
 const REFRESH_TOKEN_TYPE = 'refresh';
 
@@ -87,12 +89,14 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.isActive) return generic;
 
+    const { auth, platformName } = operationalConfig();
+    const resetMinutes = auth.passwordResetMinutes;
     const raw = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({
       data: {
         userId: user.id,
         tokenHash: this.hashResetToken(raw),
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + resetMinutes * 60_000),
       },
     });
 
@@ -101,9 +105,9 @@ export class AuthService {
     // that would let an attacker distinguish existing vs non-existing accounts.
     void this.notifications.sendEmail(
       user.email,
-      'Reset your Magic Money password',
+      `Reset your ${platformName} password`,
       `<p>We received a request to reset your password.</p>
-       <p><a href="${url}">Click here to set a new password</a> (this link expires in 1 hour).</p>
+       <p><a href="${url}">Click here to set a new password</a> (this link expires in ${resetMinutes === 60 ? '1 hour' : `${resetMinutes} minutes`}).</p>
        <p>If you didn't request this, you can safely ignore this email.</p>`,
     );
 
@@ -457,7 +461,7 @@ export class AuthService {
       });
       const mfaToken = this.jwtService.sign(
         { sub: user.id, mfaChallenge: true },
-        { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: '5m' },
+        { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: operationalConfig().auth.mfaChallengeTtl as any },
       );
       return { mfaRequired: true, mfaToken, message: 'Please provide your TOTP code' };
     }
@@ -587,17 +591,8 @@ export class AuthService {
     const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isMatch) {
-      // Increment failed attempts
-      const newAttempts = (user.loginAttempts || 0) + 1;
-      const shouldLock = newAttempts >= MAX_FAILED_ATTEMPTS;
-
-      await (this.prisma.user as any).update({
-        where: { id: user.id },
-        data: {
-          loginAttempts: newAttempts,
-          lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
-        },
-      });
+      const { newAttempts, shouldLock, maxFailedLogins, lockoutMinutes } =
+        await this.recordFailedAttempt(user.id);
 
       await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_FAILED', ip, user.id, {
         attempt: newAttempts,
@@ -606,11 +601,11 @@ export class AuthService {
 
       if (shouldLock) {
         throw new ForbiddenException(
-          `Account locked for 30 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts.`
+          `Account locked for ${lockoutMinutes} minutes after ${maxFailedLogins} failed attempts.`
         );
       }
 
-      const remaining = MAX_FAILED_ATTEMPTS - newAttempts;
+      const remaining = maxFailedLogins - newAttempts;
       throw new UnauthorizedException(
         remaining > 0
           ? `${GENERIC_AUTH_ERROR}. ${remaining} attempt(s) remaining before lockout.`
@@ -640,7 +635,7 @@ export class AuthService {
         { sub: user.id, mfaChallenge: true },
         {
           secret: process.env.JWT_ACCESS_SECRET!,
-          expiresIn: '5m',
+          expiresIn: operationalConfig().auth.mfaChallengeTtl as any,
         },
       );
       return {
@@ -696,15 +691,7 @@ export class AuthService {
     const isValid = await totpCodeMatches(code, user.twoFactorSecret);
 
     if (!isValid) {
-      const newAttempts = (user.loginAttempts || 0) + 1;
-      const shouldLock = newAttempts >= MAX_FAILED_ATTEMPTS;
-      await (this.prisma.user as any).update({
-        where: { id: user.id },
-        data: {
-          loginAttempts: newAttempts,
-          lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : user.lockedUntil,
-        },
-      });
+      const { shouldLock, maxFailedLogins, lockoutMinutes } = await this.recordFailedAttempt(user.id);
       await this.audit.logSecurityEvent({
         actorUserId: user.id,
         actorRole: user.role,
@@ -717,7 +704,7 @@ export class AuthService {
       });
       if (shouldLock) {
         throw new ForbiddenException(
-          `Account locked for 30 minutes after ${MAX_FAILED_ATTEMPTS} failed attempts.`,
+          `Account locked for ${lockoutMinutes} minutes after ${maxFailedLogins} failed attempts.`,
         );
       }
       throw new UnauthorizedException('Invalid MFA code');
@@ -751,7 +738,7 @@ export class AuthService {
     if (user.twoFactorEnabled) throw new ConflictException('MFA is already enabled');
 
     const secret = generateSecret();
-    const otpauthUrl = otpauth.keyuri(user.email, 'Magic Money', secret);
+    const otpauthUrl = otpauth.keyuri(user.email, operationalConfig().platformName, secret);
     const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
 
     await this.prisma.user.update({
@@ -1004,7 +991,7 @@ export class AuthService {
     const tenant = tenantId
       ? await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } })
       : null;
-    const tenantName = tenant?.name || 'Magic Money';
+    const tenantName = tenant?.name || operationalConfig().platformName;
     const payload = {
       sub: userId,
       email,
@@ -1017,7 +1004,7 @@ export class AuthService {
     };
 
     const refreshTokenId = randomUUID();
-    const refreshTtlRaw = process.env.JWT_REFRESH_TTL || '30d';
+    const refreshTtlRaw = operationalConfig().auth.refreshTtl;
     const refreshToken = this.jwtService.sign(
       { ...payload, typ: REFRESH_TOKEN_TYPE, jti: refreshTokenId },
       {
@@ -1031,7 +1018,7 @@ export class AuthService {
         id: refreshTokenId,
         userId,
         hashedToken: this.hashRefreshToken(refreshToken),
-        expiresAt: new Date(Date.now() + this.parseDurationMs(refreshTtlRaw)),
+        expiresAt: new Date(Date.now() + durationMs('JWT_REFRESH_TTL', refreshTtlRaw)),
       },
     });
 
@@ -1046,28 +1033,27 @@ export class AuthService {
     return createHash('sha256').update(`${token}.${pepper}`).digest('hex');
   }
 
-  private parseDurationMs(expiresIn: string | number): number {
-    if (typeof expiresIn === 'number') {
-      return expiresIn * 1000;
-    }
-
-    const raw = String(expiresIn).trim();
-    if (/^\d+$/.test(raw)) {
-      return parseInt(raw, 10) * 1000;
-    }
-
-    const match = raw.match(/^(\d+)([smhd])$/i);
-    if (!match) {
-      // Safe fallback to 30 days if misconfigured.
-      return 30 * 24 * 60 * 60 * 1000;
-    }
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2].toLowerCase();
-    if (unit === 's') return value * 1000;
-    if (unit === 'm') return value * 60 * 1000;
-    if (unit === 'h') return value * 60 * 60 * 1000;
-    return value * 24 * 60 * 60 * 1000;
+  /**
+   * Count a failed password or TOTP attempt in the database, atomically:
+   * concurrent attempts on several API instances each add one, so parallel
+   * guessing cannot slip past the threshold the way a read-then-write counter
+   * would allow. Reaching the threshold locks the account.
+   */
+  private async recordFailedAttempt(userId: string) {
+    const { maxFailedLogins, lockoutMinutes } = operationalConfig().auth;
+    const counted = await this.prisma.user.update({
+      where: { id: userId },
+      data: { loginAttempts: { increment: 1 } },
+      select: { loginAttempts: true },
+    });
+    const newAttempts = counted.loginAttempts;
+    const shouldLock = newAttempts >= maxFailedLogins;
+    if (shouldLock)
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { lockedUntil: new Date(Date.now() + lockoutMinutes * 60_000) },
+      });
+    return { newAttempts, shouldLock, maxFailedLogins, lockoutMinutes };
   }
 
   private async revokeAllUserSessions(userId: string) {

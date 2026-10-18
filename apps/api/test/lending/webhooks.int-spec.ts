@@ -118,10 +118,21 @@ d('Webhooks (integration)', () => {
       numberOfInstalments: 6,
       disbursementDate: '2026-01-05',
     });
-    await webhooks.runOnce();
-    const hit = received.find(
+    // Two API instances running the delivery tick at once: each delivery is
+    // claimed before it is sent, so the event arrives once.
+    const WebhooksService = webhooks.constructor;
+    const other = new WebhooksService(
+      webhooks.prisma,
+      webhooks.lp,
+      webhooks.policy,
+      webhooks.audit,
+    );
+    await Promise.all([webhooks.runOnce(), other.runOnce()]);
+    const hits = received.filter(
       (r) => JSON.parse(r.body).type === 'lending.disbursed',
     );
+    expect(hits).toHaveLength(1);
+    const hit = hits[0];
     expect(hit).toBeTruthy();
     const body = JSON.parse(hit!.body);
     expect(body.data.loanAccountId).toBe(loanId);

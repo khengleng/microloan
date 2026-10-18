@@ -6,6 +6,7 @@ import { AuditEventService } from '../common/audit-event.service';
 import type { Tx } from '../common/lending-prisma';
 import type { LendingActor } from '../common/util';
 import { currentBatch } from '../servicing/batch-scope';
+import { operationalConfig } from '../../config/operational-config';
 import { ACTION_BY_CODE, actionsFor, ResourceType } from './actions';
 import { CompiledPolicy, policyRulesSchema } from './abac';
 import {
@@ -34,7 +35,10 @@ interface TenantContextCache {
   fx: Map<string, FxQuote>;
 }
 
-const CACHE_TTL_MS = 30_000;
+/** How long a built subject or context is reused at an unchanged version: LENDING_AUTHZ_CACHE_TTL_MS (default 30 s). */
+const cacheTtlMs = () => operationalConfig().authzCacheTtlMs;
+/** Entries kept per cache before expired ones are swept: LENDING_AUTHZ_CACHE_MAX_ENTRIES (default 5,000). */
+const cacheMaxEntries = () => operationalConfig().authzCacheMaxEntries;
 /** Legacy roles that implicitly hold the tenant-administrator lending role, so a tenant can bootstrap access. */
 const BOOTSTRAP_ADMIN_ROLES = new Set(['TENANT_ADMIN', 'ADMIN']);
 
@@ -42,12 +46,34 @@ const BOOTSTRAP_ADMIN_ROLES = new Set(['TENANT_ADMIN', 'ADMIN']);
  * Builds subjects and context from trusted server-side sources and runs the
  * decision engine. Decisions themselves are never cached; the inputs are,
  * keyed by tenant + user + the tenant's `authzVersion`, which every change to
- * roles, assignments, delegations, authorities, policies and flags bumps.
+ * roles, assignments, delegations, authorities, policies, flags and exchange
+ * rates bumps.
+ *
+ * Several API instances: the version is read from the database on every
+ * request, so a change made on any instance invalidates every instance's
+ * entry at once — the in-process maps are a read-through memo of database
+ * rows, never the source of truth. Platform-wide changes bump every tenant's
+ * version (see `invalidateAll`); the platform's own context is not cached.
+ * The maps are bounded: expired entries are swept as they fill.
  */
 @Injectable()
 export class PolicyService {
   private subjects = new Map<string, { subject: Subject; loadedAt: number }>();
   private contexts = new Map<string, TenantContextCache>();
+
+  /** Drop expired entries once a cache passes its bound; empty it if all are live. */
+  private remember<V extends { loadedAt: number }>(
+    map: Map<string, V>,
+    key: string,
+    value: V,
+  ) {
+    if (map.size >= cacheMaxEntries()) {
+      const cutoff = Date.now() - cacheTtlMs();
+      for (const [k, v] of map) if (v.loadedAt < cutoff) map.delete(k);
+      if (map.size >= cacheMaxEntries()) map.clear();
+    }
+    map.set(key, value);
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -74,8 +100,17 @@ export class PolicyService {
     });
   }
 
-  /** Platform rules affect every tenant; drop the in-process caches. */
-  invalidateAll(): void {
+  /**
+   * Platform rules affect every tenant. Bumping every tenant's version in the
+   * database invalidates the cached contexts on every API instance (each
+   * reads the version per request), not only this one's.
+   */
+  async invalidateAll(): Promise<void> {
+    await runAsSystem('platform rule change invalidates every tenant', () =>
+      this.prisma.tenant.updateMany({
+        data: { authzVersion: { increment: 1 } },
+      }),
+    );
     this.subjects.clear();
     this.contexts.clear();
   }
@@ -131,7 +166,7 @@ export class PolicyService {
     const version = await this.authzVersion(tenantId, tx);
     const key = `${tenantId}:${actor.id}:${version}`;
     const hit = this.subjects.get(key);
-    if (!tx && hit && Date.now() - hit.loadedAt < CACHE_TTL_MS)
+    if (!tx && hit && Date.now() - hit.loadedAt < cacheTtlMs())
       return { ...hit.subject, assurance: actor.assurance };
     const subject = await this.loadUserSubject(
       tenantId,
@@ -139,7 +174,8 @@ export class PolicyService {
       actor.assurance,
       tx,
     );
-    if (!tx) this.subjects.set(key, { subject, loadedAt: Date.now() });
+    if (!tx)
+      this.remember(this.subjects, key, { subject, loadedAt: Date.now() });
     return subject;
   }
 
@@ -345,9 +381,10 @@ export class PolicyService {
     const hit = this.contexts.get(key);
     if (
       !tx &&
+      tenantId &&
       hit &&
       hit.version === version &&
-      Date.now() - hit.loadedAt < CACHE_TTL_MS
+      Date.now() - hit.loadedAt < cacheTtlMs()
     )
       return hit;
     // Inside an end-of-day run the decision is still made in the loan's
@@ -361,7 +398,7 @@ export class PolicyService {
     if (
       shared &&
       shared.version === version &&
-      Date.now() - shared.loadedAt < CACHE_TTL_MS
+      Date.now() - shared.loadedAt < cacheTtlMs()
     )
       return shared;
     const db = tx ?? this.prisma;
@@ -430,7 +467,9 @@ export class PolicyService {
       policies,
       fx,
     };
-    if (!tx) this.contexts.set(key, ctx);
+    // The platform's own context (tenantId null) has no version to check a
+    // cached copy against, so it is always read fresh.
+    if (!tx && tenantId) this.remember(this.contexts, key, ctx);
     else batch?.memo.set('policy-context', ctx);
     return ctx;
   }
