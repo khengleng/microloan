@@ -270,6 +270,27 @@ export const STEPS: StepSpec[] = [
         ],
     },
     {
+        key: 'scoring', label: 'Scoring', roots: ['scoring'],
+        note: 'The scorecard that drives the decision (the organisation’s active version of the code, else the template), an optional silent challenger, the thin-file switch and the decision strategy. AUTO_APPROVE only recommends approval — the workflow’s approvers still approve. Defaults refer every grade.',
+        fields: [
+            { path: 'scoring.championCode', label: 'Champion scorecard code', kind: 'text', hint: 'STANDARD_RETAIL or one of Lending › Scorecards' },
+            { path: 'scoring.challengerCode', label: 'Challenger scorecard code (shadow, never decides)', kind: 'ntext' },
+            { path: 'scoring.thinFile.enabled', label: 'Score thin-file borrowers on a separate scorecard', kind: 'bool' },
+            { path: 'scoring.thinFile.scorecardCode', label: 'Thin-file scorecard code', kind: 'text' },
+            { path: 'scoring.thinFile.maxInternalHistoryMonths', label: 'Thin file: fewer months of history with us than', kind: 'int' },
+            { path: 'scoring.thinFile.requireNoBureauScore', label: 'Thin file: only when there is no bureau score', kind: 'bool' },
+            { path: 'scoring.strategy.declineBelowScore', label: 'Decline below score (with the eligibility minimum, the stricter applies)', kind: 'nint' },
+            { path: 'scoring.strategy.defaultOutcome', label: 'Outcome for grades without a rule', kind: 'enum', options: ['AUTO_APPROVE', 'REFER', 'DECLINE'] },
+            { path: 'scoring.strategy.gradeRules', label: 'Grade rules', kind: 'json', hint: '[{ "grade": "A", "outcome": "AUTO_APPROVE", "maxAmount": "5000", "rateAddOnBps": 0 }, { "grade": "C", "outcome": "REFER", "maxAmount": null, "rateAddOnBps": 150 }]' },
+            { path: 'scoring.strategy.knockouts.writtenOff', label: 'Knock-out: earlier write-off', kind: 'bool' },
+            { path: 'scoring.strategy.knockouts.maxCurrentDpd', label: 'Knock-out: current days past due above', kind: 'nint' },
+            { path: 'scoring.strategy.knockouts.minAgeYears', label: 'Knock-out: age below', kind: 'nint' },
+            { path: 'scoring.strategy.knockouts.maxAgeYears', label: 'Knock-out: age above', kind: 'nint' },
+            { path: 'scoring.strategy.knockouts.maxDebtServiceRatio', label: 'Knock-out: debt-service ratio above', kind: 'nrate' },
+            { path: 'scoring.strategy.enforceRateAddOn', label: 'Require the grade’s rate add-on at approval', kind: 'bool' },
+        ],
+    },
+    {
         key: 'accounting', label: 'Accounting', roots: ['accounting'],
         note: 'Ledger account codes used when events post journals.',
         fields: [

@@ -660,6 +660,8 @@
       "combinedLedger": "Combined ledger",
       "migration": "Loan-book migration",
       "webhooks": "Webhooks",
+      "scorecards": "Scorecards",
+      "scorecardMonitoring": "Scorecard monitoring",
       "operations": "End of day & operations",
       "legacyAccounting": "Accounting (original)",
       "provisioning": "Provisioning",

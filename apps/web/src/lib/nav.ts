@@ -4,7 +4,7 @@ import {
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
     Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
-    Globe2, GraduationCap,
+    Globe2, GraduationCap, LineChart,
 } from 'lucide-react';
 
 /**
@@ -131,6 +131,8 @@ export const NAV: NavSection[] = [
                 queues: ['PRODUCT_VERSIONS_TO_REVIEW', 'PRODUCT_VERSIONS_TO_ACTIVATE', 'PRODUCT_DRAFTS'],
             },
             { key: 'policies', href: '/lending/policies', icon: ScrollText, lending: ['loan_product.create', 'loan_product.approve'] },
+            { key: 'scorecards', href: '/lending/scorecards', icon: Gauge, lending: ['scorecard.read', 'scorecard.manage', 'scorecard.approve'] },
+            { key: 'scorecardMonitoring', href: '/lending/scorecard-monitoring', icon: LineChart, lending: ['scorecard.read'] },
             { key: 'catalogue', href: '/lending/catalogue', icon: LibraryBig, lending: ['loan_product.create', 'loan_product.approve'] },
             { key: 'workflows', href: '/lending/workflows', icon: Workflow, lending: ['workflow.manage', 'workflow.approve'], queues: ['WORKFLOWS_TO_APPROVE'] },
             { key: 'simulator', href: '/lending/simulator', icon: Calculator, lending: ['loan_product.read'] },

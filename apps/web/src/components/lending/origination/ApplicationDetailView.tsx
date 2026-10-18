@@ -14,6 +14,7 @@ import { StatusBadge } from '../StatusBadge';
 import type { ProductConfig, SimulationResult, Terms } from '../types';
 import { WhyBlocked } from './WhyBlocked';
 import { SimulationResultView } from '../SimulationResultView';
+import { ApplicationScoreCard } from '../scoring/ApplicationScoreCard';
 import {
     BookForm, CollateralForm, ConditionForm, DecisionForm, DocumentUploadForm, EditTermsForm, GuaranteeForm,
     type DecisionMode, type RequiredDocument,
@@ -209,6 +210,8 @@ export function ApplicationDetailView({ id }: { id: string }) {
                 />
                 <div className="mt-3"><Disclosure summary="Raw terms"><JsonBlock value={a.terms} /></Disclosure></div>
             </Card>
+
+            <ApplicationScoreCard applicationId={id} status={a.status} currency={a.currency} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Card title="Documents" subtitle={requiredDocs ? `${requiredDocs.filter((d) => d.mandatory).length} mandatory by product` : undefined} bodyClass="p-0">

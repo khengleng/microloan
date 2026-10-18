@@ -953,7 +953,7 @@ tenant lending settings (`scoring.monitoring.*`) and can be changed per
 report. Use it to compare a challenger with the champion before promoting it,
 and to re-weight a scorecard once enough loans are mature.
 
-**Consent and alternative data** (customer page › Alternative data &
+**Consent and alternative data** (borrower page › Alternative data, or the customer documents page › Alternative data &
 consent). Nothing beyond the lender's standard checks is fetched or used
 without the customer's consent for that source, in force at the moment of
 use:

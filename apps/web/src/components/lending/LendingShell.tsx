@@ -12,6 +12,8 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/products', label: 'Products' },
     { href: '/lending/policies', label: 'Policy library' },
     { href: '/lending/simulator', label: 'Simulator' },
+    { href: '/lending/scorecards', label: 'Scorecards' },
+    { href: '/lending/scorecard-monitoring', label: 'Scorecard monitoring' },
     { href: '/lending/workflows', label: 'Workflows' },
     { href: '/lending/applications', label: 'Applications' },
     { href: '/lending/loans', label: 'Loans' },

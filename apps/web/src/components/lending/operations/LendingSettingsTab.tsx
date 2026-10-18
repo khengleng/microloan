@@ -39,6 +39,14 @@ const LABELS: Record<string, string> = {
     'payments.maxBackdateDays': 'Unidentified receipts and payment files: most days back-dated',
     'access.maxDelegationDays': 'Longest delegation of authority (days)',
     'legacyServicing.defaultAfterDaysOverdue': 'Original loan book: mark DEFAULTED after days overdue',
+    'scoring.monitoring.badDaysPastDue': 'Scorecard monitoring: a loan is bad once an instalment is this many days late',
+    'scoring.monitoring.performanceMonths': 'Scorecard monitoring: … within this many months of disbursement',
+    'scoring.monitoring.baselineWindowDays': 'Scorecard monitoring: baseline window for stability (days)',
+    'scoring.monitoring.recentWindowDays': 'Scorecard monitoring: recent window for stability (days)',
+    'scoring.monitoring.psiEpsilon': 'Scorecard monitoring: share given to an empty grade in the stability index',
+    'scoring.consent.maxValidityDays': 'Alternative data: longest a customer consent may run (days)',
+    'scoring.alternativeData.maxRecordAgeDays': 'Alternative data: verified records older than this no longer count (days)',
+    'scoring.alternativeData.digitalChannels': 'Alternative data: payment channels counted as digital repayments',
 };
 
 function flatten(v: unknown, prefix = ''): [string, unknown][] {

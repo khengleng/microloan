@@ -135,6 +135,11 @@ export default function BorrowerProfilePage() {
                             Documents
                         </Button>
                     </Link>
+                    <Link href={`/${locale}/lending/customers/${id}/alternative-data`}>
+                        <Button variant="secondary" className="rounded-2xl font-bold px-6 h-12 shadow-sm">
+                            Alternative data
+                        </Button>
+                    </Link>
                 <Button
                         onClick={() => setIsEditOpen(true)}
                         variant="secondary"

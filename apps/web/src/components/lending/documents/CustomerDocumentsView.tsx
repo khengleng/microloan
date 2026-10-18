@@ -1,10 +1,11 @@
 "use client";
 
 import { Fragment, useMemo, useState } from 'react';
-import { FileText, Plus, Send } from 'lucide-react';
+import Link from 'next/link';
+import { FileText, Plus, Send, ShieldCheck } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { LendingShell } from '../LendingShell';
+import { LendingShell, useLendingHref } from '../LendingShell';
 import { Btn, Card, Checkbox, Empty, ErrorBox, Notice, Spinner, Table, Tabs, td, th } from '../ui';
 import { qs, useAction, useApi } from '../useAsync';
 import { StatusBadge } from '../StatusBadge';
@@ -34,6 +35,7 @@ function ExpiryCell({ d }: { d: CustomerDocument }) {
  */
 export function CustomerDocumentsView({ borrowerId }: { borrowerId: string }) {
     const { showToast } = useToast();
+    const href = useLendingHref();
     const [showDeleted, setShowDeleted] = useState(false);
     const lib = useApi<Library>(`/lending/customers/${borrowerId}/documents${qs({ includeDeleted: showDeleted ? 'true' : undefined })}`);
     const [panel, setPanel] = useState<Panel>(null);
@@ -55,6 +57,9 @@ export function CustomerDocumentsView({ borrowerId }: { borrowerId: string }) {
             subtitle="One library per customer — KYC, applications, loans and letters. Every view and download is recorded."
             back={{ href: `/borrowers/${borrowerId}`, label: 'Customer profile' }}
             actions={<>
+                <Link href={href(`/lending/customers/${borrowerId}/alternative-data`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold text-[#635BFF] hover:underline">
+                    <ShieldCheck size={14} /> Alternative data &amp; consent
+                </Link>
                 <Btn onClick={() => { setPreset(undefined); setPanel(panel === 'request' ? null : 'request'); }}><Send size={14} /> Request from customer</Btn>
                 <Btn variant="primary" onClick={() => setPanel(panel === 'upload' ? null : 'upload')}><Plus size={15} /> Upload</Btn>
             </>}
