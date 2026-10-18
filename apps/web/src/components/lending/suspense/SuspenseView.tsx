@@ -80,8 +80,8 @@ export function SuspenseView() {
 
     return (
         <LendingShell
-            title={t('title')}
-            subtitle={t('subtitle')}
+            title="Unidentified payments"
+            subtitle="Money received without an identifiable loan is held in suspense until it is matched to a loan or refunded to the payer."
             actions={!recording && <Btn variant="primary" onClick={() => setRecording(true)}><Plus size={15} /> {t('recordReceipt')}</Btn>}
         >
             {recording && (

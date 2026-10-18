@@ -39,7 +39,7 @@ export function TradeTransactionView({ loanId }: { loanId: string }) {
 
     if (view.loading && !view.data) return <LendingShell title={tt('title')}><Spinner /></LendingShell>;
     if (view.error && !view.data)
-        return <LendingShell title={tt('title')} back={{ href: '/lending/trade', label: tt('back') }}><ErrorBox error={view.error} /></LendingShell>;
+        return <LendingShell title={tt('title')} back={{ href: '/lending/trade', label: 'Trade finance' }}><ErrorBox error={view.error} /></LendingShell>;
     const d = view.data!;
     const ccy = d.loan.currency;
     const t = d.transaction;
@@ -83,7 +83,7 @@ export function TradeTransactionView({ loanId }: { loanId: string }) {
         <LendingShell
             title={`${importing ? tt('importLoan') : tt('exportLoan')} · ${d.loan.reference}`}
             subtitle={tt('subtitle')}
-            back={{ href: '/lending/trade', label: tt('back') }}
+            back={{ href: '/lending/trade', label: 'Trade finance' }}
             actions={<Link href={href(`/lending/loans/${loanId}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">{tt('loanLink')}</Link>}
         >
             {msg && <Notice tone="success">{msg}</Notice>}

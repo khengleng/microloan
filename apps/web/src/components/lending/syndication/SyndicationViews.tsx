@@ -33,7 +33,7 @@ export function SyndicationHome() {
     const [query, setQuery] = useState('');
     const list = useApi<Paged<LoanSummary>>(`/lending/loans${qs({ search: query, page: 1 })}`);
     return (
-        <LendingShell title={t('title')} subtitle={t('subtitle')}>
+        <LendingShell title="Syndication" subtitle="Loans shared with other lenders, with this lender as agent. Book the loan under a syndicated product, then set up its participants here.">
             <Card
                 title={t('loans')}
                 bodyClass="p-0"
@@ -86,7 +86,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
     const [fundRef, setFundRef] = useState('');
     const [msg, setMsg] = useState('');
 
-    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/syndication', label: t('back') }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
+    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/syndication', label: 'Syndication' }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
     const { loan, syndicate: s, payouts } = view.data;
     const ccy = loan.currency;
     const done = (m: string) => { setMsg(m); view.reload(); };
@@ -117,7 +117,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
         <LendingShell
             title={t('titleRef', { reference: loan.reference })}
             subtitle={t('subtitle')}
-            back={{ href: '/lending/syndication', label: t('back') }}
+            back={{ href: '/lending/syndication', label: 'Syndication' }}
             actions={<Link href={href(`/lending/loans/${loanId}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">{t('loanLink')}</Link>}
         >
             {msg && <Notice tone="success">{msg}</Notice>}

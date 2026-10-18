@@ -2164,7 +2164,6 @@
       "none": "No recovery action on this loan."
     },
     "desk": {
-      "title": "Recovery",
       "businessDate": "Business date {date}",
       "subtitle": "Repossession, pawn, credit insurance and debt sale",
       "refresh": "Refresh",
@@ -2340,8 +2339,6 @@
       "OTHER": "Other"
     },
     "view": {
-      "title": "Unidentified payments",
-      "subtitle": "Money received without an identifiable loan is held in suspense until it is matched to a loan or refunded to the payer.",
       "recordReceipt": "Record receipt",
       "recorded": "Receipt {reference} recorded in suspense",
       "openReceipts": "Open receipts",
@@ -2477,8 +2474,6 @@
       "PAYROLL": "Payroll"
     },
     "view": {
-      "title": "Payment channels",
-      "subtitle": "Wallet, QR, agent and mobile settlement files, payroll remittances, auto-debit and the daily reconciliation.",
       "tabImport": "Import file",
       "tabFiles": "Files",
       "tabReconciliation": "Daily reconciliation",
@@ -2766,8 +2761,6 @@
       "LETTER_OF_CREDIT": "Letter of credit in the exporter’s favour"
     },
     "home": {
-      "title": "Trade finance",
-      "subtitle": "Letters of credit, receivables programmes and import / export loans.",
       "tabLc": "Letters of credit",
       "tabReceivables": "Receivables",
       "tabLoans": "Import & export loans",
@@ -2838,7 +2831,6 @@
     "lc": {
       "title": "Letter of credit",
       "titleRef": "Letter of credit {reference}",
-      "back": "Trade finance",
       "issueTitle": "Issue letter of credit",
       "issueMessage": "Issue {reference} for {currency} {amount} to {beneficiary}? The fee is charged and the commitment recorded off balance sheet.",
       "issue": "Issue",
@@ -2889,7 +2881,6 @@
     },
     "loan": {
       "title": "Trade loan",
-      "back": "Trade finance",
       "recorded": "Trade recorded — receive its documents, then a checker verifies them",
       "verifyTitle": "Verify document",
       "verifyMessage": "Verify {label} ({reference})? You confirm it is complete and consistent with the trade.",
@@ -2983,7 +2974,6 @@
     },
     "register": {
       "loadingTitle": "Receivables register",
-      "back": "Trade finance",
       "registered": "{item} registered — awaiting approval as eligible",
       "registeredAck": "{item} registered — {action}, then awaiting approval as eligible",
       "stepDone": "{number}: {step} done",
@@ -3192,8 +3182,6 @@
   },
   "LendingSyndication": {
     "home": {
-      "title": "Syndication",
-      "subtitle": "Loans shared with other lenders, with this lender as agent. Book the loan under a syndicated product, then set up its participants here.",
       "loans": "Loans",
       "searchPlaceholder": "Search reference…",
       "search": "Search",
@@ -3206,7 +3194,6 @@
     "detail": {
       "title": "Syndicate",
       "titleRef": "Syndicate · {reference}",
-      "back": "Syndication",
       "saved": "Participants saved as a draft — a checker approves them",
       "payoutMade": "Payout made",
       "payoutRejected": "Payout rejected",
@@ -3305,8 +3292,6 @@
       "dpd": "DPD"
     },
     "home": {
-      "title": "Counterparties & exposure",
-      "subtitle": "Banks, municipalities, sovereigns and development institutions, their ratings, and the counterparty and country limits every institutional loan is checked against at approval and at payout.",
       "tabExposure": "Exposure",
       "tabPending": "Limits awaiting approval",
       "tabPendingCount": "Limits awaiting approval ({count})",
@@ -3365,7 +3350,6 @@
       "propose": "Propose"
     },
     "detail": {
-      "back": "Counterparties",
       "proposeLimit": "Propose a limit",
       "suspended": "Suspended",
       "suspendedBody": "No new lending is approved or paid out to this counterparty while it is suspended.",
@@ -3415,8 +3399,6 @@
     "tb": {
       "balances": "{book} balances",
       "notBalanced": "{book} does not balance",
-      "title": "Combined ledger",
-      "subtitle": "One trial balance for both loan books: the legacy journal and the lending journal side by side, on the shared chart of accounts.",
       "asOf": "As of",
       "show": "Show",
       "businessDate": "Business date",
@@ -3511,8 +3493,6 @@
       "integrity": "Integrity",
       "integrityBody": "The stored content does not match its hash. Do not file this return; report it.",
       "generated": "Version {version} generated",
-      "title": "Regulatory returns",
-      "subtitle": "Monthly NBC returns covering the lending platform and the legacy loans: classification and provisioning, PAR, portfolio breakdowns, write-offs, largest borrowers and rates, reconciled to the ledger.",
       "intro": "A return is generated from a <b>closed</b> month (Lending › Period close) and is then frozen: later activity never changes it, and a correction is a new version. The preparer sends it for submission; a second person submits it. Open months can be previewed.",
       "monthsOf": "Months of {year}",
       "businessDate": "Business date {date}",
@@ -3535,8 +3515,6 @@
     }
   },
   "LendingMigration": {
-    "title": "Loan-book migration",
-    "subtitle": "Take over running loans from another system: load, check against control totals, approve by a second person, post opening balances.",
     "files": "Files",
     "noFiles": "No migration files yet.",
     "colFile": "File",
@@ -3618,8 +3596,6 @@
     }
   },
   "LendingWebhooks": {
-    "title": "Webhooks",
-    "subtitle": "Send this organisation's lending events to its own systems — signed, retried, and activated by a second administrator.",
     "secret": {
       "copyNow": "Copy the signing secret now — it will not be shown again.",
       "copied": "Copied",
@@ -3804,8 +3780,6 @@
       "firstVersion": "First version — nothing to compare against."
     },
     "library": {
-      "title": "Policy library",
-      "subtitle": "Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker.",
       "created": "Policy {code} created as v1 draft",
       "allKinds": "All kinds",
       "cardSubtitle": "Replaces <path></path> · {count, plural, one {# policy} other {# policies}}",

@@ -39,8 +39,8 @@ export function CombinedTrialBalanceView() {
     const { data, error, loading } = useApi<Combined>(`/lending/regulatory/combined-trial-balance${qs({ asOf })}`);
     return (
         <LendingShell
-            title={t('title')}
-            subtitle={t('subtitle')}
+            title="Combined ledger"
+            subtitle="One trial balance for both loan books: the legacy journal and the lending journal side by side, on the shared chart of accounts."
             actions={
                 <div className="flex items-end gap-2">
                     <Field label={t('asOf')}>

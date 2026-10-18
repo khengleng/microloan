@@ -98,8 +98,8 @@ export function CounterpartiesHome() {
     const e = exp.data;
     return (
         <LendingShell
-            title={t('home.title')}
-            subtitle={t('home.subtitle')}
+            title="Counterparties & exposure"
+            subtitle="Banks, municipalities, sovereigns and development institutions, their ratings, and the counterparty and country limits every institutional loan is checked against at approval and at payout."
             actions={
                 <>
                     <Btn onClick={() => setPanel('country')}>{t('proposeCountryLimit')}</Btn>
@@ -317,7 +317,7 @@ export function CounterpartyDetailView({ id }: { id: string }) {
         <LendingShell
             title={c ? c.name : t('counterparty')}
             subtitle={c ? `${typeLabel(c.type)} · ${c.countryCode} · ${c.reference}` : undefined}
-            back={{ href: '/lending/counterparties', label: t('detail.back') }}
+            back={{ href: '/lending/counterparties', label: 'Counterparties' }}
             actions={c && (
                 <>
                     <Btn onClick={() => setPanel('rating')}>{t('rating.title')}</Btn>

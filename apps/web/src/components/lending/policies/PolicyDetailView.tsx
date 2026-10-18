@@ -33,8 +33,8 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const [rejecting, setRejecting] = useState(false);
     const [reason, setReason] = useState('');
 
-    if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: t('library.title') }}><Spinner /></LendingShell>;
-    if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: t('library.title') }}><ErrorBox error={loadError} /></LendingShell>;
+    if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><Spinner /></LendingShell>;
+    if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><ErrorBox error={loadError} /></LendingShell>;
 
     const versions = policy.versions;
     const selected = versions.find((v) => v.id === selectedId) ?? versions[0];
@@ -70,7 +70,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
 
     return (
         <LendingShell
-            back={{ href: '/lending/policies', label: t('library.title') }}
+            back={{ href: '/lending/policies', label: 'Policy library' }}
             title={<span className="flex items-center gap-2"><span className="font-mono">{policy.code}</span> {policy.name}</span>}
             subtitle={<>{KIND_INFO[policy.kind] ? t(`kind.${policy.kind}`) : policy.kind} · {t.rich('detail.replaces', { path: () => <span className="font-mono text-[12px]">{KIND_INFO[policy.kind]?.path}</span> })}</>}
             actions={!adding && canDraft && (

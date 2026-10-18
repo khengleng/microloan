@@ -31,7 +31,7 @@ export function RecoveryDesk() {
 
     return (
         <LendingShell
-            title={t('title')}
+            title="Recovery"
             subtitle={d ? t('businessDate', { date: d.businessDate }) : t('subtitle')}
             actions={<Btn variant="ghost" onClick={desk.reload}>{t('refresh')}</Btn>}
         >

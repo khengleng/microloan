@@ -297,7 +297,7 @@ export function LoanMigrationView() {
     const shown = selected ?? data?.batches[0]?.id ?? null;
 
     return (
-        <LendingShell title={t('title')} subtitle={t('subtitle')}>
+        <LendingShell title="Loan-book migration" subtitle="Take over running loans from another system: load, check against control totals, approve by a second person, post opening balances.">
             {list.error && <ErrorBox error={list.error} />}
             {!data ? <Spinner /> : (
                 <>

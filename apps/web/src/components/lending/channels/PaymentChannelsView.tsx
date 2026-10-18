@@ -40,8 +40,8 @@ export function PaymentChannelsView() {
     const t = useTranslations('LendingChannels.view');
     return (
         <LendingShell
-            title={t('title')}
-            subtitle={t('subtitle')}
+            title="Payment channels"
+            subtitle="Wallet, QR, agent and mobile settlement files, payroll remittances, auto-debit and the daily reconciliation."
         >
             <Tabs<Tab>
                 value={tab}

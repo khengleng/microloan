@@ -364,8 +364,8 @@ export function RegulatoryReturnsView() {
 
     return (
         <LendingShell
-            title={t('title')}
-            subtitle={t('subtitle')}
+            title="Regulatory returns"
+            subtitle="Monthly NBC returns covering the lending platform and the legacy loans: classification and provisioning, PAR, portfolio breakdowns, write-offs, largest borrowers and rates, reconciled to the ledger."
             actions={
                 <div className="flex items-center gap-1">
                     <Btn size="sm" variant="ghost" onClick={() => setYear(y - 1)}><ChevronLeft size={14} /></Btn>

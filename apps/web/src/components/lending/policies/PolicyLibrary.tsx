@@ -36,8 +36,8 @@ export function PolicyLibrary() {
 
     return (
         <LendingShell
-            title={t('library.title')}
-            subtitle={t('library.subtitle')}
+            title="Policy library"
+            subtitle="Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker."
             actions={!creating && can('loan_product.create') && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> {t('newPolicy.title')}</Btn>}
         >
             {creating && (

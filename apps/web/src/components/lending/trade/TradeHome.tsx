@@ -24,7 +24,7 @@ export function TradeHome() {
     const t = useTranslations('LendingTrade.home');
     const [tab, setTab] = useState<Tab>('lc');
     return (
-        <LendingShell title={t('title')} subtitle={t('subtitle')}>
+        <LendingShell title="Trade finance" subtitle="Letters of credit, receivables programmes and import / export loans.">
             <Tabs<Tab>
                 tabs={[
                     { value: 'lc', label: t('tabLc') },

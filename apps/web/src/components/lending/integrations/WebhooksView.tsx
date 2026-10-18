@@ -106,7 +106,7 @@ export function WebhooksView() {
     };
 
     return (
-        <LendingShell title={t('title')} subtitle={t('subtitle')}>
+        <LendingShell title="Webhooks" subtitle="Send this organisation's lending events to its own systems — signed, retried, and activated by a second administrator.">
             {list.error && <ErrorBox error={list.error} />}
             {!data ? <Spinner /> : (
                 <>

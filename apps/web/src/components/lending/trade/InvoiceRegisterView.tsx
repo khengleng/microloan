@@ -83,7 +83,7 @@ export function InvoiceRegisterView({ facilityId }: { facilityId: string }) {
 
     if (reg.loading && !reg.data) return <LendingShell title={t('loadingTitle')}><Spinner /></LendingShell>;
     if (reg.error && !reg.data)
-        return <LendingShell title={t('loadingTitle')} back={{ href: '/lending/trade', label: t('back') }}><ErrorBox error={reg.error} /></LendingShell>;
+        return <LendingShell title={t('loadingTitle')} back={{ href: '/lending/trade', label: 'Trade finance' }}><ErrorBox error={reg.error} /></LendingShell>;
     const data = reg.data!;
     const ccy = data.facility.currency;
     const kind: ReceivablesKind = data.kind ?? 'INVOICE_FINANCE';
@@ -144,7 +144,7 @@ export function InvoiceRegisterView({ facilityId }: { facilityId: string }) {
         <LendingShell
             title={`${copy.register} · ${data.facility.reference}`}
             subtitle={t(`subtitle.${kind}`)}
-            back={{ href: '/lending/trade', label: t('back') }}
+            back={{ href: '/lending/trade', label: 'Trade finance' }}
             actions={
                 <div className="flex items-center gap-3">
                     {canClose && <Btn size="sm" onClick={closeProgramme} busy={busy === 'close'}>{t('closeProgramme')}</Btn>}
