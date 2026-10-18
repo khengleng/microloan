@@ -131,7 +131,7 @@ export const NAV: NavSection[] = [
                 queues: ['PRODUCT_VERSIONS_TO_REVIEW', 'PRODUCT_VERSIONS_TO_ACTIVATE', 'PRODUCT_DRAFTS'],
             },
             { key: 'policies', href: '/lending/policies', icon: ScrollText, lending: ['loan_product.create', 'loan_product.approve'] },
-            { key: 'scorecards', href: '/lending/scorecards', icon: Gauge, lending: ['scorecard.read', 'scorecard.manage', 'scorecard.approve'] },
+            { key: 'scorecards', href: '/lending/scorecards', icon: Gauge, lending: ['scorecard.read', 'scorecard.manage', 'scorecard.approve', 'access_policy.read'] },
             { key: 'scorecardMonitoring', href: '/lending/scorecard-monitoring', icon: LineChart, lending: ['scorecard.read'] },
             { key: 'catalogue', href: '/lending/catalogue', icon: LibraryBig, lending: ['loan_product.create', 'loan_product.approve'] },
             { key: 'workflows', href: '/lending/workflows', icon: Workflow, lending: ['workflow.manage', 'workflow.approve'], queues: ['WORKFLOWS_TO_APPROVE'] },
