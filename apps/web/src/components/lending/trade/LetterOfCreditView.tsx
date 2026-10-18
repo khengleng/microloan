@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { LendingShell, useLendingHref } from '../LendingShell';
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Table, TextArea, TextInput, td, tdR, th, thR } from '../ui';
@@ -20,6 +21,8 @@ type Panel = { kind: 'reject' } | { kind: 'close' } | { kind: 'drawing' } | { ki
 export function LetterOfCreditView({ id }: { id: string }) {
     const href = useLendingHref();
     const confirm = useConfirm();
+    const { can, access } = useWorkspace();
+    const me = access?.principal.id;
     const view = useApi<LcDetail>(`/lending/letters-of-credit/${id}`);
     const { busy, error, run, clearError } = useAction();
     const issueKey = useIdempotencyKey();
@@ -37,6 +40,12 @@ export function LetterOfCreditView({ id }: { id: string }) {
     const open = (p: Panel) => { setPanel(p); setText(''); setAmount(''); clearError(); };
     const done = (m: string) => { setMsg(m); setPanel(null); view.reload(); };
     const live = ['ISSUED', 'PARTIALLY_DRAWN'].includes(lc.status);
+    // The API's rules (policy/actions.ts): issuing and refusing are the checker's, never the requester's.
+    const canIssue = can('trade.lc.issue') && lc.requestedBy !== me;
+    const canPresent = can('trade.lc.request');
+    const canClose = can('trade.lc.issue');
+    const canApproveDrawing = (d: LcDrawing) => can('loan.disbursement.approve') && d.requestedBy !== me;
+    const canPayDrawing = (d: LcDrawing) => can('loan.disbursement.execute') && d.requestedBy !== me && d.approvedBy !== me;
 
     const issue = async () => {
         if (!(await confirm({ title: 'Issue letter of credit', message: `Issue ${lc.reference} for ${ccy} ${lc.amount} to ${lc.beneficiaryName}? The fee is charged and the commitment recorded off balance sheet.`, confirmLabel: 'Issue' }))) return;
@@ -74,8 +83,8 @@ export function LetterOfCreditView({ id }: { id: string }) {
             back={{ href: '/lending/trade', label: 'Trade finance' }}
             actions={
                 <>
-                    {lc.status === 'REQUESTED' && <><Btn variant="primary" onClick={issue} busy={busy === 'issue'}>Issue…</Btn><Btn variant="danger" onClick={() => open({ kind: 'reject' })}>Reject</Btn></>}
-                    {live && <><Btn variant="primary" onClick={() => open({ kind: 'drawing' })}>Record presentation</Btn><Btn onClick={() => open({ kind: 'close' })}>Expire / cancel</Btn></>}
+                    {lc.status === 'REQUESTED' && canIssue && <><Btn variant="primary" onClick={issue} busy={busy === 'issue'}>Issue…</Btn><Btn variant="danger" onClick={() => open({ kind: 'reject' })}>Reject</Btn></>}
+                    {live && <>{canPresent && <Btn variant="primary" onClick={() => open({ kind: 'drawing' })}>Record presentation</Btn>}{canClose && <Btn onClick={() => open({ kind: 'close' })}>Expire / cancel</Btn>}</>}
                 </>
             }
         >
@@ -129,9 +138,9 @@ export function LetterOfCreditView({ id }: { id: string }) {
                                     <td className={td}>{d.loan ? <Link className="font-semibold text-[#635BFF] hover:underline" href={href(`/lending/loans/${d.loan.id}`)}>{d.loan.reference}</Link> : '—'}</td>
                                     <td className={`${td} whitespace-nowrap`}>
                                         <div className="flex justify-end gap-1.5">
-                                            {d.status === 'REQUESTED' && <Btn size="sm" variant="primary" onClick={() => approveDrawing(d)} busy={busy === `approve-${d.id}`}>Approve</Btn>}
-                                            {d.status === 'APPROVED' && <Btn size="sm" variant="primary" onClick={() => open({ kind: 'pay', drawing: d })}>Pay…</Btn>}
-                                            {['REQUESTED', 'APPROVED'].includes(d.status) && <Btn size="sm" variant="danger" onClick={() => open({ kind: 'rejectDrawing', drawing: d })}>Refuse</Btn>}
+                                            {d.status === 'REQUESTED' && canApproveDrawing(d) && <Btn size="sm" variant="primary" onClick={() => approveDrawing(d)} busy={busy === `approve-${d.id}`}>Approve</Btn>}
+                                            {d.status === 'APPROVED' && canPayDrawing(d) && <Btn size="sm" variant="primary" onClick={() => open({ kind: 'pay', drawing: d })}>Pay…</Btn>}
+                                            {['REQUESTED', 'APPROVED'].includes(d.status) && canApproveDrawing(d) && <Btn size="sm" variant="danger" onClick={() => open({ kind: 'rejectDrawing', drawing: d })}>Refuse</Btn>}
                                         </div>
                                     </td>
                                 </tr>
