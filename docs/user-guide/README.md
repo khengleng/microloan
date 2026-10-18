@@ -53,6 +53,7 @@ chapters for your role (see the table below). To practise safely, follow the
 
 **Help**
 
+- 25 [Learning centre](25-learning-centre.md) — self-paced lessons, guided tours, quizzes, badges and certificates, and the team progress report.
 - 22 [Troubleshooting and FAQ](22-troubleshooting.md)
 - 23 [Glossary](23-glossary.md)
 - [Demo walkthrough](demo-walkthrough.md) — a guided end-to-end exercise in the demo organisation.
@@ -61,7 +62,9 @@ chapters for your role (see the table below). To practise safely, follow the
 
 Chapter numbers below are the numbers at the start of each chapter's file
 name. Everyone should read 01, 02 and 22 (troubleshooting) and keep the
-glossary (23) at hand. Then:
+glossary (23) at hand. The [Learning centre](25-learning-centre.md) in the
+portal turns these chapters into lessons, tours and quizzes for each role.
+Then:
 
 | Your role (as shown in Access & policy) | Main chapters | Also useful |
 |---|---|---|
