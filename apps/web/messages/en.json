@@ -1710,7 +1710,60 @@
     "bureauSubtitle": "One record per loan you may export — status, balance, days past due and classification at the business date. Closed loans are reported as paid.",
     "bureauDownload": "Download bureau file (CSV)",
     "downloadFailed": "Download failed: {message}",
-    "noExports": "Your roles do not include an export."
+    "noExports": "Your roles do not include an export.",
+    "tb": {
+      "none": "No lending journal entries yet.",
+      "refresh": "Refresh",
+      "title": "Trial balance — {currency}",
+      "code": "Code",
+      "account": "Account",
+      "type": "Type",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance",
+      "totals": "Totals"
+    },
+    "rec": {
+      "running": "Reconciling sub-ledger to general ledger…",
+      "checked": "{count, plural, one {# loan account checked} other {# loan accounts checked}} · {at}",
+      "rerun": "Re-run",
+      "reconciled": "Reconciled",
+      "reconciledBody": "Every loan sub-ledger balance matches the general ledger and the trial balance balances.",
+      "breaksFound": "Reconciliation breaks found",
+      "tbUnbalanced": "The trial balance does not balance.",
+      "differences": "{count, plural, one {# sub-ledger / ledger difference} other {# sub-ledger / ledger differences}} — investigate before closing the day.",
+      "breaks": "Breaks",
+      "loan": "Loan",
+      "check": "Check",
+      "subledger": "Sub-ledger",
+      "ledger": "Ledger",
+      "difference": "Difference",
+      "scheduleHint": "Unpaid principal per schedule",
+      "schedule": "schedule"
+    },
+    "journal": {
+      "loan": "Loan",
+      "loanHint": "Optional — search by loan reference",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "none": "No journal entries match.",
+      "date": "Date",
+      "description": "Description",
+      "event": "Event",
+      "ccy": "Ccy",
+      "totalDebits": "Total debits",
+      "loanLink": "loan",
+      "account": "Account",
+      "debit": "Debit",
+      "credit": "Credit"
+    },
+    "tabs": {
+      "rec": "Reconciliation",
+      "tb": "Trial balance",
+      "journal": "Journal",
+      "exports": "Exports"
+    }
   },
   "Customers": {
     "loading": "Loading…",
