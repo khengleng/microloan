@@ -2709,9 +2709,16 @@ export class ServicingService {
             where: { tenantId, loanAccountId: id, id: n.id },
           });
           if (!l) continue;
+          // Assessed through whichever is later: the date before the rewind,
+          // or one a later end of day reached.
+          const was = rewind.through[n.id];
+          const now = toLocalDate(l.penaltyAssessedThrough);
           await tx.scheduleInstalment.update({
             where: { id: l.id },
             data: {
+              penaltyAssessedThrough: fromLocalDate(
+                was && (!now || lending.compareDates(was, now) > 0) ? was : now,
+              ),
               penaltyDue: D(l.penaltyDue).minus(n.penaltyDue).toString(),
               penaltyAccrued: lending.D.max(
                 0,
