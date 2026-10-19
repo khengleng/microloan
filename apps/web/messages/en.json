@@ -4177,7 +4177,13 @@
       "colWhen": "When",
       "colBy": "By",
       "colDetail": "Detail",
-      "assessment": "assessment"
+      "assessment": "assessment",
+      "rateCap": "Rate cap {cap} ({source}) · rate {rate} · effective incl. fees {effective}",
+      "rateCapSource": {
+        "REGULATOR": "regulatory ceiling",
+        "TENANT": "lender's cap",
+        "PRODUCT": "product cap"
+      }
     },
     "toast": {
       "submitted": "Application submitted",
@@ -6612,7 +6618,28 @@
       "validationFailed": "Validation failed",
       "summaryPlaceholder": "What changed and why",
       "cancel": "Cancel",
-      "saveDraft": "Save draft"
+      "saveDraft": "Save draft",
+      "rateCap": {
+        "title": "Interest-rate cap",
+        "subtitle": "The lowest of the regulatory ceiling, the lender's cap and this product's cap, checked again at submission, approval and activation",
+        "cap": "Cap in force",
+        "source": "Set by",
+        "none": "No cap configured",
+        "sources": {
+          "REGULATOR": "Regulatory ceiling",
+          "TENANT": "Lender's cap",
+          "PRODUCT": "Product cap"
+        },
+        "worstComparable": "Highest rate (reducing-balance basis)",
+        "worstEffective": "Highest effective rate incl. fees",
+        "fits": "Every rate this version can charge is within the cap",
+        "breaches": "{count, plural, one {# rate exceeds} other {# rates exceed}} the cap — submission, approval and activation will be refused",
+        "advisories": "Some terms within the limits would exceed the cap once fees are counted; booking refuses those terms",
+        "fees": "Fees counted: {value}",
+        "penalty": "Penalty interest capped: {value}",
+        "yes": "yes",
+        "no": "no"
+      }
     }
   },
   "LendingShared": {

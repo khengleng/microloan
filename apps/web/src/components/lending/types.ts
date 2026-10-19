@@ -105,6 +105,19 @@ export interface ProductVersionDetail extends ProductVersionSummary {
     diffFromActive: DiffEntry[] | null;
     activeVersionId: string | null;
     rejectionReason?: string | null;
+    /** The interest-rate cap in force and how this version's rates compare (DECISIONS D-102…D-107). */
+    rateCap?: RateCapReport | null;
+}
+
+export interface RateCapFinding { code: string; path: string; rate: string; cap: string; capSource: string; message: string }
+export interface RateCapReport {
+    cap: { annualRate: string | null; source: 'REGULATOR' | 'TENANT' | 'PRODUCT' | null; description: string };
+    policy: { includeFeesInEffectiveRate: boolean; penaltyRateMustFitCap: boolean };
+    worstComparableRate: string | null;
+    worstEffectiveRate: string | null;
+    findings: RateCapFinding[];
+    advisories: RateCapFinding[];
+    notes: string[];
 }
 
 /* ── Simulation ───────────────────────────────────────────────────────────── */
