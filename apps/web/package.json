@@ -8,6 +8,7 @@
     "build": "node scripts/generate-user-guide.mjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:check": "eslint",
     "typecheck": "node scripts/generate-user-guide.mjs && tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings --test src/lib/session-refresh.test.mjs"
   },
