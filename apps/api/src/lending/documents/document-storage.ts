@@ -4,11 +4,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -35,6 +37,8 @@ export interface LibraryStorage {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
   get(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
+  /** Remove every object under a prefix (a tenant purge); answers how many. */
+  deletePrefix(prefix: string): Promise<number>;
   /** A provider-signed URL, or null when the API must serve the bytes itself. */
   presign(
     key: string,
@@ -148,6 +152,37 @@ class S3LibraryStorage implements LibraryStorage {
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     );
   }
+  async deletePrefix(prefix: string) {
+    let removed = 0;
+    let token: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+      const keys = (page.Contents ?? [])
+        .map((o) => o.Key)
+        .filter((k): k is string => !!k);
+      if (keys.length) {
+        const res = await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+          }),
+        );
+        if (res.Errors?.length)
+          throw new Error(
+            `Could not delete ${res.Errors.length} stored object(s) under ${prefix}`,
+          );
+        removed += keys.length;
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+    return removed;
+  }
   async presign(key: string, ttlSeconds: number, fileName: string) {
     return getSignedUrl(
       this.client,
@@ -180,6 +215,21 @@ class LocalLibraryStorage implements LibraryStorage {
   }
   async delete(key: string) {
     await rm(this.path(key), { force: true });
+  }
+  async deletePrefix(prefix: string) {
+    const dir = this.path(prefix.replace(/\/+$/, ''));
+    let removed = 0;
+    try {
+      const entries = await readdir(dir, {
+        recursive: true,
+        withFileTypes: true,
+      });
+      removed = entries.filter((e) => e.isFile()).length;
+    } catch {
+      return 0;
+    }
+    await rm(dir, { recursive: true, force: true });
+    return removed;
   }
   async presign() {
     return null;
@@ -218,6 +268,26 @@ export class DocumentStorageService {
       this.store = new LocalLibraryStorage(root);
     }
     return this.store;
+  }
+
+  /**
+   * Every prefix a tenant's files are stored under: the customer document
+   * library and legacy vault (`tenants/<id>/`) and the lending integration
+   * documents (`lending/<id>/`, `<id>/`). A tenant purge removes them all.
+   */
+  tenantPrefixes(tenantId: string): string[] {
+    if (!/^[A-Za-z0-9-]+$/.test(tenantId))
+      throw new Error('Refusing an unsafe tenant id for a storage prefix');
+    return [tenantPrefix(tenantId), `lending/${tenantId}/`, `${tenantId}/`];
+  }
+
+  /** Delete every stored file of a tenant; answers how many were removed. */
+  async deleteTenantFiles(tenantId: string): Promise<number> {
+    const store = this.storage();
+    let removed = 0;
+    for (const prefix of this.tenantPrefixes(tenantId))
+      removed += await store.deletePrefix(prefix);
+    return removed;
   }
 
   /** Download links live this long (seconds): DOCUMENT_LINK_TTL_SECONDS, 30..900, default 300. */

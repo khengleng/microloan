@@ -28,7 +28,7 @@ describe('TenantsService — plans and reactivation', () => {
       defaultTier: jest.fn().mockResolvedValue({ name: 'FREE' }),
     };
     const audit: any = { logSecurityEvent: jest.fn() };
-    service = new TenantsService(prisma, audit, new AuthzService(audit), planTiers);
+    service = new TenantsService(prisma, audit, new AuthzService(audit), planTiers, {} as any);
   });
 
   it('Reactivate refuses an organisation still waiting for its plan payment', async () => {
