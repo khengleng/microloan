@@ -222,7 +222,9 @@ export function scheduleRates(input: ScheduleInput, schedule: Pick<ScheduleResul
   // cancels the schedule's own interest rounding, so a loan without fees is
   // exactly its contract rate and one with fees is that rate plus their cost.
   let effectiveRate = comparableRate;
-  if (charged.gt(0)) {
+  // Income-contingent instalments follow declared income, not the principal
+  // (they may never repay it), so they have no IRR to measure fees by.
+  if (charged.gt(0) && !input.incomeContingent) {
     const withFees = scheduleEquivalentRate(dec(fees!.netDisbursement).minus(fees!.separate).toString(), schedule.lines, input.disbursementDate, periods);
     const gross = flat ? comparableRate : scheduleEquivalentRate(input.principal, schedule.lines, input.disbursementDate, periods);
     effectiveRate = dec(comparableRate).plus(dec(withFees).minus(dec(gross))).toDecimalPlaces(8).toString();

@@ -103,6 +103,13 @@ describe('comparing on one basis', () => {
     assert.notEqual(L.checkRateAgainstCap('EFFECTIVE_RATE', 'fees', 'Rate', '0.18006', cap18, true), null);
   });
 
+  test('an income-contingent schedule is held to its contract rate; its fees have no IRR to measure', () => {
+    const c = clone('INCOME_CONTINGENT_EDUCATION');
+    c.pricing.fees = [{ code: 'ADMIN', name: 'Admin', calculation: 'FIXED', amount: '50', treatment: 'DEDUCTED', waivable: false, payee: 'LENDER' }];
+    const r = book(c, { principal: '5000', numberOfInstalments: 60, annualRate: '0.05', disbursementDate: '2026-01-05', declaredAnnualIncome: '0' });
+    assert.deepEqual([r.comparableRate, r.effectiveRate], ['0.05', '0.05']);
+  });
+
   test('irregular dates use the dated IRR, annualised as often as the schedule pays', () => {
     // A single payment after half a year at 18% simple interest.
     const rate = L.scheduleEquivalentRate('1000', [{ dueDate: '2026-07-04', total: '1089.26' }], '2026-01-05', { regular: false, periodsPerYear: null });
