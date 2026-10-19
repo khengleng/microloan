@@ -24,10 +24,25 @@ function roundTo2(num: number): number {
     return Math.round(num * 100) / 100;
 }
 
+/**
+ * The same day `months` calendar months later, clamped to the last day of a
+ * shorter month: 2026-01-31 + 1 → 2026-02-28, + 2 → 2026-03-31 (always counted
+ * from the start date, so one short month does not pull later dates back).
+ * Calendar fields are UTC, as the loan's dates are date-only values stored at
+ * UTC midnight; the time of day is kept.
+ */
+export function addMonthsClamped(date: Date, months: number): Date {
+    const y = date.getUTCFullYear();
+    const m = date.getUTCMonth() + months;
+    const target = new Date(Date.UTC(y, m, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(date.getUTCDate(), lastDay));
+    target.setUTCHours(date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds(), date.getUTCMilliseconds());
+    return target;
+}
+
 function addMonths(date: Date, months: number): Date {
-    const d = new Date(date);
-    d.setMonth(d.getMonth() + months);
-    return d;
+    return addMonthsClamped(date, months);
 }
 
 export function calculateRepaymentSchedule(params: LoanParams): Installment[] {
