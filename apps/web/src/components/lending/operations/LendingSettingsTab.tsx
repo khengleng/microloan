@@ -52,6 +52,18 @@ const LABELS: Record<string, string> = {
     'scoring.consent.maxValidityDays': 'Alternative data: longest a customer consent may run (days)',
     'scoring.alternativeData.maxRecordAgeDays': 'Alternative data: verified records older than this no longer count (days)',
     'scoring.alternativeData.digitalChannels': 'Alternative data: payment channels counted as digital repayments',
+    'consumerProtection.lenderLegalName': 'Key facts statement: lender’s legal name (empty: the organisation name)',
+    'consumerProtection.licenceNumber': 'Key facts statement: NBC licence number',
+    'consumerProtection.complaints.phone': 'Complaints: phone',
+    'consumerProtection.complaints.email': 'Complaints: email',
+    'consumerProtection.complaints.address': 'Complaints: address',
+    'consumerProtection.regulatorContact': 'Complaints: the regulator’s consumer-protection contact',
+    'consumerProtection.coolingOffDays': 'Cooling-off: days after disbursement the customer may cancel (0 = no cooling-off)',
+    'consumerProtection.coolingOffChargesAccruedInterest': 'Cooling-off: interest accrued to the cancellation date is payable',
+    'consumerProtection.coolingOffRefundsLenderFees': 'Cooling-off: the lender’s upfront fees are refunded',
+    'affordability.maxLendersPerBorrower': 'Affordability: most lenders a borrower may owe, counting this one (empty = no limit)',
+    'affordability.includeOwnLoans': 'Affordability: count the borrower’s other loans with this lender in the debt-service ratio',
+    'affordability.includeFacilityMinimumPayments': 'Affordability: count credit-line and card minimum payments in the debt-service ratio',
 };
 
 function flatten(v: unknown, prefix = ''): [string, unknown][] {
