@@ -109,6 +109,11 @@ async function bootstrap() {
   const httpAdapter = app.get(HttpAdapterHost).httpAdapter;
   app.useGlobalFilters(new SentryExceptionFilter(httpAdapter));
 
+  // On SIGTERM (every Railway redeploy) run the modules' shutdown hooks —
+  // onModuleDestroy disconnects Prisma and stops the cron jobs — instead of
+  // the process dying with connections and job claims still open.
+  app.enableShutdownHooks();
+
   await app.listen(runtime.port);
   Logger.log(
     `API running on port ${runtime.port} with production safety checks enabled` +

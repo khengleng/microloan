@@ -8,6 +8,7 @@ import { LendingActor } from '../common/util';
 import { ServicingService } from './servicing.service';
 import { PeriodCloseService } from '../accounting/period-close.service';
 import { operationalConfig } from '../../config/operational-config';
+import { AuditEventService } from '../common/audit-event.service';
 
 /** Arbitrary, fixed key for the cross-instance advisory lock. */
 const EOD_LOCK_KEY = 7_264_190_311;
@@ -25,6 +26,18 @@ export function eodActor(tenantId: string): LendingActor {
     scopes: EOD_SCOPES,
   };
 }
+
+export interface EodTenantRun {
+  tenantId: string;
+  from: string;
+  runs: { businessDate: string; processed: number; failed: number }[];
+}
+/** A tenant whose end of day threw; the others still ran. */
+export interface EodTenantFailure {
+  tenantId: string;
+  error: string;
+}
+export type EodTenantResult = EodTenantRun | EodTenantFailure;
 
 /**
  * The business days a tenant must be rolled through to reach `today`,
@@ -54,6 +67,10 @@ export function daysToRun(current: string, today: string): string[] {
  * - One instance runs it: a Postgres advisory lock held for the run.
  * - Missed days (downtime) catch up day by day, up to LENDING_EOD_MAX_CATCHUP_DAYS
  *   (default 31) per run, so a long outage cannot start an unbounded run.
+ * - Tenants are independent: one tenant's failure is logged, written to that
+ *   tenant's audit trail (action `servicing.eod.run`, outcome FAILURE) and
+ *   the run carries on with the next tenant. The failed tenant's business
+ *   date stays where it stopped, so the next run catches it up.
  */
 @Injectable()
 export class EodSchedulerService {
@@ -64,6 +81,7 @@ export class EodSchedulerService {
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
     private readonly periods: PeriodCloseService,
+    private readonly audit: AuditEventService,
   ) {}
 
   @Cron(process.env.LENDING_EOD_CRON || '15 0 * * *', {
@@ -98,11 +116,14 @@ export class EodSchedulerService {
             distinct: ['tenantId'],
             select: { tenantId: true },
           });
-          const results: Awaited<
-            ReturnType<EodSchedulerService['runTenant']>
-          >[] = [];
+          const results: EodTenantResult[] = [];
           for (const { tenantId } of tenants) {
-            results.push(await this.runTenant(tenantId, today, maxDays));
+            // One tenant's failure must not stop end of day for the rest.
+            try {
+              results.push(await this.runTenant(tenantId, today, maxDays));
+            } catch (e) {
+              results.push(await this.recordTenantFailure(tenantId, e));
+            }
           }
           return results;
         },
@@ -113,18 +134,47 @@ export class EodSchedulerService {
     );
   }
 
-  async runTenant(tenantId: string, today: string, maxDays = 31) {
+  private async recordTenantFailure(
+    tenantId: string,
+    e: unknown,
+  ): Promise<EodTenantFailure> {
+    const error = e instanceof Error ? e.message : String(e);
+    this.logger.error(
+      `EOD ${tenantId}: failed, continuing with the next tenant — ${error}`,
+      e instanceof Error ? e.stack : undefined,
+    );
+    try {
+      await runAsTenant(tenantId, () =>
+        this.audit.write({
+          actor: eodActor(tenantId),
+          action: 'servicing.eod.run',
+          resourceType: 'Tenant',
+          resourceId: tenantId,
+          outcome: 'FAILURE',
+          details: { error: error.slice(0, 500) },
+        }),
+      );
+    } catch (auditError) {
+      // The log line above is the record of last resort.
+      this.logger.error(
+        `EOD ${tenantId}: could not write the failure to the audit trail — ${(auditError as Error).message}`,
+      );
+    }
+    return { tenantId, error };
+  }
+
+  async runTenant(
+    tenantId: string,
+    today: string,
+    maxDays = 31,
+  ): Promise<EodTenantRun> {
     // Each tenant's batch runs inside that tenant's wall, so a helper that
     // forgets its tenant filter still cannot reach another tenant's rows.
     return runAsTenant(tenantId, async () => {
       const actor = eodActor(tenantId);
       const current = await this.businessDate.get(tenantId);
       const days = daysToRun(current, today).slice(0, maxDays);
-      const runs: {
-        businessDate: string;
-        processed: number;
-        failed: number;
-      }[] = [];
+      const runs: EodTenantRun['runs'] = [];
       for (const day of days) {
         await this.businessDate.advance(tenantId, day, actor.id);
         const r = await this.servicing.runBatch(actor);
