@@ -1,7 +1,7 @@
 /**
  * Financial-review fixes: cumulative penalty rounding (D-133), rewinding
  * penalties a backdated payment prevented (D-135), the flat-schedule clamp
- * (D-136) and cross-currency payments in the loan's rounding increment (D-137).
+ * (D-136) and cross-currency payments in the loan's rounding increment (D-136).
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -132,7 +132,7 @@ describe('flat schedules never carry a negative line (D-136)', () => {
   });
 });
 
-describe('cross-currency payments are credited in the loan rounding increment (D-137)', () => {
+describe('cross-currency payments are credited in the loan rounding increment (D-136)', () => {
   test('USD into a KHR loan rounding to 100 riel: the remainder is a rounding difference', () => {
     const r = L.convertPayment({
       amount: '10.01',

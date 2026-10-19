@@ -347,7 +347,7 @@ export interface FxConversion {
    * The converted amount at the loan currency's minor units less what the
    * loan is credited after the loan's own rounding increment (KHR 100, say):
    * kept by the bank (positive) or given to the borrower (negative), and
-   * posted to the rounding-differences account (DECISIONS D-137).
+   * posted to the rounding-differences account (DECISIONS D-136).
    */
   roundingDifference: string;
   explanation: string;
