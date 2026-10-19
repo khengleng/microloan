@@ -6,6 +6,8 @@ type RuntimeConfig = {
   port: number;
   corsOrigins: string[];
   redisUrl?: string;
+  /** Shared with the web server; authenticates its X-Client-IP header. */
+  webProxySecret?: string;
 };
 
 function required(name: string): string {
@@ -77,6 +79,12 @@ export function loadRuntimeConfig(): RuntimeConfig {
     );
   }
 
+  // Optional but recommended: without it the API ignores X-Client-IP and sees
+  // the web server's address for everything the web server forwards. When it
+  // is set it must be a real secret, since it lets the holder name any IP.
+  const webProxySecret = process.env.WEB_PROXY_SECRET?.trim() || undefined;
+  if (webProxySecret) assertMinLength('WEB_PROXY_SECRET', webProxySecret, 32);
+
   // S3 is optional at process startup to allow controlled rollout.
   // Document endpoints enforce availability and return 503 when unconfigured.
   // When it is configured, the region must be stated rather than guessed.
@@ -110,5 +118,6 @@ export function loadRuntimeConfig(): RuntimeConfig {
     port,
     corsOrigins,
     redisUrl,
+    webProxySecret,
   };
 }

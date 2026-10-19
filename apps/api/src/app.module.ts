@@ -44,41 +44,17 @@ import { RiskModule } from './risk/risk.module';
 import { KpiModule } from './kpi/kpi.module';
 import { LendingModule } from './lending/lending.module';
 import { LendingActionGuard } from './lending/policy/lending-action.guard';
+import { throttlerOptions } from './common/throttler-options';
 import { loadRuntimeConfig } from './config/runtime-config';
-import { operationalConfig } from './config/operational-config';
 import { TenantSettingsModule } from './tenant-settings/tenant-settings.service';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    // Object form ({ throttlers, storage }) — see throttlerOptions(): the
+    // array form silently drops the Redis storage.
     ThrottlerModule.forRootAsync({
-      useFactory: async () => {
-        const runtime = loadRuntimeConfig();
-        const base = {
-          name: 'default',
-          ttl: 1_000,
-          limit: operationalConfig().rateLimitPerSecond,
-        };
-
-        // Counters live in Redis whenever it is configured (required in
-        // production), so every API instance draws from the same budget. Only
-        // a single development process without REDIS_URL counts in memory.
-        if (!runtime.redisUrl) {
-          return [base];
-        }
-        // Runtime import avoids TS export-map issues with legacy redis storage package.
-        const { ThrottlerStorageRedisService } =
-          require('nestjs-throttler-storage-redis') as {
-            ThrottlerStorageRedisService: new (url?: string) => any;
-          };
-
-        return [
-          {
-            ...base,
-            storage: new ThrottlerStorageRedisService(runtime.redisUrl),
-          },
-        ];
-      },
+      useFactory: () => throttlerOptions(loadRuntimeConfig().redisUrl),
     }),
     PrismaModule,
     TenantSettingsModule,
@@ -125,9 +101,11 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.service'
     // top-to-bottom: rate limit → authenticate → role → permission → tenant
     // → branch. Each stage assumes the previous one has run.
     //
-    // Global rate limiter keyed by user ID for authenticated routes,
-    // and by IP for public endpoints — prevents the Next.js proxy from
-    // collapsing all users into a single shared bucket.
+    // Global rate limiter. It runs before authentication, so it verifies the
+    // access token itself (signature only) to key authenticated traffic by
+    // user; public routes are keyed by the client IP the web server states
+    // (see common/client-ip.ts), plus the submitted email / phone on the
+    // credential routes.
     { provide: APP_GUARD, useClass: UserAwareThrottlerGuard },
     // Authentication + "this route must declare an authorization policy".
     // Controllers keep their own @UseGuards for clarity; these globals make
