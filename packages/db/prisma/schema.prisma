@@ -345,6 +345,20 @@ model Borrower {
   kycVerifiedAt       DateTime?
   kycVerifiedByUserId String?
   amlStatus           AmlStatus @default(NOT_SCREENED)
+  /// AML/CFT (DECISIONS D-118…D-122). ISO 3166 alpha-2 nationality, a risk factor.
+  nationality         String?
+  /// Politically exposed person: set when a PEP watch-list match is confirmed.
+  pep                 Boolean   @default(false)
+  /// LOW, MEDIUM, HIGH — from the tenant's risk factors and weights.
+  amlRiskRating       String?
+  amlRiskScore        Int?
+  amlRiskFactors      Json?
+  amlRiskRatedAt      DateTime?
+  amlNextReviewOn     DateTime? @db.Date
+  /// Last watch-list screening, and the last change of amlStatus.
+  amlScreenedAt       DateTime?
+  amlStatusChangedAt  DateTime?
+  amlStatusChangedBy  String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -359,6 +373,9 @@ model Borrower {
   documentRequests  DocumentRequest[]
   altDataConsents   AltDataConsent[]
   altDataRecords    AltDataRecord[]
+  amlScreeningCases AmlScreeningCase[]
+  amlEddRecords     AmlEddRecord[]
+  amlStrCases       AmlStrCase[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
@@ -4688,4 +4705,175 @@ model LearningProgress {
   @@unique([tenantId, userId, lessonId])
   @@unique([tenantId, id])
   @@index([tenantId, lessonId])
+}
+
+// ── AML/CFT (DECISIONS D-118…D-122) ─────────────────────────────────────────
+
+/// One uploaded version of a tenant watch list (sanctions, PEP or internal
+/// names). Uploaded by one compliance user, activated by another; activating
+/// a version supersedes the list's previous one and queues a re-screen of
+/// every customer.
+model AmlWatchListVersion {
+  id          String              @id @default(uuid())
+  tenantId    String
+  /// The list this is a version of, e.g. UN_SANCTIONS, PEP_REGISTER, INTERNAL.
+  listCode    String
+  version     Int
+  name        String
+  fileName    String
+  fileHash    String
+  entryCount  Int
+  /// PENDING, ACTIVE, REJECTED, SUPERSEDED
+  status      String              @default("PENDING")
+  makerId     String
+  checkerId   String?
+  decidedAt   DateTime?
+  reason      String              @default("")
+  createdAt   DateTime            @default(now())
+  entries     AmlWatchListEntry[]
+  rescreenJobs AmlRescreenJob[]
+
+  @@unique([tenantId, listCode, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// A name on a watch-list version. Immutable.
+model AmlWatchListEntry {
+  id             String              @id @default(uuid())
+  tenantId       String
+  versionId      String
+  version        AmlWatchListVersion @relation(fields: [tenantId, versionId], references: [tenantId, id], onDelete: Cascade)
+  /// SANCTION, PEP, INTERNAL
+  entryType      String
+  name           String
+  normalizedName String
+  aliases        String[]            @default([])
+  source         String
+  listDate       DateTime            @db.Date
+  country        String?
+  dateOfBirth    DateTime?           @db.Date
+  reference      String?
+  lineNo         Int
+
+  @@unique([tenantId, id])
+  @@index([tenantId, versionId])
+}
+
+/// Watch-list hits on one customer awaiting a compliance disposition.
+/// A disposition is proposed by one compliance user and approved by
+/// another (an ApprovalTask, action AML_DISPOSITION).
+model AmlScreeningCase {
+  id              String    @id @default(uuid())
+  tenantId        String
+  reference       String
+  borrowerId      String
+  borrower        Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Restrict)
+  /// CUSTOMER_CREATE, CUSTOMER_UPDATE, ON_DEMAND, LIST_ACTIVATION, STATUS_CLEARANCE
+  trigger         String
+  /// The customer's name as screened (normalised), so a later rename is screened afresh.
+  screenedName    String
+  hits            Json
+  topScore        Decimal   @db.Decimal(6, 4)
+  /// SANCTION, PEP or INTERNAL: the most serious type among the hits.
+  topType         String
+  /// OPEN, PENDING_APPROVAL, TRUE_MATCH, FALSE_POSITIVE
+  status          String    @default("OPEN")
+  disposition     String?
+  dispositionNote String    @default("")
+  proposedBy      String?
+  decidedBy       String?
+  decidedAt       DateTime?
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, borrowerId])
+}
+
+/// A background re-screen of every customer after a list version is
+/// activated, worked in batches by whichever API instance holds its lease
+/// (ScheduledJobClaim, job "aml.rescreen"); progress is kept here, so a
+/// restart resumes where it stopped.
+model AmlRescreenJob {
+  id             String              @id @default(uuid())
+  tenantId       String
+  listVersionId  String
+  listVersion    AmlWatchListVersion @relation(fields: [tenantId, listVersionId], references: [tenantId, id], onDelete: Restrict)
+  /// PENDING, RUNNING, COMPLETED, FAILED
+  status         String              @default("PENDING")
+  /// The last customer id screened; the next batch starts after it.
+  cursor         String?
+  screened       Int                 @default(0)
+  casesOpened    Int                 @default(0)
+  error          String?
+  requestedBy    String
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// Enhanced due diligence for a HIGH-risk or politically exposed customer:
+/// source of funds and wealth with the supporting document, recorded by one
+/// person and approved by another before the customer may borrow.
+model AmlEddRecord {
+  id                String    @id @default(uuid())
+  tenantId          String
+  borrowerId        String
+  borrower          Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Restrict)
+  /// HIGH_RISK, PEP
+  reason            String
+  sourceOfFunds     String
+  sourceOfWealth    String
+  documentReference String
+  /// The customer-library document holding the evidence, when it is filed there.
+  documentId        String?
+  /// PENDING, APPROVED, REJECTED, SUPERSEDED
+  status            String    @default("PENDING")
+  makerId           String
+  checkerId         String?
+  decidedAt         DateTime?
+  comment           String    @default("")
+  createdAt         DateTime  @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, status])
+}
+
+/// An internal suspicious transaction referral. Any staff member may raise
+/// one; only compliance sees it (tipping-off), records its review and
+/// whether and when it was reported to CAFIU.
+model AmlStrCase {
+  id              String    @id @default(uuid())
+  tenantId        String
+  reference       String
+  borrowerId      String
+  borrower        Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Restrict)
+  loanAccountId   String?
+  financialEventId String?
+  grounds         String
+  indicators      String[]  @default([])
+  raisedBy        String
+  /// The screening case a confirmed sanctions or internal-list match raised it from.
+  screeningCaseId String?
+  /// OPEN, NO_FURTHER_ACTION, TO_REPORT, REPORTED
+  status          String    @default("OPEN")
+  reviewNotes     String    @default("")
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  cafiuReference  String?
+  cafiuReportedOn DateTime? @db.Date
+  reportedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
 }
