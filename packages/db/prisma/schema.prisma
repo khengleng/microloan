@@ -2165,6 +2165,7 @@ model LoanAccount {
   @@unique([tenantId, agreementId])
   @@index([tenantId, status])
   @@index([tenantId, branchId])
+  penaltyAccruals        PenaltyAccrual[]
 }
 
 /// A contractual floating-rate re-pricing applied to a booked loan.
@@ -2374,6 +2375,7 @@ model PenaltyAccrual {
   /// The backdated repayment that rewound this row.
   rewoundByEventId String?
   createdAt        DateTime @default(now())
+  loanAccount      LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
 
   @@index([tenantId, loanAccountId, instalmentId, status])
 }
