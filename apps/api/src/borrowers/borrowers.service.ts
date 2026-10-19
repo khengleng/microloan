@@ -11,6 +11,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { isCbcConfigured, CBC_NOT_READY_MESSAGE } from '../credit-bureau/cbc.provider';
 import { blindIndex } from '../common/field-crypto';
+import { AmlScreeningService } from '../lending/aml/aml-screening.service';
 
 @Injectable()
 export class BorrowersService {
@@ -18,6 +19,7 @@ export class BorrowersService {
     private prisma: PrismaService,
     private audit: AuditService,
     private authz: AuthzService,
+    private aml: AmlScreeningService,
   ) { }
 
   async create(actor: JwtPayload, dto: CreateBorrowerDto) {
@@ -42,6 +44,8 @@ export class BorrowersService {
       b.id,
       maskBorrowerDto(dto),   // ← PII masked
     );
+    // AML/CFT (D-119): every new customer is screened against the watch lists in force and rated.
+    await this.aml.onCustomerChanged(b.tenantId, b.id, 'CUSTOMER_CREATE', this.authz.actorId(actor));
     return b;
   }
 
@@ -155,12 +159,18 @@ export class BorrowersService {
       before: maskBorrowerForAudit(b),      // ← masked
       after: maskBorrowerDto(dto),          // ← masked
     });
+    // Every change re-screens the customer (name, date of birth) and re-rates
+    // them (nationality and occupation are risk factors).
+    await this.aml.onCustomerChanged(b.tenantId, b.id, 'CUSTOMER_UPDATE', this.authz.actorId(actor));
     return updated;
   }
 
   /**
-   * P0 #4: basic KYC/AML status management (manual review; no external screening).
-   * Records who verified and when; a rejected/flagged borrower is visible in reports.
+   * P0 #4: KYC status management. Identity verification is the two-person
+   * KYC review (POST /kyc/:id/verify); AML status is managed under
+   * /lending/aml (D-118): FLAGGED may still be set here by one person, while
+   * clearing a customer needs a second person and a fresh screening, so it
+   * is refused here.
    */
   async updateKyc(
     actor: JwtPayload,
@@ -188,13 +198,28 @@ export class BorrowersService {
       );
     }
 
+    if (dto.amlStatus && dto.amlStatus !== 'FLAGGED') {
+      throw new BadRequestException(
+        'Clear a customer from the AML review on the customer profile, where a fresh screening runs and a second person approves it.',
+      );
+    }
+
     const data: any = {};
     if (dto.kycStatus) {
       data.kycStatus = dto.kycStatus as any;
       data.kycVerifiedAt = dto.kycStatus === 'VERIFIED' ? new Date() : null;
       data.kycVerifiedByUserId = dto.kycStatus === 'VERIFIED' ? this.authz.actorId(actor) : null;
     }
-    if (dto.amlStatus) data.amlStatus = dto.amlStatus as any;
+    if (dto.amlStatus) {
+      data.amlStatus = dto.amlStatus as any;
+      data.amlStatusChangedAt = new Date();
+      data.amlStatusChangedBy = this.authz.actorId(actor);
+      // A clearance awaiting approval no longer applies to a flagged customer.
+      await this.prisma.approvalTask.updateMany({
+        where: { tenantId: b.tenantId, subjectType: 'BORROWER', subjectId: id, action: 'AML_CLEAR', status: 'PENDING' },
+        data: { status: 'CANCELLED', decidedBy: this.authz.actorId(actor), decidedAt: new Date(), comment: 'Superseded: customer flagged' },
+      });
+    }
 
     const updated = await this.prisma.borrower.update({ where: { id }, data });
     await this.audit.logAction(b.tenantId, this.authz.actorId(actor), 'UPDATE', 'Borrower', b.id, {
@@ -222,6 +247,15 @@ export class BorrowersService {
     const filed = await this.prisma.customerDocument.count({ where: { tenantId: b.tenantId, borrowerId: id } });
     if (filed > 0) {
       throw new ConflictException('This customer has filed documents under retention and cannot be deleted.');
+    }
+    // AML/CFT records are kept for years after the relationship ends (D-118).
+    const [cases, edd, str] = await Promise.all([
+      this.prisma.amlScreeningCase.count({ where: { tenantId: b.tenantId, borrowerId: id } }),
+      this.prisma.amlEddRecord.count({ where: { tenantId: b.tenantId, borrowerId: id } }),
+      this.prisma.amlStrCase.count({ where: { tenantId: b.tenantId, borrowerId: id } }),
+    ]);
+    if (cases + edd + str > 0) {
+      throw new ConflictException('This customer has AML/CFT records under retention and cannot be deleted.');
     }
 
     await this.prisma.borrower.delete({ where: { id } });

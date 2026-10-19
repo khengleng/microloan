@@ -142,6 +142,11 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'consents/:consentId': 'altDataConsent',
       'alternative-data/:recordId': 'altDataRecord',
       'alternative-data-providers/:configId': 'altDataProviderConfig',
+      // AML/CFT (aml.int-spec creates the victims).
+      'watch-lists/:versionId': 'amlWatchListVersion',
+      'cases/:caseId': 'amlScreeningCase',
+      'edd/:eddId': 'amlEddRecord',
+      'str/:strId': 'amlStrCase',
       // Learning centre team report (learning.int-spec): a member of the victim tenant.
       'users/:userId': 'user',
       ':resourceType/:id': 'loanAccount',

@@ -43,6 +43,7 @@ import { PolicyService } from './policy/policy.service';
 import type { ResourceType } from './policy/actions';
 import { GeneratedDocumentsService } from './documents/generated-documents.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
+import { AmlCustomersService } from './aml/aml-customers.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -1267,6 +1268,7 @@ export class LendingAccessController {
   constructor(
     private readonly access: AccessAdminService,
     private readonly policy: PolicyService,
+    private readonly aml: AmlCustomersService,
   ) {}
 
   @LendingAction('access_policy.read')
@@ -1531,7 +1533,14 @@ export class LendingAccessController {
       id,
       'loan.read',
     );
-    return this.policy.capabilities(a, rt, resource);
+    // The AML/CFT gate (D-118) blocks origination and payout steps on the
+    // customer, not on the user's permissions; it is shown alongside them.
+    return this.aml.withGate(
+      a.tenantId,
+      rt,
+      id,
+      await this.policy.capabilities(a, rt, resource),
+    );
   }
 }
 

@@ -422,6 +422,8 @@ export const S = {
   executeDisbursement: z
     .object({
       externalReference: z.string().min(2).max(120),
+      /** How the money went out; the cash transaction report counts cash (D-121). */
+      channel: z.enum(lending.PAYMENT_CHANNEL_CODES).optional(),
       /**
        * Who receives the money (UC-05); an INTERNAL_LOAN payee settles that
        * loan of the same borrower from the proceeds (UC-35).
@@ -531,6 +533,8 @@ export const S = {
       amount: money,
       valueDate: date.optional(),
       externalReference: z.string().max(120).optional(),
+      /** How the money came in; the cash transaction report counts cash (D-121). */
+      channel: z.enum(lending.PAYMENT_CHANNEL_CODES).optional(),
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
       payer: z

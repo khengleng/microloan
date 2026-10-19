@@ -207,11 +207,17 @@ export class ServicingService {
       const visible = tasks.filter((t) => loanById.has(t.subjectId));
       const [borrowers, makers] = await Promise.all([
         tx.borrower.findMany({
-          where: { tenantId, id: { in: [...new Set(loans.map((l) => l.borrowerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(loans.map((l) => l.borrowerId))] },
+          },
           select: { id: true, firstName: true, lastName: true },
         }),
         tx.user.findMany({
-          where: { tenantId, id: { in: [...new Set(visible.map((t) => t.makerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(visible.map((t) => t.makerId))] },
+          },
           select: { id: true, email: true },
         }),
       ]);
@@ -226,7 +232,7 @@ export class ServicingService {
         const loan = loanById.get(t.subjectId)!;
         const payload = (t.payload ?? {}) as Record<string, unknown>;
         const text = (k: string) =>
-          typeof payload[k] === 'string' ? (payload[k] as string) : null;
+          typeof payload[k] === 'string' ? payload[k] : null;
         return {
           id: t.id,
           action: t.action,
@@ -293,7 +299,10 @@ export class ServicingService {
       ]);
       // Who made each open task, by email rather than a bare id.
       const makers = await tx.user.findMany({
-        where: { tenantId, id: { in: [...new Set(tasks.map((t) => t.makerId))] } },
+        where: {
+          tenantId,
+          id: { in: [...new Set(tasks.map((t) => t.makerId))] },
+        },
         select: { id: true, email: true },
       });
       const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
@@ -569,6 +578,8 @@ export class ServicingService {
     id: string,
     body: {
       externalReference: string;
+      /** How the money went out (cash transaction report, D-121). */
+      channel?: string;
       payees?: {
         type: string;
         name: string;
@@ -812,6 +823,7 @@ export class ServicingService {
         agreementVersion,
         downPaymentPaidOut: held.toString(),
         payees,
+        channel: body.channel ?? null,
       };
       const afterHooks: ((eventId: string) => Promise<void>)[] = [];
       for (const hook of this.disbursementHooks) {
@@ -1328,6 +1340,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
   ) {
@@ -1358,6 +1372,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
     hash: string,
@@ -1661,6 +1677,7 @@ export class ServicingService {
           advance: advanced.toString(),
           suspenseReleased: released.amount.toString(),
           payer: body.payer ?? null,
+          channel: body.channel ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
           rescheduledTo,
@@ -4727,7 +4744,11 @@ export function delinquency(
 }
 
 /** Loan maker-checker tasks listed for checkers by `pendingApprovals`. */
-export const PENDING_APPROVAL_ACTIONS = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
+export const PENDING_APPROVAL_ACTIONS = [
+  'FEE_WAIVER',
+  'ADVANCE_REFUND',
+  'SET_OFF',
+];
 
 function view<T extends Record<string, unknown>>(a: T) {
   const out: Record<string, unknown> = { ...a };

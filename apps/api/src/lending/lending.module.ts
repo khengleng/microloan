@@ -118,6 +118,13 @@ import {
 import { WorkspaceAccessService } from './workspace/workspace-access.service';
 import { WorkspaceWorkService } from './workspace/workspace-work.service';
 import { WorkspaceSearchService } from './workspace/workspace-search.service';
+import { AmlController } from './aml/aml.controller';
+import { AmlGateService } from './aml/aml-gate.service';
+import { AmlRiskService } from './aml/aml-risk.service';
+import { AmlScreeningService } from './aml/aml-screening.service';
+import { AmlCustomersService } from './aml/aml-customers.service';
+import { AmlReportsService } from './aml/aml-reports.service';
+import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
 
 /**
  * Configurable lending platform (modular monolith). Shares tenants, users,
@@ -166,6 +173,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     ScoringController,
     LearningMeController,
     LearningTeamController,
+    AmlController,
   ],
   providers: [
     ReportingService,
@@ -231,8 +239,15 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     AltDataProvidersService,
     ScoreMonitoringService,
     LearningService,
+    AmlGateService,
+    AmlRiskService,
+    AmlScreeningService,
+    AmlCustomersService,
+    AmlReportsService,
+    AmlRescreenScheduler,
   ],
   exports: [
+    AmlScreeningService,
     CustomerDocumentsService,
     PolicyService,
     LendingActionGuard,

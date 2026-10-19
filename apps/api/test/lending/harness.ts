@@ -339,6 +339,10 @@ export async function borrower(
         firstName: 'Sok',
         lastName: 'Dara',
         kycStatus: 'VERIFIED',
+        // Lending needs an AML-cleared, low-risk customer (D-118); the
+        // two-person clearance itself is tested in aml.int-spec.
+        amlStatus: 'CLEAR',
+        amlRiskRating: 'LOW',
         dateOfBirth: new Date(Date.UTC(1985, 3, 12)),
         monthlyIncome: '3000',
         ...over,

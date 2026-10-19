@@ -1,4 +1,4 @@
-import { IsDateString, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
 
 export class CreateBorrowerDto {
   @IsString()
@@ -37,6 +37,11 @@ export class CreateBorrowerDto {
   @IsString()
   @IsOptional()
   idType?: string;
+
+  // AML/CFT risk factor (D-120): ISO 3166 alpha-2 nationality.
+  @Matches(/^[A-Z]{2}$/, { message: 'nationality must be a two-letter ISO country code (e.g. KH)' })
+  @IsOptional()
+  nationality?: string;
 
   @IsString()
   @IsOptional()
@@ -96,6 +101,11 @@ export class UpdateBorrowerDto {
   @IsString()
   @IsOptional()
   idType?: string;
+
+  // AML/CFT risk factor (D-120): ISO 3166 alpha-2 nationality.
+  @Matches(/^[A-Z]{2}$/, { message: 'nationality must be a two-letter ISO country code (e.g. KH)' })
+  @IsOptional()
+  nationality?: string;
 
   @IsString()
   @IsOptional()

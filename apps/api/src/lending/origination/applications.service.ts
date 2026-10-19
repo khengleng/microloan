@@ -34,6 +34,7 @@ import { CustomerDocumentsService } from '../documents/customer-documents.servic
 import { createConfiguredCovenants } from '../covenants/covenant-setup';
 import { ScoringService, type ScoreStage } from '../scoring/scoring.service';
 import { RateCapService } from '../common/rate-cap.service';
+import { AmlGateService } from '../aml/aml-gate.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -97,6 +98,7 @@ export class ApplicationsService {
     private readonly library: CustomerDocumentsService,
     private readonly scoring: ScoringService,
     private readonly rateCap: RateCapService,
+    private readonly amlGate: AmlGateService,
   ) {}
 
   private assessmentChecks: AssessmentCheck[] = [];
@@ -468,6 +470,13 @@ export class ApplicationsService {
         'loan_application.submit',
         applicationResource(app, version, product, []),
         tx,
+      );
+      // AML/CFT gate (D-118): whatever the workflow's steps.
+      await this.amlGate.assertClear(
+        tx,
+        tenantId,
+        await this.amlGate.applicationParties(tx, tenantId, app),
+        'submitted',
       );
       const workflow = await this.workflows.effective(
         tenantId,
@@ -972,6 +981,12 @@ export class ApplicationsService {
       );
       if (!body.rationale?.trim())
         throw new BadRequestException('A rationale is required.');
+      await this.amlGate.assertClear(
+        tx,
+        tenantId,
+        await this.amlGate.applicationParties(tx, tenantId, app),
+        'approved',
+      );
 
       const workflow = await this.workflows.effective(
         tenantId,
@@ -1114,6 +1129,12 @@ export class ApplicationsService {
         'loan.agreement.book',
         applicationResource(app, version, product, []),
         tx,
+      );
+      await this.amlGate.assertClear(
+        tx,
+        tenantId,
+        await this.amlGate.applicationParties(tx, tenantId, app),
+        'booked',
       );
       const businessDate = await this.businessDate.get(tenantId, tx);
       const planned = body.plannedDisbursementDate ?? businessDate;

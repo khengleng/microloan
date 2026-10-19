@@ -160,6 +160,41 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Verify or reject alternative data captured by someone else',
     category: 'Credit',
   },
+  // AML/CFT (D-118…D-122)
+  {
+    code: 'aml.read',
+    description:
+      'View the AML status, risk rating and screening cases of customers in scope, and the cash transaction report',
+    category: 'Compliance',
+  },
+  {
+    code: 'aml.screen',
+    description:
+      'Screen customers, upload watch lists, rate customer risk, record enhanced due diligence and propose AML clearance (maker)',
+    category: 'Compliance',
+  },
+  {
+    code: 'aml.disposition',
+    description:
+      'Disposition watch-list hits, approve AML clearance and activate watch lists proposed by someone else (checker)',
+    category: 'Compliance',
+  },
+  {
+    code: 'aml.edd.approve',
+    description: 'Approve enhanced due diligence recorded by someone else',
+    category: 'Compliance',
+  },
+  {
+    code: 'aml.str.raise',
+    description: 'Raise an internal suspicious transaction referral',
+    category: 'Compliance',
+  },
+  {
+    code: 'aml.str.review',
+    description:
+      'See and review suspicious transaction referrals and record reports to CAFIU (restricted: tipping-off)',
+    category: 'Compliance',
+  },
   // Servicing
   {
     code: 'loan.read',
@@ -688,6 +723,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Originates applications and runs solidarity groups for borrowers in their scope.',
     permissions: [
+      'aml.read',
+      'aml.str.raise',
       'alt_data.read',
       'alt_data.consent.manage',
       'alt_data.record',
@@ -712,6 +749,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit analyst',
     description: 'Assesses applications and recommends decisions.',
     permissions: [
+      'aml.read',
+      'aml.screen',
+      'aml.str.raise',
       'scorecard.read',
       'scorecard.manage',
       'credit_score.run',
@@ -738,6 +778,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit approver',
     description: 'Approves or rejects credit within approval authority.',
     permissions: [
+      'aml.read',
+      'aml.str.raise',
       'scorecard.read',
       'credit_score.run',
       'alt_data.read',
@@ -764,6 +806,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Books agreements, prepares disbursements, posts repayments, proposes write-offs.',
     permissions: [
+      'aml.read',
+      'aml.str.raise',
       'document.upload',
       'document.review',
       ...READ_ALL,
@@ -790,6 +834,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Approves and executes disbursements, reverses repayments, approves write-offs.',
     permissions: [
+      'aml.read',
+      'aml.str.raise',
       'document.review',
       ...READ_ALL,
       'loan.disbursement.approve',
@@ -810,6 +856,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Collections officer',
     description: 'Works delinquent accounts and posts collections.',
     permissions: [
+      'aml.str.raise',
       'document.read',
       'document.upload',
       'loan.read',
@@ -846,6 +893,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Finance officer',
     description: 'Accounting, reconciliation, business date and rates.',
     permissions: [
+      'aml.str.raise',
       'loan.read',
       'accounting.read',
       'business_date.manage',
@@ -862,8 +910,15 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
   {
     code: 'RISK_COMPLIANCE',
     name: 'Risk / compliance reviewer',
-    description: 'Read access across lending with the policy simulator.',
+    description:
+      'Read access across lending with the policy simulator; AML/CFT screening, dispositions, enhanced due diligence and suspicious transaction reports.',
     permissions: [
+      'aml.read',
+      'aml.screen',
+      'aml.disposition',
+      'aml.edd.approve',
+      'aml.str.raise',
+      'aml.str.review',
       'scorecard.read',
       'scorecard.approve',
       'alt_data.read',
@@ -889,6 +944,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Auditor',
     description: 'Read-only access including the audit trail.',
     permissions: [
+      'aml.read',
       'scorecard.read',
       'alt_data.read',
       ...READ_ALL,
