@@ -9,7 +9,10 @@ import {
   parseDocumentEncryptionKey,
 } from './document-crypto';
 import { encryptDocumentsAtRest } from './document-reencrypt';
-import { DocumentStorageService, LocalLibraryStorage } from './document-storage';
+import {
+  DocumentStorageService,
+  LocalLibraryStorage,
+} from './document-storage';
 
 // Test keys only: never real key material.
 const TEST_KEY = Buffer.alloc(32, 3).toString('base64');

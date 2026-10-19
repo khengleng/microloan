@@ -159,11 +159,7 @@ export class RecoveryService {
   /** Recovery work across the loans in the caller's scope (the recovery desk). */
   async desk(actor: LendingActor) {
     const tenantId = requireTenant(actor);
-    await this.policy.enforce(
-      actor,
-      'recovery.read',
-      tenantResource(tenantId),
-    );
+    await this.policy.enforce(actor, 'recovery.read', tenantResource(tenantId));
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
     if (!scope)
       return {
@@ -259,10 +255,8 @@ export class RecoveryService {
         pawnItems: withLoan(pawnItems).map((p) => ({
           ...p,
           pastDeadline:
-            lending.compareDates(
-              businessDate,
-              p.redemptionDeadline as string,
-            ) > 0,
+            lending.compareDates(businessDate, p.redemptionDeadline as string) >
+            0,
         })),
         claims: withLoan(claims).filter(
           (c) =>
@@ -534,10 +528,8 @@ export class RecoveryService {
           status: 'SOLD',
           releasedAt: new Date(),
           releasedBy: actor.id,
-          releaseReference: `SOLD ${body.externalReference ?? body.buyer}`.slice(
-            0,
-            120,
-          ),
+          releaseReference:
+            `SOLD ${body.externalReference ?? body.buyer}`.slice(0, 120),
         },
       });
       if (sold.count !== 1) throw concurrentModification('This pledge');
@@ -758,7 +750,11 @@ export class RecoveryService {
           saleDate: body.saleDate,
           appraisedValue: decStr(item.appraisedValue),
         },
-        refund: { source: 'PAWN_AUCTION', sourceId: item.id, payee: 'Borrower' },
+        refund: {
+          source: 'PAWN_AUCTION',
+          sourceId: item.id,
+          payee: 'Borrower',
+        },
       });
       const res = await tx.pawnItem.updateMany({
         where: { id: item.id, tenantId, status: 'FORFEITED' },
@@ -905,11 +901,8 @@ export class RecoveryService {
           },
         });
         const fees =
-          (
-            disbursement?.components as
-              | { fees?: lending.FeeLine[] }
-              | undefined
-          )?.fees ?? [];
+          (disbursement?.components as { fees?: lending.FeeLine[] } | undefined)
+            ?.fees ?? [];
         const financed = fees
           .filter(
             (f) =>
@@ -1020,9 +1013,7 @@ export class RecoveryService {
       const policy = await this.policyOf(tx, state, policyId);
       const due = D(policy.premium).minus(D(policy.premiumRemitted));
       const amount = body.amount
-        ? D(
-            lending.parseMoney(body.amount, state.account.currency, 'amount'),
-          )
+        ? D(lending.parseMoney(body.amount, state.account.currency, 'amount'))
         : due;
       await this.policy.enforce(
         actor,
@@ -1066,7 +1057,11 @@ export class RecoveryService {
           resourceType: 'LoanAccount',
           resourceId: loanId,
           outcome: 'SUCCESS',
-          details: { policy: policyId, task: task.id, amount: amount.toString() },
+          details: {
+            policy: policyId,
+            task: task.id,
+            amount: amount.toString(),
+          },
         },
         tx,
       );
@@ -1100,7 +1095,9 @@ export class RecoveryService {
         throw new ConflictException(`Loan is ${state.account.status}.`);
       const policy = await this.policyOf(tx, state, policyId);
       if (policy.status !== 'ACTIVE')
-        throw new ConflictException('A claim has already been paid on this policy.');
+        throw new ConflictException(
+          'A claim has already been paid on this policy.',
+        );
       if (
         policy.coverType !== 'DEATH_AND_DISABILITY' &&
         policy.coverType !== body.eventType
@@ -1120,7 +1117,9 @@ export class RecoveryService {
         where: { tenantId, policyId, status: 'PENDING' },
       });
       if (pending)
-        throw new ConflictException('A claim on this policy is already pending.');
+        throw new ConflictException(
+          'A claim on this policy is already pending.',
+        );
       // By default the insurer is asked for what the loan owes today.
       const claimed = body.amountClaimed
         ? D(
@@ -1250,7 +1249,11 @@ export class RecoveryService {
           resourceType: 'LoanAccount',
           resourceId: loanId,
           outcome: 'SUCCESS',
-          details: { claim: claimId, event: event.id, amount: amount.toString() },
+          details: {
+            claim: claimId,
+            event: event.id,
+            amount: amount.toString(),
+          },
           businessDate: fromLocalDate(businessDate),
         },
         tx,
@@ -1350,7 +1353,11 @@ export class RecoveryService {
           resourceType: 'LoanAccount',
           resourceId: loanId,
           outcome: 'SUCCESS',
-          details: { debtSale: sale.id, task: task.id, price: price.toString() },
+          details: {
+            debtSale: sale.id,
+            task: task.id,
+            price: price.toString(),
+          },
         },
         tx,
       );
@@ -1627,7 +1634,10 @@ export class RecoveryService {
         accountCode: acc.recoveryCostsExpense,
         debit: result.unrecoveredCosts,
       },
-      { accountCode: acc.loansReceivable, credit: paid('PRINCIPAL').toString() },
+      {
+        accountCode: acc.loansReceivable,
+        credit: paid('PRINCIPAL').toString(),
+      },
       { accountCode: acc.interestReceivable, credit: interest.toString() },
       { accountCode: acc.feesReceivable, credit: paid('FEE').toString() },
       {
@@ -1833,7 +1843,11 @@ export class RecoveryService {
       },
     });
     const r = await tx.insuranceClaim.updateMany({
-      where: { id: claim.id, tenantId: state.account.tenantId, status: 'PENDING' },
+      where: {
+        id: claim.id,
+        tenantId: state.account.tenantId,
+        status: 'PENDING',
+      },
       data: {
         status: 'SETTLED',
         settlementEventId: out.event.id,
@@ -1937,7 +1951,11 @@ export class RecoveryService {
       ],
     });
     const r = await tx.recoveryRefund.updateMany({
-      where: { id: refund.id, tenantId: state.account.tenantId, status: 'PAYABLE' },
+      where: {
+        id: refund.id,
+        tenantId: state.account.tenantId,
+        status: 'PAYABLE',
+      },
       data: { status: 'PAID', paidEventId: event.id },
     });
     if (r.count !== 1) throw concurrentModification('This refund');
@@ -2221,11 +2239,15 @@ function owedTotal(state: LoanState): Dec {
 function notFuture(date: string, businessDate: string, field: string) {
   lending.parseDate(date, field);
   if (lending.compareDates(date, businessDate) > 0)
-    throw new BadRequestException(`${field} cannot be after the business date.`);
+    throw new BadRequestException(
+      `${field} cannot be after the business date.`,
+    );
 }
 
 /** Decimals as strings and @db.Date columns as YYYY-MM-DD, for the client. */
-function plain<T extends Record<string, unknown>>(row: T): Record<string, unknown> {
+function plain<T extends Record<string, unknown>>(
+  row: T,
+): Record<string, unknown> {
   const DATE_ONLY = new Set([
     'seizedOn',
     'valuedOn',

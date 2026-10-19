@@ -344,11 +344,13 @@ d('Financial review: penalties, refunds and reversals (integration)', () => {
         lending.roundMoney(x, { increment: '0.01', mode: 'HALF_UP' });
       const before7 = rate(full, 7);
       const ev = expectOk(
-        await f.as('opsMaker').post(
-          `/lending/loans/${backdated}/repayments`,
-          { amount: '500.00', valueDate: '2026-02-12' },
-          key('pay-b2'),
-        ),
+        await f
+          .as('opsMaker')
+          .post(
+            `/lending/loans/${backdated}/repayments`,
+            { amount: '500.00', valueDate: '2026-02-12' },
+            key('pay-b2'),
+          ),
       );
       // Penalty to 12 February is paid first; the rest reduces the overdue.
       expect(ev.components.penalty).toBe(round(before7).toString());

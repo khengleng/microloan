@@ -239,11 +239,17 @@ export class ServicingService {
       const visible = tasks.filter((t) => loanById.has(t.subjectId));
       const [borrowers, makers] = await Promise.all([
         tx.borrower.findMany({
-          where: { tenantId, id: { in: [...new Set(loans.map((l) => l.borrowerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(loans.map((l) => l.borrowerId))] },
+          },
           select: { id: true, firstName: true, lastName: true },
         }),
         tx.user.findMany({
-          where: { tenantId, id: { in: [...new Set(visible.map((t) => t.makerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(visible.map((t) => t.makerId))] },
+          },
           select: { id: true, email: true },
         }),
       ]);
@@ -258,7 +264,7 @@ export class ServicingService {
         const loan = loanById.get(t.subjectId)!;
         const payload = (t.payload ?? {}) as Record<string, unknown>;
         const text = (k: string) =>
-          typeof payload[k] === 'string' ? (payload[k] as string) : null;
+          typeof payload[k] === 'string' ? payload[k] : null;
         return {
           id: t.id,
           action: t.action,
@@ -325,7 +331,10 @@ export class ServicingService {
       ]);
       // Who made each open task, by email rather than a bare id.
       const makers = await tx.user.findMany({
-        where: { tenantId, id: { in: [...new Set(tasks.map((t) => t.makerId))] } },
+        where: {
+          tenantId,
+          id: { in: [...new Set(tasks.map((t) => t.makerId))] },
+        },
         select: { id: true, email: true },
       });
       const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
@@ -4626,8 +4635,8 @@ export class ServicingService {
         loanAccountId: state.account.id,
         instalmentId: l.id,
         kind: record.kind,
-        fromDate: fromLocalDate(record.from)!,
-        toDate: fromLocalDate(asOf)!,
+        fromDate: fromLocalDate(record.from),
+        toDate: fromLocalDate(asOf),
         basis: overdue.toString(),
         accrued: record.accrued.toString(),
         suspended,
@@ -4765,7 +4774,7 @@ export class ServicingService {
             instalmentId: l.id,
             kind: 'DAILY',
             fromDate: x.r.fromDate,
-            toDate: fromLocalDate(valueDate)!,
+            toDate: fromLocalDate(valueDate),
             basis: x.r.basis,
             accrued: D(x.r.accrued).minus(x.prevented).toString(),
             suspended: x.r.suspended,
@@ -4810,8 +4819,8 @@ export class ServicingService {
         tenantId: state.account.tenantId,
         loanAccountId: state.account.id,
         type: 'PENALTY_REVERSAL',
-        businessDate: fromLocalDate(businessDate)!,
-        valueDate: fromLocalDate(valueDate)!,
+        businessDate: fromLocalDate(businessDate),
+        valueDate: fromLocalDate(valueDate),
         amount: reversed.toString(),
         currency: state.account.currency,
         components: {
@@ -4835,7 +4844,7 @@ export class ServicingService {
         tenantId: state.account.tenantId,
         financialEventId: eventId,
         loanAccountId: state.account.id,
-        entryDate: fromLocalDate(businessDate)!,
+        entryDate: fromLocalDate(businessDate),
         currency: state.account.currency,
         description: `Late penalties from ${valueDate} undone`,
         lines: [
