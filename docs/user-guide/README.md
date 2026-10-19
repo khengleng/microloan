@@ -54,6 +54,7 @@ chapters for your role (see the table below). To practise safely, follow the
 **Help**
 
 - 25 [Learning centre](25-learning-centre.md) — self-paced lessons, guided tours, quizzes, badges and certificates, and the team progress report.
+- 26 [AML and compliance](26-aml-and-compliance.md) — the lending gate (KYC, AML clearance, EDD), watch lists and screening cases, customer risk rating, the cash transaction report and suspicious transaction referrals.
 - 22 [Troubleshooting and FAQ](22-troubleshooting.md)
 - 23 [Glossary](23-glossary.md)
 - [Demo walkthrough](demo-walkthrough.md) — a guided end-to-end exercise in the demo organisation.

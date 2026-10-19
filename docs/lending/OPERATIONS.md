@@ -1023,6 +1023,101 @@ To score thin-file borrowers: enable `scoring.thinFile` on the product (and
 optionally install and adjust `THIN_FILE`), collect consents, capture and
 verify the customer's documents' data, then submit the application.
 
+## AML/CFT controls (DECISIONS D-118…D-122)
+
+Cambodia's 2020 Law on AML/CFT; CAFIU is the FIU. User guide: chapter 26.
+
+**The gate.** `ApplicationsService.submit/approve/book`, loan disbursement
+(prepare and execute, via a disbursement guard) and facility drawdowns
+(request and release) refuse with `400 AML_CDD_INCOMPLETE` unless every
+party — the borrower, the active members of a group (the frozen
+`LoanGroupMember`s once booked), and guarantors linked to a customer record
+(`Guarantee.guarantorBorrowerId`) — has `kycStatus = VERIFIED`,
+`amlStatus = CLEAR`, no screening case `OPEN`/`PENDING_APPROVAL`, and, when
+`amlRiskRating = HIGH` or `pep`, an `APPROVED` EDD record. It is independent
+of workflow steps. The error carries `blockedBy` (layer `AML`) and the
+capability map (`GET /lending/access/capabilities/{APPLICATION|LOAN_ACCOUNT}/:id`)
+adds the same layer to the gated actions. Cards and BNPL purchases are gated
+at booking only. Legacy (`/loans`) origination is frozen (D-097) and not gated.
+
+**Status.** `POST /lending/aml/customers/:id/status` — `FLAGGED` at once
+(`aml.screen`); `CLEAR` screens the customer afresh (committed even if the
+clearance is then refused), refuses while a case is undisposed or a
+sanctions match is confirmed, then records an `ApprovalTask`
+(`BORROWER`/`AML_CLEAR`) that a second person approves
+(`…/clearance/decision`, `aml.disposition`, maker ≠ checker). The legacy
+`PATCH /borrowers/:id/kyc` can only flag. Every change writes an
+`AuditEvent` (`aml.status.*`) and `Borrower.amlStatusChangedAt/By`.
+
+**Watch lists and screening.** CSV upload (`POST /lending/aml/watch-lists`:
+`name,type,source,list_date[,aliases,country,date_of_birth,reference]`,
+`aml.watchList.maxEntries`) creates a `PENDING` `AmlWatchListVersion` with
+immutable `AmlWatchListEntry` rows; activation by another person
+(`…/:versionId/decision`) supersedes the list's previous `ACTIVE` version
+(one active version per list code, a partial unique index) and queues an
+`AmlRescreenJob`. Screening runs at customer create/update (legacy
+`BorrowersService`), on demand (`…/customers/:id/screen`), before a clearance
+and in re-screen jobs. Matching: `lending.screenName` — names normalised
+(Latin accents, case, punctuation, doubled letters, `aml.screening.ignoredTitles`),
+token-set Jaro-Winkler (pairs below `tokenFloor` ignored; score relative to
+the shorter name; `singleTokenPenalty` for one-word names) or plain Jaro on
+the names without spaces when the token counts differ; a hit is ≥
+`aml.screening.matchThreshold` (0.88). Hits open one `AmlScreeningCase` per
+customer (partial unique index); entries already disposed for the same
+normalised name are suppressed.
+
+**Re-screen jobs.** `AmlRescreenScheduler` (`AML_RESCREEN_CRON`, default
+every 5 minutes; `AML_RESCREEN_DISABLED`) or `POST /lending/aml/rescreen-jobs/run`
+works `PENDING`/`RUNNING` jobs: an instance takes the job's lease in
+`ScheduledJobClaim` (job `aml.rescreen`, run key = job id,
+`AML_RESCREEN_LEASE_SECONDS`), screens `aml.screening.rescreenBatchSize`
+customers per transaction, and commits the cursor and counts on the job row,
+so another instance resumes after a crash once the lease lapses. No
+in-process state.
+
+**Dispositions.** `POST …/cases/:caseId/disposition` (`TRUE_MATCH` |
+`FALSE_POSITIVE`, reason) creates an `ApprovalTask`
+(`AML_SCREENING_CASE`/`AML_DISPOSITION`); `…/disposition/decision` by
+another person. A true match flags the customer (cancelling any pending
+clearance); a PEP hit sets `Borrower.pep` and re-rates (HIGH); a SANCTION or
+INTERNAL hit also creates an `AmlStrCase` linked to the case. Disposed cases
+are immutable (trigger) and cannot be deleted.
+
+**Risk rating.** `lending.rateCustomerRisk` over `aml.risk`: weights for PEP,
+nationality in `highRiskCountries`, occupation matching
+`highRiskOccupations`, open/active product family in
+`highRiskProductFamilies`, cash intensity (cash share of repayments over
+`cashLookbackDays` ≥ `cashShareThreshold`, or a `cashIntensiveOccupations`
+match); `mediumAt`/`highAt` thresholds; `pepAlwaysHigh`; next review by
+`reviewMonths`. Re-rated at screening, on demand (`…/risk-rating`), on
+clearance and disposition. EDD: `POST …/customers/:id/edd` (one `PENDING` at
+a time), `POST …/edd/:eddId/decision` (`aml.edd.approve`, maker ≠ checker);
+approving supersedes the previous approved record.
+
+**Cash transaction report.** `GET /lending/aml/ctr?from&to` (≤ 1 year) and
+`GET /lending/aml/ctr.csv`. Posted `REPAYMENT` (amount) and `DISBURSEMENT`
+(net paid out) events whose channel — `components.channel` (new optional
+`channel` on `POST loans/:id/repayments`, `fx-repayments` and
+`disbursements/execute`), else the channel-file line, else the matched
+unidentified receipt — is in `aml.ctr.cashChannels` (default `BRANCH_CASH`),
+grouped per customer, business date and currency, reported when the day's
+total (in and out together) ≥ `aml.ctr.thresholds[currency]`
+(USD 10,000 / KHR 40,000,000, assumed). Events with no channel are counted
+(`withoutChannel`), not guessed. Scoped to the reader's branches; full ID
+numbers only for `aml.str.review` holders. Each extraction is audited.
+
+**STR referrals.** `POST /lending/aml/str` (`aml.str.raise`, customer in
+scope) returns only `{id, reference, status: SUBMITTED}`; the audit event
+carries the reference only. `GET/POST /lending/aml/str…` (`aml.str.review`):
+review (`TO_REPORT` | `NO_FURTHER_ACTION`), then `…/reported` with the
+CAFIU reference and date. Rows cannot be deleted; a reported referral is
+final.
+
+**Retention.** AML rows reference the customer with `ON DELETE RESTRICT`
+and refuse deletion (triggers); the legacy customer delete refuses a customer
+with AML records. `aml.retentionYearsAfterRelationship` (5) records the
+period; no purge job exists yet.
+
 ## Known limitations
 
 * Not implemented: connected-party (group) exposure checks
@@ -1073,6 +1168,7 @@ verify the customer's documents' data, then submit the application.
 | Covenants | `GET/POST loans/:id/covenants`, `POST loans/:id/covenants/:covenantId/{tests,waive}` |
 | Scoring | `GET/POST scorecards`, `GET scorecards/:scorecardId`, `POST scorecards/:scorecardId/versions`, `PUT scorecard-versions/:versionId`, `POST scorecard-versions/:versionId/{submit,approve,reject,activate,retire}`, `POST scorecard-test`, `GET scorecard-monitoring`, `GET/POST applications/:id/scores` |
 | Alternative data | `GET customers/:borrowerId/alternative-data`, `POST customers/:borrowerId/consents`, `POST consents/:consentId/revoke`, `POST customers/:borrowerId/alternative-data`, `POST alternative-data/:recordId/decision`, `GET/POST alternative-data-providers`, `POST alternative-data-providers/:configId/decision` |
+| AML/CFT | `GET aml/customers/:borrowerId`, `POST aml/customers/:borrowerId/{screen,status,clearance/decision,risk-rating,edd}`, `POST aml/edd/:eddId/decision`, `GET aml/risk-ratings`, `GET/POST aml/watch-lists`, `GET aml/watch-lists/:versionId`, `POST aml/watch-lists/:versionId/decision`, `POST aml/rescreen-jobs/run`, `GET aml/cases`, `GET aml/cases/:caseId`, `POST aml/cases/:caseId/{disposition,disposition/decision}`, `GET aml/ctr`, `GET aml/ctr.csv`, `GET/POST aml/str`, `GET aml/str/:strId`, `POST aml/str/:strId/{review,reported}` |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
 Money endpoints require an `Idempotency-Key` header.

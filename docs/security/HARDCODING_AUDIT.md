@@ -75,6 +75,7 @@ Literal credentials, tokens, keys, connection strings, bucket names, tenant/user
 | B10 | `apps/api/src/penalty-cron/penalty-cron.service.ts:80` | Legacy loan marked DEFAULTED after 30 days overdue | `legacyServicing.defaultAfterDaysOverdue` (30) |
 | B10a | `apps/api/src/penalty-cron/penalty-cron.service.ts` (new, D-102) | Cap on one legacy instalment's late penalty (there was none) | `legacyServicing.penaltyCapRate` ("0.25" of principal + interest) |
 | B10b | (new, not a former constant) | Whether upfront fees count toward the interest-rate cap, and whether penalty interest and the over-limit rate must fit under it (DECISIONS D-108, D-109) | `rateCap.includeFeesInEffectiveRate` (true), `rateCap.penaltyRateMustFitCap` (true) |
+| B10c | (new, not a former constant; DECISIONS D-118…D-122, assumed) | AML/CFT: name-match threshold, token floor, one-word penalty, ignored titles, re-screen batch size; watch-list size; risk weights, MEDIUM/HIGH thresholds, high-risk countries / occupations / product families, cash-intensive occupations, cash-share threshold and look-back, review months; cash transaction report thresholds and cash channels; record retention | `aml.screening.*` (0.88, 0.80, 0.80, titles, 200), `aml.watchList.maxEntries` (50,000), `aml.risk.*` (weights 10/6/3/2/3, 3/6, KP·IR·MM, …, 0.5, 365 days, 36/24/12 months), `aml.ctr.thresholds` (USD 10,000, KHR 40,000,000), `aml.ctr.cashChannels` (BRANCH_CASH), `aml.retentionYearsAfterRelationship` (5) |
 
 ### Moved to product configuration (product versions, editable in the product editor)
 
