@@ -25,6 +25,8 @@ describe('ProvisioningService.run — DPD basis', () => {
   function build(businessDate: string | null) {
     const created: any[] = [];
     const prisma: any = {
+      // The run reads and writes inside one locked transaction (D-099).
+      $executeRaw: jest.fn().mockResolvedValue(1),
       tenantBusinessDate: {
         findUnique: jest.fn().mockResolvedValue(
           businessDate
@@ -37,13 +39,13 @@ describe('ProvisioningService.run — DPD basis', () => {
       provisionRun: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: (fn: (tx: any) => unknown) =>
         fn({
+          ...prisma,
           provisionRun: {
-            create: jest.fn().mockResolvedValue({ id: 'run-1', runDate: new Date() }),
-          },
-          loanProvision: {
-            createMany: jest.fn((args: any) => {
-              created.push(...args.data);
-              return { count: args.data.length };
+            findFirst: prisma.provisionRun.findFirst,
+            // The run's provisions are written nested under it.
+            create: jest.fn((args: any) => {
+              created.push(...(args.data.provisions?.createMany.data ?? []));
+              return { id: 'run-1', runDate: new Date() };
             }),
           },
         }),

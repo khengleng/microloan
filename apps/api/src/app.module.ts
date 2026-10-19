@@ -18,6 +18,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { BorrowersModule } from './borrowers/borrowers.module';
 import { LoansModule } from './loans/loans.module';
+import { LegacyLoanGateModule } from './loans/legacy-loan-gate';
 import { RepaymentsModule } from './repayments/repayments.module';
 import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
@@ -91,6 +92,7 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.service'
     UsersModule,
     AuthModule,
     BorrowersModule,
+    LegacyLoanGateModule,
     LoansModule,
     RepaymentsModule,
     AuditModule,

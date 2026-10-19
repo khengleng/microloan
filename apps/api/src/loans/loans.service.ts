@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Inject,
   Optional,
   forwardRef,
@@ -27,6 +28,15 @@ import { LedgerService } from '../ledger/ledger.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { isCbcConfigured } from '../credit-bureau/cbc.provider';
 import { LegacyLoanGate } from './legacy-loan-gate';
+import {
+  ZERO,
+  dec,
+  ledgerAmount,
+  lockLegacyLoan,
+  lockLegacyProvisioning,
+  maxDec,
+  minDec,
+} from './legacy-money';
 import { operationalConfig } from '../config/operational-config';
 
 @Injectable()
@@ -351,9 +361,21 @@ export class LoansService {
 
       const acc = (await this.settings.get(loan.tenantId)).accounting;
       updated = await this.prisma.$transaction(async (tx) => {
-        const u = await tx.loan.update({
-          where: { id: loan.id },
+        // D-098: lock the loan and move it from APPROVED only once; a
+        // concurrent second disbursement finds it already moved and posts
+        // nothing.
+        await lockLegacyLoan(tx, loan.id, loan.tenantId);
+        const moved = await tx.loan.updateMany({
+          where: { id: loan.id, status: LoanStatus.APPROVED },
           data,
+        });
+        if (moved.count !== 1) {
+          throw new ConflictException(
+            'This loan is no longer approved: it has already been disbursed or changed.',
+          );
+        }
+        const u = await tx.loan.findUniqueOrThrow({
+          where: { id: loan.id },
           include: { borrower: true },
         });
         const lines: any[] = [
@@ -378,9 +400,18 @@ export class LoansService {
         return u;
       });
     } else {
-      updated = await this.prisma.loan.update({
-        where: { id: loan.id },
+      // Only from the status the checks above were made against.
+      const moved = await this.prisma.loan.updateMany({
+        where: { id: loan.id, status: currentStatus },
         data,
+      });
+      if (moved.count !== 1) {
+        throw new ConflictException(
+          'The loan changed while this was being decided. Reload and try again.',
+        );
+      }
+      updated = await this.prisma.loan.findUniqueOrThrow({
+        where: { id: loan.id },
         include: { borrower: true },
       });
     }
@@ -510,10 +541,10 @@ export class LoansService {
     this.authz.assertPermission(actor, Permission.LOAN_WRITEOFF);
     const loan = await this.prisma.loan.findFirst({
       where: this.authz.scopeWhere(actor, { id }),
-      include: { schedules: true },
     });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
+    await this.legacyGate?.assertOpen(loan.tenantId, 'write-off');
 
     if (
       loan.status !== LoanStatus.DISBURSED &&
@@ -527,48 +558,109 @@ export class LoansService {
       throw new BadRequestException('A write-off reason is required.');
     }
 
-    const outstandingPrincipal = loan.schedules.reduce(
-      (sum, s) =>
-        sum +
-        (s.isPaid
-          ? 0
-          : Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal))),
-      0,
-    );
-    const amount = Math.round(outstandingPrincipal * 100) / 100;
     const actorId = this.authz.actorId(actor);
 
     const legacyAcc = (await this.settings.get(loan.tenantId)).accounting
       .legacy;
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const u = await tx.loan.update({
-        where: { id: loan.id },
-        data: {
-          status: LoanStatus.WRITTEN_OFF,
-          writtenOffAt: new Date(),
-          writtenOffByUserId: actorId,
-          writeOffReason: reason.trim(),
-        },
-      });
-      if (amount > 0) {
-        await this.ledger.postEntry(
-          {
-            tenantId: loan.tenantId,
-            source: JournalSource.WRITEOFF,
-            description: `Write-off of loan ${loan.id}`,
-            currency: loan.currency,
-            loanId: loan.id,
-            createdByUserId: actorId,
-            lines: [
-              { accountCode: legacyAcc.loanLossAllowance, debit: amount },
-              { accountCode: legacyAcc.loansReceivable, credit: amount },
-            ],
+    // D-098 / D-099: serialised with provisioning runs and other write-offs,
+    // the loan locked and moved out of DISBURSED/DEFAULTED exactly once; the
+    // amounts are read inside the transaction.
+    const { u: updated, amount, provisionUsed, shortfall, released } =
+      await this.prisma.$transaction(async (tx) => {
+        await lockLegacyProvisioning(tx, loan.tenantId);
+        await lockLegacyLoan(tx, loan.id, loan.tenantId);
+        const moved = await tx.loan.updateMany({
+          where: {
+            id: loan.id,
+            status: { in: [LoanStatus.DISBURSED, LoanStatus.DEFAULTED] },
           },
-          tx,
+          data: {
+            status: LoanStatus.WRITTEN_OFF,
+            writtenOffAt: new Date(),
+            writtenOffByUserId: actorId,
+            writeOffReason: reason.trim(),
+          },
+        });
+        if (moved.count !== 1) {
+          throw new ConflictException(
+            'This loan is no longer disbursed or defaulted: it has already been written off, repaid or moved.',
+          );
+        }
+        const schedules = await tx.repaymentSchedule.findMany({
+          where: { loanId: loan.id, isPaid: false },
+        });
+        const amount = schedules.reduce(
+          (sum, s) =>
+            sum.plus(
+              maxDec(ZERO, dec(s.principalAmount).minus(dec(s.paidPrincipal))),
+            ),
+          ZERO,
         );
-      }
-      return u;
-    });
+        // The provision this loan holds in the allowance: its line in the
+        // latest provisioning run (none if it has not been provisioned).
+        const lastRun = await tx.provisionRun.findFirst({
+          where: { tenantId: loan.tenantId },
+          orderBy: { runDate: 'desc' },
+          select: { id: true },
+        });
+        const held = lastRun
+          ? await tx.loanProvision.findFirst({
+              where: { runId: lastRun.id, loanId: loan.id },
+              select: { provisionAmount: true },
+            })
+          : null;
+        const provision = dec(held?.provisionAmount ?? 0);
+        // The loan's whole provision leaves the allowance: it covers the loss
+        // up to its size; the rest of the loss is expensed, and a provision
+        // larger than the loss is released back to provision expense.
+        const provisionUsed = minDec(provision, amount);
+        const shortfall = maxDec(ZERO, amount.minus(provision));
+        const released = maxDec(ZERO, provision.minus(amount));
+        const lines: { accountCode: string; debit?: number; credit?: number }[] =
+          [];
+        if (provision.gt(0))
+          lines.push({
+            accountCode: legacyAcc.loanLossAllowance,
+            debit: ledgerAmount(provision),
+          });
+        if (shortfall.gt(0))
+          lines.push({
+            accountCode: legacyAcc.writeOffExpense,
+            debit: ledgerAmount(shortfall),
+          });
+        if (amount.gt(0))
+          lines.push({
+            accountCode: legacyAcc.loansReceivable,
+            credit: ledgerAmount(amount),
+          });
+        if (released.gt(0))
+          lines.push({
+            accountCode: legacyAcc.provisionExpense,
+            credit: ledgerAmount(released),
+          });
+        if (lines.length >= 2) {
+          await this.ledger.postEntry(
+            {
+              tenantId: loan.tenantId,
+              source: JournalSource.WRITEOFF,
+              description: `Write-off of loan ${loan.id}`,
+              currency: loan.currency,
+              loanId: loan.id,
+              createdByUserId: actorId,
+              lines,
+            },
+            tx,
+          );
+        }
+        const u = await tx.loan.findUniqueOrThrow({ where: { id: loan.id } });
+        return {
+          u,
+          amount: ledgerAmount(amount),
+          provisionUsed: provisionUsed.toFixed(2),
+          shortfall: shortfall.toFixed(2),
+          released: released.toFixed(2),
+        };
+      });
 
     await this.audit.logSecurityEvent({
       actorUserId: actorId,
@@ -577,7 +669,13 @@ export class LoansService {
       targetType: 'Loan',
       targetId: loan.id,
       action: 'LOAN_WRITEOFF',
-      newValue: { writeOffAmount: amount, reason: reason.trim() },
+      newValue: {
+        writeOffAmount: amount,
+        provisionUsed,
+        writeOffExpense: shortfall,
+        provisionReleased: released,
+        reason: reason.trim(),
+      },
       result: 'SUCCESS',
     });
     return updated;

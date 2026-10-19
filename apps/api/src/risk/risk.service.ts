@@ -1,8 +1,10 @@
 import { operationalConfig } from '../config/operational-config';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   computeScorecard,
@@ -16,6 +18,8 @@ import { AuditService } from '../audit/audit.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { RestructureDto } from './dto/restructure.dto';
+import { LegacyLoanGate } from '../loans/legacy-loan-gate';
+import { lockLegacyLoan } from '../loans/legacy-money';
 
 const GRADE_SYNONYMS: Record<string, string[]> = {
   A: ['A', 'AA', 'EXCELLENT'],
@@ -31,6 +35,8 @@ export class RiskService {
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
     private readonly audit: AuditService,
+    /** D-097: no legacy restructure while the legacy book is read-only. */
+    @Optional() private readonly legacyGate?: LegacyLoanGate,
   ) {}
 
   /** Compute, persist and return the internal scorecard + recommended rate. */
@@ -203,6 +209,7 @@ export class RiskService {
     });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor as any, loan.branchId);
+    await this.legacyGate?.assertOpen(loan.tenantId, 'restructure');
     if (loan.status !== 'DISBURSED' && loan.status !== 'DEFAULTED') {
       throw new BadRequestException(
         'Only disbursed or defaulted loans can be restructured.',
@@ -247,6 +254,20 @@ export class RiskService {
     const startNumber = paid.length; // continue numbering after preserved installments
 
     await this.prisma.$transaction(async (tx) => {
+      // The schedule must still be the one the new terms were built from.
+      await lockLegacyLoan(tx, loan.id, loan.tenantId);
+      const current = await tx.repaymentSchedule.findMany({
+        where: { loanId: loan.id },
+        select: { id: true, isPaid: true, paidPrincipal: true, paidInterest: true, paidPenalty: true },
+      });
+      const sig = (rows: { id: string; isPaid: boolean; paidPrincipal: unknown; paidInterest: unknown; paidPenalty: unknown }[]) =>
+        rows
+          .map((r) => `${r.id}:${r.isPaid}:${String(r.paidPrincipal)}:${String(r.paidInterest)}:${String(r.paidPenalty)}`)
+          .sort()
+          .join('|');
+      if (sig(current) !== sig(loan.schedules)) {
+        throw new ConflictException('The loan was paid or changed while it was being restructured. Reload and try again.');
+      }
       // Drop the old unpaid installments and lay down the new schedule.
       await tx.repaymentSchedule.deleteMany({
         where: { loanId: loan.id, isPaid: false },

@@ -1177,10 +1177,10 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   {
     key: 'lending.legacy_loans.readonly',
     description:
-      'Legacy loans are closed to new business: no new legacy loans and no legacy disbursements. Repayments, payoff and servicing of existing legacy loans continue. New lending goes through the lending platform.',
+      'The original (legacy) loan module is read-only: no new loans, disbursements, repayments, settlements, reversals, write-offs, restructures, provisioning runs or late penalties. Reading, exports, statements and the loan-book migration continue. On by default; a tenant opts out with a TENANT rule switching it off (two administrators).',
     category: 'Consolidation',
     sensitive: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   ...FAMILY_FLAGS,
 ];
