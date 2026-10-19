@@ -182,7 +182,9 @@ describe('decision strategy', () => {
     const s = { gradeRules: [{ grade: 'A', outcome: 'AUTO_APPROVE' }], knockouts: { writtenOff: true, maxCurrentDpd: 30, minAgeYears: 18, maxAgeYears: 65, maxDebtServiceRatio: '0.5' } };
     assert.equal(run(s, 800, 'A', { writtenOff: true }).outcome, 'DECLINE');
     assert.deepEqual(run(s, 800, 'A', { worstCurrentDpd: 45, ageYears: 30 }).knockouts.map((k) => k.code), ['KO_CURRENT_ARREARS']);
-    assert.equal(run(s, 800, 'A', { worstCurrentDpd: 30, ageYears: 30 }).outcome, 'AUTO_APPROVE');
+    assert.equal(run(s, 800, 'A', { worstCurrentDpd: 30, ageYears: 30, debtServiceRatio: '0.3' }).outcome, 'AUTO_APPROVE');
+    // D-126: a ratio the strategy tests but cannot measure (income unknown) is referred, not passed.
+    assert.equal(run(s, 800, 'A', { worstCurrentDpd: 30, ageYears: 30 }).outcome, 'REFER');
     assert.equal(run(s, 800, 'A', { ageYears: 70 }).outcome, 'DECLINE');
     assert.equal(run(s, 800, 'A', { ageYears: null }).outcome, 'DECLINE');
     assert.equal(run(s, 800, 'A', { ageYears: 30, debtServiceRatio: '0.51' }).outcome, 'DECLINE');
