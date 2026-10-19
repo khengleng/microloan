@@ -1048,6 +1048,73 @@ export class AuthService {
     return { success: true, revoked: revoked.count };
   }
 
+  /**
+   * Change one's own password: the current password must match, and a person
+   * with an authenticator must be in a session signed in with it. Every
+   * session is then revoked, so the person signs in again with the new one.
+   * Mistakes answer 400 / 403, never 401 — the web client reads 401 as
+   * "session over" and would sign the person out before showing the error.
+   */
+  async changePassword(
+    actor: { sub: string; amr?: 'pwd' | 'mfa' },
+    currentPassword: string,
+    newPassword: string,
+    ip?: string,
+  ) {
+    if (!currentPassword) throw new BadRequestException('Enter your current password.');
+    if (!newPassword || newPassword.length < 12) {
+      throw new BadRequestException('Password must be at least 12 characters.');
+    }
+    if (newPassword === currentPassword) {
+      throw new BadRequestException('Choose a password different from your current one.');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.sub },
+      select: { id: true, role: true, tenantId: true, passwordHash: true, twoFactorEnabled: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    if (user.twoFactorEnabled && actor.amr !== 'mfa') {
+      throw new ForbiddenException('Sign in with your authenticator code before changing your password.');
+    }
+    const matches = !!user.passwordHash && (await bcrypt.compare(currentPassword, user.passwordHash));
+    if (!matches) {
+      await this.audit.logSecurityEvent({
+        actorUserId: user.id,
+        actorRole: user.role,
+        actorTenantId: user.tenantId || null,
+        targetType: 'User',
+        targetId: user.id,
+        action: 'PASSWORD_CHANGE_REJECTED',
+        ipAddress: ip || 'unknown',
+        result: 'FAILURE',
+      });
+      throw new BadRequestException('Your current password is not correct.');
+    }
+
+    const hash = await bcrypt.hash(newPassword, await bcrypt.genSalt());
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: hash, loginAttempts: 0, lockedUntil: null },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'PASSWORD_CHANGED',
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
+    });
+    return { success: true };
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private async auditSecurityEvent(

@@ -995,6 +995,19 @@
       "reactivateConfirm": "Reactivate {email}? They can sign in again with their existing password.",
       "reactivated": "{email} has been reactivated",
       "reactivateFailed": "Could not reactivate this user"
+    },
+    "password": {
+      "title": "Change password",
+      "desc": "After you change it, you are signed out everywhere and sign in again with the new password.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Repeat new password",
+      "rule": "At least 12 characters.",
+      "tooShort": "The new password must be at least 12 characters.",
+      "mismatch": "The two new passwords do not match.",
+      "submit": "Change password",
+      "done": "Password changed. Please sign in again.",
+      "failed": "Could not change your password."
     }
   },
   "Scoring": {

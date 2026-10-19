@@ -137,6 +137,19 @@ export class AuthController {
     return this.authService.revokeAllSessions(user.sub, getIp(req));
   }
 
+  /** Change one's own password (current password required; signs out every session). */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @AnyAuthenticated()
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: { currentPassword: string; newPassword: string },
+    @Req() req: any,
+  ) {
+    return this.authService.changePassword(user, dto?.currentPassword, dto?.newPassword, getIp(req));
+  }
+
   /** Self-service forgot-password — generic response, throttled. */
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
