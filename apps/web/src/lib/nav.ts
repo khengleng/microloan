@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
     AlertTriangle, BarChart2, BookOpenCheck, Boxes, Building, Calculator, CalendarCheck, ClipboardList, Coins,
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
-    Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
+    Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldAlert, ShieldCheck, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
     Globe2, GraduationCap, LineChart, CircleHelp, School,
 } from 'lucide-react';
@@ -145,6 +145,7 @@ export const NAV: NavSection[] = [
     {
         key: 'risk',
         items: [
+            { key: 'aml', href: '/lending/aml', icon: ShieldAlert, lending: ['aml.read', 'aml.screen', 'aml.str.review'] },
             { key: 'auditTrail', href: '/lending/audit', icon: ScrollText, lending: ['audit.read'] },
             { key: 'legacyAudit', href: '/audit', icon: Shield, legacy: ['AUDIT_VIEW'], legacyRoles: LEGACY_ADMIN },
             {

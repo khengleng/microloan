@@ -688,7 +688,8 @@
       "userGuide": "User guide",
       "learn": "Learning centre",
       "platformCatalogue": "Product catalogue",
-      "platformFlags": "Platform flags"
+      "platformFlags": "Platform flags",
+      "aml": "AML & compliance"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -1797,7 +1798,22 @@
     "WITHDRAWN": "Withdrawn",
     "WITHIN_LIMIT": "Within limit",
     "WRITTEN_OFF": "Written off",
-    "YES": "Yes"
+    "YES": "Yes",
+    "CLEAR": "Clear",
+    "NOT_SCREENED": "Not screened",
+    "FLAGGED": "Flagged",
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "PEP": "PEP",
+    "SANCTION": "Sanction",
+    "INTERNAL": "Internal list",
+    "TRUE_MATCH": "True match",
+    "FALSE_POSITIVE": "False positive",
+    "TO_REPORT": "To report",
+    "REPORTED": "Reported",
+    "NO_FURTHER_ACTION": "No further action",
+    "RUNNING": "Running"
   },
   "LendingUi": {
     "loading": "Loading…",
@@ -2044,7 +2060,7 @@
       "CLEAR": "Clear",
       "FLAGGED": "Flagged"
     },
-    "amlHint": "Record the result of the anti-money-laundering screening check.",
+    "amlHint": "Flag a customer here if you have AML concerns. Clearing a customer is done on the AML/CFT panel of their profile, where a second person approves it.",
     "monthlyIncome": "Monthly income",
     "monthlyExpenses": "Monthly expenses",
     "errDobFormat": "Enter the date of birth as a full date.",
@@ -2143,7 +2159,10 @@
       "title": "Applications",
       "application": "Application",
       "requested": "Requested"
-    }
+    },
+    "nationality": "Nationality",
+    "nationalityHint": "Two-letter country code (KH for Cambodia). Used in the AML risk rating.",
+    "errNationality": "Nationality must be a two-letter country code, such as KH."
   },
   "Servicing": {
     "downloadError": {
@@ -2323,7 +2342,8 @@
     "workflows": "Origination workflows: optional checks and amount-based approval levels.",
     "simulator": "Price a loan against any product version. Side-effect free: nothing is booked.",
     "auditTrail": "Every lending action and policy decision, with the configuration versions in force at the time.",
-    "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled."
+    "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled.",
+    "aml": "Watch-list screening, customer risk, enhanced due diligence, cash transaction reports and suspicious transaction referrals."
   },
   "Overview": {
     "asOf": "As of business date {date} · amounts in {currency}",
@@ -2899,7 +2919,20 @@
       },
       "externalReference": "External reference",
       "externalReferenceHint": "Payment rail / bank transfer reference",
-      "execute": "Execute disbursement"
+      "execute": "Execute disbursement",
+      "channel": "Channel",
+      "channelHint": "How the money moved. Cash counts towards the cash transaction report.",
+      "channelUnknown": "Not recorded",
+      "channels": {
+        "BRANCH_CASH": "Cash at branch",
+        "AGENT": "Agent",
+        "BANK_TRANSFER": "Bank transfer",
+        "MOBILE": "Mobile banking",
+        "QR": "KHQR",
+        "WALLET": "E-wallet",
+        "PAYROLL": "Payroll",
+        "OTHER": "Other"
+      }
     },
     "collections": {
       "changeTitle": "Change business date",
@@ -3269,7 +3302,20 @@
       "post": "Post repayment",
       "enterAmount": "Enter a positive decimal amount (up to 4 decimals).",
       "done": "Repayment posted",
-      "doneFx": "Payment in {currency} converted and posted"
+      "doneFx": "Payment in {currency} converted and posted",
+      "channel": "Channel",
+      "channelHint": "How the money moved. Cash counts towards the cash transaction report.",
+      "channelUnknown": "Not recorded",
+      "channels": {
+        "BRANCH_CASH": "Cash at branch",
+        "AGENT": "Agent",
+        "BANK_TRANSFER": "Bank transfer",
+        "MOBILE": "Mobile banking",
+        "QR": "KHQR",
+        "WALLET": "E-wallet",
+        "PAYROLL": "Payroll",
+        "OTHER": "Other"
+      }
     },
     "workQueue": {
       "title": "Collector work queues",
@@ -8718,5 +8764,223 @@
     "lendingLoans": "Lending › Loans",
     "migrate": "Migrate loans",
     "newApplication": "New application"
+  },
+  "Aml": {
+    "subtitle": "Watch-list screening, customer risk, enhanced due diligence, cash transaction reports and suspicious transaction referrals.",
+    "noAccess": "You have no AML/CFT permissions.",
+    "tabs": {
+      "cases": "Screening cases",
+      "lists": "Watch lists",
+      "risk": "Risk & EDD",
+      "ctr": "Cash transactions",
+      "str": "Suspicious transactions"
+    },
+    "common": {
+      "all": "All",
+      "customer": "Customer",
+      "status": "Status",
+      "created": "Created"
+    },
+    "caseStatus": {
+      "OPEN": "Open",
+      "PENDING_APPROVAL": "Awaiting approval",
+      "TRUE_MATCH": "True match",
+      "FALSE_POSITIVE": "False positive"
+    },
+    "strStatus": {
+      "OPEN": "Open",
+      "TO_REPORT": "To report",
+      "REPORTED": "Reported to CAFIU",
+      "NO_FURTHER_ACTION": "No further action"
+    },
+    "rating": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High"
+    },
+    "triggers": {
+      "CUSTOMER_CREATE": "Customer created",
+      "CUSTOMER_UPDATE": "Customer changed",
+      "ON_DEMAND": "On demand",
+      "LIST_ACTIVATION": "New list version",
+      "STATUS_CLEARANCE": "Clearance"
+    },
+    "factors": {
+      "PEP": "Politically exposed person",
+      "COUNTRY": "Nationality",
+      "OCCUPATION": "Occupation or business",
+      "PRODUCT": "Product type",
+      "CASH_INTENSITY": "Cash intensity"
+    },
+    "indicators": {
+      "STRUCTURING": "Structuring (amounts kept under limits)",
+      "UNUSUAL_CASH": "Unusual cash",
+      "THIRD_PARTY_PAYMENTS": "Payments by unrelated third parties",
+      "UNEXPLAINED_EARLY_REPAYMENT": "Unexplained early repayment",
+      "INCONSISTENT_WITH_PROFILE": "Inconsistent with the customer's profile",
+      "WATCH_LIST_MATCH": "Watch-list match",
+      "IDENTITY_CONCERN": "Identity concern",
+      "OTHER": "Other"
+    },
+    "panel": {
+      "title": "AML/CFT",
+      "subtitle": "Screening, risk rating and due diligence. Lending needs verified identity, AML clearance by two people and, for high risk, approved enhanced due diligence.",
+      "risk": "Risk",
+      "gateClear": "This customer may borrow: identity verified, AML-cleared and due diligence complete.",
+      "gateBlocked": "This customer cannot borrow yet",
+      "kyc": "Identity (KYC)",
+      "lastScreened": "Last screened",
+      "never": "Never",
+      "statusChanged": "Status changed",
+      "nextReview": "Next review",
+      "reviewDue": "due",
+      "score": "Risk score",
+      "nationality": "Nationality",
+      "edd": "Enhanced due diligence",
+      "notRequired": "Not required",
+      "factors": "Risk factors present",
+      "openCase": "Watch-list match {reference} awaits compliance review",
+      "reviewCase": "Open the screening case",
+      "clearancePending": "AML clearance recorded by {who}, awaiting a second person",
+      "approveClearance": "Approve clearance",
+      "refuseClearance": "Refuse",
+      "refuseReason": "Reason (to refuse or send back)",
+      "eddPending": "Enhanced due diligence recorded by {who}, awaiting approval",
+      "approveEdd": "Approve EDD",
+      "rejectEdd": "Reject",
+      "screenNow": "Screen now",
+      "rerate": "Re-rate risk",
+      "proposeClear": "Record AML clearance",
+      "flag": "Flag customer",
+      "recordEdd": "Record EDD",
+      "raiseStr": "Raise suspicious transaction referral",
+      "reason": "Reason",
+      "clearHint": "The customer is screened again first. A second compliance user must approve the clearance before it takes effect.",
+      "flagHint": "Flagging takes effect at once and stops new lending and payouts to this customer.",
+      "eddHistory": "Due diligence history"
+    },
+    "edd": {
+      "sourceOfFunds": "Source of funds",
+      "sourceOfWealth": "Source of wealth",
+      "documentReference": "Supporting document reference",
+      "documentHint": "The document you saw (title deed, bank statements, payslips) and where it is filed."
+    },
+    "cases": {
+      "title": "Screening cases",
+      "subtitle": "Customers whose name matched a watch list. One person proposes the outcome; a second approves it.",
+      "none": "No screening cases.",
+      "reference": "Reference",
+      "type": "Type",
+      "score": "Score",
+      "trigger": "Screened on",
+      "listEntry": "List entry",
+      "matchedOn": "Matched name",
+      "list": "List",
+      "notes": "Notes",
+      "joined": "matched without spaces",
+      "dobMismatch": "date of birth differs",
+      "disposition": "Outcome",
+      "proposedBy": "Proposed by",
+      "decidedBy": "Approved by",
+      "reason": "Reason",
+      "propose": "Propose outcome",
+      "outcome": "Outcome",
+      "trueMatchHint": "A true match flags the customer; a PEP needs enhanced due diligence; a sanctions or internal-list match raises a referral.",
+      "falsePositiveHint": "Say why this is not the listed person (date of birth, nationality, identity document).",
+      "awaiting": "Outcome proposed by {who}, awaiting a second person",
+      "approve": "Approve outcome",
+      "sendBack": "Send back",
+      "secondPerson": "A different compliance user must approve it."
+    },
+    "lists": {
+      "title": "Watch lists",
+      "subtitle": "Sanctions, PEP and internal lists uploaded by compliance. A version is used for screening only once a second person activates it; activation re-screens every customer.",
+      "upload": "Upload list version",
+      "runRescreen": "Run queued re-screens",
+      "format": "CSV with columns name, type (SANCTION, PEP or INTERNAL), source, list_date (YYYY-MM-DD); optional aliases (separated by ;), country, date_of_birth, reference.",
+      "code": "List code",
+      "codeHint": "e.g. UN_SANCTIONS, PEP_REGISTER, INTERNAL",
+      "name": "Name",
+      "file": "CSV file",
+      "none": "No watch lists uploaded yet.",
+      "entries": "Entries",
+      "uploadedBy": "Uploaded by",
+      "activatedBy": "Decided by",
+      "activate": "Activate",
+      "reject": "Reject",
+      "jobs": "Re-screening",
+      "jobsSubtitle": "Every customer is screened again in the background after a list version is activated.",
+      "noJobs": "No re-screens yet.",
+      "screened": "Screened",
+      "casesOpened": "Cases opened",
+      "completed": "Completed"
+    },
+    "risk": {
+      "title": "Customer risk ratings",
+      "subtitle": "Ratings from the factors and weights in the lending settings. HIGH-risk and politically exposed customers need approved enhanced due diligence before they borrow.",
+      "dueOnly": "Review due only",
+      "none": "No customers match.",
+      "rating": "Rating"
+    },
+    "ctr": {
+      "title": "Cash transaction report",
+      "subtitle": "Cash repayments and disbursements at or above the threshold, single or added up per customer and day, for reporting to CAFIU.",
+      "from": "From",
+      "to": "To",
+      "run": "Run",
+      "download": "Download CSV",
+      "thresholds": "Thresholds",
+      "cashChannels": "Cash channels",
+      "cashTransactions": "Cash transactions in the period",
+      "withoutChannel": "{count} payment(s) in the period have no channel recorded and could not be classed as cash or not.",
+      "unassessed": "No threshold is set for {currencies}; those payments were not assessed.",
+      "none": "No cash transactions reach the threshold in this period.",
+      "date": "Business date",
+      "id": "Identity document",
+      "branch": "Branch",
+      "total": "Day total",
+      "basis": "Basis",
+      "basisSINGLE": "Single transaction",
+      "basisAGGREGATED": "Same-day total",
+      "transactions": "Transactions",
+      "in": "In",
+      "out": "Out"
+    },
+    "str": {
+      "title": "Suspicious transaction referrals",
+      "subtitle": "Referrals raised by staff. Review each one and record whether and when it was reported to CAFIU.",
+      "tippingOff": "Confidential: never tell the customer, or anyone outside compliance, that a referral has been raised (tipping-off is an offence).",
+      "none": "No referrals.",
+      "raisedBy": "Raised by",
+      "grounds": "What made you suspicious",
+      "groundsHint": "Facts only: what happened, when, amounts and who was involved.",
+      "raised": "Referral {reference} sent to compliance. Keep it confidential.",
+      "reviewedBy": "Reviewed by",
+      "notes": "Review notes",
+      "cafiuReference": "CAFIU reference",
+      "reportedOn": "Reported on",
+      "review": "Record review",
+      "decision": "Decision",
+      "markReported": "Mark reported to CAFIU"
+    },
+    "toast": {
+      "cleared": "Customer AML-cleared",
+      "refused": "Recorded",
+      "eddApproved": "Enhanced due diligence approved",
+      "hits": "{count} watch-list match(es): a screening case is open",
+      "noHits": "No watch-list match",
+      "rated": "Risk rating updated",
+      "clearProposed": "Clearance recorded; a second person must approve it",
+      "flagged": "Customer flagged",
+      "eddRecorded": "Enhanced due diligence recorded for approval",
+      "proposed": "Outcome proposed for approval",
+      "decided": "Outcome approved",
+      "sentBack": "Sent back",
+      "uploaded": "List version uploaded; a second person must activate it",
+      "activated": "List activated; customers will be re-screened",
+      "rescreened": "{count} re-screen job(s) worked",
+      "reviewed": "Review recorded",
+      "reported": "Recorded as reported to CAFIU"
+    }
   }
 }

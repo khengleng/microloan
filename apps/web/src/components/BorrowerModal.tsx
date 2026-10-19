@@ -20,6 +20,7 @@ interface Borrower {
     dateOfBirth?: string | null;
     idType?: string | null;
     occupation?: string | null;
+    nationality?: string | null;
     branchId?: string | null;
     amlStatus?: string | null;
 }
@@ -28,7 +29,8 @@ interface BranchOption { id: string; name: string; code: string | null }
 
 /** Identity document types the borrower record accepts (free text on the API; these are the usual ones). */
 const ID_TYPES = ['NATIONAL_ID', 'PASSPORT', 'FAMILY_BOOK', 'RESIDENCE_BOOK', 'DRIVING_LICENCE', 'OTHER'] as const;
-const AML_STATUSES = ['NOT_SCREENED', 'CLEAR', 'FLAGGED'] as const;
+/** Clearing a customer takes two people on the profile's AML/CFT panel (D-118); here a customer can only be flagged. */
+const amlOptions = (current: string) => [...new Set([current, 'FLAGGED'])];
 
 /** Today in the browser's calendar, as YYYY-MM-DD (the date-of-birth upper bound). */
 const todayLocal = () => {
@@ -43,7 +45,7 @@ const serverMessage = (error: any): string | null => {
     return typeof m === 'string' ? m : null;
 };
 
-const EMPTY_FORM = { firstName: '', lastName: '', phone: '', idNumber: '', address: '', monthlyIncome: '', monthlyExpenses: '', dateOfBirth: '', idType: '', occupation: '', branchId: '', amlStatus: '' };
+const EMPTY_FORM = { firstName: '', lastName: '', phone: '', idNumber: '', address: '', monthlyIncome: '', monthlyExpenses: '', dateOfBirth: '', idType: '', occupation: '', nationality: '', branchId: '', amlStatus: '' };
 
 interface BorrowerModalProps {
     open: boolean;
@@ -98,6 +100,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                 dateOfBirth: borrower.dateOfBirth ? String(borrower.dateOfBirth).slice(0, 10) : '',
                 idType: borrower.idType || '',
                 occupation: borrower.occupation || '',
+                nationality: borrower.nationality || '',
                 branchId: borrower.branchId || '',
                 amlStatus: borrower.amlStatus || 'NOT_SCREENED',
             });
@@ -116,6 +119,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
             else if (formData.dateOfBirth > todayLocal()) errs.push(tc('errDobFuture'));
             else if (formData.dateOfBirth < '1900-01-01') errs.push(tc('errDobPast'));
         }
+        if (formData.nationality.trim() && !/^[A-Za-z]{2}$/.test(formData.nationality.trim())) errs.push(tc('errNationality'));
         if (formData.monthlyIncome.trim() && !(Number(formData.monthlyIncome) >= 0)) errs.push(tc('errAmount', { field: tc('monthlyIncome') }));
         if (formData.monthlyExpenses.trim() && !(Number(formData.monthlyExpenses) >= 0)) errs.push(tc('errAmount', { field: tc('monthlyExpenses') }));
         return errs;
@@ -145,6 +149,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                 dateOfBirth: formData.dateOfBirth || (borrower?.dateOfBirth ? null : undefined),
                 idType: formData.idType || undefined,
                 occupation: formData.occupation.trim() || undefined,
+                nationality: formData.nationality.trim().toUpperCase() || undefined,
                 branchId: formData.branchId || undefined,
             };
             if (borrower) {
@@ -273,6 +278,15 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         </div>
                         <p className="text-xs text-muted-foreground -mt-2">{tc('branchHint')}</p>
 
+                        <div>
+                            <label htmlFor="nationality" className={labelCls}>{tc('nationality')}</label>
+                            <input id="nationality" className={fieldCls} maxLength={2} placeholder="KH" value={formData.nationality} onChange={e => {
+                                setDirty(true);
+                                setFormData({ ...formData, nationality: e.target.value.toUpperCase() });
+                            }} />
+                            <p className="text-xs text-muted-foreground mt-1">{tc('nationalityHint')}</p>
+                        </div>
+
                         {mayRecordAml && (
                             <div>
                                 <label htmlFor="amlStatus" className={labelCls}>{tc('amlStatus')}</label>
@@ -280,7 +294,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                                     setDirty(true);
                                     setFormData({ ...formData, amlStatus: e.target.value });
                                 }}>
-                                    {AML_STATUSES.map((v) => <option key={v} value={v}>{tc(`aml.${v}`)}</option>)}
+                                    {amlOptions(borrower?.amlStatus || 'NOT_SCREENED').map((v) => <option key={v} value={v}>{tc(`aml.${v}`)}</option>)}
                                 </select>
                                 <p className="text-xs text-muted-foreground mt-1">{tc('amlHint')}</p>
                             </div>
