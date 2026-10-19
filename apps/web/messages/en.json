@@ -2509,7 +2509,7 @@
       "form": "Form",
       "json": "JSON",
       "notNumber": "Enter a number",
-      "jsonHint": "JSON — a list [ … ] or table { … }"
+      "jsonHint": "JSON — a list [ … ] or table '{' … '}'"
     },
     "platformFlags": {
       "title": "Platform feature flags",

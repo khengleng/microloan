@@ -2509,7 +2509,7 @@
       "form": "ទម្រង់",
       "json": "JSON",
       "notNumber": "បញ្ចូលលេខ",
-      "jsonHint": "JSON — បញ្ជី [ … ] ឬតារាង { … }"
+      "jsonHint": "JSON — បញ្ជី [ … ] ឬតារាង '{' … '}'"
     },
     "platformFlags": {
       "title": "ទង់មុខងារវេទិកា",
@@ -8344,7 +8344,7 @@
       "invalidJson": "JSON មិនត្រឹមត្រូវ៖ {message}",
       "stray": "គោលការណ៍ {kind} អាចកំណត់បានតែ {allowed}; រកឃើញ {found}។",
       "empty": "Body ទទេ; សូមកំណត់យ៉ាងហោចណាស់មួយក្នុងចំណោម {allowed}។",
-      "undeclared": "Body ប្រើប៉ារ៉ាម៉ែត្រដែលមិនបានប្រកាស៖ {names}។"
+      "undeclared": "Body ប្រើ{count, plural, other {ប៉ារ៉ាម៉ែត្រ}}ដែលមិនបានប្រកាស៖ {names}។"
     },
     "newPolicy": {
       "problemCode": "កូដ៖ 2–48 តួអក្សរ អក្សរធំ លេខ \"_\" ឬ \"-\" ចាប់ផ្តើមដោយអក្សរ ឬលេខ។",
