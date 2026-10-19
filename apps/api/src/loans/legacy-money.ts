@@ -16,7 +16,8 @@ export const ZERO = new Prisma.Decimal(0);
 export const maxDec = (a: Dec, b: Dec) => (a.gt(b) ? a : b);
 export const minDec = (a: Dec, b: Dec) => (a.lt(b) ? a : b);
 /** Cents, half up. */
-export const cents = (d: Dec) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+export const cents = (d: Dec) =>
+  d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 /** A cent-exact decimal as the number the ledger service takes. */
 export const ledgerAmount = (d: Dec) => cents(d).toNumber();
 
@@ -219,10 +220,7 @@ export function localDate(at: Date, timeZone = LEGACY_TIME_ZONE): string {
 }
 
 /** The instant local midnight of `date` falls in `timeZone`. */
-export function localMidnight(
-  date: string,
-  timeZone = LEGACY_TIME_ZONE,
-): Date {
+export function localMidnight(date: string, timeZone = LEGACY_TIME_ZONE): Date {
   const utcMidnight = new Date(`${date}T00:00:00.000Z`);
   // The zone's offset at that moment (no DST in Cambodia; correct elsewhere
   // except within an hour of a transition).

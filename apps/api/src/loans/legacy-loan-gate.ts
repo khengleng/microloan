@@ -132,9 +132,7 @@ export class LegacyLoanGate {
       readonly: evaluation.enabled,
       source: evaluation.source,
       message: evaluation.enabled ? READONLY_MESSAGE : '',
-      frozenOperations: evaluation.enabled
-        ? [...LEGACY_FROZEN_OPERATIONS]
-        : [],
+      frozenOperations: evaluation.enabled ? [...LEGACY_FROZEN_OPERATIONS] : [],
     };
   }
 
