@@ -9,6 +9,7 @@ import {
   TEST_DB,
   authority,
   bootstrap,
+  lendingSettings,
   expectOk,
   grant,
 } from './harness';
@@ -263,6 +264,10 @@ d('Settlement and recovery (integration)', () => {
     let loanId: string;
 
     beforeAll(async () => {
+      // The lender's own write-off floor (D-117) is lowered too, as an approved settings version.
+      await lendingSettings(f, f.t1, {
+        regulatory: { writeOffMinDpd: { shortTerm: 0, longTerm: 0 } },
+      });
       const { productId } = await writeOffAtAnyAge('REC-STD');
       const r = await originateAndDisburse(f, productId, {
         principal: '3000',

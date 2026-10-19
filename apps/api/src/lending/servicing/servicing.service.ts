@@ -27,6 +27,7 @@ import { PostingService, PostingLine } from '../accounting/posting.service';
 import { ApplicationsService } from '../origination/applications.service';
 import { GroupsService } from '../origination/groups.service';
 import { ImpairmentService } from '../accounting/impairment.service';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import {
   Line,
   LoanState,
@@ -34,6 +35,7 @@ import {
   engineLine,
   lineFullyPaid,
   loadLoanState,
+  originalTermDays,
   outstanding,
   resourceOf,
 } from './loan-state';
@@ -124,6 +126,7 @@ export class ServicingService {
     private readonly applications: ApplicationsService,
     private readonly groups: GroupsService,
     private readonly impairment: ImpairmentService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -1164,6 +1167,7 @@ export class ServicingService {
     state: LoanState,
     dpd: number,
     policy: lending.ImpairmentPolicy,
+    bands: lending.RegulatoryBands,
     businessDate: string,
     actor: LendingActor,
   ) {
@@ -1185,8 +1189,12 @@ export class ServicingService {
           restructured: a.isRestructured,
           onProbation: a.probationRemaining > 0,
           nonAccrual: a.nonAccrual,
+          // The band set by original term; the restructure floor while on probation (D-113, D-114).
+          originalTermDays: originalTermDays(a),
+          floorDpd: a.delinquencyFloorDpd,
         },
         state.config.pricing.rounding,
+        bands,
       ),
     );
     const required = D(r.allowance);
@@ -3629,6 +3637,32 @@ export class ServicingService {
     });
   }
 
+  /**
+   * D-117: a loan is written off no earlier than the product's minimum days
+   * past due AND the lender's floor for its term (by default the first day
+   * of the Loss class), so a product set to 0 cannot write off a performing
+   * loan.
+   */
+  private async assertWriteOffFloor(tx: Tx, state: LoanState) {
+    const product = state.config.operations.writeOffMinDpd;
+    if (product === null)
+      throw new BadRequestException('This product does not allow write-off.');
+    const s = await this.settings.get(state.account.tenantId, tx);
+    const floor = lending.writeOffFloorDpd(
+      lending.regulatoryBands(s),
+      originalTermDays(state.account),
+      s.regulatory.writeOffMinDpd,
+    );
+    const min = Math.max(product, floor);
+    if (state.account.daysPastDue < min)
+      throw new BadRequestException({
+        message: `Write-off needs at least ${min} days past due (currently ${state.account.daysPastDue}).`,
+        code: 'WRITE_OFF_TOO_EARLY',
+        productMinimumDpd: product,
+        lenderFloorDpd: floor,
+      });
+  }
+
   async proposeWriteOff(
     actor: LendingActor,
     id: string,
@@ -3644,13 +3678,7 @@ export class ServicingService {
         resourceOf(state, [], total.toString()),
         tx,
       );
-      const min = state.config.operations.writeOffMinDpd;
-      if (min === null)
-        throw new BadRequestException('This product does not allow write-off.');
-      if (state.account.daysPastDue < min)
-        throw new BadRequestException(
-          `Write-off needs at least ${min} days past due (currently ${state.account.daysPastDue}).`,
-        );
+      await this.assertWriteOffFloor(tx, state);
       if (!body.reason?.trim())
         throw new BadRequestException('A reason is required.');
       refuseWhileAdvanceHeld(state, 'write it off');
@@ -3740,6 +3768,8 @@ export class ServicingService {
         return { rejected: true };
       }
       refuseWhileAdvanceHeld(state, 'write it off');
+      // The floor is checked again: days past due can fall while the proposal waits.
+      await this.assertWriteOffFloor(tx, state);
       const businessDate = await this.businessDate.get(tenantId, tx);
       const acc = state.config.accounting;
       const a = state.account;
@@ -3955,6 +3985,8 @@ export class ServicingService {
     const businessDate = await this.businessDate.get(tenantId);
     // The tenant's impairment policy in force, if any (OPS-5, D-010).
     const impairment = await this.impairment.active(tenantId);
+    // The regulator's bands (lending settings `regulatory`), read once for the run.
+    const bands = lending.regulatoryBands(await this.settings.get(tenantId));
     for (const hook of this.tenantBatchHooks)
       await hook(
         tenantId,
@@ -3985,7 +4017,14 @@ export class ServicingService {
         const { id } = accounts[i];
         const loanStart = performance.now();
         try {
-          await this.batchLoan(tenantId, id, businessDate, actor, impairment);
+          await this.batchLoan(
+            tenantId,
+            id,
+            businessDate,
+            actor,
+            impairment,
+            bands,
+          );
           processed++;
           this.observe((o) =>
             o.loanProcessed?.(tenantId, performance.now() - loanStart, true),
@@ -4044,6 +4083,7 @@ export class ServicingService {
     businessDate: string,
     actor: LendingActor,
     impairment: lending.ImpairmentPolicy | null,
+    bands: lending.RegulatoryBands,
   ) {
     await this.lp.tenantTx(tenantId, async (tx) => {
       let state = await loadLoanState(tx, tenantId, id);
@@ -4073,6 +4113,7 @@ export class ServicingService {
           state,
           dq.dpd,
           impairment,
+          bands,
           businessDate,
           actor,
         );

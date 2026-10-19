@@ -8,7 +8,7 @@
  *  S13 LT-09 gold loan: margin call when the gold price falls, cured by a
  *      repayment; redeemed at maturity and the gold returned (TV-18, UC-51, UC-73)
  */
-import { TEST_DB } from '../harness';
+import { TEST_DB, lendingSettings } from '../harness';
 import {
   Journey,
   c2,
@@ -90,6 +90,22 @@ d('S11 LT-05 auto loan: default → write-off → recovery', () => {
     const before = await j.checkpoint(loanId, {
       dpd: 180,
       bucket: 'DPD_90_PLUS',
+    });
+    // D-117: a 48-month loan is long-term, so the lender's floor is the Loss
+    // class of the long-term bands (360 days) until it approves a lower one.
+    const early = await j
+      .as('opsMaker')
+      .post(`/lending/loans/${loanId}/write-offs`, {
+        reason: 'Borrower absconded with the vehicle',
+      });
+    expect(early.status).toBe(400);
+    expect(early.body).toMatchObject({
+      code: 'WRITE_OFF_TOO_EARLY',
+      productMinimumDpd: 180,
+      lenderFloorDpd: 360,
+    });
+    await lendingSettings(j.f, j.f.t1, {
+      regulatory: { writeOffMinDpd: { shortTerm: null, longTerm: 180 } },
     });
     const owed =
       Number(before.account.principalOutstanding) +

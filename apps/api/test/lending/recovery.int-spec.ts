@@ -14,6 +14,7 @@ import {
   expectOk,
   grant,
   key,
+  lendingSettings,
 } from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
@@ -77,6 +78,11 @@ d('Recovery workflows (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'opsMaker', 'COLLECTIONS_OFFICER');
+    // Write-offs here follow repossession and debt sale, not ageing: the
+    // lender's floor (D-117) is lowered by an approved settings version.
+    await lendingSettings(f, f.t1, {
+      regulatory: { writeOffMinDpd: { shortTerm: 0, longTerm: 0 } },
+    });
     // Everything is originated on the first business day, then the book ages.
     const secured = await activeProduct(
       f,

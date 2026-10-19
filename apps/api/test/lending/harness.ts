@@ -388,6 +388,81 @@ export async function raiseRateCap(
   };
 }
 
+/**
+ * Put a version of the lender's settings in force for a suite (as if
+ * proposed and approved under maker-checker): `patch` over the defaults.
+ * For suites whose scenario needs a setting the NBC defaults forbid, such as
+ * writing off a loan before it reaches the Loss class (D-117).
+ */
+export async function lendingSettings(
+  f: Fixture,
+  tenantId: string,
+  patch: Record<string, unknown>,
+) {
+  const { lending } = require('@microloan/shared');
+  const settings = lending.tenantLendingSettingsSchema.parse(patch);
+  await f.system(async () => {
+    await f.prisma.tenantLendingSettings.updateMany({
+      where: { tenantId, status: 'ACTIVE' },
+      data: { status: 'RETIRED' },
+    });
+    const last = await f.prisma.tenantLendingSettings.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+    });
+    await f.prisma.tenantLendingSettings.create({
+      data: {
+        tenantId,
+        version: (last?.version ?? 0) + 1,
+        settings,
+        status: 'ACTIVE',
+        makerId: f.users.finance.id,
+        checkerId: f.users.approver.id,
+        decidedAt: new Date(),
+        reason: 'integration test fixture',
+      },
+    });
+  });
+}
+
+/**
+ * Approve an impairment policy for a suite (the NBC classes in REGULATORY
+ * mode unless given): a month with loans outstanding cannot be closed
+ * without one (D-116).
+ */
+export async function impairmentPolicy(
+  f: Fixture,
+  tenantId: string,
+  settings?: Record<string, unknown>,
+) {
+  const { lending } = require('@microloan/shared');
+  await f.system(async () => {
+    await f.prisma.impairmentPolicy.updateMany({
+      where: { tenantId, status: 'ACTIVE' },
+      data: { status: 'RETIRED' },
+    });
+    const last = await f.prisma.impairmentPolicy.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+    });
+    await f.prisma.impairmentPolicy.create({
+      data: {
+        tenantId,
+        version: (last?.version ?? 0) + 1,
+        settings: settings ?? {
+          mode: 'REGULATORY',
+          classes: lending.NBC_IMPAIRMENT_CLASSES,
+        },
+        status: 'ACTIVE',
+        makerId: f.users.finance.id,
+        checkerId: f.users.approver.id,
+        decidedAt: new Date(),
+        reason: 'integration test fixture',
+      },
+    });
+  });
+}
+
 export function expectOk(res: request.Response, status = [200, 201]) {
   if (!status.includes(res.status)) {
     throw new Error(

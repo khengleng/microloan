@@ -20,6 +20,7 @@ import { ReportingService } from './reporting/reporting.service';
 import { LendingOverviewService } from './reporting/overview.service';
 import { LendingOverviewController } from './reporting/overview.controller';
 import { PeriodCloseService } from './accounting/period-close.service';
+import { RegulatoryReserveService } from './accounting/regulatory-reserve.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { WebhooksService } from './integrations/webhooks.service';
@@ -171,6 +172,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     ReportingService,
     LendingOverviewService,
     PeriodCloseService,
+    RegulatoryReserveService,
     RegulatoryReturnService,
     LoanMigrationService,
     WebhooksService,

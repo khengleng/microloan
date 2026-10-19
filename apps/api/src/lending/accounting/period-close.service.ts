@@ -24,6 +24,8 @@ import { PostingService, PostingLine } from './posting.service';
 import { LendingOperationsService } from './operations.service';
 import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import { MONTH_NAMES, periodLabel } from './period-lock';
+import { RegulatoryReserveService } from './regulatory-reserve.service';
+import { originalTermDays } from '../servicing/loan-state';
 
 type Json = Prisma.InputJsonValue;
 
@@ -106,6 +108,7 @@ export class PeriodCloseService {
     private readonly posting: PostingService,
     private readonly ops: LendingOperationsService,
     private readonly settings: TenantSettingsService,
+    private readonly reserve: RegulatoryReserveService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -299,6 +302,7 @@ export class PeriodCloseService {
         entries,
         tasks,
         suspense,
+        reserve,
       ] = await Promise.all([
         this.businessDate.get(tenantId, tx),
         tx.tenantBusinessDate.findUnique({ where: { tenantId } }),
@@ -327,6 +331,8 @@ export class PeriodCloseService {
         tx.unidentifiedPayment.count({
           where: { tenantId, status: { in: ['OPEN', 'PARTIALLY_MATCHED'] } },
         }),
+        // The impairment policy in force and the regulatory reserve (D-115, D-116).
+        this.reserve.measure(tx, tenantId, end),
       ]);
       const balances: { currency: string; debit: string; credit: string }[] =
         [];
@@ -353,6 +359,7 @@ export class PeriodCloseService {
         balances,
         tasks,
         suspense,
+        reserve,
       };
     });
 
@@ -454,6 +461,56 @@ export class PeriodCloseService {
               : 'No postings yet.',
           },
     );
+    // D-010 / D-116: without an approved impairment policy end of day posts
+    // no loss allowance, so books with loans outstanding would close with none.
+    const mode = facts.reserve.mode;
+    add(
+      mode === 'NONE' && facts.active > 0
+        ? {
+            code: 'IMPAIRMENT_POLICY',
+            label: 'An impairment policy is approved',
+            status: 'FAIL',
+            detail: `${facts.active} loan(s) are outstanding but no impairment policy is approved, so no loss allowance has been posted. Approve one under Operations › Impairment and run end of day before closing.`,
+            link: '/lending/operations',
+          }
+        : {
+            code: 'IMPAIRMENT_POLICY',
+            label: 'An impairment policy is approved',
+            status: 'PASS',
+            detail:
+              mode === 'ECL'
+                ? 'Expected credit loss (CIFRS 9).'
+                : mode === 'REGULATORY'
+                  ? 'Regulatory (NBC classes).'
+                  : 'No loans outstanding.',
+          },
+    );
+    if (mode !== 'NONE') {
+      const lines = facts.reserve.rows.map(
+        (r) =>
+          `${r.currency}: NBC provision ${r.regulatoryProvision}, allowance ${r.allowance}, reserve ${r.target}` +
+          (D(r.movement).isZero()
+            ? ''
+            : ` (the close ${D(r.movement).gt(0) ? 'appropriates' : 'releases'} ${D(r.movement).abs().toString()})`),
+      );
+      add(
+        mode === 'ECL'
+          ? {
+              code: 'REGULATORY_RESERVE',
+              label: 'Regulatory reserve covers the NBC provision',
+              status: 'PASS',
+              detail: lines.length
+                ? `${lines.join('; ')}.`
+                : 'No loans outstanding.',
+            }
+          : {
+              code: 'REGULATORY_RESERVE',
+              label: 'Regulatory reserve covers the NBC provision',
+              status: 'WARN',
+              detail: `The allowance is the NBC provision (REGULATORY mode): no reserve is needed, but the books are not CIFRS 9 compliant.${lines.some((l) => l.includes('releases')) ? ` ${lines.join('; ')}.` : ''}`,
+            },
+      );
+    }
     try {
       const rec = await this.ops.reconciliation(actor);
       add(
@@ -663,6 +720,11 @@ export class PeriodCloseService {
         impairmentStage: true,
         isRestructured: true,
         nonAccrual: true,
+        probationRemaining: true,
+        delinquencyFloorDpd: true,
+        disbursementDate: true,
+        maturityDate: true,
+        originalMaturityDate: true,
       },
       orderBy: { id: 'asc' },
     });
@@ -681,6 +743,10 @@ export class PeriodCloseService {
           stage: l.impairmentStage,
           restructured: l.isRestructured,
           nonAccrual: l.nonAccrual,
+          // What the NBC grade depends on beyond days past due (D-113, D-114).
+          onProbation: l.probationRemaining > 0,
+          floorDpd: l.delinquencyFloorDpd,
+          termDays: originalTermDays(l),
         })),
       },
     };
@@ -738,7 +804,18 @@ export class PeriodCloseService {
             ? `${periodLabel(year, month)} is already waiting for approval.`
             : `${periodLabel(year, month)} is closed.`,
         );
-      const snapshot = await this.snapshot(tx, tenantId, start, end);
+      // D-115: the regulatory reserve is brought to the month-end figure
+      // before the books are frozen (nothing moves when it already is).
+      const reserve = await this.reserve.appropriate(tx, tenantId, end, actor);
+      const snapshot = {
+        ...(await this.snapshot(tx, tenantId, start, end)),
+        regulatoryReserve: {
+          mode: reserve.mode,
+          account: reserve.account,
+          rows: reserve.rows,
+          eventIds: reserve.eventIds,
+        },
+      };
       const data = {
         status: 'PENDING',
         checks: checks as unknown as Json,

@@ -172,3 +172,19 @@ export function contractualAccrual(state: LoanState, asOf: string) {
   }
   return total;
 }
+
+/**
+ * Days from disbursement to the maturity first agreed: chooses the NBC band
+ * set (D-114). Null when not known — the loan is then graded on the
+ * short-term bands, the stricter set.
+ */
+export function originalTermDays(a: {
+  disbursementDate: Date | null;
+  maturityDate: Date | null;
+  originalMaturityDate: Date | null;
+  isRestructured: boolean;
+}): number | null {
+  const end = a.originalMaturityDate ?? (a.isRestructured ? null : a.maturityDate);
+  if (!a.disbursementDate || !end) return null;
+  return lending.daysBetween(toLocalDate(a.disbursementDate)!, toLocalDate(end)!);
+}

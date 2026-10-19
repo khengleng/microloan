@@ -1,6 +1,7 @@
 import {
   LoanPosition,
   buildReturn,
+  gradePosition,
   rateBands,
   regulatoryClass,
   returnCsv,
@@ -123,7 +124,7 @@ describe('regulatory return builder', () => {
       (r) => r.currency === 'USD' && r.class === 'Substandard',
     )!;
     expect(sub.principal).toBe('500.00');
-    expect(sub.provisionRequired).toBe('125.00');
+    expect(sub.provisionRequired).toBe('100.00');
     const above = c.tables
       .find((t) => t.code === 'INTEREST_RATES')!
       .rows.find((r) => r.currency === 'USD' && r.aboveCap === 'Yes')!;
@@ -174,6 +175,78 @@ describe('regulatory return builder', () => {
     expect(row.status).toBe('MATCHED');
     expect(row.migrated).toBe('700.00');
     expect(row.ledger).toBe('1700.00');
+  });
+
+  it('grades on the band set for the original term, holding restructured loans on probation (D-113, D-114)', () => {
+    // 45 days: Substandard short-term, Special mention long-term.
+    expect(gradePosition(pos({ daysPastDue: 45 })).cls.code).toBe(
+      'SUBSTANDARD',
+    );
+    const long = gradePosition(
+      pos({ daysPastDue: 45, originalTermDays: 1095 }),
+    );
+    expect([long.term, long.cls.code]).toEqual(['LONG', 'SPECIAL_MENTION']);
+    // Restructured on probation: the floor days, and at least Substandard.
+    expect(
+      gradePosition(
+        pos({ restructured: true, onProbation: true, floorDpd: 70 }),
+      ).cls.code,
+    ).toBe('DOUBTFUL');
+    expect(
+      gradePosition(pos({ restructured: true, onProbation: true, floorDpd: 0 }))
+        .cls.code,
+    ).toBe('SUBSTANDARD');
+    expect(
+      gradePosition(pos({ restructured: true, onProbation: false, floorDpd: 70 }))
+        .cls.code,
+    ).toBe('STANDARD');
+    const c = buildReturn(
+      input([
+        pos({ daysPastDue: 45, originalTermDays: 1095, allowance: '0' }),
+        pos({ loanId: 'l2', daysPastDue: 45, allowance: '0' }),
+      ]),
+    );
+    const rows = c.tables.find((t) => t.code === 'CLASSIFICATION')!.rows;
+    const at = (term: string, cls: string) =>
+      rows.find(
+        (r) => r.currency === 'USD' && r.term === term && r.class === cls,
+      )!;
+    expect(at('Long-term', 'Special mention').loans).toBe(1);
+    expect(at('Long-term', 'Special mention').days).toBe('30–89');
+    expect(at('Short-term', 'Substandard').loans).toBe(1);
+    expect(at('Short-term', 'Loss').days).toBe('91+');
+    expect(at('Long-term', 'Loss').days).toBe('360+');
+  });
+
+  it('shows the regulatory reserve against the ECL allowance and flags a missing policy (D-115, D-116)', () => {
+    const positions = [pos({ daysPastDue: 40, allowance: '50' })];
+    const ecl = buildReturn({
+      ...input(positions),
+      impairmentMode: 'ECL',
+      reserve: { account: '3200', held: [{ currency: 'USD', balance: '150' }] },
+    });
+    const r = ecl.tables.find((t) => t.code === 'REGULATORY_RESERVE')!;
+    expect(r.rows[0]).toMatchObject({
+      regulatoryProvision: '200.00',
+      allowance: '50.00',
+      reserveRequired: '150.00',
+      reserveHeld: '150.00',
+      difference: '0.00',
+    });
+    expect(ecl.checks.find((x) => x.code === 'IMPAIRMENT_POLICY')!.passed).toBe(
+      true,
+    );
+    const reg = buildReturn({ ...input(positions), impairmentMode: 'REGULATORY' });
+    expect(
+      reg.tables.find((t) => t.code === 'REGULATORY_RESERVE')!.notes!.join(' '),
+    ).toMatch(/NOT CIFRS 9 compliant/);
+    const none = buildReturn({ ...input(positions), impairmentMode: 'NONE' });
+    expect(none.checks.find((x) => x.code === 'IMPAIRMENT_POLICY')!.passed).toBe(
+      false,
+    );
+    // Loss loans at the write-off floor are flagged for write-off (D-117).
+    const aged = buildReturn(input([pos({ daysPastDue: 120 })]));
+    expect(aged.warnings.join(' ')).toMatch(/graded Loss have reached the write-off floor/);
   });
 
   it('neutralises spreadsheet formulas in the CSV', () => {

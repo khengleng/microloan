@@ -43,6 +43,12 @@ export interface LoanPosition {
   restructured: boolean;
   /** Annual nominal rate in percent, or null when not recorded. */
   annualRatePct: string | null;
+  /** Days from disbursement to the original maturity: chooses the NBC band set (D-114); null grades short-term. */
+  originalTermDays?: number | null;
+  /** A restructured loan still short of the on-time instalments that cure it (D-113). */
+  onProbation?: boolean;
+  /** Days past due held while on probation (the restructure floor). */
+  floorDpd?: number | null;
 }
 
 export interface Movement {
@@ -87,6 +93,13 @@ export interface ReturnInput {
   rateCapPct: string;
   /** The lender's regulatory settings (classes and bands); the NBC defaults when absent. */
   regulatory?: RegulatorySettings;
+  /**
+   * The impairment policy in force (D-115, D-116): NONE when none is
+   * approved. Absent: not known (no policy check or reserve table).
+   */
+  impairmentMode?: 'REGULATORY' | 'ECL' | 'NONE';
+  /** Regulatory reserve on the lending ledger at month end, per currency (D-115). */
+  reserve?: { account: string; held: { currency: string; balance: string }[] };
   positions: LoanPosition[];
   movements: Movement[];
   ledger: LedgerFact[];
@@ -150,6 +163,8 @@ export interface ReturnContent {
   reconciliation: ReconciliationRow[];
   checks: ReturnCheck[];
   warnings: string[];
+  /** The impairment basis of the allowance, when known (D-115). */
+  impairmentMode?: string;
 }
 
 /** NBC loan classes (Prakas on credit risk grading), worst last: the default when a lender has set none. */
@@ -196,7 +211,7 @@ const ratio = (part: Dec, whole: Dec) =>
     : part.div(whole).toDecimalPlaces(4, lending.D.ROUND_HALF_UP).toFixed(4);
 
 /**
- * The regulatory class: by days past due on the NBC bands, never better than
+ * The regulatory class on one band set: by days past due, never better than
  * the class the tenant's own policy recorded (a restructured loan held at a
  * worse class by its probation floor stays there).
  */
@@ -212,6 +227,45 @@ export function regulatoryClass(
   const rec = recorded ? classes.findIndex((c) => c.code === recorded) : -1;
   if (rec > idx) idx = rec;
   return classes[idx];
+}
+
+/** One loan's NBC grade in the return. */
+export interface ReturnGrade {
+  cls: RegulatoryClassDef;
+  /** Position in the class order (the same codes in both sets). */
+  index: number;
+  term: lending.TermBasis;
+}
+
+const bandsOf = (reg: RegulatorySettings) =>
+  lending.regulatoryBands({
+    regulatory: reg,
+  } as lending.TenantLendingSettings);
+
+/**
+ * One loan's NBC grade: the band set for its original term, the restructure
+ * probation floor and minimum class (D-113, D-114), never better than the
+ * class its impairment policy recorded.
+ */
+export function gradePosition(
+  p: LoanPosition,
+  reg: RegulatorySettings = DEFAULT_REGULATORY,
+): ReturnGrade {
+  const g = lending.classifyRegulatory(bandsOf(reg), {
+    daysPastDue: p.daysPastDue,
+    originalTermDays: p.originalTermDays ?? null,
+    restructured: p.restructured,
+    onProbation: p.onProbation ?? false,
+    floorDpd: p.floorDpd ?? null,
+  });
+  const classes: RegulatoryClassDef[] =
+    g.term === 'LONG' ? reg.longTermClasses : reg.classes;
+  let index = g.index;
+  const rec = p.recordedClass
+    ? classes.findIndex((c) => c.code === p.recordedClass)
+    : -1;
+  if (rec > index) index = rec;
+  return { cls: classes[index], index, term: g.term };
 }
 
 /**
@@ -271,7 +325,7 @@ export function rateBands(
 }
 
 class Acc {
-  constructor(private readonly classes: RegulatoryClassDef[]) {}
+  constructor(private readonly grade: (p: LoanPosition) => ReturnGrade) {}
   count = 0;
   principal = D(0);
   allowance = D(0);
@@ -286,10 +340,11 @@ class Acc {
     this.principal = this.principal.plus(pr);
     this.allowance = this.allowance.plus(D(p.allowance));
     this.interest = this.interest.plus(D(p.interestReceivable));
+    // Rounded per loan to the currency's minor unit, as the reserve is.
     this.required = this.required.plus(
-      pr.times(
-        regulatoryClass(p.daysPastDue, p.recordedClass, this.classes).rate,
-      ),
+      pr
+        .times(this.grade(p).cls.rate)
+        .toDecimalPlaces(scaleOf(p.currency), lending.D.ROUND_HALF_UP),
     );
     if (p.daysPastDue >= 1) this.par1 = this.par1.plus(pr);
     if (p.daysPastDue >= 30) this.par30 = this.par30.plus(pr);
@@ -321,9 +376,22 @@ const STACK_LABEL: Record<string, string> = {
 export function buildReturn(input: ReturnInput): ReturnContent {
   const reg = input.regulatory ?? DEFAULT_REGULATORY;
   const classes: RegulatoryClassDef[] = reg.classes;
-  const newAcc = () => new Acc(classes);
-  const classOf = (p: LoanPosition) =>
-    regulatoryClass(p.daysPastDue, p.recordedClass, classes);
+  const grades = new Map<LoanPosition, ReturnGrade>();
+  const gradeOf = (p: LoanPosition) => {
+    let g = grades.get(p);
+    if (!g) grades.set(p, (g = gradePosition(p, reg)));
+    return g;
+  };
+  const newAcc = () => new Acc(gradeOf);
+  const classOf = (p: LoanPosition) => gradeOf(p).cls;
+  const TERMS: {
+    term: lending.TermBasis;
+    label: string;
+    set: RegulatoryClassDef[];
+  }[] = [
+    { term: 'SHORT', label: 'Short-term', set: reg.classes },
+    { term: 'LONG', label: 'Long-term', set: reg.longTermClasses },
+  ];
   const positions = input.positions.filter((p) => !D(p.principal).isZero());
   const currencies = [
     ...new Set([
@@ -410,39 +478,54 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     const rows: Row[] = [];
     const totals: Row[] = [];
     for (const c of currencies) {
-      const g = group(byCur(c), (p) => classOf(p).code, newAcc);
+      const g = group(
+        byCur(c),
+        (p) => `${gradeOf(p).term}:${classOf(p).code}`,
+        newAcc,
+      );
       const all = newAcc();
-      for (const k of classes) {
-        const a = g.get(k.code) ?? newAcc();
-        byCur(c)
-          .filter((p) => classOf(p).code === k.code)
-          .forEach((p) => all.add(p));
-        rows.push({
-          currency: c,
-          class: k.label,
-          days: `${k.minDpd}+`,
-          rate: D(k.rate).times(100).toString(),
-          loans: a.count,
-          principal: money(a.principal, c),
-          provisionRequired: money(a.required, c),
-          allowance: money(a.allowance, c),
+      byCur(c).forEach((p) => all.add(p));
+      for (const t of TERMS)
+        t.set.forEach((k, i) => {
+          const a = g.get(`${t.term}:${k.code}`) ?? newAcc();
+          const next = t.set[i + 1];
+          rows.push({
+            currency: c,
+            term: t.label,
+            class: k.label,
+            days: next ? `${k.minDpd}–${next.minDpd - 1}` : `${k.minDpd}+`,
+            rate: D(k.rate).times(100).toString(),
+            loans: a.count,
+            principal: money(a.principal, c),
+            provisionRequired: money(a.required, c),
+            allowance: money(a.allowance, c),
+          });
         });
-      }
       totals.push(
         totalRow(c, all, {
-          class: 'Total',
+          term: 'Total',
+          class: '',
           provisionRequired: money(all.required, c),
           allowance: money(all.allowance, c),
         }),
       );
     }
+    const minClass = reg.restructured.minClass
+      ? (classes.find((k) => k.code === reg.restructured.minClass)?.label ??
+        reg.restructured.minClass)
+      : null;
+    const cure = reg.restructured.minProbationInstalments;
     tables.push({
       code: 'CLASSIFICATION',
       title: 'Loan classification and provisioning',
-      description:
-        'NBC classes by days past due at month end (never better than the class recorded by the impairment policy); required provision = principal × class rate.',
+      description: `NBC classes by days past due at month end: the short-term bands for loans whose original term is up to ${reg.shortTermMaxDays} days, the long-term bands beyond; required provision = principal × class rate.`,
+      notes: [
+        `A restructured loan on probation is graded on the days past due it had when restructured, if more${minClass ? `, and at least ${minClass}` : ''}, until ${cure === 1 ? 'one revised instalment is' : `${cure} consecutive revised instalments are`} paid on time (or the product's own number, if more). A loan is never graded better than the class its impairment policy recorded.`,
+        'Bands and rates as the lender has set them (by default NBC Prakas B7-017-344 as recalled; assumed, needs compliance sign-off).',
+      ],
       columns: [
         { key: 'currency', label: 'Currency', kind: 'text' },
+        { key: 'term', label: 'Term', kind: 'text' },
         { key: 'class', label: 'Class', kind: 'text' },
         { key: 'days', label: 'Days past due', kind: 'text' },
         { key: 'rate', label: 'Rate %', kind: 'percent' },
@@ -773,10 +856,7 @@ export function buildReturn(input: ReturnInput): ReturnContent {
           worst: 0,
         };
         e.a.add(p);
-        e.worst = Math.max(
-          e.worst,
-          classes.findIndex((k) => k.code === classOf(p).code),
-        );
+        e.worst = Math.max(e.worst, gradeOf(p).index);
         byBorrower.set(p.borrowerId, e);
       }
       const top = [...byBorrower.entries()]
@@ -892,6 +972,77 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     });
   }
 
+  // 13. Regulatory provision against the allowance, and the reserve (D-115).
+  if (input.impairmentMode) {
+    const mode = input.impairmentMode;
+    const rows: Row[] = [];
+    for (const c of currencies) {
+      const a = newAcc();
+      byCur(c)
+        .filter((p) => p.stack === 'LENDING')
+        .forEach((p) => a.add(p));
+      const shortfall = lending.D.max(0, a.required.minus(a.allowance));
+      const required = mode === 'ECL' ? shortfall : D(0);
+      const held = D(
+        input.reserve?.held.find((h) => h.currency === c)?.balance ?? 0,
+      );
+      rows.push({
+        currency: c,
+        basis:
+          mode === 'ECL'
+            ? 'CIFRS 9 expected credit loss'
+            : mode === 'REGULATORY'
+              ? 'NBC provision (not CIFRS 9)'
+              : 'No impairment policy',
+        regulatoryProvision: money(a.required, c),
+        allowance: money(a.allowance, c),
+        shortfall: money(shortfall, c),
+        reserveRequired: money(required, c),
+        reserveHeld: money(held, c),
+        difference: money(held.minus(required), c),
+      });
+    }
+    const account = input.reserve?.account ?? '3200';
+    tables.push({
+      code: 'REGULATORY_RESERVE',
+      title: 'Regulatory provision and reserve',
+      description:
+        'Lending platform: the NBC provision required against the loss allowance held. Under CIFRS 9 (ECL) the provision above the allowance is held as a regulatory reserve in equity, appropriated from retained earnings.',
+      columns: [
+        { key: 'currency', label: 'Currency', kind: 'text' },
+        { key: 'basis', label: 'Allowance basis', kind: 'text' },
+        {
+          key: 'regulatoryProvision',
+          label: 'NBC provision required',
+          kind: 'amount',
+        },
+        { key: 'allowance', label: 'Allowance held', kind: 'amount' },
+        {
+          key: 'shortfall',
+          label: 'NBC provision above allowance',
+          kind: 'amount',
+        },
+        { key: 'reserveRequired', label: 'Reserve required', kind: 'amount' },
+        {
+          key: 'reserveHeld',
+          label: `Reserve on the ledger (${account})`,
+          kind: 'amount',
+        },
+        { key: 'difference', label: 'Difference', kind: 'amount' },
+      ],
+      rows,
+      totals: [],
+      notes: [
+        mode === 'ECL'
+          ? `The allowance is the CIFRS 9 expected credit loss. Where the NBC provision is higher, the difference is appropriated from retained earnings to the regulatory reserve (${account}) at each month-end close and released when it falls; it is not an expense.`
+          : mode === 'REGULATORY'
+            ? 'The allowance is the NBC provision (REGULATORY impairment mode). These books are NOT CIFRS 9 compliant: CIFRS 9 requires an expected-credit-loss allowance, with any NBC provision above it held as a regulatory reserve.'
+            : 'No impairment policy is approved, so no loss allowance is held on the lending platform (DECISIONS D-010). The books are neither CIFRS 9 compliant nor provisioned to the NBC classes.',
+        'The reserve is measured when the month is closed, on the loans as they stood then; a difference here means the books moved after the close was prepared.',
+      ],
+    });
+  }
+
   // Reconciliation of the loans to the ledger.
   const reconciliation: ReconciliationRow[] = [];
   for (const c of currencies) {
@@ -965,9 +1116,13 @@ export function buildReturn(input: ReturnInput): ReturnContent {
   const portfolio = tables.find((t) => t.code === 'PORTFOLIO')!;
   for (const t of tables) {
     if (
-      ['PORTFOLIO', 'MOVEMENTS', 'RESTRUCTURED', 'LARGE_EXPOSURES'].includes(
-        t.code,
-      )
+      [
+        'PORTFOLIO',
+        'MOVEMENTS',
+        'RESTRUCTURED',
+        'LARGE_EXPOSURES',
+        'REGULATORY_RESERVE',
+      ].includes(t.code)
     )
       continue;
     for (const c of currencies) {
@@ -1001,6 +1156,43 @@ export function buildReturn(input: ReturnInput): ReturnContent {
           : `Loans ${r.loans}, ledger ${r.ledger}: difference ${r.difference}`,
     });
 
+  // D-116: lending loans outstanding with no impairment policy hold no allowance.
+  if (input.impairmentMode) {
+    const lendingLoans = positions.filter((p) => p.stack === 'LENDING').length;
+    const ok = input.impairmentMode !== 'NONE' || lendingLoans === 0;
+    checks.push({
+      code: 'IMPAIRMENT_POLICY',
+      label: 'An impairment policy is approved',
+      passed: ok,
+      detail: !ok
+        ? `${lendingLoans} lending loan(s) outstanding with no approved impairment policy: no loss allowance is held.`
+        : input.impairmentMode === 'NONE'
+          ? 'No lending loans outstanding.'
+          : input.impairmentMode === 'ECL'
+            ? 'Expected credit loss (CIFRS 9), with a regulatory reserve.'
+            : 'Regulatory (NBC classes): not CIFRS 9 compliant.',
+    });
+  }
+
+  // D-117: loans graded Loss that have reached the write-off floor.
+  const aged = new Map<string, number>();
+  const bands = bandsOf(reg);
+  for (const p of positions) {
+    if (p.stack !== 'LENDING' || gradeOf(p).cls.code !== 'LOSS') continue;
+    const floor = lending.writeOffFloorDpd(
+      bands,
+      p.originalTermDays ?? null,
+      reg.writeOffMinDpd,
+    );
+    if (p.daysPastDue >= floor)
+      aged.set(p.currency, (aged.get(p.currency) ?? 0) + 1);
+  }
+  const warnings = [...input.warnings];
+  for (const [c, n] of [...aged.entries()].sort())
+    warnings.push(
+      `${n} ${c} loan(s) graded Loss have reached the write-off floor and are not written off: review them for write-off.`,
+    );
+
   return {
     schema: RETURN_SCHEMA,
     tenant: input.tenantName,
@@ -1018,7 +1210,8 @@ export function buildReturn(input: ReturnInput): ReturnContent {
     tables,
     reconciliation,
     checks,
-    warnings: input.warnings,
+    warnings,
+    ...(input.impairmentMode ? { impairmentMode: input.impairmentMode } : {}),
   };
 }
 
