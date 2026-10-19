@@ -197,8 +197,9 @@ describe('regulatory return builder', () => {
         .cls.code,
     ).toBe('SUBSTANDARD');
     expect(
-      gradePosition(pos({ restructured: true, onProbation: false, floorDpd: 70 }))
-        .cls.code,
+      gradePosition(
+        pos({ restructured: true, onProbation: false, floorDpd: 70 }),
+      ).cls.code,
     ).toBe('STANDARD');
     const c = buildReturn(
       input([
@@ -236,17 +237,22 @@ describe('regulatory return builder', () => {
     expect(ecl.checks.find((x) => x.code === 'IMPAIRMENT_POLICY')!.passed).toBe(
       true,
     );
-    const reg = buildReturn({ ...input(positions), impairmentMode: 'REGULATORY' });
+    const reg = buildReturn({
+      ...input(positions),
+      impairmentMode: 'REGULATORY',
+    });
     expect(
       reg.tables.find((t) => t.code === 'REGULATORY_RESERVE')!.notes!.join(' '),
     ).toMatch(/NOT CIFRS 9 compliant/);
     const none = buildReturn({ ...input(positions), impairmentMode: 'NONE' });
-    expect(none.checks.find((x) => x.code === 'IMPAIRMENT_POLICY')!.passed).toBe(
-      false,
-    );
+    expect(
+      none.checks.find((x) => x.code === 'IMPAIRMENT_POLICY')!.passed,
+    ).toBe(false);
     // Loss loans at the write-off floor are flagged for write-off (D-117).
     const aged = buildReturn(input([pos({ daysPastDue: 120 })]));
-    expect(aged.warnings.join(' ')).toMatch(/graded Loss have reached the write-off floor/);
+    expect(aged.warnings.join(' ')).toMatch(
+      /graded Loss have reached the write-off floor/,
+    );
   });
 
   it('neutralises spreadsheet formulas in the CSV', () => {

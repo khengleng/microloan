@@ -184,7 +184,11 @@ export function originalTermDays(a: {
   originalMaturityDate: Date | null;
   isRestructured: boolean;
 }): number | null {
-  const end = a.originalMaturityDate ?? (a.isRestructured ? null : a.maturityDate);
+  const end =
+    a.originalMaturityDate ?? (a.isRestructured ? null : a.maturityDate);
   if (!a.disbursementDate || !end) return null;
-  return lending.daysBetween(toLocalDate(a.disbursementDate)!, toLocalDate(end)!);
+  return lending.daysBetween(
+    toLocalDate(a.disbursementDate)!,
+    toLocalDate(end)!,
+  );
 }

@@ -128,9 +128,7 @@ export class RegulatoryReserveService {
       for (const l of e.lines)
         held.set(
           e.currency,
-          (held.get(e.currency) ?? D(0))
-            .plus(D(l.credit))
-            .minus(D(l.debit)),
+          (held.get(e.currency) ?? D(0)).plus(D(l.credit)).minus(D(l.debit)),
         );
     const currencies = [...new Set([...by.keys(), ...held.keys()])].sort();
     const rows = currencies.map((currency) => {

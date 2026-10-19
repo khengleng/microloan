@@ -318,15 +318,12 @@ d(
 
     // D-QA-04 (fixed): paying what the call asked for cures it, although
     // interest has accrued since the call was made.
-    it(
-      'UC-51: paying the required repayment cures the call at end of day (D-QA-04)',
-      async () => {
-        await j.moveTo('2026-01-06');
-        expect((await j.collateralView(loanId)).marginCalls[0].status).toBe(
-          'CURED',
-        );
-      },
-    );
+    it('UC-51: paying the required repayment cures the call at end of day (D-QA-04)', async () => {
+      await j.moveTo('2026-01-06');
+      expect((await j.collateralView(loanId)).marginCalls[0].status).toBe(
+        'CURED',
+      );
+    });
 
     it('UC-51: pledging 10 g more gold brings it back within 80% and cures the call on the spot', async () => {
       await j.moveTo('2026-01-07');

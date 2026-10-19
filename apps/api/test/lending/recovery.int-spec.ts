@@ -318,12 +318,14 @@ d('Recovery workflows (integration)', () => {
 
       it('seizure is proposed by one user and approved by another', async () => {
         const repo = expectOk(
-          await f.as('opsMaker').post(`/lending/loans/${loans.A}/repossessions`, {
-            collateralId: vehicleA,
-            location: 'Phnom Penh yard',
-            seizedOn: '2026-03-14',
-            reason: 'Two instalments in arrears; borrower unreachable',
-          }),
+          await f
+            .as('opsMaker')
+            .post(`/lending/loans/${loans.A}/repossessions`, {
+              collateralId: vehicleA,
+              location: 'Phnom Penh yard',
+              seizedOn: '2026-03-14',
+              reason: 'Two instalments in arrears; borrower unreachable',
+            }),
         );
         repoId = repo.id;
         expect(repo.status).toBe('PROPOSED');
@@ -339,14 +341,11 @@ d('Recovery workflows (integration)', () => {
         // Selling before valuation, or valuing before approval, is refused.
         const early = await f
           .as('opsMaker')
-          .post(
-            `/lending/loans/${loans.A}/repossessions/${repoId}/valuation`,
-            {
-              marketValue: '6000',
-              valuer: 'Auto Valuers',
-              valuationDate: '2026-03-15',
-            },
-          );
+          .post(`/lending/loans/${loans.A}/repossessions/${repoId}/valuation`, {
+            marketValue: '6000',
+            valuer: 'Auto Valuers',
+            valuationDate: '2026-03-15',
+          });
         expect(early.status).toBe(409);
         expect((await decide('opsMaker', loans.A, repo.taskId)).status).toBe(
           403,
@@ -373,20 +372,20 @@ d('Recovery workflows (integration)', () => {
         const before = (await loan(loans.A)).account;
         const due = owed(before);
         const sale = expectOk(
-          await f.as('opsMaker').post(
-            `/lending/loans/${loans.A}/repossessions/${repoId}/sale`,
-            saleBody,
-            saleKey,
-          ),
+          await f
+            .as('opsMaker')
+            .post(
+              `/lending/loans/${loans.A}/repossessions/${repoId}/sale`,
+              saleBody,
+              saleKey,
+            ),
         );
         expect(sale.proceeds.costsRecovered).toBe('300');
         expect(sale.proceeds.settlesLoan).toBe(true);
         expect(sale.proceeds.applied[0].component).toBe('INTEREST');
         expect(sale.proceeds.applied[1].component).toBe('PRINCIPAL');
         expect(D(sale.proceeds.totalApplied).eq(due)).toBe(true);
-        expect(
-          D(sale.proceeds.surplus).eq(D(4700).minus(due)),
-        ).toBe(true);
+        expect(D(sale.proceeds.surplus).eq(D(4700).minus(due))).toBe(true);
         const after = (await loan(loans.A)).account;
         expect(after.status).toBe('CLOSED');
         expect(after.principalOutstanding).toBe('0');
@@ -442,12 +441,14 @@ d('Recovery workflows (integration)', () => {
     describe('UC-65 repossession with a deficiency, then write-off and recovery', () => {
       it('a sale that does not cover the loan leaves the deficiency owed on an open loan', async () => {
         const repo = expectOk(
-          await f.as('opsMaker').post(`/lending/loans/${loans.B}/repossessions`, {
-            collateralId: vehicleB,
-            location: 'Siem Reap yard',
-            seizedOn: '2026-03-15',
-            reason: 'Arrears',
-          }),
+          await f
+            .as('opsMaker')
+            .post(`/lending/loans/${loans.B}/repossessions`, {
+              collateralId: vehicleB,
+              location: 'Siem Reap yard',
+              seizedOn: '2026-03-15',
+              reason: 'Arrears',
+            }),
         );
         expectOk(await decide('opsChecker', loans.B, repo.taskId));
         expectOk(
@@ -525,11 +526,13 @@ d('Recovery workflows (integration)', () => {
       it('after the deadline the item is forfeited under maker-checker and auctioned', async () => {
         const item = (await recovery(loans.C)).pawnItems[0];
         expect(item.forfeitable).toBe(true);
-        const sellEarly = await f.as('opsMaker').post(
-          `/lending/loans/${loans.C}/pawn-items/${item.id}/sale`,
-          { salePrice: '2300', buyer: 'Gold Market', saleDate: '2026-03-15' },
-          key('ps'),
-        );
+        const sellEarly = await f
+          .as('opsMaker')
+          .post(
+            `/lending/loans/${loans.C}/pawn-items/${item.id}/sale`,
+            { salePrice: '2300', buyer: 'Gold Market', saleDate: '2026-03-15' },
+            key('ps'),
+          );
         expect(sellEarly.status).toBe(409);
         const task = expectOk(
           await f
@@ -570,7 +573,9 @@ d('Recovery workflows (integration)', () => {
           });
         expect([403, 409]).toContain(early.status);
         const q = expectOk(
-          await f.as('opsMaker').get(`/lending/loans/${loans.D}/settlement-quote`),
+          await f
+            .as('opsMaker')
+            .get(`/lending/loans/${loans.D}/settlement-quote`),
         );
         expectOk(
           await f

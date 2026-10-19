@@ -18,7 +18,12 @@ const ECL = {
   mode: 'ECL',
   classes: [
     { code: 'STANDARD', label: 'Standard', minDpd: 0, rate: '0.01' },
-    { code: 'SPECIAL_MENTION', label: 'Special mention', minDpd: 15, rate: '0.03' },
+    {
+      code: 'SPECIAL_MENTION',
+      label: 'Special mention',
+      minDpd: 15,
+      rate: '0.03',
+    },
     { code: 'SUBSTANDARD', label: 'Substandard', minDpd: 31, rate: '0.2' },
     { code: 'DOUBTFUL', label: 'Doubtful', minDpd: 61, rate: '0.5' },
     { code: 'LOSS', label: 'Loss', minDpd: 91, rate: '1' },
@@ -104,7 +109,9 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
   };
   const close = async (month: number) => {
     const p = expectOk(
-      await f.as('finance').post(`/lending/ops/periods/2026/${month}/prepare`, {}),
+      await f
+        .as('finance')
+        .post(`/lending/ops/periods/2026/${month}/prepare`, {}),
     );
     expectOk(
       await f
@@ -114,7 +121,9 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
     return p;
   };
   const balance = async (code: string) => {
-    const tb = expectOk(await f.as('finance').get('/lending/ops/trial-balance'));
+    const tb = expectOk(
+      await f.as('finance').get('/lending/ops/trial-balance'),
+    );
     const row = tb
       .find((t: any) => t.currency === 'USD')
       .rows.find((a: any) => a.code === code);
@@ -179,7 +188,9 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
   it('ECL: month-end close appropriates the NBC provision above the allowance to the regulatory reserve', async () => {
     await approvePolicy(ECL);
     await moveTo('2026-01-31');
-    const month = expectOk(await f.as('finance').get('/lending/ops/periods/2026/1'));
+    const month = expectOk(
+      await f.as('finance').get('/lending/ops/periods/2026/1'),
+    );
     expect(
       month.checks.find((c: any) => c.code === 'IMPAIRMENT_POLICY').status,
     ).toBe('PASS');
@@ -240,13 +251,14 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
       2,
     );
     expect(
-      l.events
-        .filter((e: any) => e.type === 'PROVISION')
-        .at(-1).components.explanation,
+      l.events.filter((e: any) => e.type === 'PROVISION').at(-1).components
+        .explanation,
     ).toMatch(/long-term bands/);
 
     await moveTo('2026-02-28');
-    const month = expectOk(await f.as('finance').get('/lending/ops/periods/2026/2'));
+    const month = expectOk(
+      await f.as('finance').get('/lending/ops/periods/2026/2'),
+    );
     expect(
       month.checks.find((c: any) => c.code === 'REGULATORY_RESERVE'),
     ).toMatchObject({ status: 'WARN' });
@@ -259,7 +271,10 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
       (x: any) => `${x.accountCode}:${Number(x.debit)}:${Number(x.credit)}`,
     );
     expect(lines.sort()).toEqual(
-      [`3100:0:${Number(release.amount)}`, `3200:${Number(release.amount)}:0`].sort(),
+      [
+        `3100:0:${Number(release.amount)}`,
+        `3200:${Number(release.amount)}:0`,
+      ].sort(),
     );
     expect(await balance('3200')).toBe(0);
 
@@ -275,8 +290,24 @@ d('NBC classification, regulatory reserve and close (integration)', () => {
     const reserve = c.tables.find((t: any) => t.code === 'REGULATORY_RESERVE');
     expect(reserve.notes.join(' ')).toMatch(/NOT CIFRS 9 compliant/);
     expect(reserve.rows[0].reserveHeld).toBe('0.00');
-    expect(c.checks.find((x: any) => x.code === 'IMPAIRMENT_POLICY').passed).toBe(
-      true,
-    );
+    expect(
+      c.checks.find((x: any) => x.code === 'IMPAIRMENT_POLICY').passed,
+    ).toBe(true);
+  });
+
+  it('Loss loans at the write-off floor are queued for write-off; the long-term loan is not Loss yet', async () => {
+    // 5 February unpaid → 94 days past due on 10 May.
+    for (const day of ['2026-03-31', '2026-04-30', '2026-05-10'])
+      await moveTo(day);
+    const s = await loan(shortLoan);
+    const l = await loan(longLoan);
+    expect(s.account.daysPastDue).toBe(94);
+    expect(s.account.classification).toBe('LOSS'); // 91+, short-term
+    expect(l.account.classification).toBe('SUBSTANDARD'); // 90–179, long-term
+    const work = expectOk(await f.as('opsMaker').get('/me/work'));
+    const q = work.queues.find((x: any) => x.code === 'AGED_LOSS');
+    expect(q.count).toBe(1);
+    expect(q.items[0].id).toBe(shortLoan);
+    expect(q.href).toBe('/lending/recovery');
   });
 });

@@ -980,7 +980,11 @@ export class WorkspaceWorkService {
             const s = await this.settings.get(tenantId, tx);
             const bands = lending.regulatoryBands(s);
             const floors = [
-              lending.writeOffFloorDpd(bands, null, s.regulatory.writeOffMinDpd),
+              lending.writeOffFloorDpd(
+                bands,
+                null,
+                s.regulatory.writeOffMinDpd,
+              ),
               lending.writeOffFloorDpd(
                 bands,
                 s.regulatory.shortTermMaxDays + 1,

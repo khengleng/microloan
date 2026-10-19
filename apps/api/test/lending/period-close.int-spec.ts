@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
 /**
  * Month-end and year-end close (OPS-6): checks, snapshot, maker-checker lock,
  * the period lock in the application and in the database, reopening under
@@ -287,7 +287,9 @@ d('Month-end and year-end close (integration)', () => {
     // here); the loan's loss allowance under the policy can make it a loss.
     const re = usdTb.rows.find((a: any) => a.code === '3100');
     expect(Number(re.balance)).toBeCloseTo(-Number(usd.netIncome), 2);
-    for (const r of usdTb.rows.filter((a: any) => ['INCOME', 'EXPENSE'].includes(a.type)))
+    for (const r of usdTb.rows.filter((a: any) =>
+      ['INCOME', 'EXPENSE'].includes(a.type),
+    ))
       expect(Number(r.balance)).toBe(0);
     const rec = expectOk(
       await f.as('finance').get('/lending/ops/reconciliation'),
