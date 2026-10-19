@@ -73,6 +73,7 @@ Literal credentials, tokens, keys, connection strings, bucket names, tenant/user
 | B8 | `packages/shared/src/lending/channels.ts:83` | 5,000 lines per settlement/payroll file | `payments.maxFileLines` (5000); engine takes it as a parameter |
 | B9 | `apps/api/src/lending/access/access-admin.service.ts:39` and `apps/web/src/components/lending/access/DelegationsTab.tsx:15` | Delegation at most 30 days, duplicated in the web form | `access.maxDelegationDays` (30); the form reads it from the access overview (`limits`) |
 | B10 | `apps/api/src/penalty-cron/penalty-cron.service.ts:80` | Legacy loan marked DEFAULTED after 30 days overdue | `legacyServicing.defaultAfterDaysOverdue` (30) |
+| B10a | (new, not a former constant) | Whether upfront fees count toward the interest-rate cap, and whether penalty interest and the over-limit rate must fit under it (DECISIONS D-105, D-106) | `rateCap.includeFeesInEffectiveRate` (true), `rateCap.penaltyRateMustFitCap` (true) |
 
 ### Moved to product configuration (product versions, editable in the product editor)
 
@@ -101,7 +102,7 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B24 | `app.module.ts:55` | 120 requests/second | `RATE_LIMIT_PER_SECOND` (120) |
 | B25 | `main.ts:70,71` | 5 MB body limit | `API_BODY_LIMIT` (5mb) |
 | B26 | `lending/policy/policy.service.ts:37` | Authorization memo 30 s | `LENDING_AUTHZ_CACHE_TTL_MS` (30000); new bound `LENDING_AUTHZ_CACHE_MAX_ENTRIES` (5000) |
-| B27 | `packages/shared/src/currency.ts:93`, `tenants/settings.controller.ts:66`, `lending/reporting/regulatory-return.service.ts:415`, `risk/risk.service.ts:96,173` | NBC 18% ceiling (a tenant may only lower it) | `REGULATORY_MAX_ANNUAL_RATE_PCT` (18); the shared functions take the ceiling as a parameter |
+| B27 | `packages/shared/src/currency.ts:93`, `tenants/settings.controller.ts:66`, `lending/reporting/regulatory-return.service.ts:415`, `risk/risk.service.ts:96,173` | NBC 18% ceiling (a tenant may only lower it) | `REGULATORY_MAX_ANNUAL_RATE_PCT` (18); the shared functions take the ceiling as a parameter; the lending platform resolves the cap in force in one place, `lending/common/rate-cap.service.ts` → `packages/shared/src/lending/rate-cap.ts` (lowest of this ceiling, `Tenant.maxAnnualInterestRatePct` and the product's `pricing.regulatoryCapAnnualRate`; D-102) |
 | B28 | `penalty-cron.service.ts:19,114`, `reminder/reminder.service.ts:19`, `bot/bot.service.ts:319`, `collections/collections.service.ts:101` | Legacy job schedules | `LEGACY_PENALTY_CRON`, `LEGACY_UPCOMING_REMINDER_CRON`, `LEGACY_REMINDER_CRON`, `LEGACY_LATE_ALERT_CRON`, `COLLECTIONS_PTP_REVIEW_CRON` (previous times) |
 | B29 | `penalty-cron.service.ts:66` | Penalty fallback `?? 10.0` | Removed: `Tenant.penaltyRatePerDay` is required with a column default, so the literal could never apply |
 
