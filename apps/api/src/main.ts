@@ -118,6 +118,10 @@ async function bootstrap() {
         'so throttling and audit see the web server address for proxied traffic.',
     );
   }
+  // On SIGTERM (every Railway redeploy) run the modules' shutdown hooks —
+  // onModuleDestroy disconnects Prisma and stops the cron jobs — instead of
+  // the process dying with connections and job claims still open.
+  app.enableShutdownHooks();
 
   await app.listen(runtime.port);
   Logger.log(

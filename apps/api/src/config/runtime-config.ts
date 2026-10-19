@@ -1,3 +1,4 @@
+import { parseFieldEncryptionKey } from '../common/field-crypto';
 import { operationalConfig } from './operational-config';
 
 type RuntimeConfig = {
@@ -68,6 +69,25 @@ export function loadRuntimeConfig(): RuntimeConfig {
 
   const pepper = required('JWT_REFRESH_TOKEN_PEPPER');
   assertMinLength('JWT_REFRESH_TOKEN_PEPPER', pepper, 16);
+
+  if (isProduction) {
+    // Dedicated secrets, never derived from the JWT secrets in production:
+    // rotating JWT_ACCESS_SECRET must not make encrypted PII unreadable,
+    // invalidate document links or orphan every service key.
+    try {
+      parseFieldEncryptionKey(required('FIELD_ENCRYPTION_KEY'));
+    } catch (e) {
+      throw new Error(
+        `FIELD_ENCRYPTION_KEY is required in production and must be 32 bytes (base64 or 64-char hex): ${(e as Error).message}`,
+      );
+    }
+    assertMinLength(
+      'DOCUMENT_LINK_SECRET',
+      required('DOCUMENT_LINK_SECRET'),
+      32,
+    );
+    assertMinLength('SERVICE_KEY_PEPPER', required('SERVICE_KEY_PEPPER'), 32);
+  }
 
   const port = parsePort(process.env.PORT);
   const corsOrigins = parseCorsOrigins(isProduction);

@@ -530,12 +530,20 @@ Production runs on Railway (API and web as separate services from this
 repository; see [DEPLOYMENT.md](DEPLOYMENT.md) for the runbook, current
 environment layout and the backup caveat).
 
-* **API** — root `apps/api`; `start:prod` runs `prisma migrate deploy`, then the
-  seed, then the server; health check `GET /v1/health`.
-* **Web** — root `apps/web`; set `NEXT_PUBLIC_API_URL` / `API_URL` to the API's `/v1` URL.
-* Required API variables: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
-  `JWT_REFRESH_TOKEN_PEPPER`, `CORS_ORIGINS`, `REDIS_URL`, `AWS_*`, `NODE_ENV=production`;
-  recommended `FIELD_ENCRYPTION_KEY`; optional lending variables are listed in `.env.example`.
+* **API** — the start command runs `prisma migrate deploy` as the table owner
+  (`MIGRATION_DATABASE_URL`), then the server; readiness check
+  `GET /v1/health/ready`. Build, start and healthcheck are in
+  `apps/api/railway.json` (and `apps/web/railway.json` for the web).
+* **Web** — set `NEXT_PUBLIC_API_URL` / `API_URL` to the API's `/v1` URL.
+* Required API variables: `DATABASE_URL`, `MIGRATION_DATABASE_URL`,
+  `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_TOKEN_PEPPER`,
+  `CORS_ORIGINS`, `REDIS_URL`, `FIELD_ENCRYPTION_KEY`, `DOCUMENT_LINK_SECRET`,
+  `SERVICE_KEY_PEPPER`, `NODE_ENV=production` (the api refuses to boot in
+  production without the last three); optional variables are listed in
+  `.env.example`.
+* **Migrations build a database from empty** (baseline migration
+  `00000000000000_baseline`). A database that existed before it must be marked
+  once with `scripts/mark-baseline-applied.mjs` — see DEPLOYMENT.md.
 * The Phase 1 lending migration (`20261016_lending_platform_phase1`) is
   additive and was rehearsed against the production schema with no drift — but
   there is no staging environment, so take a database snapshot before
@@ -571,7 +579,8 @@ environment layout and the backup caveat).
   `BYPASSRLS` role, and Railway's default user is `postgres`. Run the API as a
   `NOSUPERUSER NOBYPASSRLS` role that does not own the tables (migrations keep
   running as the owner) and set `DB_ROLE_MUST_RESPECT_RLS=true`; until then the
-  API logs an error at startup. See
+  API logs an error at startup. `ops/db/app-role.sql` creates that role and
+  the default privileges that grant it every table a later migration adds. See
   [TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md).
 * **Impairment** posts nothing until finance proposes and risk approves a
   policy (Lending › Operations › Impairment policy; DECISIONS D-010).
