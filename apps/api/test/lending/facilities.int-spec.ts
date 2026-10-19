@@ -17,6 +17,7 @@ import {
   bootstrap,
   expectOk,
   grant,
+  raiseRateCap,
 } from './harness';
 import { activeProduct, docs, standardRoles } from './setup';
 import { lending } from '@microloan/shared';
@@ -958,8 +959,12 @@ d('Lending facilities (integration)', () => {
   describe('over-limit allowance and annual renewal', () => {
     let facilityId: string;
     let start: string;
+    let restoreCap: () => Promise<void>;
 
     beforeAll(async () => {
+      // The 30% over-limit rate is above the NBC cap, which counts it with
+      // penalty interest by default (D-106).
+      restoreCap = await raiseRateCap(f, '30');
       start = expectOk(await f.as('finance').get('/lending/ops/business-date'))
         .businessDate as string;
       const { productId } = await activeProduct(
@@ -968,6 +973,7 @@ d('Lending facilities (integration)', () => {
         'RC-OVERLIMIT',
         (c) => {
           c.facility.overlimitRate = '0.30';
+          c.pricing.regulatoryCapAnnualRate = null;
           c.facility.overlimitTolerance = '0.10';
           c.facility.overlimitFee = '25';
           c.facility.availabilityMonths = 12;
@@ -980,6 +986,7 @@ d('Lending facilities (integration)', () => {
         annualRate: '0.12',
       }));
     }, 60_000);
+    afterAll(async () => restoreCap?.());
 
     it('UC-41: a drawdown may run over the limit only within the allowance', async () => {
       const over = await f

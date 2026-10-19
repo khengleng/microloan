@@ -2053,7 +2053,7 @@ model RateReset {
   margin             Decimal  @db.Decimal(18, 10)
   /// benchmark + margin, before any floor or cap.
   indicatedRate      Decimal  @db.Decimal(18, 10)
-  /// BENCHMARK, FLOOR, CAP
+  /// BENCHMARK, FLOOR, CAP, REGULATORY_CAP (held at the interest-rate cap in force)
   bound              String
   previousAnnualRate Decimal  @db.Decimal(18, 10)
   newAnnualRate      Decimal  @db.Decimal(18, 10)

@@ -33,6 +33,7 @@ import { GroupsService } from './groups.service';
 import { CustomerDocumentsService } from '../documents/customer-documents.service';
 import { createConfiguredCovenants } from '../covenants/covenant-setup';
 import { ScoringService, type ScoreStage } from '../scoring/scoring.service';
+import { RateCapService } from '../common/rate-cap.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -95,6 +96,7 @@ export class ApplicationsService {
     private readonly policies: LendingPoliciesService,
     private readonly library: CustomerDocumentsService,
     private readonly scoring: ScoringService,
+    private readonly rateCap: RateCapService,
   ) {}
 
   private assessmentChecks: AssessmentCheck[] = [];
@@ -1144,6 +1146,28 @@ export class ApplicationsService {
       // amortize until it terms out, so the booking calculation (which
       // generates a schedule) does not apply to it.
       if (config!.facility.type !== 'TERM') {
+        // NBC rate cap (D-107): the negotiated line rate and the card,
+        // over-limit and penalty rates, against the cap in force now.
+        const { cap, policy } = await this.rateCap.resolve(
+          tenantId,
+          contractConfig,
+          tx,
+        );
+        RateCapService.assert(
+          [
+            lending.checkRateAgainstCap(
+              'CONTRACT_RATE',
+              'annualRate',
+              'The annual interest rate',
+              terms.annualRate ??
+                contractConfig.pricing.fixed?.defaultAnnualRate ??
+                '0',
+              cap,
+            ),
+            ...lending.chargeRateFindings(contractConfig, cap, policy),
+          ].filter((f): f is lending.RateCapFinding => !!f),
+          `Application ${app.reference} cannot be booked`,
+        );
         return this.bookFacility(tx, actor, {
           app,
           config: contractConfig,
@@ -1160,6 +1184,22 @@ export class ApplicationsService {
         contractConfig,
         terms,
         { productVersionId: version!.id, productVersion: version!.version },
+      );
+      // NBC rate cap (D-102…D-107): the actual schedule — a flat rate as its
+      // reducing-balance equivalent, fees in the effective rate when the
+      // lender's settings say so — against the cap in force now. A refinance
+      // books through here too, so the replacing loan is held to the cap.
+      const rateCheck = await this.rateCapOfSchedule(
+        tx,
+        tenantId,
+        contractConfig,
+        booking.input,
+        booking.schedule,
+        booking.fees,
+      );
+      RateCapService.assert(
+        rateCheck.findings,
+        `Application ${app.reference} cannot be booked`,
       );
 
       const agreement = await tx.lendingAgreement.create({
@@ -1189,6 +1229,7 @@ export class ApplicationsService {
             schedule: booking.schedule,
             fees: booking.fees,
             effectiveAnnualRate: booking.apr,
+            rateCap: rateCheck.summary,
             engineVersion: lending.LENDING_ENGINE_VERSION,
           } as unknown as Json,
           engineVersion: lending.LENDING_ENGINE_VERSION,
@@ -1893,6 +1934,43 @@ export class ApplicationsService {
       }
     }
 
+    // NBC rate cap (D-102…D-107) on the terms as they stand: blocks
+    // submission and approval, and shows the approver the cap that applies
+    // and the rates the loan would charge.
+    if (config.facility.type === 'TERM') {
+      const fees = engineCall(() =>
+        lending.computeUpfrontFees(
+          terms.principal,
+          config.identity.currency,
+          config.pricing.rounding,
+          lending.feesOf(config),
+          terms.waivedFeeCodes,
+        ),
+      );
+      const capInput = engineCall(() =>
+        lending.toScheduleInput(
+          config,
+          terms,
+          fees.bookedPrincipal,
+          config.repayment.holidayCalendarCode
+            ? { code: 'X', weekendDays: [], holidays: [] }
+            : undefined,
+          assessmentRates,
+        ),
+      );
+      const rateCheck = await this.rateCapOfSchedule(
+        tx,
+        app.tenantId,
+        config,
+        capInput,
+        engineCall(() => lending.generateSchedule(capInput)),
+        fees,
+      );
+      Object.assign(metrics, rateCheck.metrics);
+      for (const f of rateCheck.findings)
+        blocking.push({ code: 'RATE_CAP', message: f.message });
+    }
+
     // LT-16: debt-service coverage from the business's annual financials.
     const fin = terms.financials;
     if (fin?.annualNetOperatingIncome) {
@@ -1964,6 +2042,41 @@ export class ApplicationsService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /** A term schedule's rates against the cap in force, with what to record. */
+  private async rateCapOfSchedule(
+    tx: Tx,
+    tenantId: string,
+    config: lending.ProductConfig,
+    input: lending.ScheduleInput,
+    schedule: lending.ScheduleResult,
+    fees: lending.UpfrontFeeResult,
+  ) {
+    const { cap, policy } = await this.rateCap.resolve(tenantId, config, tx);
+    const rates = engineCall(() =>
+      lending.scheduleRates(input, schedule, fees),
+    );
+    const findings = [
+      ...lending.checkScheduleRates(rates, cap, policy),
+      ...lending.chargeRateFindings(config, cap, policy),
+    ];
+    return {
+      findings,
+      summary: {
+        cap: cap.annualRate,
+        capSource: cap.source,
+        capDescription: cap.description,
+        policy,
+        ...rates,
+      },
+      metrics: {
+        rateCap: cap.annualRate,
+        rateCapSource: cap.source,
+        rateCapComparableRate: rates.comparableRate,
+        rateCapEffectiveRate: rates.effectiveRate,
+      } as Record<string, string | null>,
+    };
+  }
 
   private normalizeTerms(
     t: lending.NegotiatedTerms & { riskCategory?: string },

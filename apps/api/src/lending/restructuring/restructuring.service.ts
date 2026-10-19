@@ -23,6 +23,7 @@ import {
   toLocalDate,
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
+import { RateCapService } from '../common/rate-cap.service';
 import type { Resource } from '../policy/decision';
 import { PostingLine } from '../accounting/posting.service';
 import { ServicingService } from '../servicing/servicing.service';
@@ -87,6 +88,7 @@ export class RestructuringService implements OnModuleInit {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
+    private readonly rateCap: RateCapService,
   ) {}
 
   onModuleInit() {
@@ -789,6 +791,16 @@ export class RestructuringService implements OnModuleInit {
           'This proposal has expired; propose again.',
         );
       const calc = p.calculation as unknown as lending.RestructureCalculation;
+      // The cap may have been lowered since the proposal was made.
+      await this.assertRateCap(
+        tx,
+        (await loadLoanState(tx, tenantId, c.loanAccountId, { lock: false }))
+          .config,
+        tenantId,
+        calc,
+        p.options as unknown as lending.RestructureOptions,
+        'This restructure cannot be approved',
+      );
       const concessions = p.concessions as unknown as {
         chargeConcession: string;
         forgiveness: string;
@@ -1163,6 +1175,14 @@ export class RestructuringService implements OnModuleInit {
           snapshot,
           options,
           rules,
+        );
+        await this.assertRateCap(
+          tx,
+          state.config,
+          tenantId,
+          calc,
+          options,
+          'This restructure cannot be executed',
         );
         return this.applyAmendment(
           tx,
@@ -2035,6 +2055,35 @@ export class RestructuringService implements OnModuleInit {
     return { options: [...used], flags: [...flags] };
   }
 
+  /**
+   * NBC rate cap (D-109): a restructure is new terms, so its permanent rate —
+   * the current contract rate unless the proposal changes it — and any
+   * temporary rate must fit under the cap in force when it is proposed,
+   * approved and executed.
+   */
+  private async assertRateCap(
+    tx: Tx,
+    config: lending.ProductConfig,
+    tenantId: string,
+    calc: lending.RestructureCalculation,
+    options: lending.RestructureOptions,
+    context: string,
+  ) {
+    const input = calc.scheduleInput;
+    const permanent = input.rates?.length
+      ? input.rates[input.rates.length - 1].annualRate
+      : (input.annualRate ?? '0');
+    const { cap } = await this.rateCap.resolve(tenantId, config, tx);
+    RateCapService.assert(
+      lending.restructureRateFindings(
+        permanent,
+        options.temporaryRate?.annualRate,
+        cap,
+      ),
+      context,
+    );
+  }
+
   private async build(
     tx: Tx,
     state: LoanState,
@@ -2102,6 +2151,14 @@ export class RestructuringService implements OnModuleInit {
         });
       throw e;
     }
+    await this.assertRateCap(
+      tx,
+      state.config,
+      c.tenantId,
+      calculation,
+      options,
+      'This restructure cannot be proposed',
+    );
     const live = state.lines.filter((l) => l.status === 'DUE');
     const comparison = lending.compareRestructure(
       {

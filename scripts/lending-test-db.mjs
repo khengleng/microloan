@@ -73,6 +73,7 @@ const INVARIANT_SECTIONS = [
   ['20261019002300_lending_scorecards', '-- Database-level invariants for scorecards and score evaluations.'],
   ['20261019002400_lending_alternative_data', '-- Database-level invariants for alternative data and consent.'],
   ['20261019003000_learning_progress', '-- Database-level invariants for Learning centre progress.'],
+  ['20261019003200_lending_rate_cap', '-- Database-level invariants for the interest-rate cap.'],
 ];
 
 for (const [dir, marker] of INVARIANT_SECTIONS) {
