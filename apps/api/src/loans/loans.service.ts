@@ -70,6 +70,65 @@ export class LoansService {
     });
     if (!borrower) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, borrower.branchId);
+    const actorId = this.authz.actorId(actor);
+    const loan = await this.insertApplication(borrower, dto, actorId);
+
+    await this.audit.logSecurityEvent({
+      actorUserId: actorId,
+      actorRole: actor.role,
+      actorTenantId: actor.tenantId,
+      targetType: 'Loan',
+      targetId: loan.id,
+      action: 'LOAN_CREATE',
+      result: 'SUCCESS',
+    });
+
+    return loan;
+  }
+
+  /**
+   * A loan application made by a customer channel rather than a member of
+   * staff — the Telegram bot (D-132). No staff identity is borrowed: the
+   * loan has no creating user, and the audit entry names the channel's
+   * system principal. The channel has already checked the product's
+   * principal and term limits; the legacy-book gate and the rate cap apply
+   * here as for staff.
+   */
+  async createFromChannel(
+    tenantId: string,
+    channel: { code: 'TELEGRAM_BOT'; label: string },
+    dto: CreateLoanDto,
+  ) {
+    const borrower = await this.prisma.borrower.findFirst({
+      where: { id: dto.borrowerId, tenantId },
+      include: { tenant: { select: { maxAnnualInterestRatePct: true } } },
+    });
+    if (!borrower) throw new NotFoundException('Borrower not found');
+    const loan = await this.insertApplication(borrower, dto, null);
+    await this.audit.logSecurityEvent({
+      actorUserId: null,
+      actorRole: 'SYSTEM',
+      actorTenantId: tenantId,
+      targetType: 'Loan',
+      targetId: loan.id,
+      action: 'LOAN_CREATE',
+      newValue: {
+        channel: channel.code,
+        actorLabel: channel.label,
+        principal: dto.principal,
+        termMonths: dto.termMonths,
+        productId: dto.productId,
+      },
+      result: 'SUCCESS',
+    });
+    return loan;
+  }
+
+  private async insertApplication(
+    borrower: { tenantId: string; branchId: string | null; tenant?: { maxAnnualInterestRatePct: unknown } | null },
+    dto: CreateLoanDto,
+    actorId: string | null,
+  ) {
     await this.legacyGate?.assertOpen(borrower.tenantId, 'create');
 
     // Feature #1: enforce the NBC interest-rate cap (tenant may set a lower cap).
@@ -101,7 +160,6 @@ export class LoansService {
       interestMethod: dto.interestMethod,
     };
     const scheduleItems = calculateRepaymentSchedule(params);
-    const actorId = this.authz.actorId(actor);
 
     const loan = await this.prisma.$transaction(async (tx) => {
       const createdLoan = await tx.loan.create({
@@ -162,16 +220,6 @@ export class LoansService {
       });
 
       return createdLoan;
-    });
-
-    await this.audit.logSecurityEvent({
-      actorUserId: actorId,
-      actorRole: actor.role,
-      actorTenantId: actor.tenantId,
-      targetType: 'Loan',
-      targetId: loan.id,
-      action: 'LOAN_CREATE',
-      result: 'SUCCESS',
     });
 
     return loan;
