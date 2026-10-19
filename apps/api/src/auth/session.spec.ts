@@ -1,12 +1,12 @@
 // otplib ships ESM-only deps the jest transform does not process; the TOTP
 // check itself is stubbed per test through ./totp.
 jest.mock('otplib', () => ({ verify: jest.fn(), generateSecret: jest.fn() }));
-jest.mock('./totp', () => ({ totpCodeMatches: jest.fn() }));
+jest.mock('./totp', () => ({ totpCodeMatches: jest.fn(), totpTimeStepFor: jest.fn() }));
 
 import { BadRequestException, ConflictException, ForbiddenException, GoneException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
-import { totpCodeMatches } from './totp';
+import { totpTimeStepFor } from './totp';
 
 /**
  * Sign-in housekeeping the web client depends on:
@@ -41,7 +41,7 @@ describe('authenticator setup errors are not session failures', () => {
   it('a wrong setup code is 400, not 401', async () => {
     const { service, prisma } = build();
     prisma.user.findUnique.mockResolvedValue({ id: 'u1', twoFactorSecret: 'enc', twoFactorEnabled: false });
-    (totpCodeMatches as jest.Mock).mockResolvedValue(false);
+    (totpTimeStepFor as jest.Mock).mockResolvedValue(null);
     await expect(service.enableMfa('u1', '000000')).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });

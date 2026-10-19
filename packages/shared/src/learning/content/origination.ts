@@ -671,15 +671,15 @@ export const ORIGINATION_MODULE: LearningModule = {
         questions: [
           {
             id: 'recommend-and-approve-q1',
-            prompt: 'You click Approve but see "This action requires signing in with multi-factor authentication". What do you do?',
+            prompt: 'You click Approve but are asked for a fresh authenticator code. What do you do?',
             options: [
               'Ask the analyst to approve instead',
-              'Sign out and sign in again with your authenticator code',
+              'Enter the current code from your authenticator app; the approval then goes ahead',
               'Re-run the score',
               'Reject and recreate the application',
             ],
             answer: 1,
-            explanation: 'Approvals need a sign-in with your authenticator code. Sign out and sign in again with the code.',
+            explanation: 'Approvals need an authenticator code from the last few minutes (15 by default). Enter a fresh code when asked and the approval is retried.',
           },
           {
             id: 'recommend-and-approve-q2',

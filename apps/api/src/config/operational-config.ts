@@ -117,6 +117,23 @@ export function operationalConfig(env: NodeJS.ProcessEnv = process.env) {
       /** Used only when JWT_REFRESH_TTL is unset; a malformed JWT_REFRESH_TTL fails at boot. */
       refreshTtl: envDuration('JWT_REFRESH_TTL', '30d', env),
       accessTtl: envDuration('JWT_ACCESS_TTL', '15m', env),
+      /**
+       * A platform super-administrator must enrol an authenticator and sign in
+       * with it before any platform route answers (D-128). Tenant
+       * administrators follow their tenant's `security.requireMfaForAdmins`.
+       */
+      mfaRequiredSuperadmin: envBool('AUTH_MFA_REQUIRED_SUPERADMIN', true, env),
+      /**
+       * How recent the authenticator code must be for an MFA-gated action
+       * (lending actions with minAssurance MFA, authenticator resets, platform
+       * approvals). Older sessions are asked to step up (D-129).
+       */
+      mfaStepUpMinutes: envInt(
+        'AUTH_MFA_STEP_UP_MINUTES',
+        15,
+        { min: 1, max: 1_440 },
+        env,
+      ),
     },
     borrowerPortal: {
       tokenTtl: envDuration('BORROWER_TOKEN_TTL', '2h', env),
@@ -156,6 +173,20 @@ export function operationalConfig(env: NodeJS.ProcessEnv = process.env) {
       'TENANT_ERASURE_GRACE_DAYS',
       30,
       { min: 0, max: 3_650 },
+      env,
+    ),
+    /** Longest the database part of a tenant purge may take (D-131). */
+    tenantPurgeTimeoutMs: envInt(
+      'TENANT_PURGE_TX_TIMEOUT_MS',
+      300_000,
+      { min: 5_000, max: 3_600_000 },
+      env,
+    ),
+    /** How long a second-super-administrator request stays open (D-130). */
+    platformApprovalTtlDays: envInt(
+      'PLATFORM_APPROVAL_TTL_DAYS',
+      7,
+      { min: 1, max: 90 },
       env,
     ),
 

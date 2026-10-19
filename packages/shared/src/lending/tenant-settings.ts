@@ -157,6 +157,29 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /** Sign-in requirements for the lender's own staff (D-128). */
+    security: z
+      .object({
+        /**
+         * Tenant administrators must enrol an authenticator and sign in with
+         * it before anything but enrolment answers (assumed default: on).
+         */
+        requireMfaForAdmins: z.boolean().default(true),
+      })
+      .strict()
+      .default({}),
+    /** The Telegram customer bot (D-132). */
+    telegramBot: z
+      .object({
+        /**
+         * Let a linked customer apply for a loan from the chat. Off by default:
+         * the application is recorded by the system principal "Telegram bot"
+         * and must fit the product's principal and term limits.
+         */
+        allowLoanApplications: z.boolean().default(false),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({

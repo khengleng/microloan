@@ -28,3 +28,14 @@ export const BorrowerRoute = () => SetMetadata(IS_BORROWER_ROUTE_KEY, true);
  */
 export const AnyAuthenticated = () =>
   SetMetadata(IS_ANY_AUTHENTICATED_KEY, true);
+
+export const IS_MFA_ENROLMENT_ROUTE_KEY = 'auth:mfa-enrolment';
+
+/**
+ * Marks a route a person may use before they have met their role's
+ * authenticator requirement (D-128): reading their own profile, enrolling an
+ * authenticator, stepping up, changing their password, signing out
+ * everywhere. Every other route answers MFA_ENROLMENT_REQUIRED until then.
+ */
+export const MfaEnrolmentRoute = () =>
+  SetMetadata(IS_MFA_ENROLMENT_ROUTE_KEY, true);

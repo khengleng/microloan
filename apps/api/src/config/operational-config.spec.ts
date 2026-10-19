@@ -23,6 +23,8 @@ describe('operationalConfig', () => {
       maxFailedLogins: 5,
       lockoutMinutes: 30,
       mfaChallengeTtl: '5m',
+      mfaRequiredSuperadmin: true,
+      mfaStepUpMinutes: 15,
       passwordResetMinutes: 60,
       refreshTtl: '30d',
       accessTtl: '15m',

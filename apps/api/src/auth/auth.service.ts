@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { Role } from '@microloan/db';
 import { generateSecret } from 'otplib';
-import { totpCodeMatches } from './totp';
+import { totpTimeStepFor } from './totp';
 import * as qrcode from 'qrcode';
 import { createHash, randomUUID, randomBytes } from 'crypto';
 import { Prisma } from '@microloan/db';
@@ -467,10 +467,7 @@ export class AuthService {
         method: 'GOOGLE',
         ip: ip || 'unknown',
       });
-      const mfaToken = this.jwtService.sign(
-        { sub: user.id, mfaChallenge: true },
-        { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: operationalConfig().auth.mfaChallengeTtl as any },
-      );
+      const mfaToken = await this.issueMfaChallenge(user.id);
       return { mfaRequired: true, mfaToken, message: 'Please provide your TOTP code' };
     }
 
@@ -626,14 +623,8 @@ export class AuthService {
         role: user.role,
         ip: ip || 'unknown',
       });
-      // Issue a short-lived, single-purpose token — never expose the raw userId
-      const mfaToken = this.jwtService.sign(
-        { sub: user.id, mfaChallenge: true },
-        {
-          secret: process.env.JWT_ACCESS_SECRET!,
-          expiresIn: operationalConfig().auth.mfaChallengeTtl as any,
-        },
-      );
+      // Issue a short-lived, single-use token — never expose the raw userId
+      const mfaToken = await this.issueMfaChallenge(user.id);
       return {
         mfaRequired: true,
         mfaToken,
@@ -658,16 +649,32 @@ export class AuthService {
   @SystemContext('pre-auth: completing the MFA challenge')
   async verifyMfa(mfaToken: string, code: string, ip?: string) {
     // Verify the short-lived MFA challenge token — never accept a raw userId directly
+    const expired = () =>
+      new UnauthorizedException('Invalid or expired MFA session. Please log in again.');
     let userId: string;
+    let challengeId: string;
     try {
-      const payload = this.jwtService.verify<{ sub: string; mfaChallenge: boolean }>(
+      const payload = this.jwtService.verify<{ sub: string; mfaChallenge: boolean; jti?: string }>(
         mfaToken,
         { secret: process.env.JWT_ACCESS_SECRET! },
       );
-      if (!payload.mfaChallenge) throw new Error('Not an MFA token');
+      if (!payload.mfaChallenge || !payload.jti) throw new Error('Not an MFA token');
       userId = payload.sub;
+      challengeId = payload.jti;
     } catch {
-      throw new UnauthorizedException('Invalid or expired MFA session. Please log in again.');
+      throw expired();
+    }
+
+    // Single use (D-129): the challenge row must exist, belong to this person,
+    // be unexpired and not yet redeemed — on whichever instance redeemed it.
+    const challenge = await this.prisma.mfaChallenge.findUnique({ where: { id: challengeId } });
+    if (
+      !challenge ||
+      challenge.userId !== userId ||
+      challenge.consumedAt ||
+      challenge.expiresAt.getTime() <= Date.now()
+    ) {
+      throw expired();
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -684,9 +691,9 @@ export class AuthService {
       );
     }
 
-    const isValid = await totpCodeMatches(code, user.twoFactorSecret);
+    const outcome = await this.acceptTotp(user, code);
 
-    if (!isValid) {
+    if (outcome !== 'OK') {
       const { shouldLock, maxFailedLogins, lockoutMinutes } = await this.recordFailedAttempt(user.id);
       await this.audit.logSecurityEvent({
         actorUserId: user.id,
@@ -694,7 +701,7 @@ export class AuthService {
         actorTenantId: user.tenantId || null,
         targetType: 'User',
         targetId: user.id,
-        action: 'LOGIN_MFA_FAILED',
+        action: outcome === 'REPLAY' ? 'LOGIN_MFA_REPLAY_REJECTED' : 'LOGIN_MFA_FAILED',
         ipAddress: ip || 'unknown',
         result: 'FAILURE',
       });
@@ -705,6 +712,14 @@ export class AuthService {
       }
       throw new UnauthorizedException('Invalid MFA code');
     }
+
+    // Redeem the challenge: a second request with the same mfaToken (even a
+    // concurrent one on another instance) finds it consumed.
+    const redeemed = await this.prisma.mfaChallenge.updateMany({
+      where: { id: challengeId, consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+    if (redeemed.count !== 1) throw expired();
 
     // Success — clear any accumulated failed attempts.
     await (this.prisma.user as any).update({
@@ -723,7 +738,10 @@ export class AuthService {
       result: 'SUCCESS',
     });
 
-    return this.generateTokens(user.id, user.email, user.role, user.tenantId || null, user.branchId || null, undefined, 'mfa');
+    return this.generateTokens(
+      user.id, user.email, user.role, user.tenantId || null, user.branchId || null,
+      undefined, 'mfa', this.nowSeconds(),
+    );
   }
 
   async generateMfaSecret(userId: string) {
@@ -765,7 +783,13 @@ export class AuthService {
     return { enabled: user.twoFactorEnabled };
   }
 
-  async enableMfa(userId: string, code: string) {
+  /**
+   * Turn on the authenticator being set up. The code just proved possession of
+   * it, so the session is re-issued as an MFA session (amr=mfa, mfaAt=now):
+   * a person who had to enrol (D-128) carries on without signing in again.
+   * The refresh token the caller held, when given, is revoked.
+   */
+  async enableMfa(userId: string, code: string, refreshToken?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
     // A wrong or missing setup code is a mistake in the form, not a failed
@@ -776,8 +800,8 @@ export class AuthService {
 
     if (user.twoFactorEnabled) throw new ConflictException('MFA is already enabled');
 
-    const isValid = await totpCodeMatches(code, user.twoFactorSecret);
-    if (!isValid) throw new BadRequestException('Invalid verification code');
+    const outcome = await this.acceptTotp(user, code);
+    if (outcome !== 'OK') throw new BadRequestException('Invalid verification code');
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -794,31 +818,78 @@ export class AuthService {
       result: 'SUCCESS',
     });
 
-    return { success: true };
+    await this.revokePresentedRefreshToken(user.id, refreshToken);
+    const tokens = await this.generateTokens(
+      user.id, user.email, user.role, user.tenantId || null, user.branchId || null,
+      undefined, 'mfa', this.nowSeconds(),
+    );
+    return { success: true, ...tokens };
   }
 
-  async promoteSuperadmin(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException(`No user found with email: ${email}`);
-
-    const updated = await this.prisma.user.update({
-      where: { email },
-      data: { role: Role.SUPERADMIN, tenantId: null, branchId: null },
-      select: { id: true, email: true, role: true, tenantId: true },
+  /**
+   * Step-up (D-129): confirm a fresh authenticator code inside the current
+   * session and receive a session whose `mfaAt` is now. MFA-gated actions
+   * refuse a code older than AUTH_MFA_STEP_UP_MINUTES with
+   * MFA_STEP_UP_REQUIRED; the web asks for a code here and retries.
+   * Mistakes answer 400 / 403, never 401 (the client reads 401 as "session
+   * over"). The same code is never accepted twice (replay check).
+   */
+  async stepUp(actorId: string, code: string, refreshToken?: string, ip?: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: actorId } });
+    if (!user) throw new UnauthorizedException();
+    if (!user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw new BadRequestException('You have no authenticator yet. Set one up under My account first.');
+    }
+    if (user.lockedUntil && new Date() < user.lockedUntil) {
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      throw new ForbiddenException(
+        `Account is temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`,
+      );
+    }
+    const outcome = await this.acceptTotp(user, code);
+    if (outcome !== 'OK') {
+      const { shouldLock, maxFailedLogins, lockoutMinutes } = await this.recordFailedAttempt(user.id);
+      await this.audit.logSecurityEvent({
+        actorUserId: user.id,
+        actorRole: user.role,
+        actorTenantId: user.tenantId || null,
+        targetType: 'User',
+        targetId: user.id,
+        action: outcome === 'REPLAY' ? 'MFA_STEP_UP_REPLAY_REJECTED' : 'MFA_STEP_UP_FAILED',
+        ipAddress: ip || 'unknown',
+        result: 'FAILURE',
+      });
+      if (shouldLock) {
+        await this.revokeAllUserSessions(user.id);
+        throw new ForbiddenException(
+          `Account locked for ${lockoutMinutes} minutes after ${maxFailedLogins} failed attempts.`,
+        );
+      }
+      throw new BadRequestException(
+        outcome === 'REPLAY'
+          ? 'That code was already used. Wait for the next code in your authenticator app.'
+          : 'Invalid authenticator code.',
+      );
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { loginAttempts: 0, lockedUntil: null },
     });
-
+    await this.revokePresentedRefreshToken(user.id, refreshToken);
     await this.audit.logSecurityEvent({
-      actorUserId: updated.id,
-      actorRole: updated.role,
-      actorTenantId: updated.tenantId || null,
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
       targetType: 'User',
-      targetId: updated.id,
-      action: 'PROMOTED_TO_SUPERADMIN',
-      newValue: { newRole: Role.SUPERADMIN },
+      targetId: user.id,
+      action: 'MFA_STEP_UP',
+      ipAddress: ip || 'unknown',
       result: 'SUCCESS',
     });
-
-    return { success: true, message: `${email} has been promoted to SUPERADMIN`, user: updated };
+    return this.generateTokens(
+      user.id, user.email, user.role, user.tenantId || null, user.branchId || null,
+      undefined, 'mfa', this.nowSeconds(),
+    );
   }
 
   async listSuperadmins() {
@@ -844,6 +915,7 @@ export class AuthService {
       jti?: string;
       typ?: string;
       amr?: string;
+      mfaAt?: number;
     };
 
     let payload: RefreshPayload;
@@ -956,8 +1028,11 @@ export class AuthService {
         tokenRecord.user.tenantId,
         tokenRecord.user.branchId || null,
         tx,
-        // Authentication strength carries over a refresh; it is never upgraded by one.
+        // Authentication strength carries over a refresh; it is never upgraded
+        // by one, and the time of the last code (mfaAt) does not move: an
+        // MFA-gated action still needs a recent code (D-129).
         payload.amr === 'mfa' ? 'mfa' : 'pwd',
+        payload.amr === 'mfa' && typeof payload.mfaAt === 'number' ? payload.mfaAt : null,
       );
     });
   }
@@ -1142,6 +1217,8 @@ export class AuthService {
     // Authentication method reference: "mfa" only after a verified TOTP
     // challenge. Lending approvals require it (environment.assurance).
     amr: 'pwd' | 'mfa' = 'pwd',
+    // Seconds since the epoch of the last verified authenticator code.
+    mfaAt: number | null = null,
   ) {
     const db = tx ?? this.prisma;
     const tenant = tenantId
@@ -1157,6 +1234,7 @@ export class AuthService {
       tenantName,
       permissions: Array.from(permissionsForRole(role)),
       amr,
+      ...(amr === 'mfa' && mfaAt !== null ? { mfaAt } : {}),
     };
 
     const refreshTokenId = randomUUID();
@@ -1182,6 +1260,72 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       refresh_token: refreshToken,
     };
+  }
+
+  private nowSeconds(): number {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /**
+   * The second step of an MFA sign-in, as a short-lived token naming a stored
+   * challenge (its jti). verifyMfa redeems the row once (D-129).
+   */
+  private async issueMfaChallenge(userId: string): Promise<string> {
+    const ttl = operationalConfig().auth.mfaChallengeTtl;
+    const id = randomUUID();
+    await this.prisma.mfaChallenge.create({
+      data: {
+        id,
+        userId,
+        expiresAt: new Date(Date.now() + durationMs('AUTH_MFA_CHALLENGE_TTL', ttl)),
+      },
+    });
+    return this.jwtService.sign(
+      { sub: userId, mfaChallenge: true, jti: id },
+      { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: ttl as any },
+    );
+  }
+
+  /**
+   * Check a TOTP code and record its time step, atomically: a code from the
+   * last accepted step (or earlier) is a replay (D-129). The step is claimed
+   * with a conditional update, so two requests racing with one code cannot
+   * both pass on any number of API instances.
+   */
+  private async acceptTotp(
+    user: { id: string; twoFactorSecret: string | null; totpLastStep?: number | null },
+    code: string,
+  ): Promise<'OK' | 'INVALID' | 'REPLAY'> {
+    if (!user.twoFactorSecret) return 'INVALID';
+    const last = user.totpLastStep ?? null;
+    const step = await totpTimeStepFor(code, user.twoFactorSecret, last);
+    if (step === null) {
+      // Tell a replay (right code, already used) from a wrong code, for the audit trail.
+      if (last !== null && (await totpTimeStepFor(code, user.twoFactorSecret)) !== null) return 'REPLAY';
+      return 'INVALID';
+    }
+    const claimed = await this.prisma.user.updateMany({
+      where: { id: user.id, OR: [{ totpLastStep: null }, { totpLastStep: { lt: step } }] },
+      data: { totpLastStep: step },
+    });
+    return claimed.count === 1 ? 'OK' : 'REPLAY';
+  }
+
+  /** Revoke the refresh token the caller presented, when it is theirs and live. */
+  private async revokePresentedRefreshToken(userId: string, refreshToken?: string) {
+    if (!refreshToken) return;
+    try {
+      const payload = this.jwtService.verify<{ sub?: string; jti?: string; typ?: string }>(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET!,
+      });
+      if (payload.sub !== userId || !payload.jti || payload.typ !== REFRESH_TOKEN_TYPE) return;
+      await this.prisma.refreshToken.updateMany({
+        where: { id: payload.jti, userId, hashedToken: this.hashRefreshToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    } catch {
+      /* an unreadable token is simply not revoked */
+    }
   }
 
   private hashRefreshToken(token: string): string {
