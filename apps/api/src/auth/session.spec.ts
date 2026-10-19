@@ -3,7 +3,7 @@
 jest.mock('otplib', () => ({ verify: jest.fn(), generateSecret: jest.fn() }));
 jest.mock('./totp', () => ({ totpCodeMatches: jest.fn() }));
 
-import { BadRequestException, ConflictException, GoneException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, GoneException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { totpCodeMatches } from './totp';
@@ -149,5 +149,45 @@ describe('sign-out revokes the refresh token', () => {
       data: { revokedAt: expect.any(Date) },
     });
     expect(audit.logSecurityEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'SESSIONS_REVOKED_ALL' }));
+  });
+});
+
+describe("changing one's own password", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const bcrypt = require('bcryptjs');
+  const actor = { sub: 'u1', amr: 'pwd' as const };
+  async function withUser(extra: Record<string, unknown> = {}) {
+    const ctx = build();
+    ctx.prisma.user.findUnique.mockResolvedValue({
+      id: 'u1', role: 'ADMIN', tenantId: 't1', twoFactorEnabled: false,
+      passwordHash: await bcrypt.hash('the-current-password', 4), ...extra,
+    });
+    return ctx;
+  }
+
+  it('a wrong current password is 400 and is audited, never 401', async () => {
+    const { service, prisma, audit } = await withUser();
+    await expect(service.changePassword(actor, 'not-the-password', 'a-brand-new-password')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.logSecurityEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'PASSWORD_CHANGE_REJECTED' }));
+  });
+
+  it('a short or unchanged new password is 400', async () => {
+    const { service } = await withUser();
+    await expect(service.changePassword(actor, 'the-current-password', 'short')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.changePassword(actor, 'the-current-password', 'the-current-password')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('someone with an authenticator must be in a session signed in with it', async () => {
+    const { service } = await withUser({ twoFactorEnabled: true });
+    await expect(service.changePassword(actor, 'the-current-password', 'a-brand-new-password')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('a correct change updates the hash and revokes every session', async () => {
+    const { service, prisma, audit } = await withUser({ twoFactorEnabled: true });
+    await expect(service.changePassword({ sub: 'u1', amr: 'mfa' }, 'the-current-password', 'a-brand-new-password')).resolves.toEqual({ success: true });
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1' } }));
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }));
+    expect(audit.logSecurityEvent).toHaveBeenCalledWith(expect.objectContaining({ action: 'PASSWORD_CHANGED' }));
   });
 });

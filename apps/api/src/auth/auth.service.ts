@@ -33,7 +33,11 @@ import { durationMs, operationalConfig } from '../config/operational-config';
 // Lockout threshold and duration, MFA-challenge and reset-link lifetimes are
 // deployment settings (AUTH_* in .env.example; defaults 5 attempts, 30 minutes,
 // 5 minutes and 60 minutes), read through operationalConfig().
-const GENERIC_AUTH_ERROR = 'Invalid credentials'; // Never reveal which field failed
+// Never reveal which field failed, whether the email has an account, or that
+// the account is locked. The lockout is mentioned to everyone, so a real user
+// who tripped it knows why a correct password is refused for a while.
+const GENERIC_AUTH_ERROR =
+  'Invalid credentials. After repeated failed attempts, sign-in is paused for a while.';
 const REFRESH_TOKEN_TYPE = 'refresh';
 
 const otpauth = {
@@ -555,66 +559,54 @@ export class AuthService {
       throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
-    // ── Organization Suspended check ─────────────────────────────────────
-    if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
-      throw new ForbiddenException(
-        this.inactiveTenantMessage(user.tenant?.status, user.tenant?.name),
-      );
-    }
-
-    // ── User Suspended check ────────────────────────────────────────────
-    if (user.isActive === false) {
-      await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_SUSPENDED', ip, user.id);
-      throw new ForbiddenException('Your staff account has been suspended by your administrator.');
-    }
+    // Every refusal below, up to a verified password, answers exactly like an
+    // unknown email (same status, same message, a bcrypt comparison's worth
+    // of time): an anonymous caller must not learn which emails have an
+    // account, which are locked, or which sign in with Google only.
 
     // ── Account lockout check ────────────────────────────────────────────
+    // A locked account does not even compare the password: answering "right
+    // password, but locked" would turn the lock into a password oracle.
     if (user.lockedUntil && new Date() < user.lockedUntil) {
-      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      await bcrypt.compare(loginDto.password, '$2b$12$dummyhashfortimingnormalisation');
       await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_ACCOUNT_LOCKED', ip, user.id);
-      throw new ForbiddenException(
-        `Account is temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minute(s).`
-      );
+      throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
     // ── Password check ───────────────────────────────────────────────────
     // A federated-only account (Google signup) has no password hash. Burn the
-    // same time as a real comparison, then refuse — telling the caller to use
-    // Google is safe here because they have already proven the account exists
-    // by getting past the lookup, and it avoids a dead end.
+    // same time as a real comparison, then refuse like an unknown email; the
+    // sign-in page offers the Google button next to the password form.
     if (!user.passwordHash) {
       await bcrypt.compare(loginDto.password, '$2b$12$dummyhashfortimingnormalisation');
       await this.auditSecurityEvent(
         user.tenantId, loginDto.email, 'LOGIN_NO_PASSWORD_CREDENTIAL', ip, user.id,
       );
-      throw new UnauthorizedException(
-        'This account signs in with Google. Use the “Continue with Google” button.',
-      );
+      throw new UnauthorizedException(GENERIC_AUTH_ERROR);
     }
 
     const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
 
     if (!isMatch) {
-      const { newAttempts, shouldLock, maxFailedLogins, lockoutMinutes } =
-        await this.recordFailedAttempt(user.id);
+      const { newAttempts, shouldLock } = await this.recordFailedAttempt(user.id);
 
       await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_FAILED', ip, user.id, {
         attempt: newAttempts,
         locked: shouldLock,
       });
 
-      if (shouldLock) {
-        throw new ForbiddenException(
-          `Account locked for ${lockoutMinutes} minutes after ${maxFailedLogins} failed attempts.`
-        );
-      }
+      throw new UnauthorizedException(GENERIC_AUTH_ERROR);
+    }
 
-      const remaining = maxFailedLogins - newAttempts;
-      throw new UnauthorizedException(
-        remaining > 0
-          ? `${GENERIC_AUTH_ERROR}. ${remaining} attempt(s) remaining before lockout.`
-          : GENERIC_AUTH_ERROR,
+    // ── Password verified: only now say why the account cannot sign in ───
+    if (user.role !== Role.SUPERADMIN && user.tenant?.status !== 'ACTIVE') {
+      throw new ForbiddenException(
+        this.inactiveTenantMessage(user.tenant?.status, user.tenant?.name),
       );
+    }
+    if (user.isActive === false) {
+      await this.auditSecurityEvent(user.tenantId, loginDto.email, 'LOGIN_SUSPENDED', ip, user.id);
+      throw new ForbiddenException('Your staff account has been suspended by your administrator.');
     }
 
     // ── Success: reset failed attempts, update last login ────────────────
@@ -1048,6 +1040,73 @@ export class AuthService {
     return { success: true, revoked: revoked.count };
   }
 
+  /**
+   * Change one's own password: the current password must match, and a person
+   * with an authenticator must be in a session signed in with it. Every
+   * session is then revoked, so the person signs in again with the new one.
+   * Mistakes answer 400 / 403, never 401 — the web client reads 401 as
+   * "session over" and would sign the person out before showing the error.
+   */
+  async changePassword(
+    actor: { sub: string; amr?: 'pwd' | 'mfa' },
+    currentPassword: string,
+    newPassword: string,
+    ip?: string,
+  ) {
+    if (!currentPassword) throw new BadRequestException('Enter your current password.');
+    if (!newPassword || newPassword.length < 12) {
+      throw new BadRequestException('Password must be at least 12 characters.');
+    }
+    if (newPassword === currentPassword) {
+      throw new BadRequestException('Choose a password different from your current one.');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: actor.sub },
+      select: { id: true, role: true, tenantId: true, passwordHash: true, twoFactorEnabled: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    if (user.twoFactorEnabled && actor.amr !== 'mfa') {
+      throw new ForbiddenException('Sign in with your authenticator code before changing your password.');
+    }
+    const matches = !!user.passwordHash && (await bcrypt.compare(currentPassword, user.passwordHash));
+    if (!matches) {
+      await this.audit.logSecurityEvent({
+        actorUserId: user.id,
+        actorRole: user.role,
+        actorTenantId: user.tenantId || null,
+        targetType: 'User',
+        targetId: user.id,
+        action: 'PASSWORD_CHANGE_REJECTED',
+        ipAddress: ip || 'unknown',
+        result: 'FAILURE',
+      });
+      throw new BadRequestException('Your current password is not correct.');
+    }
+
+    const hash = await bcrypt.hash(newPassword, await bcrypt.genSalt());
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: hash, loginAttempts: 0, lockedUntil: null },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await this.audit.logSecurityEvent({
+      actorUserId: user.id,
+      actorRole: user.role,
+      actorTenantId: user.tenantId || null,
+      targetType: 'User',
+      targetId: user.id,
+      action: 'PASSWORD_CHANGED',
+      ipAddress: ip || 'unknown',
+      result: 'SUCCESS',
+    });
+    return { success: true };
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private async auditSecurityEvent(
@@ -1138,6 +1197,13 @@ export class AuthService {
    */
   private async recordFailedAttempt(userId: string) {
     const { maxFailedLogins, lockoutMinutes } = operationalConfig().auth;
+    // A lock that has run out starts a fresh count. Without this the counter
+    // stayed at the threshold, so one more bad guess after every expiry
+    // re-locked the account at once and a stranger could keep it locked.
+    await this.prisma.user.updateMany({
+      where: { id: userId, lockedUntil: { lte: new Date() } },
+      data: { loginAttempts: 0, lockedUntil: null },
+    });
     const counted = await this.prisma.user.update({
       where: { id: userId },
       data: { loginAttempts: { increment: 1 } },

@@ -175,9 +175,15 @@ export class LendingActionGuard implements CanActivate {
 }
 
 export function serviceKeyHash(secret: string): string {
+  // Production requires SERVICE_KEY_PEPPER (runtime-config.ts); the
+  // fallbacks keep local setups working.
   const pepper =
     process.env.SERVICE_KEY_PEPPER ||
-    process.env.JWT_REFRESH_TOKEN_PEPPER ||
-    '';
+    (process.env.NODE_ENV === 'production'
+      ? ''
+      : process.env.JWT_REFRESH_TOKEN_PEPPER || '');
+  if (!pepper && process.env.NODE_ENV === 'production') {
+    throw new Error('SERVICE_KEY_PEPPER is required in production.');
+  }
   return sha256(`${pepper}:${secret}`);
 }

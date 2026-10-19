@@ -9,6 +9,7 @@ import { RepaymentModal } from '@/components/RepaymentModal';
 import { HelpLink } from '@/components/help/HelpLink';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
 import { money } from '@/lib/currency';
+import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
 
 interface Repayment {
     id: string;
@@ -29,6 +30,8 @@ const LIMIT = 50;
 export default function RepaymentsPage() {
     const t = useTranslations('Repayments');
     const tc = useTranslations('Common');
+    // D-097: no new repayments while the original module is read-only.
+    const legacy = useLegacyStatus();
     const { showToast } = useToast();
     const [repayments, setRepayments] = useState<Repayment[]>([]);
     const [meta, setMeta] = useState<PageMeta | null>(null);
@@ -142,14 +145,17 @@ export default function RepaymentsPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
+                    {legacy && !legacy.readonly && (
                     <button onClick={() => {
                         clarityEvent('repayment_form_open');
                         setIsModalOpen(true);
                     }} className="btn-primary">
                         <Plus size={14} /> {t('recordPayment')}
                     </button>
+                    )}
                 </div>
             </div>
+            <LegacyReadonlyBanner status={legacy} />
 
             {/* KPI Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

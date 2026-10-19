@@ -78,9 +78,11 @@ export function UserPicker({ value, onChange, placeholder, className = '' }: {
     const selected = usePeople([value]).get(value) ?? null;
     const [q, setQ] = useState('');
     const [open, setOpen] = useState(false);
-    const [hits, setHits] = useState<PersonRef[]>([]);
+    const [results, setHits] = useState<PersonRef[]>([]);
+    // Too short a query shows nothing; derived here rather than reset from the effect.
+    const hits = q.trim().length < 2 ? [] : results;
     useEffect(() => {
-        if (q.trim().length < 2) { setHits([]); return; }
+        if (q.trim().length < 2) return;
         let live = true;
         const timer = setTimeout(() => {
             api.get<PersonRef[]>('/me/people', { params: { q: q.trim() } }).then(

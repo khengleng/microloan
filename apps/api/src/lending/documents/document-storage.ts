@@ -229,8 +229,13 @@ export class DocumentStorageService {
   // ── API-served links (local store, legacy content) ────────────────────────
 
   private secret(): Buffer {
+    // Production requires DOCUMENT_LINK_SECRET (runtime-config.ts); the
+    // JWT_ACCESS_SECRET fallback is for local setups only.
     const base =
-      process.env.DOCUMENT_LINK_SECRET || process.env.JWT_ACCESS_SECRET;
+      process.env.DOCUMENT_LINK_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? undefined
+        : process.env.JWT_ACCESS_SECRET);
     if (!base)
       throw new ServiceUnavailableException(
         'Document links are not configured.',

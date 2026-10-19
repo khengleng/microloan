@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
-import { clearAuthCookies, clientIp, setAuthCookies } from '@/lib/auth-cookies';
+import { clearAuthCookies, setAuthCookies } from '@/lib/auth-cookies';
+import { apiJsonHeaders } from '@/lib/upstream-headers';
 
 /**
  * POST /api/auth/refresh
@@ -22,15 +23,10 @@ export async function POST(req: NextRequest) {
 
     let res: Response;
     try {
-        const ip = clientIp(req);
         res = await fetch(`${apiBaseUrl()}/auth/refresh`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // The API throttles this public route per client IP.
-                'X-Forwarded-For': ip,
-                'X-Real-IP': ip,
-            },
+            // The API throttles this public route per client IP.
+            headers: apiJsonHeaders(req.headers),
             body: JSON.stringify({ refreshToken }),
             cache: 'no-store',
         });

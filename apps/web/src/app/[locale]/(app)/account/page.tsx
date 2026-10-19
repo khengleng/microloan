@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Loader2, LogOut, ShieldAlert, ShieldCheck, UserCircle } from 'lucide-react';
+import { KeyRound, Loader2, LogOut, ShieldAlert, ShieldCheck, UserCircle } from 'lucide-react';
 import api, { signOut } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useWorkspace } from '@/lib/workspace';
@@ -94,6 +94,8 @@ export default function AccountPage() {
                         )}
                     </section>
 
+                    <ChangePassword />
+
                     <section className="bg-white border border-border rounded-md">
                         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
                             <LogOut size={16} className="text-primary" />
@@ -119,5 +121,74 @@ export default function AccountPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+/** Change one's own password; the API then ends every session, so sign in again. */
+function ChangePassword() {
+    const t = useTranslations('Account.password');
+    const { locale } = useParams();
+    const { showToast } = useToast();
+    const [form, setForm] = useState({ current: '', next: '', confirm: '' });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    const problem = form.next && form.next.length < 12 ? t('tooShort') : form.confirm && form.next !== form.confirm ? t('mismatch') : null;
+
+    const submit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (busy || problem || !form.current || !form.next || !form.confirm) return;
+        setBusy(true);
+        setError(null);
+        try {
+            await api.post('/auth/change-password', { currentPassword: form.current, newPassword: form.next });
+            showToast(t('done'), 'success');
+            await signOut(String(locale));
+        } catch (err) {
+            const message = (err as { response?: { data?: { message?: string | string[] } } }).response?.data?.message;
+            setError(Array.isArray(message) ? message.join(' ') : message || t('failed'));
+            setBusy(false);
+        }
+    };
+
+    const input = (id: string, label: string, value: string, onChange: (e: React.ChangeEvent<HTMLInputElement>) => void, autoComplete: string) => (
+        <div className="space-y-1">
+            <label htmlFor={id} className="block text-xs font-semibold text-foreground">{label}</label>
+            <input
+                id={id}
+                type="password"
+                autoComplete={autoComplete}
+                value={value}
+                onChange={onChange}
+                className="w-full h-9 px-3 rounded border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+        </div>
+    );
+
+    return (
+        <section className="bg-white border border-border rounded-md">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+                <KeyRound size={16} className="text-primary" />
+                <h2 className="text-sm font-bold text-foreground">{t('title')}</h2>
+            </div>
+            <form onSubmit={submit} className="px-5 py-4 space-y-3">
+                <p className="text-sm text-muted-foreground">{t('desc')}</p>
+                {input('pw-current', t('current'), form.current, set('current'), 'current-password')}
+                <div className="grid sm:grid-cols-2 gap-3">
+                    {input('pw-new', t('new'), form.next, set('next'), 'new-password')}
+                    {input('pw-confirm', t('confirm'), form.confirm, set('confirm'), 'new-password')}
+                </div>
+                <p className={`text-xs ${problem ? 'text-red-700' : 'text-muted-foreground'}`}>{problem ?? t('rule')}</p>
+                {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+                <button
+                    type="submit"
+                    disabled={busy || !!problem || !form.current || !form.next || !form.confirm}
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded bg-primary text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+                >
+                    {busy ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+                    {t('submit')}
+                </button>
+            </form>
+        </section>
     );
 }

@@ -643,6 +643,11 @@ model Repayment {
   reversedAt       DateTime?
   reversedByUserId String?
   reversalReason   String?
+  /// D-103: what the payment did to each instalment, so a reversal undoes exactly
+  /// that: { kind: REPAYMENT | SETTLEMENT, lines: [{ scheduleId, principal,
+  /// interest, penalty, waivedInterest }] } (decimal strings). Null on rows
+  /// posted before it was recorded.
+  allocation       Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -2053,7 +2058,7 @@ model RateReset {
   margin             Decimal  @db.Decimal(18, 10)
   /// benchmark + margin, before any floor or cap.
   indicatedRate      Decimal  @db.Decimal(18, 10)
-  /// BENCHMARK, FLOOR, CAP
+  /// BENCHMARK, FLOOR, CAP, REGULATORY_CAP (held at the interest-rate cap in force)
   bound              String
   previousAnnualRate Decimal  @db.Decimal(18, 10)
   newAnnualRate      Decimal  @db.Decimal(18, 10)

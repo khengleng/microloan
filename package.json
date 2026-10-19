@@ -27,6 +27,8 @@
         "docs:capabilities": "pnpm --filter @microloan/shared build && node scripts/lending-capability-matrix.mjs",
         "test:lending:db": "node scripts/lending-test-db.mjs",
         "db:check-migrations": "node scripts/check-migrations.mjs",
+        "db:mark-baseline-applied": "node scripts/mark-baseline-applied.mjs",
+        "lint:changed-lending": "node scripts/lint-changed-lending.mjs",
         "load:lending:seed": "pnpm --filter api exec ts-node -T test/load/seed.ts",
         "load:lending:run": "pnpm --filter api exec ts-node -T test/load/run.ts"
     },
@@ -37,7 +39,23 @@
         "typescript": "^5.4.5"
     },
     "engines": {
-        "node": ">=20.0.0"
+        "node": ">=22 <23"
     },
-    "packageManager": "pnpm@9.0.0"
+    "packageManager": "pnpm@9.0.0",
+    "pnpm": {
+        "overrides": {
+            "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.2",
+            "fast-xml-parser@>=5.0.0 <5.5.6": "^5.11.2",
+            "multer@<2.4.0": "^2.4.0",
+            "proxy-addr@<2.0.8": "^2.0.8",
+            "form-data@>=4.0.0 <4.0.6": "^4.0.6",
+            "ip-address@>=10.0.0 <10.3.1": "^10.3.1",
+            "picomatch@>=4.0.0 <4.0.4": "^4.0.7",
+            "browserslist@<4.28.7": "4.29.3",
+            "source-map-js@<1.2.2": "^1.2.2",
+            "qs@>=6.0.0 <6.16.0": "6.16.0",
+            "body-parser@>=2.0.0 <2.3.0": "2.3.0",
+            "baseline-browser-mapping@<2.11.0": "2.11.26"
+        }
+    }
 }

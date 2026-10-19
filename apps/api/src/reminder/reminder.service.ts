@@ -5,6 +5,7 @@ import { BotService } from '../bot/bot.service';
 import { SystemContext } from '../prisma/tenant-context';
 import { JobClaimService } from '../prisma/job-claim.service';
 import { formatCurrency, Currency as SharedCurrency } from '@microloan/shared';
+import { LEGACY_TIME_ZONE } from '../loans/legacy-money';
 
 @Injectable()
 export class ReminderService {
@@ -21,7 +22,7 @@ export class ReminderService {
      * payments due tomorrow. Every API instance runs it; each tenant's batch
      * is claimed once per day (ScheduledJobClaim), so nobody is messaged twice.
      */
-    @Cron(process.env.LEGACY_REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM)
+    @Cron(process.env.LEGACY_REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM, { timeZone: LEGACY_TIME_ZONE })
     @SystemContext('cron: scans installments across all tenants')
     async sendDailyReminders() {
         this.logger.log('[ReminderService] Starting daily payment reminders scan...');

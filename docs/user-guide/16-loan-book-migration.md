@@ -72,7 +72,7 @@ The file contains every original-module loan with status DISBURSED or DEFAULTED 
 
 Review the file, then load it like any other (below). When such a loan is posted, it is **closed in the original module** and its principal there (account 1200) is moved to migration clearing (3900) in the original ledger, so the combined books hold it once.
 
-To stop new business in the original module after migration, an administrator can turn on the feature flag `lending.legacy_loans.readonly` (proposed by one administrator, approved by another, in **Risk & audit › Access & policy**). The original module then refuses new loans and disbursements while repayments and other servicing of existing loans continue. See [21 Original loan module](21-original-loan-module.md).
+The original module is read-only by default (feature flag `lending.legacy_loans.readonly`): it refuses new loans, disbursements, repayments, settlements, reversals, write-offs, restructures and provisioning runs, so running loans are migrated here and serviced on the platform. Migration itself is never blocked. An organisation that must keep collecting in the original module meanwhile switches the flag off (proposed by one administrator, approved by another, in **Risk & audit › Access & policy**). See [21 Original loan module](21-original-loan-module.md).
 
 ## Load and check a file (Finance officer)
 

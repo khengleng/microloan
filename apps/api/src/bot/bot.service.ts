@@ -10,6 +10,7 @@ import { SystemContext, TenantScopedByArg } from '../prisma/tenant-context';
 import { phoneCandidates, verifiedOwnPhone } from './telegram-link';
 import { JobClaimService } from '../prisma/job-claim.service';
 import { operationalConfig } from '../config/operational-config';
+import { LEGACY_TIME_ZONE } from '../loans/legacy-money';
 
 /** How long one instance's claim to poll a tenant's bot lasts; renewed every third of it. */
 const POLLING_LEASE_MS = 90_000;
@@ -391,7 +392,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
      * cron; each tenant's alerts are claimed once per day, so a borrower gets
      * one notice, not one per instance.
      */
-    @Cron(process.env.LEGACY_LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM)
+    @Cron(process.env.LEGACY_LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM, { timeZone: LEGACY_TIME_ZONE })
     @SystemContext('cron: scans overdue loans across all tenants')
     async sendLatePaymentAlerts() {
         if (!this.enabled) return;

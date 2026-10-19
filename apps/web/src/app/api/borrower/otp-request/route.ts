@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
+import { apiJsonHeaders } from '@/lib/upstream-headers';
 
 /** POST /api/borrower/otp-request — forwards to the API; never sets a cookie. */
 export async function POST(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const res = await fetch(`${apiBaseUrl()}/borrower/otp/request`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: apiJsonHeaders(req.headers),
             body: JSON.stringify(body),
         });
         const data = await res.json();

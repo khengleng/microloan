@@ -16,6 +16,7 @@ import { ConfigEditor } from '@/components/lending/products/ConfigEditor';
 import { normalizeIssues } from '@/components/lending/products/NewProductWizard';
 import { useAction, useApi, useCapabilities } from '@/components/lending/useAsync';
 import type { MissingCapability, ProductConfig, ProductVersionDetail } from '@/components/lending/types';
+import { fmtRate } from '@/components/lending/format';
 
 type Act = 'submit' | 'approve' | 'reject' | 'activate' | 'retire';
 // Button labels and toasts come from LendingProducts.version.actions.<act> / done.<act>.
@@ -160,6 +161,31 @@ export default function ProductVersionPage() {
                     <p className="mt-2 text-[11px] font-mono text-[#8792A2] break-words">{v.requiredCapabilities.join(', ')}</p>
                 </Card>
             </div>
+
+            {v.rateCap && (
+                <Card title={t('rateCap.title')} subtitle={t('rateCap.subtitle')}>
+                    <KV cols={4} items={[
+                        [t('rateCap.cap'), v.rateCap.cap.annualRate ? fmtRate(v.rateCap.cap.annualRate, 2) : t('rateCap.none')],
+                        [t('rateCap.source'), v.rateCap.cap.source ? t(`rateCap.sources.${v.rateCap.cap.source}`) : '—'],
+                        [t('rateCap.worstComparable'), fmtRate(v.rateCap.worstComparableRate, 2)],
+                        [t('rateCap.worstEffective'), fmtRate(v.rateCap.worstEffectiveRate, 2)],
+                    ]} />
+                    <div className="mt-3 space-y-2">
+                        {v.rateCap.findings.length === 0
+                            ? <Notice tone="success" title={t('rateCap.fits')} />
+                            : <Notice tone="danger" title={t('rateCap.breaches', { count: v.rateCap.findings.length })}><IssueList issues={v.rateCap.findings} /></Notice>}
+                        {v.rateCap.advisories.length > 0 && (
+                            <Notice tone="warn" title={t('rateCap.advisories')}><IssueList issues={v.rateCap.advisories.map((a) => ({ message: a.message }))} /></Notice>
+                        )}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[#8792A2]">
+                        {t('rateCap.fees', { value: t(v.rateCap.policy.includeFeesInEffectiveRate ? 'rateCap.yes' : 'rateCap.no') })}
+                        {' · '}
+                        {t('rateCap.penalty', { value: t(v.rateCap.policy.penaltyRateMustFitCap ? 'rateCap.yes' : 'rateCap.no') })}
+                        {v.rateCap.notes.length > 0 && <> · {v.rateCap.notes.join(' ')}</>}
+                    </p>
+                </Card>
+            )}
 
             {v.status !== 'SUBMITTED' && v.diffFromActive && v.diffFromActive.length > 0 && (
                 <Card title={t('diffTitle')}><JsonDiff diff={v.diffFromActive} /></Card>

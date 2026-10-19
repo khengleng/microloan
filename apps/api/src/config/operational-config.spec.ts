@@ -104,6 +104,14 @@ describe('loadRuntimeConfig in production', () => {
     JWT_REFRESH_TOKEN_PEPPER: 'c'.repeat(16),
     CORS_ORIGINS: 'https://web.example.com',
     REDIS_URL: 'redis://cache.example.test:6379',
+    FIELD_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    DOCUMENT_LINK_SECRET: 'd'.repeat(32),
+    SERVICE_KEY_PEPPER: 'e'.repeat(32),
+  };
+  const without = (name: keyof typeof base) => {
+    const env: Record<string, string> = { ...base };
+    delete env[name];
+    return env;
   };
   const saved = { ...process.env };
   afterEach(() => {
@@ -124,6 +132,47 @@ describe('loadRuntimeConfig in production', () => {
   });
   it('refuses an e-mail provider without a sender', () => {
     expect(withEnv({ ...base, RESEND_API_KEY: 're_x' })).toThrow('EMAIL_FROM');
+  });
+  it.each([
+    'FIELD_ENCRYPTION_KEY',
+    'DOCUMENT_LINK_SECRET',
+    'SERVICE_KEY_PEPPER',
+  ] as const)(
+    'refuses to start without %s (no derivation from the JWT secrets)',
+    (name) => {
+      expect(withEnv(without(name))).toThrow(name);
+    },
+  );
+  it('accepts a 64-character hex encryption key', () => {
+    expect(
+      withEnv({ ...base, FIELD_ENCRYPTION_KEY: 'ab'.repeat(32) })(),
+    ).toMatchObject({ isProduction: true });
+  });
+  it('refuses an encryption key that is not 32 bytes', () => {
+    expect(
+      withEnv({
+        ...base,
+        FIELD_ENCRYPTION_KEY: Buffer.alloc(16, 1).toString('base64'),
+      }),
+    ).toThrow('FIELD_ENCRYPTION_KEY');
+    expect(withEnv({ ...base, FIELD_ENCRYPTION_KEY: 'not-a-key' })).toThrow(
+      'FIELD_ENCRYPTION_KEY',
+    );
+  });
+  it('refuses a short document link secret or service key pepper', () => {
+    expect(withEnv({ ...base, DOCUMENT_LINK_SECRET: 'short' })).toThrow(
+      'DOCUMENT_LINK_SECRET',
+    );
+    expect(withEnv({ ...base, SERVICE_KEY_PEPPER: 'short' })).toThrow(
+      'SERVICE_KEY_PEPPER',
+    );
+  });
+  it('does not require the dedicated secrets outside production', () => {
+    const env = { ...base, NODE_ENV: 'development' } as Record<string, string>;
+    delete env.FIELD_ENCRYPTION_KEY;
+    delete env.DOCUMENT_LINK_SECRET;
+    delete env.SERVICE_KEY_PEPPER;
+    expect(withEnv(env)()).toMatchObject({ isProduction: false });
   });
   it('refuses a malformed operational value at boot', () => {
     expect(withEnv({ ...base, LENDING_OUTBOX_MAX_ATTEMPTS: 'many' })).toThrow(

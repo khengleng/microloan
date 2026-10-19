@@ -995,6 +995,19 @@
       "reactivateConfirm": "Reactivate {email}? They can sign in again with their existing password.",
       "reactivated": "{email} has been reactivated",
       "reactivateFailed": "Could not reactivate this user"
+    },
+    "password": {
+      "title": "Change password",
+      "desc": "After you change it, you are signed out everywhere and sign in again with the new password.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Repeat new password",
+      "rule": "At least 12 characters.",
+      "tooShort": "The new password must be at least 12 characters.",
+      "mismatch": "The two new passwords do not match.",
+      "submit": "Change password",
+      "done": "Password changed. Please sign in again.",
+      "failed": "Could not change your password."
     }
   },
   "Scoring": {
@@ -1667,6 +1680,7 @@
         "payments_maxBackdateDays": "Unidentified receipts and payment files: most days back-dated",
         "access_maxDelegationDays": "Longest delegation of authority (days)",
         "legacyServicing_defaultAfterDaysOverdue": "Original loan book: mark DEFAULTED after days overdue",
+        "legacyServicing_penaltyCapRate": "Original loan book: most late penalty on one instalment (fraction of its principal + interest)",
         "scoring_monitoring_badDaysPastDue": "Scorecard monitoring: a loan is bad once an instalment is this many days late",
         "scoring_monitoring_performanceMonths": "Scorecard monitoring: … within this many months of disbursement",
         "scoring_monitoring_baselineWindowDays": "Scorecard monitoring: baseline window for stability (days)",
@@ -2496,7 +2510,7 @@
       "form": "Form",
       "json": "JSON",
       "notNumber": "Enter a number",
-      "jsonHint": "JSON — a list [ … ] or table { … }"
+      "jsonHint": "JSON — a list [ … ] or table '{' … '}'"
     },
     "platformFlags": {
       "title": "Platform feature flags",
@@ -4164,7 +4178,13 @@
       "colWhen": "When",
       "colBy": "By",
       "colDetail": "Detail",
-      "assessment": "assessment"
+      "assessment": "assessment",
+      "rateCap": "Rate cap {cap} ({source}) · rate {rate} · effective incl. fees {effective}",
+      "rateCapSource": {
+        "REGULATOR": "regulatory ceiling",
+        "TENANT": "lender's cap",
+        "PRODUCT": "product cap"
+      }
     },
     "toast": {
       "submitted": "Application submitted",
@@ -6599,7 +6619,28 @@
       "validationFailed": "Validation failed",
       "summaryPlaceholder": "What changed and why",
       "cancel": "Cancel",
-      "saveDraft": "Save draft"
+      "saveDraft": "Save draft",
+      "rateCap": {
+        "title": "Interest-rate cap",
+        "subtitle": "The lowest of the regulatory ceiling, the lender's cap and this product's cap, checked again at submission, approval and activation",
+        "cap": "Cap in force",
+        "source": "Set by",
+        "none": "No cap configured",
+        "sources": {
+          "REGULATOR": "Regulatory ceiling",
+          "TENANT": "Lender's cap",
+          "PRODUCT": "Product cap"
+        },
+        "worstComparable": "Highest rate (reducing-balance basis)",
+        "worstEffective": "Highest effective rate incl. fees",
+        "fits": "Every rate this version can charge is within the cap",
+        "breaches": "{count, plural, one {# rate exceeds} other {# rates exceed}} the cap — submission, approval and activation will be refused",
+        "advisories": "Some terms within the limits would exceed the cap once fees are counted; booking refuses those terms",
+        "fees": "Fees counted: {value}",
+        "penalty": "Penalty interest capped: {value}",
+        "yes": "yes",
+        "no": "no"
+      }
     }
   },
   "LendingShared": {
@@ -8670,5 +8711,12 @@
     "colAction": "Action",
     "colResource": "Resource",
     "colActor": "Actor"
+  },
+  "LegacyFreeze": {
+    "title": "The original loan module is read-only",
+    "body": "Its loans can be viewed, exported and printed, but no money moves here any more: no new loans, disbursements, repayments, settlements, reversals, write-offs, restructures, provisioning runs or late penalties. Service loans in Lending › Loans and move running loans across with the loan-book migration.",
+    "lendingLoans": "Lending › Loans",
+    "migrate": "Migrate loans",
+    "newApplication": "New application"
   }
 }

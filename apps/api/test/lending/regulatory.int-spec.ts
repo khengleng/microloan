@@ -401,44 +401,11 @@ d('Regulatory returns and legacy consolidation (integration)', () => {
     expect(seen[0].n).toBe(0);
   });
 
-  it('the legacy read-only flag (two administrators) stops new legacy loans and disbursements but not repayments', async () => {
-    expect(
-      expectOk(await f.as('admin1').get('/loans/legacy-status')).readonly,
-    ).toBe(false);
-    const proposed = expectOk(
-      await f.as('admin1').post('/lending/access/flags/rules', {
-        flagKey: 'lending.legacy_loans.readonly',
-        scopeType: 'TENANT',
-        enabled: true,
-        reason: 'All new lending moves to the lending platform',
-      }),
-    );
-    // The proposer cannot approve the change; a second administrator does.
-    expect(
-      (
-        await f
-          .as('admin1')
-          .post(
-            `/lending/access/flags/changes/${proposed.approval.id}/decision`,
-            { approve: true },
-          )
-      ).status,
-    ).toBe(403);
-    expectOk(
-      await f
-        .as('admin2')
-        .post(
-          `/lending/access/flags/changes/${proposed.approval.id}/decision`,
-          { approve: true },
-        ),
-    );
-    const status = expectOk(await f.as('admin1').get('/loans/legacy-status'));
-    expect(status.readonly).toBe(true);
-    expect(status.message).toMatch(/lending platform/);
-    // Another tenant is unaffected.
-    expect(
-      expectOk(await f.as('t2admin').get('/loans/legacy-status')).readonly,
-    ).toBe(false);
+  it('the legacy book is read-only by default (D-097): no new loans, disbursements or repayments until two administrators open it', async () => {
+    const initial = expectOk(await f.as('admin1').get('/loans/legacy-status'));
+    expect(initial.readonly).toBe(true);
+    expect(initial.source).toBe('DEFAULT');
+    expect(initial.message).toMatch(/lending platform/);
 
     const b = await borrower(f, f.t1, f.b1);
     const created = await f.as('admin1').post('/loans', {
@@ -483,7 +450,55 @@ d('Regulatory returns and legacy consolidation (integration)', () => {
       ).status,
     ).toBe('APPROVED');
 
-    // Existing legacy loans are still repaid.
+    // Existing legacy loans are not repaid here while it is read-only…
+    const frozenPay = await f.as('admin1').post('/repayments', {
+      loanId: legacyLoanId,
+      amount: 500,
+      date: '2026-02-10',
+      idempotencyKey: key('legacy-pay-frozen'),
+    });
+    expect(frozenPay.status).toBe(409);
+    expect(frozenPay.body.operation).toBe('repayment');
+    // …but they are still read and quoted.
+    expect(
+      (await f.as('admin1').get(`/loans/${legacyLoanId}/payoff-quote`)).status,
+    ).toBe(200);
+
+    // Opening the book: one administrator proposes, another approves.
+    const proposed = expectOk(
+      await f.as('admin1').post('/lending/access/flags/rules', {
+        flagKey: 'lending.legacy_loans.readonly',
+        scopeType: 'TENANT',
+        enabled: false,
+        reason: 'Collect the legacy book in place until it is migrated',
+      }),
+    );
+    expect(
+      (
+        await f
+          .as('admin1')
+          .post(
+            `/lending/access/flags/changes/${proposed.approval.id}/decision`,
+            { approve: true },
+          )
+      ).status,
+    ).toBe(403);
+    expectOk(
+      await f
+        .as('admin2')
+        .post(
+          `/lending/access/flags/changes/${proposed.approval.id}/decision`,
+          { approve: true },
+        ),
+    );
+    expect(
+      expectOk(await f.as('admin1').get('/loans/legacy-status')).readonly,
+    ).toBe(false);
+    // Another tenant is unaffected.
+    expect(
+      expectOk(await f.as('t2admin').get('/loans/legacy-status')).readonly,
+    ).toBe(true);
+
     const paid = expectOk(
       await f.as('admin1').post('/repayments', {
         loanId: legacyLoanId,
@@ -493,8 +508,5 @@ d('Regulatory returns and legacy consolidation (integration)', () => {
       }),
     );
     expect(paid).toBeTruthy();
-    expect(
-      (await f.as('admin1').get(`/loans/${legacyLoanId}/payoff-quote`)).status,
-    ).toBe(200);
   });
 });

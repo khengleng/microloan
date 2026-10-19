@@ -78,7 +78,7 @@ export interface RateReset {
     observedRate: string;
     margin: string;
     indicatedRate: string;
-    bound: 'BENCHMARK' | 'FLOOR' | 'CAP' | string;
+    bound: 'BENCHMARK' | 'FLOOR' | 'CAP' | 'REGULATORY_CAP' | string;
     previousAnnualRate: string;
     newAnnualRate: string;
     agreementVersion: number;

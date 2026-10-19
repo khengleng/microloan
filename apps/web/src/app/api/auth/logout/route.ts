@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
-import { clearAuthCookies, clientIp } from '@/lib/auth-cookies';
+import { clearAuthCookies } from '@/lib/auth-cookies';
+import { apiJsonHeaders } from '@/lib/upstream-headers';
 
 /**
  * POST /api/auth/logout
@@ -14,10 +15,9 @@ export async function POST(req: NextRequest) {
     const refreshToken = req.cookies.get('refresh_token')?.value;
     if (refreshToken) {
         try {
-            const ip = clientIp(req);
             await fetch(`${apiBaseUrl()}/auth/logout`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip, 'X-Real-IP': ip },
+                headers: apiJsonHeaders(req.headers),
                 body: JSON.stringify({ refreshToken }),
                 cache: 'no-store',
             });

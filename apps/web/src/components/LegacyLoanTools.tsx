@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useWorkspace } from '@/lib/workspace';
+import { useLegacyFrozen } from '@/components/LegacyBanner';
 
 /*
  * Servicing tools for loans of the original module. Each control shows only
@@ -35,9 +36,14 @@ const ROUTE_PERMISSION: Record<keyof typeof ROUTE_ROLES, string> = {
     promises: 'CUSTOMER_UPDATE',
 };
 
+/** Controls that move money, refused while the original module is read-only (D-097). */
+const MONEY_ROUTES: ReadonlySet<keyof typeof ROUTE_ROLES> = new Set(['writeOff', 'reverseRepayment'] as const);
+
 export function useLegacyAllowed() {
     const { legacyCan, legacyRole } = useWorkspace();
+    const frozen = useLegacyFrozen();
     return (what: keyof typeof ROUTE_ROLES) =>
+        !(frozen && MONEY_ROUTES.has(what)) &&
         ROUTE_ROLES[what].some((r) => canon(r) === canon(legacyRole)) && legacyCan(ROUTE_PERMISSION[what]);
 }
 

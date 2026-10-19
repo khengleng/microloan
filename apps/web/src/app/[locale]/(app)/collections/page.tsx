@@ -33,15 +33,21 @@ export default function CollectionsPage() {
     const [repaymentLoanId, setRepaymentLoanId] = useState<string | undefined>(undefined);
     const [repaymentOpen, setRepaymentOpen] = useState(false);
 
-    const fetchLoans = () => {
-        setLoading(true);
+    const loadLoans = () => {
         api.get('/loans/overdue')
             .then(res => setLoans(res.data))
             .catch(() => showToast(t('loadFailed'), 'error'))
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetchLoans(); }, []);
+    const fetchLoans = () => {
+        setLoading(true);
+        loadLoans();
+    };
+
+    // Initial load: `loading` starts true, so no synchronous setState in the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { loadLoans(); }, []);
 
     if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm gap-2">

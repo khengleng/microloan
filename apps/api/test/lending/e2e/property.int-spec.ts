@@ -16,7 +16,7 @@
  *  S09 LT-23 bridge loan: interest only then bullet (TV-05, UC-11, UC-12)
  *  S10 LT-16 commercial real estate with a balloon (TV-06, UC-12)
  */
-import { TEST_DB } from '../harness';
+import { TEST_DB, raiseRateCap } from '../harness';
 import { Journey, c2, collateral, expectOk, lending, sum } from './journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -367,8 +367,12 @@ d(
     let loanId: string;
     let borrowerId: string;
 
+    let restoreCap: () => Promise<void>;
+
     beforeAll(async () => {
       j = await Journey.start({ flags: ['lending.revolving.drawdown'] });
+      // TV-07 is priced at 24%, above the NBC cap.
+      restoreCap = await raiseRateCap(j.f, '24');
       productId = await j.product('HOME_EQUITY_LINE', 'HELOC', (c) => {
         c.security.maxLtv = '0.80';
         c.pricing.fees = [];
@@ -382,7 +386,10 @@ d(
         c.facility.availabilityMonths = 3;
       });
     }, 120_000);
-    afterAll(async () => j?.close());
+    afterAll(async () => {
+      await restoreCap?.();
+      await j?.close();
+    });
 
     const terms = (principal: string) => ({
       principal,

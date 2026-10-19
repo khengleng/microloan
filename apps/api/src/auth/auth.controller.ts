@@ -20,10 +20,15 @@ import { AnyAuthenticated, Public } from './auth-scope.decorator';
 import { GoogleLoginDto, GoogleRegisterTenantDto } from './dto/google-auth.dto';
 import { SignupPaymentService } from '../billing/signup-payment.service';
 import { webOrigin } from '../config/operational-config';
+import { clientIp } from '../common/client-ip';
+import { ThrottleIdentity } from '../common/user-aware-throttler.guard';
 
-/** Extract real client IP — works with Railway proxy (app.set('trust proxy', 1) in main.ts) */
+/**
+ * The browser's IP: the address the web server states (X-Client-IP, believed
+ * only with a valid X-Web-Proxy-Secret), else req.ip. See common/client-ip.ts.
+ */
 function getIp(req: any): string {
-  return req.ip || 'unknown';
+  return clientIp(req);
 }
 @Controller('auth')
 export class AuthController {
@@ -89,8 +94,9 @@ export class AuthController {
     return this.authService.registerTenant(registerDto, getIp(req));
   }
 
-  /** 10 login attempts / IP / 15 min */
+  /** 10 login attempts / client IP / 15 min, and 10 / email / 15 min. */
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @ThrottleIdentity('email')
   @HttpCode(HttpStatus.OK)
   @Public()
   @Post('login')
@@ -137,8 +143,22 @@ export class AuthController {
     return this.authService.revokeAllSessions(user.sub, getIp(req));
   }
 
+  /** Change one's own password (current password required; signs out every session). */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @AnyAuthenticated()
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: { currentPassword: string; newPassword: string },
+    @Req() req: any,
+  ) {
+    return this.authService.changePassword(user, dto?.currentPassword, dto?.newPassword, getIp(req));
+  }
+
   /** Self-service forgot-password — generic response, throttled. */
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @ThrottleIdentity('email')
   @HttpCode(HttpStatus.OK)
   @Public()
   @Post('forgot-password')
@@ -168,6 +188,7 @@ export class AuthController {
    * so attackers cannot brute-force TOTP codes for arbitrary user IDs.
    */
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @ThrottleIdentity('mfa')
   @Public()
   @Post('mfa/authenticate')
   @HttpCode(HttpStatus.OK)

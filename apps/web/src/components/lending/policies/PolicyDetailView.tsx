@@ -32,6 +32,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const [adding, setAdding] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [reason, setReason] = useState('');
+    const { can } = useWorkspace();
 
     if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><Spinner /></LendingShell>;
     if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><ErrorBox error={loadError} /></LendingShell>;
@@ -42,7 +43,6 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const live = versions.find((v) => v.status === 'APPROVED');
     const hasOpenDraft = versions.some((v) => v.status === 'DRAFT' || v.status === 'SUBMITTED');
     const iAmMaker = !!myId && !!selected && selected.makerId === myId;
-    const { can } = useWorkspace();
     // Policy versions are governed like product versions (policy/actions.ts lending_policy.*).
     const canDraft = can('loan_product.create');
     const canSubmit = can('loan_product.submit');

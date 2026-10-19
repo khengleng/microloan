@@ -22,6 +22,7 @@ import { PolicyService } from '../policy/policy.service';
 import { productVersionResource, tenantResource } from '../policy/resources';
 import { DEFAULT_CHART_OF_ACCOUNTS } from '../../ledger/chart-of-accounts';
 import { LendingPoliciesService } from './lending-policies.service';
+import { RateCapService } from '../common/rate-cap.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -43,6 +44,7 @@ export class ProductsService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly policies: LendingPoliciesService,
+    private readonly rateCap: RateCapService,
   ) {}
 
   // ── Catalogue ─────────────────────────────────────────────────────────────
@@ -173,11 +175,16 @@ export class ProductsService {
     const required = validation.ok
       ? this.requiredCapabilities(v.product.templateCode, validation.config)
       : v.requiredCapabilities;
+    // The cap in force today and every rate this version can charge against it.
+    const rateCap = validation.ok
+      ? await this.rateCapReport(tenantId, validation.config)
+      : null;
     return {
       ...v,
       effectiveFrom: toLocalDate(v.effectiveFrom),
       effectiveTo: toLocalDate(v.effectiveTo),
       validation: validation.ok ? { ok: true, issues: [] } : validation,
+      rateCap,
       requiredCapabilities: required,
       missingCapabilities: lending.missingCapabilities(required),
       diffFromActive: active
@@ -428,6 +435,20 @@ export class ProductsService {
       const data: Prisma.ProductVersionUpdateManyMutationInput = {
         status: map.to,
       };
+      // NBC rate cap (D-110): every configured rate must fit under the cap in
+      // force now — checked again at each step, since the cap can be lowered
+      // between submission and activation.
+      if (
+        action === 'submit' ||
+        action === 'approve' ||
+        action === 'activate'
+      ) {
+        const report = await this.rateCapReport(tenantId, config, tx);
+        RateCapService.assert(
+          report.findings,
+          `${v.product.code} version ${v.version} cannot be ${action === 'submit' ? 'submitted' : action === 'approve' ? 'approved' : 'activated'}`,
+        );
+      }
 
       if (action === 'submit') {
         data.submittedAt = new Date();
@@ -667,7 +688,41 @@ export class ProductsService {
     };
   }
 
-  /** Floating projection: latest benchmark observation + margin, floored and capped, held flat. */
+  /**
+   * The rate cap in force for a version and how its configured rates compare
+   * (shared `productRateCapReport`): a floating product is measured at its
+   * latest benchmark observation.
+   */
+  async rateCapReport(
+    tenantId: string,
+    config: lending.ProductConfig,
+    tx?: Tx,
+  ): Promise<lending.ProductRateCapReport> {
+    const db = tx ?? this.prisma;
+    const { cap, policy } = await this.rateCap.resolve(tenantId, config, tx);
+    const asOf = await this.businessDate.get(tenantId, tx);
+    const fl = config.pricing.floating;
+    const obs = fl
+      ? await db.rateObservation.findFirst({
+          where: {
+            tenantId,
+            benchmarkCode: fl.benchmarkCode,
+            observationDate: { lte: fromLocalDate(asOf) },
+          },
+          orderBy: { observationDate: 'desc' },
+        })
+      : null;
+    return lending.productRateCapReport(config, cap, policy, {
+      asOf,
+      benchmarkRate: obs ? obs.rate.toString() : null,
+    });
+  }
+
+  /**
+   * Floating projection: latest benchmark observation + margin, floored and
+   * capped, held flat — and never above the interest-rate cap in force
+   * (D-111: held at the cap, as a reset is).
+   */
   async projectedRates(
     tenantId: string,
     config: lending.ProductConfig,
@@ -689,11 +744,14 @@ export class ProductsService {
     let rate = new lending.D(obs.rate.toString()).plus(fl.margin);
     if (fl.floor && rate.lt(fl.floor)) rate = new lending.D(fl.floor);
     if (fl.cap && rate.gt(fl.cap)) rate = new lending.D(fl.cap);
+    const { cap } = await this.rateCap.resolve(tenantId, config);
+    const held = cap.annualRate !== null && rate.gt(cap.annualRate);
+    if (held) rate = new lending.D(cap.annualRate!);
     return [
       {
         effectiveFrom: from,
         annualRate: rate.toString(),
-        source: `${fl.benchmarkCode} ${toLocalDate(obs.observationDate)} (${obs.rate}) + ${fl.margin}`,
+        source: `${fl.benchmarkCode} ${toLocalDate(obs.observationDate)} (${obs.rate}) + ${fl.margin}${held ? ` (held at ${cap.description})` : ''}`,
         projected: true,
       },
     ];

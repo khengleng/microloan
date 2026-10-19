@@ -14,7 +14,7 @@
  *      flat late fee and the guarantor paying the arrears (UC-01, UC-20,
  *      UC-55)
  */
-import { TEST_DB, serviceAccount } from '../harness';
+import { TEST_DB, raiseRateCap, serviceAccount } from '../harness';
 import { Journey, c2, expectOk, key, lending, sum } from './journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -240,14 +240,19 @@ d(
     let j: Journey;
     let loanId: string;
     let applicationId: string;
+    let restoreCap: () => Promise<void>;
 
     beforeAll(async () => {
       j = await Journey.start();
+      // TV-04's 12% flat is 21.45% on a reducing balance, and the product's
+      // 17% flat maximum over its longest term about 30%: above the NBC cap.
+      restoreCap = await raiseRateCap(j.f, '36');
       const productId = await j.product(
         'MICRO_INDIVIDUAL',
         'MF-FLAT78',
         (c) => {
           c.pricing.interestMethod = 'FLAT';
+          c.pricing.regulatoryCapAnnualRate = null;
           c.pricing.fees = [];
           c.repayment.frequency = 'MONTHLY';
           c.repayment.prepayment.allowed = false;
@@ -271,7 +276,10 @@ d(
       loanId = r.loanId;
       applicationId = r.applicationId;
     }, 120_000);
-    afterAll(async () => j?.close());
+    afterAll(async () => {
+      await restoreCap?.();
+      await j?.close();
+    });
 
     it('TV-04: 1,200.00 of flat interest; instalments 1–11 of 933.33 and a last of 933.37', async () => {
       const l = await j.checkpoint(loanId, {

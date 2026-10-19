@@ -1,3 +1,4 @@
+import { parseFieldEncryptionKey } from '../common/field-crypto';
 import { operationalConfig } from './operational-config';
 
 type RuntimeConfig = {
@@ -6,6 +7,8 @@ type RuntimeConfig = {
   port: number;
   corsOrigins: string[];
   redisUrl?: string;
+  /** Shared with the web server; authenticates its X-Client-IP header. */
+  webProxySecret?: string;
 };
 
 function required(name: string): string {
@@ -67,6 +70,25 @@ export function loadRuntimeConfig(): RuntimeConfig {
   const pepper = required('JWT_REFRESH_TOKEN_PEPPER');
   assertMinLength('JWT_REFRESH_TOKEN_PEPPER', pepper, 16);
 
+  if (isProduction) {
+    // Dedicated secrets, never derived from the JWT secrets in production:
+    // rotating JWT_ACCESS_SECRET must not make encrypted PII unreadable,
+    // invalidate document links or orphan every service key.
+    try {
+      parseFieldEncryptionKey(required('FIELD_ENCRYPTION_KEY'));
+    } catch (e) {
+      throw new Error(
+        `FIELD_ENCRYPTION_KEY is required in production and must be 32 bytes (base64 or 64-char hex): ${(e as Error).message}`,
+      );
+    }
+    assertMinLength(
+      'DOCUMENT_LINK_SECRET',
+      required('DOCUMENT_LINK_SECRET'),
+      32,
+    );
+    assertMinLength('SERVICE_KEY_PEPPER', required('SERVICE_KEY_PEPPER'), 32);
+  }
+
   const port = parsePort(process.env.PORT);
   const corsOrigins = parseCorsOrigins(isProduction);
   const redisUrl = process.env.REDIS_URL?.trim();
@@ -76,6 +98,12 @@ export function loadRuntimeConfig(): RuntimeConfig {
       'REDIS_URL is required in production for distributed rate limiting.',
     );
   }
+
+  // Optional but recommended: without it the API ignores X-Client-IP and sees
+  // the web server's address for everything the web server forwards. When it
+  // is set it must be a real secret, since it lets the holder name any IP.
+  const webProxySecret = process.env.WEB_PROXY_SECRET?.trim() || undefined;
+  if (webProxySecret) assertMinLength('WEB_PROXY_SECRET', webProxySecret, 32);
 
   // S3 is optional at process startup to allow controlled rollout.
   // Document endpoints enforce availability and return 503 when unconfigured.
@@ -110,5 +138,6 @@ export function loadRuntimeConfig(): RuntimeConfig {
     port,
     corsOrigins,
     redisUrl,
+    webProxySecret,
   };
 }

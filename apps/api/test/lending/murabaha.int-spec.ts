@@ -338,7 +338,7 @@ d('Murabaha (integration)', () => {
         principal: '3000',
         numberOfInstalments: 3,
         disbursementDate: '2026-03-20',
-        annualRate: '0.12',
+        annualRate: '0.10',
       },
       {
         payees: [{ type: 'SELLER', name: 'Home Store', amount: '3000' }],
@@ -354,10 +354,10 @@ d('Murabaha (integration)', () => {
         },
       },
     );
-    // Flat 12% for a quarter: a fixed profit of 90 on a sale price of 3090.
+    // Flat 10% for a quarter: a fixed profit of 75 on a sale price of 3075.
     expect((await contract(id)).terms).toMatchObject({
-      profit: '90',
-      salePrice: '3090',
+      profit: '75',
+      salePrice: '3075',
     });
     for (const n of [1, 2, 3]) {
       const line = (await loan(id)).schedule.find((x: any) => x.number === n);
@@ -373,7 +373,7 @@ d('Murabaha (integration)', () => {
         .filter((e: any) => e.type === 'ACCRUAL')
         .reduce((s: any, e: any) => s.plus(e.amount), new lending.D(0))
         .toString(),
-    ).toBe('90');
+    ).toBe('75');
     expect((await contract(id)).asset).toMatchObject({
       status: 'ENDED',
       deferredProfitBalance: '0',

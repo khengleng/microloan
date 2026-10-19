@@ -263,6 +263,40 @@ export async function grant(
   });
 }
 
+/**
+ * Opt a tenant out of the legacy freeze (D-097): an ACTIVE TENANT rule that
+ * switches `lending.legacy_loans.readonly` off, as two administrators would
+ * approve it (fixture shortcut; the approval flow is tested in
+ * legacy-freeze.int-spec). Returns the rule id.
+ */
+export async function openLegacyBook(
+  f: Fixture,
+  tenantId: string,
+): Promise<string> {
+  return f.system(async () => {
+    const rule = await f.prisma.flagRule.create({
+      data: {
+        tenantId,
+        flagKey: 'lending.legacy_loans.readonly',
+        scopeType: 'TENANT',
+        enabled: false,
+        status: 'ACTIVE',
+      },
+    });
+    return rule.id as string;
+  });
+}
+
+/** Undo openLegacyBook: the tenant falls back to the frozen default. */
+export async function closeLegacyBook(f: Fixture, ruleId: string) {
+  await f.system(() =>
+    f.prisma.flagRule.update({
+      where: { id: ruleId },
+      data: { status: 'SUPERSEDED' },
+    }),
+  );
+}
+
 export async function authority(
   f: Fixture,
   tenantId: string,
@@ -316,6 +350,43 @@ export async function borrower(
 let keySeq = 0;
 export const key = (p = 'k') =>
   `${p}-${Date.now()}-${++keySeq}-${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Price a suite in a jurisdiction with a higher interest-rate cap than the
+ * NBC's (DECISIONS D-105): its test vectors (a 24% line, a 12% flat loan that
+ * is 21.45% on a reducing balance, a 30% over-limit rate) are textbook
+ * figures, not Cambodian ones. Raises the deployment ceiling and the
+ * fixture tenant's own cap; the returned function restores both.
+ */
+export async function raiseRateCap(
+  f: Fixture,
+  pct: string,
+): Promise<() => Promise<void>> {
+  const before = process.env.REGULATORY_MAX_ANNUAL_RATE_PCT;
+  process.env.REGULATORY_MAX_ANNUAL_RATE_PCT = pct;
+  const previous = await f.system(() =>
+    f.prisma.tenant.findUnique({
+      where: { id: f.t1 },
+      select: { maxAnnualInterestRatePct: true },
+    }),
+  );
+  await f.system(() =>
+    f.prisma.tenant.update({
+      where: { id: f.t1 },
+      data: { maxAnnualInterestRatePct: pct },
+    }),
+  );
+  return async () => {
+    if (before === undefined) delete process.env.REGULATORY_MAX_ANNUAL_RATE_PCT;
+    else process.env.REGULATORY_MAX_ANNUAL_RATE_PCT = before;
+    await f.system(() =>
+      f.prisma.tenant.update({
+        where: { id: f.t1 },
+        data: { maxAnnualInterestRatePct: previous.maxAnnualInterestRatePct },
+      }),
+    );
+  };
+}
 
 export function expectOk(res: request.Response, status = [200, 201]) {
   if (!status.includes(res.status)) {

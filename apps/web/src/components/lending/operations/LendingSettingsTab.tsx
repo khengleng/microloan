@@ -43,6 +43,7 @@ const LABELS: Record<string, string> = {
     'payments.maxBackdateDays': 'Unidentified receipts and payment files: most days back-dated',
     'access.maxDelegationDays': 'Longest delegation of authority (days)',
     'legacyServicing.defaultAfterDaysOverdue': 'Original loan book: mark DEFAULTED after days overdue',
+    'legacyServicing.penaltyCapRate': 'Original loan book: most late penalty on one instalment (fraction of its principal + interest)',
     'scoring.monitoring.badDaysPastDue': 'Scorecard monitoring: a loan is bad once an instalment is this many days late',
     'scoring.monitoring.performanceMonths': 'Scorecard monitoring: … within this many months of disbursement',
     'scoring.monitoring.baselineWindowDays': 'Scorecard monitoring: baseline window for stability (days)',
@@ -92,10 +93,9 @@ export function LendingSettingsTab() {
     const defaultsFlat = new Map(flatten(defaults));
 
     const propose = async () => {
-        let settings: unknown;
         const bad = jsonProblem(draft);
         if (bad) { setProblem(t('invalidJson', { error: bad })); return; }
-        settings = JSON.parse(draft);
+        const settings: unknown = JSON.parse(draft);
         setProblem('');
         const res = await run('propose', () => api.post('/lending/ops/settings', { settings, reason: reason.trim() || undefined }));
         if (res) { showToast(t('proposed'), 'success'); setDraft(''); list.reload(); }

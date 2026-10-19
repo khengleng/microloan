@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast';
 import { Loader2, Play } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useWorkspace } from '@/lib/workspace';
+import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
 
 interface ProvisioningRun {
     id: string;
@@ -68,6 +69,8 @@ export default function ProvisioningPage() {
 
     const o = useTranslations('Overview');
     const { legacyCan } = useWorkspace();
+    // D-097: no legacy provisioning run while the original module is read-only.
+    const legacy = useLegacyStatus();
     const handleRun = async () => {
         setRunning(true);
         try {
@@ -101,7 +104,7 @@ export default function ProvisioningPage() {
                     <p className="text-[#697386] text-[14px]">Run and review expected credit loss provisioning.</p>
                     <p className="text-[#697386] text-[12px] mt-1">{o('provisionBasis')}</p>
                 </div>
-                {legacyCan('PROVISION_RUN') && (
+                {legacy && !legacy.readonly && legacyCan('PROVISION_RUN') && (
                 <button
                     onClick={handleRun}
                     disabled={running}
@@ -112,6 +115,7 @@ export default function ProvisioningPage() {
                 </button>
                 )}
             </div>
+            <LegacyReadonlyBanner status={legacy} />
 
             {/* Runs table */}
             <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">

@@ -9,11 +9,21 @@ import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync }
  * - Ciphertext is self-describing: `enc:v1:<iv>:<tag>:<ciphertext>` (all base64).
  * - `decryptField` passes through values WITHOUT the prefix unchanged, so legacy
  *   plaintext rows keep working until they are re-saved or backfilled.
- * - Key: `FIELD_ENCRYPTION_KEY` (32 bytes, base64 or hex). If unset, a stable key
- *   is derived from `JWT_ACCESS_SECRET` (with a warning) so deploys never break;
- *   set a dedicated key before rotating the JWT secret.
+ * - Key: `FIELD_ENCRYPTION_KEY` (32 bytes, base64 or hex). Required in
+ *   production (the api refuses to boot without it, see runtime-config.ts).
+ *   Outside production, if unset, a stable key is derived from
+ *   `JWT_ACCESS_SECRET` (with a warning) so local setups keep working.
  */
 const PREFIX = 'enc:v1:';
+
+/** A 32-byte key given as 64 hex characters or as base64; throws otherwise. */
+export function parseFieldEncryptionKey(raw: string): Buffer {
+  const value = raw.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(value)) return Buffer.from(value, 'hex');
+  const buf = Buffer.from(value, 'base64');
+  if (buf.length === 32) return buf;
+  throw new Error('FIELD_ENCRYPTION_KEY must be 32 bytes (base64 or 64-char hex).');
+}
 let cachedKey: Buffer | null = null;
 let warned = false;
 
@@ -22,16 +32,13 @@ function resolveKey(): Buffer {
 
   const raw = process.env.FIELD_ENCRYPTION_KEY?.trim();
   if (raw) {
-    if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-      cachedKey = Buffer.from(raw, 'hex');
-      return cachedKey;
-    }
-    const buf = Buffer.from(raw, 'base64');
-    if (buf.length === 32) {
-      cachedKey = buf;
-      return cachedKey;
-    }
-    throw new Error('FIELD_ENCRYPTION_KEY must be 32 bytes (base64 or 64-char hex).');
+    cachedKey = parseFieldEncryptionKey(raw);
+    return cachedKey;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    // Never derive in production: a key tied to JWT_ACCESS_SECRET would make
+    // rotating that secret destroy every encrypted value.
+    throw new Error('FIELD_ENCRYPTION_KEY is required in production.');
   }
 
   const base = process.env.JWT_ACCESS_SECRET;
