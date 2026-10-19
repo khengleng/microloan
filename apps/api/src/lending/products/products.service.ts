@@ -438,7 +438,11 @@ export class ProductsService {
       // NBC rate cap (D-110): every configured rate must fit under the cap in
       // force now — checked again at each step, since the cap can be lowered
       // between submission and activation.
-      if (action === 'submit' || action === 'approve' || action === 'activate') {
+      if (
+        action === 'submit' ||
+        action === 'approve' ||
+        action === 'activate'
+      ) {
         const report = await this.rateCapReport(tenantId, config, tx);
         RateCapService.assert(
           report.findings,

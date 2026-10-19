@@ -232,7 +232,10 @@ export class RestructuringService implements OnModuleInit {
     });
     // The loan's reference, so the list can name the loan instead of an id.
     const loans = await this.prisma.loanAccount.findMany({
-      where: { tenantId, id: { in: [...new Set(cases.map((c) => c.loanAccountId))] } },
+      where: {
+        tenantId,
+        id: { in: [...new Set(cases.map((c) => c.loanAccountId))] },
+      },
       select: { id: true, reference: true },
     });
     const refs = new Map(loans.map((l) => [l.id, l.reference]));

@@ -93,10 +93,9 @@ export function LendingSettingsTab() {
     const defaultsFlat = new Map(flatten(defaults));
 
     const propose = async () => {
-        let settings: unknown;
         const bad = jsonProblem(draft);
         if (bad) { setProblem(t('invalidJson', { error: bad })); return; }
-        settings = JSON.parse(draft);
+        const settings: unknown = JSON.parse(draft);
         setProblem('');
         const res = await run('propose', () => api.post('/lending/ops/settings', { settings, reason: reason.trim() || undefined }));
         if (res) { showToast(t('proposed'), 'success'); setDraft(''); list.reload(); }

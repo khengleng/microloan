@@ -93,7 +93,9 @@ d('Interest-rate cap (integration)', () => {
   it('the product version shows the cap in force and the rates the version can charge', async () => {
     personal = await draft('PERSONAL_INSTALMENT', 'CAP-PL');
     const v = expectOk(
-      await j.as('maker').get(`/lending/product-versions/${personal.versionId}`),
+      await j
+        .as('maker')
+        .get(`/lending/product-versions/${personal.versionId}`),
     );
     expect(v.rateCap.cap).toMatchObject({
       annualRate: '0.18',
@@ -321,13 +323,15 @@ d('Interest-rate cap (integration)', () => {
 
     it('a proposal whose rate the cap no longer allows cannot be approved', async () => {
       const p = expectOk(
-        await j.as('analyst').post(`/lending/restructures/${caseId}/proposals`, {
-          options: {
-            effectiveDate: '2026-01-05',
-            numberOfInstalments: 12,
-            temporaryRate: { annualRate: '0.10', instalments: 3 },
-          },
-        }),
+        await j
+          .as('analyst')
+          .post(`/lending/restructures/${caseId}/proposals`, {
+            options: {
+              effectiveDate: '2026-01-05',
+              numberOfInstalments: 12,
+              temporaryRate: { annualRate: '0.10', instalments: 3 },
+            },
+          }),
       );
       await lenderCap('12');
       const res = await j
