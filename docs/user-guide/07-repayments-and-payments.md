@@ -71,6 +71,8 @@ What happens next:
 - You see "Repayment posted". The payment appears in **Financial events** as **REPAYMENT** with status **POSTED**.
 - The money is allocated to what is due in the order the product defines (for example penalties, fees, interest, then principal). Expand the event row to see the **Allocation** by instalment and component.
 - Money held on advance is always used first, before new money.
+- **Back-dated payments and late penalties.** If you enter a **Value date** before the date late penalties were charged up to, the penalty for the days from the value date on is first undone (a **PENALTY_REVERSAL** event), then the payment is applied, and any instalment still overdue is charged again only on what is left. The borrower is not charged for days the payment covered. The repayment event shows what was undone and re-charged.
+- On a loan on **non-accrual**, collected late penalties move from penalty suspense to income, like suspended interest.
 - A prepayment creates a new agreement version and a new schedule (see [08-servicing-changes.md](08-servicing-changes.md#2-prepayment-and-rescheduling)).
 - When everything is paid the loan closes automatically.
 
@@ -113,6 +115,8 @@ To post a cross-currency repayment:
 5. Click **Post repayment**. You see "Payment in KHR converted and posted" (or the currency you chose).
 
 The preview is only a preview; the system converts again when it posts.
+
+The loan is credited in its own rounding step (for example KHR loans in 100 riel): the amount converted is rounded to that step and what is left over is booked to rounding differences, so the loan never carries odd riel it cannot bill.
 
 If it is blocked:
 

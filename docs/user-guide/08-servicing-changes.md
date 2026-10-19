@@ -403,5 +403,7 @@ Rules (latest first):
 - If part of an advance from the payment has already been applied to instalments: "Part of the advance from this repayment has already been applied to instalments; reverse those advance applications first (latest first)."
 - Reversing a prepayment that rescheduled the loan also restores the previous schedule (new agreement version "PREPAYMENT_REVERSED"). This is refused if the loan was rescheduled or restructured since ("The loan has been rescheduled or restructured since this prepayment; it cannot be reversed automatically.") or if charges or payments have hit the new instalments ("Charges or payments have been applied to the rescheduled instalments; reverse those first.").
 - Repayments applied by a project-finance cash waterfall cannot be reversed alone.
+- Once the loan's terms have changed after the payment - a rate reset, payment holiday, restructure or reschedule - the payment cannot be reversed automatically: "The loan's agreement has changed since this repayment ...; it cannot be reversed automatically." (code **AGREEMENT_CHANGED_SINCE_PAYMENT**). The same applies when the instalment the payment went to no longer exists (code **INSTALMENT_NO_LONGER_LIVE**). Ask finance to correct it by adjustment.
+- Reversing a back-dated payment also puts back the late penalty it had undone.
 - A closed accounting month refuses the posting ("... is closed; nothing can be posted on .... Ask finance to reopen it.").
 - "You cannot approve or complete an action you created or proposed" - the person who posted the payment cannot reverse it.
