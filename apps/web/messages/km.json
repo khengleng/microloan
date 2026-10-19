@@ -6517,6 +6517,9 @@
         "accounting_interestSuspense": {
           "label": "គណនីរង់ចាំការប្រាក់"
         },
+        "accounting_penaltySuspense": {
+          "label": "គណនីរង់ចាំប្រាក់ពិន័យ"
+        },
         "accounting_merchantDiscountIncome": {
           "label": "ចំណូលបញ្ចុះតម្លៃឈ្មួញ"
         },

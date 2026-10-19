@@ -6517,6 +6517,9 @@
         "accounting_interestSuspense": {
           "label": "Interest Suspense"
         },
+        "accounting_penaltySuspense": {
+          "label": "Penalty Suspense"
+        },
         "accounting_merchantDiscountIncome": {
           "label": "Merchant Discount Income"
         },

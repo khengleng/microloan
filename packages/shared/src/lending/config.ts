@@ -901,6 +901,8 @@ export const productConfigSchema = z
         customerAdvances: code.default('2300'),
         /** Interest accrued on non-accrual loans, not yet recognised as income. */
         interestSuspense: code.default('2400'),
+        /** Late penalties charged on non-accrual loans, not yet recognised as income (D-134). */
+        penaltySuspense: code.default('2450'),
         /** Loss allowance (contra-asset) and the expense that builds it (OPS-5). */
         loanLossAllowance: code.default('1300'),
         provisionExpense: code.default('5000'),
