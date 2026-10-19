@@ -5,6 +5,7 @@
  * Evidence for: servicing.payment_holiday, servicing.refinance
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   borrower,
@@ -280,6 +281,7 @@ d('Relief and refinancing (integration)', () => {
           rationale: 'Approved',
         }),
       );
+      await acceptKeyFacts(f, app.id);
       const booked = expectOk(
         await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
       );

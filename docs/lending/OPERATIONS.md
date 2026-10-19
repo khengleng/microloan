@@ -623,6 +623,49 @@ Tell borrowers what the holiday costs: only `WAIVE` is free. `CAPITALIZE`
 adds the deferred interest to the principal and charges interest on it
 thereafter.
 
+## Consumer disclosure: key facts statement and cooling-off
+
+Decisions D-123 … D-127. Before go-live, set the tenant lending settings
+(`POST /v1/lending/ops/settings`, maker-checker) under `consumerProtection`:
+`lenderLegalName`, `licenceNumber`, `complaints.phone` / `email` / `address`,
+`regulatorContact`, and review `coolingOffDays` (default 7; 0 = none),
+`coolingOffChargesAccruedInterest` (default true) and
+`coolingOffRefundsLenderFees` (default true). Unset contacts print as "not
+configured" and each statement carries a `warnings` list.
+
+* **Issue.** Approval issues the key facts statement from the approved terms
+  (`keyFacts` in the approval response); `POST
+  /v1/lending/applications/:id/key-facts` issues one on demand (permission
+  `key_facts.manage`; returns the statement in force when the terms are
+  unchanged). English and Khmer documents (`KEY_FACTS`) are filed in the
+  customer's library. A generation failure at approval is audited
+  (`key_facts.generate`, FAILURE) and leaves booking blocked.
+* **Read.** `GET /v1/lending/applications/:id/key-facts` — every version, the
+  one in force, the current terms hash and the booking blocker.
+* **Accept.** Staff: `POST …/key-facts/:statementId/acceptance` with
+  `{ method: 'SIGNED_FORM', documentId }` (the signed form, uploaded to the
+  customer's library first). Customer: `GET /v1/lending/portal/key-facts`, then
+  `POST /v1/lending/portal/key-facts/:statementId/accept` with `{ termsHash }`.
+* **Book.** Refused with 409 `KEY_FACTS_MISSING`, `KEY_FACTS_NOT_ACCEPTED` or
+  `KEY_FACTS_STALE` until the statement for the current terms hash is accepted;
+  on booking the statement becomes `BOOKED` and its documents are linked to the
+  loan.
+* **Cooling-off cancellation.** `GET /v1/lending/loans/:id/cooling-off` (window,
+  open request, today's cancellation amount); `POST
+  …/cooling-off-cancellations` (`reason`, `customerReference`; inside the
+  window), `POST …/cooling-off-cancellations/:taskId/decision` (another
+  person), `POST …/cooling-off-cancellations/:taskId/execute` (`amount` exactly
+  the cancellation amount, `Idempotency-Key`). The loan closes through the
+  settlement path: Dr cash / fee income (refund) / tax payable / penalty income
+  (waived), Cr every receivable. Reconciliation must stay clean.
+* **Affordability.** Applications may carry `declaredExternalMonthlyPayments`
+  and `declaredOtherLenders`. The debt-service ratio counts other live loans,
+  credit-line minimum payments and the declared payments
+  (`affordability.includeOwnLoans`, `includeFacilityMinimumPayments`); set
+  `affordability.maxLendersPerBorrower` to enforce a lender-count limit
+  (blocks with `LENDERS`). A scoring strategy that tests the ratio refers when
+  income is unknown (`scoring.strategy.knockouts.missingDebtServiceRatio`).
+
 ## Refinancing
 
 * The product must set `restructuring.allowRefinance`.

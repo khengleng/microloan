@@ -114,6 +114,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Book an approved application as a loan agreement',
     category: 'Operations',
   },
+  {
+    code: 'key_facts.manage',
+    description:
+      'Generate the key facts statement of an approved application and record the customer’s acceptance of it',
+    category: 'Origination',
+  },
   // Scoring and alternative data (D-075…D-080)
   {
     code: 'credit_score.run',
@@ -612,6 +618,8 @@ export const CUSTOMER_PERMISSIONS = [
   'restructure.accept_own',
   'document.read_own',
   'document.upload_own',
+  'key_facts.read_own',
+  'key_facts.accept_own',
 ];
 
 /** Permissions a platform administrator holds. None touch tenant borrower data or money. */
@@ -705,6 +713,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'restructure.request',
       'restructure.simulate',
       'restructure.record_acceptance',
+      'key_facts.manage',
     ],
   },
   {
@@ -768,6 +777,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'document.review',
       ...READ_ALL,
       'loan.agreement.book',
+      'key_facts.manage',
       'loan.disbursement.prepare',
       'loan.repayment.post',
       'loan.writeoff.propose',

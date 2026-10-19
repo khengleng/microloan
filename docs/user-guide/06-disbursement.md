@@ -27,6 +27,8 @@ If the **Disbursement** button is greyed out, hover over it, or open **Why can't
 
 ## Before you start
 
+- The loan was booked, which needs the customer's acceptance of the **key facts statement** for the approved terms (see [Key facts statement](05-applications-and-credit-decisions.md#key-facts-statement)). The accepted statement, in English and Khmer, is in the customer's document library and linked to the loan.
+- Tell the customer about their **cooling-off right**: if your organisation offers one, they may cancel within that many days after the money is paid out by repaying what they received (see [Cooling-off cancellation](07-repayments-and-payments.md#4a-cooling-off-cancellation)).
 - All **conditions precedent** on the application are **SATISFIED** or **WAIVED** (see [Conditions precedent](05-applications-and-credit-decisions.md#conditions-precedent)). Otherwise execution is refused with "Conditions precedent outstanding: …".
 - If the terms include a **down payment**, it has been recorded (see below).
 - The value date is not after today's business date and not further back than the product allows.

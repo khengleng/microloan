@@ -43,6 +43,8 @@ import { PolicyService } from './policy/policy.service';
 import type { ResourceType } from './policy/actions';
 import { GeneratedDocumentsService } from './documents/generated-documents.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
+import { KeyFactsService } from './origination/key-facts.service';
+import { CoolingOffService } from './servicing/cooling-off.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -261,7 +263,7 @@ export class LendingApplicationsController {
   constructor(
     private readonly apps: ApplicationsService,
     private readonly groups: GroupsService,
-    private readonly generated: GeneratedDocumentsService,
+    private readonly keyFacts: KeyFactsService,
   ) {}
 
   // ── Solidarity groups ─────────────────────────────────────────────────────
@@ -440,12 +442,43 @@ export class LendingApplicationsController {
 
   @LendingAction('credit_decision.approve')
   @Post(':id/approve')
-  approve(
+  async approve(
     @Req() req: Req_,
     @Param('id', ID) id: string,
     @Body(new ZodPipe(S.rationale)) body: never,
   ) {
-    return this.apps.approve(actor(req), id, body);
+    const approved = await this.apps.approve(actor(req), id, body);
+    // D-123: the key facts statement is issued from the approved terms. A
+    // failure is audited and leaves booking blocked until one is generated.
+    const keyFacts =
+      approved.application.status === 'APPROVED'
+        ? await this.keyFacts.issueAfterApproval(actor(req), id)
+        : null;
+    return { ...approved, keyFacts };
+  }
+
+  /** The key facts statements of an application and what blocks booking (D-123). */
+  @LendingAction('key_facts.read')
+  @Get(':id/key-facts')
+  keyFactsOf(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.keyFacts.forApplication(actor(req), id);
+  }
+
+  @LendingAction('key_facts.generate')
+  @Post(':id/key-facts')
+  generateKeyFacts(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.keyFacts.generate(actor(req), id);
+  }
+
+  @LendingAction('key_facts.record_acceptance')
+  @Post(':id/key-facts/:statementId/acceptance')
+  acceptKeyFacts(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('statementId', ID) statementId: string,
+    @Body(new ZodPipe(S.keyFactsAcceptance)) body: never,
+  ) {
+    return this.keyFacts.recordAcceptance(actor(req), id, statementId, body);
   }
 
   @LendingAction('credit_decision.reject')
@@ -465,14 +498,9 @@ export class LendingApplicationsController {
     @Param('id', ID) id: string,
     @Body(new ZodPipe(S.book)) body: never,
   ) {
-    const booked = await this.apps.book(actor(req), id, body);
-    // DOC-9: the key facts statement is filed in the customer's library.
-    await this.generated.fileKeyFacts(
-      booked.account.tenantId,
-      booked.account.id,
-      actor(req).id,
-    );
-    return booked;
+    // D-123: the key facts statement the customer accepted before booking is
+    // the one in their library; booking is refused without it.
+    return this.apps.book(actor(req), id, body);
   }
 }
 
@@ -488,6 +516,7 @@ export class LendingLoansController {
     private readonly collections: CollectionsService,
     private readonly generated: GeneratedDocumentsService,
     private readonly covenants: CovenantsService,
+    private readonly coolingOffs: CoolingOffService,
   ) {}
 
   /** Covenants on the loan and their tests (LT-16). */
@@ -930,6 +959,55 @@ export class LendingLoansController {
     return this.servicing.recordDownPayment(actor(req), id, body, key);
   }
 
+  /** Cooling-off (D-125): the window, any request and today's cancellation amount. */
+  @LendingAction('loan.read')
+  @Get(':id/cooling-off')
+  coolingOff(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.coolingOffs.status(actor(req), id);
+  }
+
+  @LendingAction('loan.cooling_off.request')
+  @Post(':id/cooling-off-cancellations')
+  requestCoolingOff(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.coolingOffRequest)) body: never,
+  ) {
+    return this.coolingOffs.request(actor(req), id, body);
+  }
+
+  @LendingAction('loan.cooling_off.approve')
+  @Post(':id/cooling-off-cancellations/:taskId/decision')
+  decideCoolingOff(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+  ) {
+    return this.coolingOffs.decide(actor(req), id, taskId, body);
+  }
+
+  @LendingAction('loan.repayment.post')
+  @Post(':id/cooling-off-cancellations/:taskId/execute')
+  async executeCoolingOff(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.coolingOffExecute)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    const done = await this.coolingOffs.execute(
+      actor(req),
+      id,
+      taskId,
+      body,
+      key,
+    );
+    // DOC-9: the cancelled loan is closed; its closure letter is filed.
+    await this.generated.afterSettlement(actor(req), id);
+    return done;
+  }
+
   @LendingAction('loan.down_payment.refund.propose')
   @Post(':id/down-payment-refunds')
   proposeDownPaymentRefund(
@@ -1295,6 +1373,7 @@ export class LendingAccessController {
   constructor(
     private readonly access: AccessAdminService,
     private readonly policy: PolicyService,
+    private readonly keyFacts: KeyFactsService,
   ) {}
 
   @LendingAction('access_policy.read')
@@ -1559,7 +1638,19 @@ export class LendingAccessController {
       id,
       'loan.read',
     );
-    return this.policy.capabilities(a, rt, resource);
+    const caps = await this.policy.capabilities(a, rt, resource);
+    // D-123: booking also needs the customer's acceptance of the key facts
+    // statement for the current terms; say so where the button explains itself.
+    const book = caps['loan.agreement.book'];
+    if (rt === 'APPLICATION' && book?.allowed) {
+      const blocker = await this.keyFacts.bookingBlocker(a.tenantId, id);
+      if (blocker)
+        caps['loan.agreement.book'] = {
+          allowed: false,
+          blockedBy: [{ layer: 'DISCLOSURE', message: blocker.message }],
+        };
+    }
+    return caps;
   }
 }
 

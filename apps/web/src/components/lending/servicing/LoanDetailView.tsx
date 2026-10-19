@@ -32,6 +32,7 @@ import { GroupContributionsPanel } from '../groups/GroupContributionsPanel';
 import { LoanHolidayPanel } from '../relief/LoanHolidayPanel';
 import { RateResetsPanel } from '../relief/RateResetsPanel';
 import { FeeWaiverPanel } from './FeeWaiverPanel';
+import { CoolingOffPanel, type CoolingOffStatus } from './CoolingOffPanel';
 import { LoanCollateralCard } from './LoanCollateralCard';
 import { LoanDocumentsCard } from './LoanDocumentsCard';
 import { CovenantsCard } from './CovenantsCard';
@@ -53,9 +54,11 @@ const ACTIONS = [
     { code: 'loan.recovery.post', key: 'postRecovery' },
     { code: 'loan.advance_refund.propose', key: 'proposeAdvanceRefund' },
     { code: 'loan.advance_refund.approve', key: 'approveAdvanceRefund' },
+    { code: 'loan.cooling_off.request', key: 'requestCoolingOff' },
+    { code: 'loan.cooling_off.approve', key: 'approveCoolingOff' },
 ];
 
-type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'remedies' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | { reverse: FinancialEvent };
+type Panel = 'disburse' | 'repay' | 'settle' | 'payoff' | 'remedies' | 'writeoff' | 'restructure' | 'advance-refund' | 'negotiated' | 'recovery' | 'group-repay' | 'holiday' | 'rate-resets' | 'fee-waiver' | 'cooling-off' | { reverse: FinancialEvent };
 
 export function LoanDetailView({ id }: { id: string }) {
     const href = useLendingHref();
@@ -67,6 +70,8 @@ export function LoanDetailView({ id }: { id: string }) {
     const groupInfo = useApi<{ group: boolean }>(`/lending/loans/${id}/group-members`);
     // A guarantor demand can stay open after the loan cures; it must stay reachable.
     const demands = useApi<{ demands: { status: string }[] }>(`/lending/loans/${id}/guarantor-demands`);
+    // The cooling-off window (D-125): the cancel action shows while it is open or a request is in flight.
+    const coolingOff = useApi<CoolingOffStatus>(`/lending/loans/${id}/cooling-off`);
     const ts = useTranslations('Servicing.loan');
     const tl = useTranslations('LendingServicing.loanDetail');
     const [panel, setPanel] = useState<Panel | null>(null);
@@ -88,7 +93,9 @@ export function LoanDetailView({ id }: { id: string }) {
         setPanel(null);
         loan.reload();
         caps.reload();
+        coolingOff.reload();
     };
+    const coolingOffShown = isCoolingOffShown(coolingOff.data);
     const close = () => setPanel(null);
 
     const disbTasks = d.tasks.filter((t) => t.action.includes('DISBURSE') && (t.status === 'PENDING' || t.status === 'APPROVED'));
@@ -174,6 +181,7 @@ export function LoanDetailView({ id }: { id: string }) {
                         {(advanceHeld || advanceTasks.length > 0) && actionBtn(advanceTasks.length ? tl('buttons.advanceRefundDecision') : tl('buttons.refundAdvance'), 'advance-refund', ['loan.advance_refund.propose', 'loan.advance_refund.approve'])}
                         {isWrittenOff && actionBtn(tl('buttons.recordRecovery'), 'recovery', ['loan.recovery.post'], 'primary')}
                         {isActive && actionBtn(tl('buttons.feeWaiver'), 'fee-waiver', ['loan.fee_waiver.propose', 'loan.fee_waiver.approve'])}
+                        {isActive && coolingOffShown && actionBtn(tl('buttons.coolingOff'), 'cooling-off', ['loan.cooling_off.request', 'loan.cooling_off.approve', 'loan.repayment.post'], 'danger')}
                         {isActive && c('payment_holiday.grant').allowed && actionBtn(tl('buttons.paymentHoliday'), 'holiday', ['payment_holiday.grant'])}
                         {isActive && c('loan.rate_reset.apply').allowed && actionBtn(tl('buttons.rateResets'), 'rate-resets', ['loan.rate_reset.apply'])}
                     </div>
@@ -198,6 +206,7 @@ export function LoanDetailView({ id }: { id: string }) {
                     {panel === 'holiday' && <LoanHolidayPanel loanId={id} onDone={done} onClose={close} />}
                     {panel === 'rate-resets' && <RateResetsPanel loanId={id} onDone={done} onClose={close} />}
                     {panel === 'fee-waiver' && <FeeWaiverPanel loanId={id} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
+                    {panel === 'cooling-off' && <CoolingOffPanel loanId={id} can={c} onDone={done} onClose={close} />}
                     {panel === 'negotiated' && <NegotiatedSettlementPanel loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
                     {panel === 'advance-refund' && <AdvanceRefundPanel loanId={id} currency={cur} held={acc.advanceBalance ?? '0'} tasks={d.tasks} can={c} onDone={done} onClose={close} />}
                     {panel === 'recovery' && <RecoveryPanel loanId={id} currency={cur} can={c} onDone={done} onClose={close} />}
@@ -322,4 +331,10 @@ export function LoanDetailView({ id }: { id: string }) {
             )}
         </LendingShell>
     );
+}
+
+/** Show the cooling-off action while the window is open or a request is pending or approved. */
+function isCoolingOffShown(s: CoolingOffStatus | null | undefined): boolean {
+    if (!s) return false;
+    return s.open || s.tasks.some((t) => t.status === 'PENDING' || t.status === 'APPROVED');
 }

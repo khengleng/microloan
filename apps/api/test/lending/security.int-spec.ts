@@ -4,6 +4,7 @@
  */
 import { lending } from '@microloan/shared';
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -155,6 +156,7 @@ d('Lending security and lifecycle (integration)', () => {
           rationale: 'Fine',
         }),
       );
+      await acceptKeyFacts(f, app.id);
       const booked = expectOk(
         await f.as('finance').post(`/lending/applications/${app.id}/book`, {}),
       );
@@ -614,7 +616,6 @@ d('Lending security and lifecycle (integration)', () => {
       expect(act.status).toBe(400);
       expect(act.body.code).toBe('MISSING_CAPABILITIES');
       // Any template whose capabilities are still missing cannot be used.
-      const { lending } = require('@microloan/shared');
       const blocked = lending.PRODUCT_TEMPLATES.find(
         (t: any) => !lending.templateAvailability(t).available,
       );

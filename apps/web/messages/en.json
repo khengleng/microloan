@@ -1892,7 +1892,8 @@
     "WITHDRAWN": "Withdrawn",
     "WITHIN_LIMIT": "Within limit",
     "WRITTEN_OFF": "Written off",
-    "YES": "Yes"
+    "YES": "Yes",
+    "ISSUED": "Issued"
   },
   "LendingUi": {
     "loading": "Loading…",
@@ -2702,7 +2703,8 @@
         "recordRecovery": "Record recovery",
         "feeWaiver": "Fee waiver",
         "paymentHoliday": "Payment holiday",
-        "rateResets": "Rate resets"
+        "rateResets": "Rate resets",
+        "coolingOff": "Cooling-off cancellation"
       },
       "whyBlocked": {
         "prepareDisbursement": "Prepare disbursement",
@@ -2716,7 +2718,9 @@
         "negotiatedSettlement": "Negotiated settlement",
         "postRecovery": "Post recovery",
         "proposeAdvanceRefund": "Propose advance refund",
-        "approveAdvanceRefund": "Approve advance refund"
+        "approveAdvanceRefund": "Approve advance refund",
+        "requestCoolingOff": "Request cooling-off cancellation",
+        "approveCoolingOff": "Approve cooling-off cancellation"
       },
       "noActions": "This account is {status}; no servicing actions are available.",
       "refinance": {
@@ -3551,6 +3555,40 @@
       "post": "Post recovery",
       "enterAmount": "Enter a positive amount.",
       "done": "Recovery posted"
+    },
+    "coolingOff": {
+      "title": "Cooling-off cancellation",
+      "disabled": "This lender offers no cooling-off period.",
+      "window": "The customer may cancel within {days} days of disbursement ({from} to {until}).",
+      "closedTitle": "The cooling-off period has ended",
+      "closed": "It ended on {date}. The loan can only be settled early on its own terms.",
+      "rows": {
+        "principal": "Principal outstanding",
+        "interest": "Interest to today",
+        "fees": "Fees outstanding",
+        "feesRefunded": "Upfront fees refunded",
+        "lessAdvance": "Held on advance",
+        "payable": "To cancel today"
+      },
+      "penaltiesWaived": "Penalties of {amount} are waived.",
+      "approvedTitle": "Cancellation approved — take the repayment",
+      "pendingTitle": "Cancellation requested — awaiting approval",
+      "requestedBy": "Requested by",
+      "approve": "Approve",
+      "reject": "Reject",
+      "externalReference": "Receipt reference",
+      "optional": "Optional",
+      "execute": "Take repayment and cancel",
+      "confirmTitle": "Cancel the loan?",
+      "confirm": "Take {amount} {currency} from the customer and close the loan as cancelled. This cannot be undone.",
+      "reason": "Customer’s reason",
+      "customerReference": "Customer’s request reference",
+      "customerReferenceHint": "The letter, form or call reference.",
+      "request": "Record cancellation request",
+      "requested": "Cancellation request recorded",
+      "approved": "Cancellation approved",
+      "rejected": "Cancellation rejected",
+      "cancelled": "Loan cancelled"
     }
   },
   "LendingFacilities": {
@@ -4247,7 +4285,9 @@
         "reject": "Reject",
         "book": "Book agreement",
         "satisfy": "Satisfy condition",
-        "waive": "Waive condition"
+        "waive": "Waive condition",
+        "keyFactsGenerate": "Generate key facts statement",
+        "keyFactsAccept": "Record customer acceptance"
       },
       "simulation": "Simulation",
       "hide": "Hide",
@@ -4306,6 +4346,65 @@
       "decisionRecorded": "Decision recorded",
       "booked": "Loan account booked",
       "conditionResolved": "Condition resolved"
+    },
+    "obligations": {
+      "payments": "Monthly repayments to other lenders",
+      "paymentsHint": "As declared by the applicant, in the application’s currency. Counted in the debt-service ratio.",
+      "lenders": "Number of other lenders",
+      "lendersHint": "Lenders the applicant owes besides us. Checked against the lender-count limit.",
+      "errPayments": "Monthly repayments to other lenders must be an amount, e.g. 150.00.",
+      "errLenders": "The number of other lenders must be a whole number from 0 to 50.",
+      "notDeclared": "Not declared"
+    },
+    "keyFacts": {
+      "title": "Key facts statement",
+      "subtitle": "What the customer is told before the contract, in English and Khmer. The loan can only be booked once the customer accepts the statement for the current terms.",
+      "noneApproved": "No statement has been issued for the approved terms. Generate one and give it to the customer.",
+      "noneYet": "The statement is issued when the application is approved.",
+      "version": "Version {version}",
+      "issued": "Issued {date}",
+      "limit": "Credit limit",
+      "principal": "Amount borrowed",
+      "nominal": "Nominal annual rate",
+      "effective": "Effective annual rate (APR)",
+      "fees": "Total fees",
+      "costOfCredit": "Total cost of credit",
+      "repayable": "Total repayable",
+      "instalments": "Instalments",
+      "instalmentsValue": "{count} · last {last}",
+      "coolingOff": "Cooling-off",
+      "coolingOffDays": "{days} days after disbursement",
+      "coolingOffNone": "None",
+      "acceptance": "Customer acceptance",
+      "notAccepted": "Not yet accepted",
+      "warningsTitle": "Contact details missing from the statement — set them in Lending settings",
+      "blocksBooking": "Booking is blocked",
+      "readyToBook": "Accepted by the customer",
+      "readyToBookHint": "The customer accepted the statement for the current terms; the loan can be booked.",
+      "acceptedForBooking": "Key facts statement v{version} accepted",
+      "open": {
+        "en": "Open English",
+        "km": "Open Khmer"
+      },
+      "generate": "Generate statement for the current terms",
+      "generated": "Key facts statement issued",
+      "recordAcceptance": "Record customer acceptance",
+      "recordAcceptanceTitle": "Record acceptance of statement v{version}",
+      "recordAcceptanceHint": "Upload the statement the customer signed. It is filed in their document library and the acceptance is recorded against this version of the terms.",
+      "signedForm": "Signed statement",
+      "signedFormHint": "PDF or image, at most 3.5 MB.",
+      "signedFormTitle": "Signed key facts statement v{version}",
+      "confirmAcceptance": "Record acceptance",
+      "accepted": "Customer acceptance recorded",
+      "methods": {
+        "SIGNED_FORM": "Signed form",
+        "PORTAL": "Borrower portal"
+      },
+      "history": "All versions ({count})",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colIssued": "Issued",
+      "colAccepted": "Accepted"
     }
   },
   "LendingGroups": {
@@ -8778,6 +8877,24 @@
         "thanks": "Thank you — your acceptance has been recorded.",
         "noOffer": "There is no offer yet. We will let you know when one is ready."
       }
+    },
+    "keyFacts": {
+      "title": "Your key facts statement",
+      "intro": "Before your loan agreement is made, read the key facts statement: the rate, every fee, the total you will pay and your rights. Accept it here when you are ready.",
+      "statement": "Application {reference} · version {version}",
+      "accepted": "Accepted",
+      "principal": "Amount borrowed",
+      "effective": "Effective annual rate",
+      "costOfCredit": "Total cost of credit",
+      "repayable": "Total you will pay",
+      "read": {
+        "km": "Read in Khmer",
+        "en": "Read in English"
+      },
+      "coolingOff": "You may cancel within {days} days after the money is paid out.",
+      "confirm": "I have read and understood this statement, including the effective rate and the total cost of credit.",
+      "accept": "Accept the statement",
+      "somethingWrong": "Something went wrong ({status}). Please try again."
     }
   },
   "LendingSimulator": {

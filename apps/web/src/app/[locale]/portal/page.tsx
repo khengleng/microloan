@@ -10,6 +10,7 @@ import {
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { PaymentReliefSection } from '@/components/lending/portal/PaymentReliefSection';
 import { PortalDocumentsSection } from '@/components/lending/portal/PortalDocumentsSection';
+import { PortalKeyFactsSection } from '@/components/lending/portal/PortalKeyFactsSection';
 
 type Me = { firstName: string; lastName: string; organization: string | null; kycStatus: string };
 type Loan = {
@@ -148,6 +149,9 @@ export default function BorrowerPortalPage() {
                         </div>
                     ))}
                 </section>
+
+                {/* The key facts statement of an approved loan, accepted before the contract (D-123) */}
+                <PortalKeyFactsSection />
 
                 <PaymentReliefSection />
 

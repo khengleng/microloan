@@ -34,6 +34,15 @@ import { CustomerDocumentsService } from '../documents/customer-documents.servic
 import { createConfiguredCovenants } from '../covenants/covenant-setup';
 import { ScoringService, type ScoreStage } from '../scoring/scoring.service';
 import { RateCapService } from '../common/rate-cap.service';
+import {
+  BorrowerObligationsService,
+  type DeclaredObligations,
+} from './obligations.service';
+import {
+  keyFactsTermsHash,
+  markKeyFactsBooked,
+  requireAcceptedKeyFacts,
+} from './key-facts-gate';
 
 type Json = Prisma.InputJsonValue;
 
@@ -50,6 +59,26 @@ export interface CreateApplicationBody {
   terms: lending.NegotiatedTerms & { riskCategory?: string };
   purpose?: string;
   segmentCode?: string;
+  /** Declared debts elsewhere (D-126). */
+  declaredExternalMonthlyPayments?: string | null;
+  declaredOtherLenders?: number | null;
+}
+
+/** The declared-obligation columns a create or update sets (absent: unchanged). */
+function declaredObligationsData(body: {
+  declaredExternalMonthlyPayments?: string | null;
+  declaredOtherLenders?: number | null;
+}) {
+  return {
+    ...(body.declaredExternalMonthlyPayments !== undefined
+      ? {
+          declaredExternalMonthlyPayments: body.declaredExternalMonthlyPayments,
+        }
+      : {}),
+    ...(body.declaredOtherLenders !== undefined
+      ? { declaredOtherLenders: body.declaredOtherLenders }
+      : {}),
+  };
 }
 
 /** An application as an assessment check sees it. */
@@ -97,6 +126,7 @@ export class ApplicationsService {
     private readonly library: CustomerDocumentsService,
     private readonly scoring: ScoringService,
     private readonly rateCap: RateCapService,
+    private readonly obligations: BorrowerObligationsService,
   ) {}
 
   private assessmentChecks: AssessmentCheck[] = [];
@@ -364,6 +394,7 @@ export class ApplicationsService {
           requestedAmount: terms.principal,
           terms: terms as unknown as Json,
           purpose: (body.purpose ?? '').slice(0, 500),
+          ...declaredObligationsData(body),
           createdBy: actor.id,
         },
       });
@@ -403,6 +434,8 @@ export class ApplicationsService {
     body: {
       terms: lending.NegotiatedTerms & { riskCategory?: string };
       purpose?: string;
+      declaredExternalMonthlyPayments?: string | null;
+      declaredOtherLenders?: number | null;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -439,6 +472,7 @@ export class ApplicationsService {
           terms: terms as unknown as Json,
           requestedAmount: terms.principal,
           purpose: body.purpose?.slice(0, 500) ?? app.purpose,
+          ...declaredObligationsData(body),
           version: { increment: 1 },
         },
       });
@@ -1142,6 +1176,14 @@ export class ApplicationsService {
       const contractHash = contract.policies.length
         ? sha256(lending.canonicalJson(contractConfig))
         : version!.configHash;
+      // D-123: no contract without the customer's acceptance of the key facts
+      // statement for exactly these terms.
+      const keyFacts = await requireAcceptedKeyFacts(
+        tx,
+        tenantId,
+        id,
+        keyFactsTermsHash(terms, contractHash),
+      );
       // A facility books a limit, not a schedule: there is no principal to
       // amortize until it terms out, so the booking calculation (which
       // generates a schedule) does not apply to it.
@@ -1168,7 +1210,7 @@ export class ApplicationsService {
           ].filter((f): f is lending.RateCapFinding => !!f),
           `Application ${app.reference} cannot be booked`,
         );
-        return this.bookFacility(tx, actor, {
+        const line = await this.bookFacility(tx, actor, {
           app,
           config: contractConfig,
           version: version!,
@@ -1177,6 +1219,8 @@ export class ApplicationsService {
           businessDate,
           effectiveDate: planned,
         });
+        await markKeyFactsBooked(tx, tenantId, keyFacts.id, line.account.id);
+        return line;
       }
       const booking = await this.bookingCalculation(
         tx,
@@ -1258,6 +1302,7 @@ export class ApplicationsService {
           createdBy: actor.id,
         },
       });
+      await markKeyFactsBooked(tx, tenantId, keyFacts.id, account.id);
       // Freeze who is liable, and for how much, as part of the contract: a
       // later change to the group must not alter a loan already running.
       if (config!.identity.liability !== 'INDIVIDUAL' && app.groupId) {
@@ -1684,7 +1729,7 @@ export class ApplicationsService {
       requestedAmount: unknown;
       currency: string;
       terms: unknown;
-    },
+    } & DeclaredObligations,
     config: lending.ProductConfig,
     stage: 'APPLICATION' | 'APPROVAL',
     steps: readonly string[],
@@ -1833,8 +1878,21 @@ export class ApplicationsService {
     metrics.averageMonthlyPayment = monthlyPayment
       .toDecimalPlaces(2)
       .toString();
+    // D-126: the ratio counts everything the borrower already repays, not
+    // this loan alone, and the lender-count rule applies.
+    const obligations = await this.obligations.assess(
+      tx,
+      app,
+      config.identity.liability !== 'INDIVIDUAL',
+    );
+    Object.assign(metrics, obligations.metrics);
+    blocking.push(...obligations.blocking);
     if (income && income.gt(0)) {
-      const dsr = monthlyPayment.div(income);
+      metrics.loanDebtServiceRatio = monthlyPayment
+        .div(income)
+        .toDecimalPlaces(4)
+        .toString();
+      const dsr = monthlyPayment.plus(obligations.monthly).div(income);
       metrics.debtServiceRatio = dsr.toDecimalPlaces(4).toString();
       if (
         stage === 'APPROVAL' &&

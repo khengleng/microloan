@@ -29,6 +29,11 @@ const money = z
   .regex(/^\d+(\.\d{1,4})?$/, 'amount must be a decimal string');
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'dates are YYYY-MM-DD');
 const uuid = z.string().uuid();
+/** What the applicant declares about debts to other lenders (D-126). */
+const declaredObligations = {
+  declaredExternalMonthlyPayments: money.nullable().optional(),
+  declaredOtherLenders: z.number().int().min(0).max(50).nullable().optional(),
+};
 
 export const termsSchema = z
   .object({
@@ -116,6 +121,28 @@ export const S = {
       amount: money,
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+    })
+    .strict(),
+  /** Staff record the customer's acceptance of a key facts statement (D-123). */
+  keyFactsAcceptance: z
+    .object({
+      method: z.literal('SIGNED_FORM'),
+      /** The signed form, filed in the customer's document library. */
+      documentId: uuid,
+    })
+    .strict(),
+  /** A cooling-off cancellation request (D-125). */
+  coolingOffRequest: z
+    .object({
+      reason: z.string().min(3).max(500),
+      customerReference: z.string().max(120).optional(),
+    })
+    .strict(),
+  coolingOffExecute: z
+    .object({
+      amount: money,
+      valueDate: date.optional(),
+      externalReference: z.string().max(120).optional(),
     })
     .strict(),
   feeWaiver: z
@@ -300,6 +327,7 @@ export const S = {
       terms: termsSchema,
       purpose: z.string().max(500).optional(),
       segmentCode: z.string().max(48).optional(),
+      ...declaredObligations,
     })
     .strict(),
   holidayProgramme: z
@@ -375,7 +403,11 @@ export const S = {
     .object({ borrowerId: uuid, reason: z.string().max(500).optional() })
     .strict(),
   updateTerms: z
-    .object({ terms: termsSchema, purpose: z.string().max(500).optional() })
+    .object({
+      terms: termsSchema,
+      purpose: z.string().max(500).optional(),
+      ...declaredObligations,
+    })
     .strict(),
   document: z
     .object({

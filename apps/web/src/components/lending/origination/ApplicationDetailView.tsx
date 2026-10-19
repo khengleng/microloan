@@ -17,6 +17,7 @@ import { StatusBadge } from '../StatusBadge';
 import { Person } from '../People';
 import type { ProductConfig, SimulationResult, Terms } from '../types';
 import { WhyBlocked } from './WhyBlocked';
+import { KeyFactsCard } from './KeyFactsCard';
 import { SimulationResultView } from '../SimulationResultView';
 import { ApplicationScoreCard } from '../scoring/ApplicationScoreCard';
 import {
@@ -38,6 +39,7 @@ interface AppDetail {
     borrowerId: string; borrower?: { firstName?: string; lastName?: string } | null; productId: string; productVersionId: string; channel?: string;
     groupId?: string | null;
     terms: Partial<Terms> & Record<string, unknown>; purpose?: string | null;
+    declaredExternalMonthlyPayments?: string | null; declaredOtherLenders?: number | null;
     product: { id: string; code: string; name: string } | null;
     productVersion: { id: string; version: number; status: string } | null;
     documents: AppDoc[]; decisions: AppDecision[]; conditions: AppCondition[]; guarantees: AppGuarantee[]; pledges: AppPledge[];
@@ -52,6 +54,8 @@ const ACTIONS = [
     { code: 'credit_decision.recommend', key: 'recommend' },
     { code: 'credit_decision.approve', key: 'approve' },
     { code: 'credit_decision.reject', key: 'reject' },
+    { code: 'key_facts.generate', key: 'keyFactsGenerate' },
+    { code: 'key_facts.record_acceptance', key: 'keyFactsAccept' },
     { code: 'loan.agreement.book', key: 'book' },
     { code: 'condition.satisfy', key: 'satisfy' },
     { code: 'condition.waive', key: 'waive' },
@@ -164,7 +168,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
                     <WhyBlocked caps={caps.caps} actions={ACTIONS.map((x) => ({ code: x.code, label: tr(`detail.actionLabels.${x.key}`) }))} />
 
                     {panel?.kind === 'terms' && (
-                        <EditTermsForm appId={id} terms={a.terms} purpose={a.purpose} currency={a.currency} productVersionId={a.productVersionId} onDone={() => refresh(tr('toast.termsUpdated'))} onClose={() => setPanel(null)} />
+                        <EditTermsForm appId={id} terms={a.terms} purpose={a.purpose} declared={a} currency={a.currency} productVersionId={a.productVersionId} onDone={() => refresh(tr('toast.termsUpdated'))} onClose={() => setPanel(null)} />
                     )}
                     {panel?.kind === 'document' && (
                         <DocumentUploadForm appId={id} required={requiredDocs} onDone={() => refresh(tr('toast.documentUploaded'))} onClose={() => setPanel(null)} />
@@ -208,6 +212,8 @@ export function ApplicationDetailView({ id }: { id: string }) {
                         [tr('terms.disbursementDate'), t.disbursementDate ?? '—'],
                         [tr('terms.firstDueDate'), t.firstDueDate ?? '—'],
                         [tr('common.purpose'), a.purpose || '—'],
+                        [tr('obligations.payments'), a.declaredExternalMonthlyPayments != null ? <Money key="ext" value={a.declaredExternalMonthlyPayments} currency={a.currency} /> : tr('obligations.notDeclared')],
+                        [tr('obligations.lenders'), a.declaredOtherLenders ?? tr('obligations.notDeclared')],
                         [tr('detail.channel'), a.channel ?? '—'],
                         [tr('detail.created'), fmtDateTime(a.createdAt)],
                         [tr('detail.submitted'), fmtDateTime(a.submittedAt)],
@@ -221,6 +227,10 @@ export function ApplicationDetailView({ id }: { id: string }) {
                 />
                 <div className="mt-3"><Disclosure summary={tr('detail.rawTerms')}><JsonBlock value={a.terms} /></Disclosure></div>
             </Card>
+
+            {['APPROVED', 'BOOKED'].includes(a.status) && (
+                <KeyFactsCard appId={id} borrowerId={a.borrowerId} status={a.status} can={c} onChanged={(msg) => { showToast(msg, 'success'); app.reload(); caps.reload(); }} />
+            )}
 
             <ApplicationScoreCard applicationId={id} status={a.status} currency={a.currency} />
 

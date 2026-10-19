@@ -7,6 +7,7 @@
  * Evidence for: pricing.floating_rate
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   bootstrap,
@@ -120,6 +121,7 @@ d('Floating-rate resets (integration)', () => {
         rationale: 'Approved',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );
@@ -447,6 +449,7 @@ d('Floating-rate resets (integration)', () => {
           rationale: 'Within policy',
         }),
       );
+      await acceptKeyFacts(f, app.id);
       const booked = expectOk(
         await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
       );

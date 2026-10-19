@@ -9,6 +9,7 @@
  * Evidence for: syndication.participations
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   borrower,
@@ -153,6 +154,7 @@ d('Syndicated loans (integration)', () => {
         rationale: 'Within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

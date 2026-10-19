@@ -75,6 +75,8 @@ Literal credentials, tokens, keys, connection strings, bucket names, tenant/user
 | B10 | `apps/api/src/penalty-cron/penalty-cron.service.ts:80` | Legacy loan marked DEFAULTED after 30 days overdue | `legacyServicing.defaultAfterDaysOverdue` (30) |
 | B10a | `apps/api/src/penalty-cron/penalty-cron.service.ts` (new, D-102) | Cap on one legacy instalment's late penalty (there was none) | `legacyServicing.penaltyCapRate` ("0.25" of principal + interest) |
 | B10b | (new, not a former constant) | Whether upfront fees count toward the interest-rate cap, and whether penalty interest and the over-limit rate must fit under it (DECISIONS D-108, D-109) | `rateCap.includeFeesInEffectiveRate` (true), `rateCap.penaltyRateMustFitCap` (true) |
+| B10c | (new, not a former constant) | Who the key facts statement names and where customers complain; the cooling-off right and its pricing (DECISIONS D-123 … D-125) | `consumerProtection.lenderLegalName` (null = organisation name), `licenceNumber` (null), `complaints.phone/email/address` (null), `regulatorContact` (NBC consumer protection, by name), `coolingOffDays` (7), `coolingOffChargesAccruedInterest` (true), `coolingOffRefundsLenderFees` (true) |
+| B10d | (new, not a former constant) | Obligations in the debt-service ratio and the lender-count limit (D-126) | `affordability.maxLendersPerBorrower` (null = off), `includeOwnLoans` (true), `includeFacilityMinimumPayments` (true); per product `scoring.strategy.knockouts.missingDebtServiceRatio` (REFER) |
 
 ### Moved to product configuration (product versions, editable in the product editor)
 

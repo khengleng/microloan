@@ -11,6 +11,7 @@
  */
 import { JwtService } from '@nestjs/jwt';
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -414,6 +415,7 @@ d('Workspace: access, work queues and search (integration)', () => {
         (i: any) => i.id,
       ),
     ).toContain(a.id);
+    await acceptKeyFacts(f, a.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${a.id}/book`, {}),
     );

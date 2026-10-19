@@ -226,6 +226,57 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * Consumer disclosure (DECISIONS D-123, D-124 — assumed, needs compliance
+     * sign-off): who the key facts statement names as the lender and where a
+     * customer complains. Unset contacts print as "not configured" and the
+     * statement carries a warning for staff; set them before go-live.
+     */
+    consumerProtection: z
+      .object({
+        /** The lender's legal name on the statement; null: the organisation's name. */
+        lenderLegalName: z.string().trim().min(2).max(160).nullable().default(null),
+        /** The NBC licence number printed on the statement. */
+        licenceNumber: z.string().trim().min(1).max(80).nullable().default(null),
+        complaints: z
+          .object({
+            phone: z.string().trim().min(3).max(40).nullable().default(null),
+            email: z.string().trim().email().max(160).nullable().default(null),
+            address: z.string().trim().min(3).max(300).nullable().default(null),
+          })
+          .strict()
+          .default({}),
+        /** The regulator's consumer-protection contact customers may escalate to. */
+        regulatorContact: z
+          .string()
+          .trim()
+          .min(3)
+          .max(300)
+          .default('National Bank of Cambodia — consumer protection (financial consumer complaints)'),
+        /**
+         * Cooling-off (D-125): days after disbursement in which the customer may
+         * cancel by repaying what they received; 0 switches the right off.
+         */
+        coolingOffDays: z.number().int().min(0).max(30).default(7),
+        /** Interest accrued to the cancellation date is payable on a cooling-off cancellation. */
+        coolingOffChargesAccruedInterest: z.boolean().default(true),
+        /** Upfront fees the lender earned are refunded on a cooling-off cancellation (insurer premiums are not). */
+        coolingOffRefundsLenderFees: z.boolean().default(true),
+      })
+      .strict()
+      .default({}),
+    /** Affordability across the borrower's obligations (D-126). */
+    affordability: z
+      .object({
+        /** Most lenders a borrower may owe, counting this lender; null: no limit. */
+        maxLendersPerBorrower: z.number().int().min(1).max(20).nullable().default(null),
+        /** Count the instalments of the borrower's other live loans with this lender in the debt-service ratio. */
+        includeOwnLoans: z.boolean().default(true),
+        /** Count the latest minimum payment of the borrower's open credit lines and cards. */
+        includeFacilityMinimumPayments: z.boolean().default(true),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({
