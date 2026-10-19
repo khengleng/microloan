@@ -7,6 +7,11 @@ const required = [
   'JWT_REFRESH_TOKEN_PEPPER',
   'CORS_ORIGINS',
   'REDIS_URL',
+  // Dedicated secrets: production never derives them from the JWT secrets
+  // (apps/api/src/config/runtime-config.ts refuses to boot without them).
+  'FIELD_ENCRYPTION_KEY',
+  'DOCUMENT_LINK_SECRET',
+  'SERVICE_KEY_PEPPER',
 ];
 
 let failed = false;
@@ -35,6 +40,22 @@ if (refresh.length < 32) {
 if (pepper.length < 16) {
   console.error('JWT_REFRESH_TOKEN_PEPPER must be at least 16 characters.');
   failed = true;
+}
+
+const fieldKey = (process.env.FIELD_ENCRYPTION_KEY || '').trim();
+if (fieldKey) {
+  const isHex = /^[0-9a-fA-F]{64}$/.test(fieldKey);
+  if (!isHex && Buffer.from(fieldKey, 'base64').length !== 32) {
+    console.error('FIELD_ENCRYPTION_KEY must be 32 bytes (base64 or 64-char hex).');
+    failed = true;
+  }
+}
+for (const key of ['DOCUMENT_LINK_SECRET', 'SERVICE_KEY_PEPPER']) {
+  const value = process.env[key] || '';
+  if (value && value.trim().length < 32) {
+    console.error(`${key} must be at least 32 characters.`);
+    failed = true;
+  }
 }
 
 if (cors.split(',').map((x) => x.trim()).includes('*')) {
