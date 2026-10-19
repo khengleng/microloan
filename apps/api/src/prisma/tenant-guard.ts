@@ -161,6 +161,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'LoanAccount',
   'ScheduleInstalment',
   'AccrualEvent',
+  'PenaltyAccrual',
   'FinancialEvent',
   'PaymentAllocation',
   'LendingJournalEntry',

@@ -449,7 +449,16 @@ export function amortize(req: AmortizeRequest): { lines: RawLine[]; instalment: 
     if (req.interestMethod === 'FLAT') {
       interest = isLast ? flatTotalInterest!.minus(interestPaidFlat) : flatInterestPerLine!;
       interestPaidFlat = interestPaidFlat.plus(interest);
-      const principal = isLast ? balance : flatPrincipalPerLine!;
+      // Rounding each line's share up (or to a coarse increment such as KHR
+      // 100) can add up to more than was lent: a line never repays more than
+      // is left, and a schedule whose last line would go negative is refused
+      // (DECISIONS D-136).
+      const principal = isLast ? balance : D.min(flatPrincipalPerLine!, balance);
+      if (principal.isNegative() || interest.isNegative())
+        throw new EngineError(
+          'FLAT_SCHEDULE_NEGATIVE_LINE',
+          `Flat schedule line ${k + 1} would be negative (principal ${principal}, interest ${interest}); the rounding rule does not suit this amount and term.`,
+        );
       balance = balance.minus(principal);
       lines.push({ period, opening, principal, interest, capitalized: ZERO, annualRate: rate, factor, kind: isLast ? 'FINAL' : 'AMORTIZING', projected: !!point.projected });
       continue;

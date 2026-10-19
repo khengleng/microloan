@@ -14,8 +14,8 @@ import { fmtDateTime } from '../format';
 import { MoneyCell } from '../MoneyCell';
 import { Person } from '../People';
 
-export type PendingKind = 'FEE_WAIVER' | 'ADVANCE_REFUND' | 'SET_OFF';
-export const PENDING_KINDS: PendingKind[] = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
+export type PendingKind = 'FEE_WAIVER' | 'ADVANCE_REFUND' | 'DOWN_PAYMENT_REFUND' | 'SET_OFF';
+export const PENDING_KINDS: PendingKind[] = ['FEE_WAIVER', 'ADVANCE_REFUND', 'DOWN_PAYMENT_REFUND', 'SET_OFF'];
 
 interface PendingRow {
     id: string;
@@ -35,6 +35,7 @@ interface PendingRow {
 const DECISION_PATH: Record<PendingKind, string> = {
     FEE_WAIVER: 'fee-waivers',
     ADVANCE_REFUND: 'advance-refunds',
+    DOWN_PAYMENT_REFUND: 'down-payment-refunds',
     SET_OFF: 'set-offs',
 };
 /**

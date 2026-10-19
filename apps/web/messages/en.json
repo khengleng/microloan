@@ -2301,11 +2301,13 @@
       "tab": {
         "FEE_WAIVER": "Fee waivers",
         "ADVANCE_REFUND": "Advance refunds",
+        "DOWN_PAYMENT_REFUND": "Down-payment refunds",
         "SET_OFF": "Set-offs"
       },
       "kind": {
         "FEE_WAIVER": "fee waiver",
         "ADVANCE_REFUND": "advance refund",
+        "DOWN_PAYMENT_REFUND": "down-payment refund",
         "SET_OFF": "set-off"
       },
       "feeKind": {
@@ -2977,7 +2979,21 @@
         "collectedLender": "Us (held until payout)",
         "collectedSeller": "Seller directly",
         "receiptReference": "Receipt reference",
-        "record": "Record down payment"
+        "record": "Record down payment",
+        "refundTitle": "Refund the down payment held",
+        "refundBody": "Before disbursement, the down payment we hold can be paid back to the borrower. A different user approves and pays it out.",
+        "refundAmount": "Refund amount",
+        "refundReason": "Reason",
+        "refundPropose": "Propose refund",
+        "refundPending": "Refund of {currency} {amount} awaiting approval",
+        "refundProposedBy": "Proposed by <who></who>.",
+        "refundApprove": "Approve and pay",
+        "refundReject": "Reject",
+        "refundEnterAmount": "Enter a positive amount, at most what we hold.",
+        "refundEnterReason": "Record why the down payment is refunded.",
+        "refundProposed": "Refund proposed — a different user must approve it",
+        "refundPaid": "Down payment refunded",
+        "refundRejected": "Refund rejected"
       },
       "payees": {
         "title": "Pay to",
@@ -6611,6 +6627,9 @@
         },
         "accounting_interestSuspense": {
           "label": "Interest Suspense"
+        },
+        "accounting_penaltySuspense": {
+          "label": "Penalty Suspense"
         },
         "accounting_merchantDiscountIncome": {
           "label": "Merchant Discount Income"

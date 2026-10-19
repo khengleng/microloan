@@ -44,6 +44,10 @@ export function configureEnv() {
     process.env.JWT_REFRESH_TOKEN_PEPPER || 'test-pepper-0123456789';
   process.env.FIELD_ENCRYPTION_KEY =
     process.env.FIELD_ENCRYPTION_KEY || 'a'.repeat(64);
+  // A test key, not a real one: documents on the local-disk store are
+  // encrypted at rest (DECISIONS D-137).
+  process.env.DOCUMENT_ENCRYPTION_KEY =
+    process.env.DOCUMENT_ENCRYPTION_KEY || 'b'.repeat(64);
   process.env.CORS_ORIGINS = 'http://localhost:3000';
   process.env.LENDING_OUTBOX_DISABLED = 'true';
 }

@@ -228,6 +228,27 @@ same Railway project is not a recovery plan.
   changing `DOCUMENT_LINK_SECRET` invalidates outstanding download links (they
   expire within minutes anyway).
 
+**`DOCUMENT_ENCRYPTION_KEY` — customer documents on a disk volume.** When S3
+is not configured, customer documents are written to `DOCUMENT_STORAGE_DIR`
+and the API encrypts each file (AES-256-GCM, a random data key per file,
+wrapped under a key derived from this one; DECISIONS D-137). In production the
+api refuses to boot without it whenever S3 is not configured, and
+`pnpm security:prod-config-check` checks it (32 bytes, base64 or 64 hex
+characters). It is a separate key from `FIELD_ENCRYPTION_KEY`; generate it in
+the secrets vault, never in a terminal session that is logged.
+
+- Escrow it exactly like `FIELD_ENCRYPTION_KEY`, and separately from the
+  volume and its backups: a volume snapshot without the key is unreadable.
+- **Turning it on for an existing volume**: set the variable and redeploy (new
+  uploads are encrypted; older files are still read as plaintext), then run
+  once with the volume mounted:
+  `railway run -s api -- pnpm encrypt:documents --dry-run`, then without
+  `--dry-run`. The run is idempotent — encrypted files are skipped — so it can
+  be repeated or resumed.
+- **Rotation** needs the data keys re-wrapped under the new key; there is no
+  automated tool yet. Do not change the variable without one: files written
+  under the old key would become unreadable.
+
 ## Watching a deploy
 
 ```bash

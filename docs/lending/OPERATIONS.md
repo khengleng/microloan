@@ -92,6 +92,19 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
    allowance (see *Classification and provisioning* below). It is idempotent and processes
    only accounts in the caller's scope; each account is its own transaction.
 4. Check reconciliation: `GET /v1/lending/ops/reconciliation` must report no breaks.
+   It includes penalties in suspense (ledger 2450) against the loans' balances.
+
+**Late penalties (D-133…D-135).** Daily penalty interest is accrued unrounded
+per instalment and the rounded running total is posted, so small overdue
+amounts are neither overcharged (USD) nor never charged (KHR rounded to 100
+riel). Each assessment is kept (`PenaltyAccrual`). On a non-accrual loan the
+penalty is credited to penalty suspense (`accounting.penaltySuspense`, 2450)
+and moves to penalty income when collected or when the loan cures. A
+repayment valued before the penalty assessed-through date first undoes the
+penalty for the days from its value date (`PENALTY_REVERSAL` event, balanced
+journal), is then allocated, and the instalments are re-charged on what is
+left overdue; the repayment event's `penaltyRewind` records both. Reversing
+that repayment restores the penalty.
 
 The scheduler (`EodSchedulerService`, LENDING_EOD_CRON, default 00:15 in
 LENDING_EOD_TZ) does steps 2–3 automatically, a day at a time, on one instance.
@@ -861,7 +874,10 @@ published exchange rates (`/v1/fx/rates`, FX_MANAGE); a payment is refused when
 no rate is published for its value date (tolerance configurable).
 `LENDING_FX_SOURCE=MOCK` uses fixed development rates instead (refused in
 production). Postings: payment currency Dr cash / Cr FX position (1050); loan
-currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410).
+currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410). The
+loan is credited in its own rounding increment (`pricing.rounding`, e.g.
+KHR 100); what that rounding leaves over goes to the product's rounding
+differences account (4900) and shows on the preview (D-136).
 
 **Settings** (FINANCE_OFFICER, `rate_observation.manage`): FX spread in basis
 points, how many days old a rate may be, auto-debit attempts per due date and
@@ -874,6 +890,17 @@ library (from the customer profile: Documents). Files go to S3 when
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_S3_BUCKET_NAME` are set;
 otherwise to local disk under `DOCUMENT_STORAGE_DIR` (required in production
 without S3; a temporary directory is used in development).
+
+* **Encryption at rest (D-137).** S3 objects use bucket-side encryption. Files
+  on disk are encrypted by the API: AES-256-GCM with a random key per file,
+  that key wrapped under a key derived from `DOCUMENT_ENCRYPTION_KEY`
+  (32 bytes, base64 or hex; required in production without S3 — the API will
+  not boot without it). Files written before encryption are still read. To
+  encrypt them, run once on a machine that mounts the volume, with the API's
+  key: `DOCUMENT_STORAGE_DIR=… DOCUMENT_ENCRYPTION_KEY=… pnpm encrypt:documents`
+  (`--dry-run` lists what it would do). It is safe to repeat: encrypted files
+  are skipped. Back the key up separately from the volume — losing it makes
+  every encrypted document unreadable.
 
 * Every upload waits for review by a different user (Credit analyst, Loan
   operations maker/checker hold `document.review`).
@@ -1115,7 +1142,14 @@ verify the customer's documents' data, then submit the application.
 * Institutional limits are per currency (no FX conversion of exposures) and
   per counterparty and country only; connected groups are not aggregated.
 * Reversal is latest-first and not available for repayments that triggered a
-  prepayment reschedule; amendment reversal only before later activity.
+  prepayment reschedule; amendment reversal only before later activity. A
+  repayment cannot be reversed automatically once the loan's agreement changed
+  after it (rate reset, payment holiday, restructure, reschedule) or the
+  instalment it paid is no longer live (D-137); correct it by adjustment.
+* A held down payment can be refunded (maker-checker) only before
+  disbursement (D-137).
+* Penalties charged before the D-133 change are not undone by a backdated
+  repayment (no accrual records exist for them).
 * Money with no loan goes to the unidentified-payments suspense account
   (Lending › Unidentified payments) and is matched or refunded; money beyond
   what is due is held as an advance or prepaid per the product.
