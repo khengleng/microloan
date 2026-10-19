@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
+import { INTERNAL_HEADERS, upstreamIdentity } from '@/lib/upstream-headers';
 import { errorPage, isBrowserNavigation } from '@/lib/proxy-error-page';
 
 /**
@@ -45,44 +46,26 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         req.cookies.get('access_token')?.value ||
         req.cookies.get('borrower_token')?.value;
 
-    // 2. Prepare headers — forward select originals, add real-IP and user identity
+    // 2. Prepare headers — forward select originals, then the client identity.
+    //    Headers only this server may set (X-Client-IP, X-Web-Proxy-Secret …)
+    //    are dropped from the browser's request, never echoed.
     const headers = new Headers();
     req.headers.forEach((value, key) => {
-        // Skip host and other sensitive/incompatible headers
-        if (!['host', 'connection', 'cookie'].includes(key.toLowerCase())) {
+        const name = key.toLowerCase();
+        if (!['host', 'connection', 'cookie'].includes(name) && !INTERNAL_HEADERS.includes(name)) {
             headers.set(key, value);
         }
     });
 
-    if (accessToken) {
-        headers.set('Authorization', `Bearer ${accessToken}`);
+    // The API verifies this token and keys its rate limit on the user it names.
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
-        // Forward the JWT user-ID so the API throttler can rate-limit per user
-        // instead of treating all traffic as one IP (the Next.js server IP).
-        // We decode WITHOUT verifying here — the API will fully verify the JWT.
-        // This is safe: the API never trusts this header for auth decisions.
-        try {
-            const [, payload] = accessToken.split('.');
-            const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString());
-            if (decoded?.sub) headers.set('X-User-ID', decoded.sub);
-        } catch { /* malformed JWT — ignore */ }
+    // 3. State the real browser IP (rightmost X-Forwarded-For hop, appended by
+    //    the platform edge) with the shared-secret proof, overwriting whatever
+    //    forwarding headers the browser sent.
+    for (const [key, value] of Object.entries(upstreamIdentity(req.headers))) {
+        headers.set(key, value);
     }
-
-    // 3. Forward the real browser IP so the API throttler/audit get an IP that a
-    //    client cannot spoof. The platform edge APPENDS the true client IP as the
-    //    LAST entry of X-Forwarded-For; any values a client injects are prepended
-    //    (left) and must be ignored. So take the rightmost entry, not [0].
-    //    We overwrite (not echo) XFF downstream so the API sees a single clean IP.
-    const xffChain = (req.headers.get('x-forwarded-for') || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    const realIp =
-        (xffChain.length ? xffChain[xffChain.length - 1] : undefined) ||
-        req.headers.get('x-real-ip')?.trim() ||
-        '127.0.0.1';
-    headers.set('X-Forwarded-For', realIp);
-    headers.set('X-Real-IP', realIp);
 
     try {
         const body = req.method !== 'GET' && req.method !== 'HEAD'

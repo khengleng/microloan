@@ -139,6 +139,25 @@ made it useless as a gate for the api. In order:
   accounts, payment-file and delegation limits) are per tenant under
   Lending › Operations › Lending settings, maker-checker. See
   `docs/security/HARDCODING_AUDIT.md`.
+- **`WEB_PROXY_SECRET` on both api and web** (same value, ≥ 32 random
+  characters). Every browser request reaches the api through the web server's
+  route handlers (login, MFA, Google, borrower OTP, refresh, logout,
+  `/api/proxy`), so the api would otherwise see the web server's address for
+  everyone: one rate-limit bucket for all tenants and the web server's IP in
+  every audit row. The web server sends the browser's IP (the rightmost
+  `X-Forwarded-For` hop) as `X-Client-IP` with `X-Web-Proxy-Secret`; the
+  api believes `X-Client-IP` only when the secret matches, else uses
+  `req.ip`. Unset, the api ignores `X-Client-IP` and warns at boot.
+- **`API_URL` on the web service** (server-only) may point at Railway private
+  networking — `http://api.railway.internal:<api PORT>/v1` — instead of the
+  api's public domain. Every route handler reads `API_URL` first, then
+  `NEXT_PUBLIC_API_URL`.
+- **Rate limits** are counted in Redis (`REDIS_URL`, required in
+  production): per user for signed-in requests (the api verifies the access
+  token itself), per client IP otherwise, and additionally per email / phone /
+  MFA account on login, forgot-password, MFA and borrower OTP, so one address
+  cannot exhaust another's budget and one account cannot be hammered from many
+  addresses.
 - **Several api instances** are supported: outbox and webhook deliveries,
   legacy reminders and penalties, and Telegram polling are claimed in
   PostgreSQL; rate limits share Redis. Customer documents need S3 (or one

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiBaseUrl } from '@/lib/server-api-url';
+import { apiJsonHeaders } from '@/lib/upstream-headers';
 import { setAuthCookies } from '@/lib/auth-cookies';
 
 /**
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
 
         const res = await fetch(`${apiBaseUrl()}/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: apiJsonHeaders(req.headers),
             body: JSON.stringify(body),
         });
 

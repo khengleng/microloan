@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Ip, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { ClientIp } from '../common/client-ip';
 import { AgreementsService } from './agreements.service';
 import { SignAgreementDto } from './dto/sign-agreement.dto';
 import { Roles } from '../auth/roles.decorator';
@@ -34,7 +35,7 @@ export class AgreementsController {
     @CurrentUser() user: JwtPayload,
     @Param('loanId') loanId: string,
     @Body() dto: SignAgreementDto,
-    @Ip() ip: string,
+    @ClientIp() ip: string,
   ) {
     const agreement = await this.service.sign({
       where: this.authz.scopeWhere(user as any, { id: loanId, ...this.authz.branchFilter(user as any) }),

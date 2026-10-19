@@ -85,7 +85,10 @@ async function bootstrap() {
       if (runtime.corsOrigins.includes(origin)) {
         return callback(null, true);
       }
-      callback(new Error(`CORS: origin ${origin} is not allowed`));
+      // Refuse without an error: the response simply carries no CORS
+      // headers, so the browser blocks it. Passing an Error here surfaced as
+      // a 500 for every disallowed preflight.
+      callback(null, false);
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -108,6 +111,13 @@ async function bootstrap() {
   // Report unhandled/5xx exceptions to Sentry (no-op when disabled).
   const httpAdapter = app.get(HttpAdapterHost).httpAdapter;
   app.useGlobalFilters(new SentryExceptionFilter(httpAdapter));
+
+  if (runtime.isProduction && !runtime.webProxySecret) {
+    Logger.warn(
+      'WEB_PROXY_SECRET is not set: X-Client-IP from the web server is ignored, ' +
+        'so throttling and audit see the web server address for proxied traffic.',
+    );
+  }
 
   await app.listen(runtime.port);
   Logger.log(

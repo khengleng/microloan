@@ -42,6 +42,16 @@ if (cors.split(',').map((x) => x.trim()).includes('*')) {
   failed = true;
 }
 
+// Optional but recommended (set on api AND web): without it the API cannot
+// tell browsers apart behind the web server. When set, it must be strong.
+const webProxySecret = (process.env.WEB_PROXY_SECRET || '').trim();
+if (!webProxySecret) {
+  console.warn('WEB_PROXY_SECRET is not set: the API will key throttles and audit on the web server IP.');
+} else if (webProxySecret.length < 32) {
+  console.error('WEB_PROXY_SECRET must be at least 32 characters.');
+  failed = true;
+}
+
 if (process.env.NODE_ENV === 'production' && /sqlite/i.test(process.env.DATABASE_URL || '')) {
   console.error('SQLite is not allowed in production.');
   failed = true;

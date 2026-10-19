@@ -3,13 +3,14 @@ import {
   Body,
   Controller,
   Get,
-  Ip,
   Param,
   Post,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { ClientIp } from '../common/client-ip';
+import { ThrottleIdentity } from '../common/user-aware-throttler.guard';
 import { BorrowerAuthService } from './borrower-auth.service';
 import { BorrowerPortalService } from './borrower-portal.service';
 import { BorrowerJwtGuard } from './borrower-jwt.guard';
@@ -42,6 +43,7 @@ export class BorrowerPortalController {
   // ── Public OTP auth (rate-limited by the global throttler) ────────────────
   @Public()
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @ThrottleIdentity('phone')
   @Post('otp/request')
   requestOtp(@Body() dto: RequestOtpDto) {
     return this.auth.requestOtp(dto.phone);
@@ -49,6 +51,7 @@ export class BorrowerPortalController {
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @ThrottleIdentity('phone')
   @Post('otp/verify')
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.auth.verifyOtp(dto.phone, dto.code);
@@ -101,7 +104,7 @@ export class BorrowerPortalController {
     @CurrentBorrower() b: BorrowerSession,
     @Param('id') id: string,
     @Body() dto: SignAgreementDto,
-    @Ip() ip: string,
+    @ClientIp() ip: string,
   ) {
     return this.portal.signAgreement(b, id, dto, ip);
   }
