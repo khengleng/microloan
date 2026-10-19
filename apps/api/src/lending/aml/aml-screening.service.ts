@@ -325,22 +325,25 @@ export class AmlScreeningService {
         opened = true;
       }
     }
-    await this.audit.write(
-      {
-        actor,
-        action: 'aml.screen',
-        resourceType: 'Borrower',
-        resourceId: borrowerId,
-        outcome: 'SUCCESS',
-        details: {
-          trigger,
-          entriesScreened: list.length,
-          hits: hits.length,
-          case: caseRow?.reference ?? null,
+    // A clean re-screen of the whole book is recorded once, on its job
+    // (aml.rescreen.run) and in amlScreenedAt, not once per customer.
+    if (trigger !== 'LIST_ACTIVATION' || hits.length)
+      await this.audit.write(
+        {
+          actor,
+          action: 'aml.screen',
+          resourceType: 'Borrower',
+          resourceId: borrowerId,
+          outcome: 'SUCCESS',
+          details: {
+            trigger,
+            entriesScreened: list.length,
+            hits: hits.length,
+            case: caseRow?.reference ?? null,
+          },
         },
-      },
-      tx,
-    );
+        tx,
+      );
     return {
       hits: hits.length,
       caseId: caseRow?.id ?? null,
