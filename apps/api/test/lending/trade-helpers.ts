@@ -4,7 +4,7 @@
  * supply-chain finance, import / export loans).
  */
 import { lending } from '@microloan/shared';
-import { Fixture, borrower, expectOk, key } from './harness';
+import { acceptKeyFacts, Fixture, borrower, expectOk, key } from './harness';
 import { docs } from './setup';
 
 /** Move the tenant's business date forward, at most 31 days a step. */
@@ -77,6 +77,7 @@ export async function bookProgramme(
       rationale: 'Within authority',
     }),
   );
+  await acceptKeyFacts(f, app.id);
   const booked = expectOk(
     await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
   );

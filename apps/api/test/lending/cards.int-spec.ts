@@ -8,6 +8,7 @@
  * arrears, and closure — with the GL reconciling throughout.
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   borrower,
@@ -98,6 +99,7 @@ d('Credit cards (integration)', () => {
         rationale: 'Approved within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

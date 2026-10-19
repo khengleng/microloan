@@ -192,7 +192,15 @@ d('Customer documents (integration)', () => {
       applicationId,
       origin: 'STAFF',
     });
-    const keyFacts = by('KEY_FACTS');
+    // D-123: the pre-contract statement, in English and Khmer, accepted
+    // before booking and linked to the loan it was booked on.
+    const statements = lib.documents.filter(
+      (x: any) => x.typeCode === 'KEY_FACTS',
+    );
+    expect(statements).toHaveLength(2);
+    const keyFacts = statements.find((x: any) => x.title.endsWith('(EN)'));
+    const keyFactsKm = statements.find((x: any) => x.title.endsWith('(KM)'));
+    expect(keyFactsKm).toMatchObject({ loanAccountId: loanId });
     expect(keyFacts).toMatchObject({
       category: 'GENERATED',
       origin: 'GENERATED',
@@ -242,6 +250,12 @@ d('Customer documents (integration)', () => {
     expect(html.status).toBe(200);
     expect(html.headers['content-type']).toContain('text/html');
     expect(html.text).toContain('Key facts statement');
+    const km = expectOk(
+      await f.as('ro').post(`/lending/documents/${keyFactsKm.id}/link`, {}),
+    );
+    const kmHtml = await f.http().get(`/v1${km.url}`);
+    expect(kmHtml.text).toContain('lang="km"');
+    expect(kmHtml.text).toContain('សេចក្តីថ្លែងការណ៍ព័ត៌មានសំខាន់ៗ');
   });
 
   it('DOC-5: replacing a document creates a new version and keeps the history; stored versions are immutable', async () => {

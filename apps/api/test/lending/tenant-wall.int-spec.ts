@@ -93,6 +93,10 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
       'fee-waivers/:taskId': 'approvalTask',
+      // Key facts statements and cooling-off cancellations (D-123, D-125):
+      // the victim's booked loans carry an accepted statement.
+      'key-facts/:statementId': 'keyFactsStatement',
+      'cooling-off-cancellations/:taskId': 'approvalTask',
       'impairment-policy/:id': 'impairmentPolicy',
       'settings/:id': 'tenantLendingSettings',
       'collateral/:collateralId': 'collateralAsset',

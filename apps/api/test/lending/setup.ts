@@ -1,4 +1,11 @@
-import { Fixture, authority, borrower, expectOk, grant } from './harness';
+import {
+  acceptKeyFacts,
+  Fixture,
+  authority,
+  borrower,
+  expectOk,
+  grant,
+} from './harness';
 
 /** Standard role layout used by the integration suites. */
 export async function standardRoles(f: Fixture) {
@@ -152,6 +159,7 @@ export async function originateAndDisburse(
       }),
     );
   }
+  await acceptKeyFacts(f, app.id);
   const booked = expectOk(
     await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
   );

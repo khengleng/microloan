@@ -14,6 +14,7 @@
  *    run and reconciliation free of breaks.
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -93,6 +94,7 @@ d('Project and infrastructure finance (integration)', () => {
         rationale: 'Credit committee approval',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

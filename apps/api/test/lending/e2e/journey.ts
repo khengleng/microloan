@@ -17,6 +17,7 @@
 import { lending } from '@microloan/shared';
 import {
   Fixture,
+  acceptKeyFacts,
   authority,
   bootstrap,
   expectOk,
@@ -366,6 +367,8 @@ export class Journey {
       if ((approved.application ?? approved).status === 'APPROVED') break;
     }
     expect((approved.application ?? approved).status).toBe('APPROVED');
+    // D-123: the customer accepts the key facts statement before the contract.
+    await acceptKeyFacts(this, app.id);
     const booked = expectOk(
       await this.as('opsMaker').post(
         `/lending/applications/${app.id}/book`,

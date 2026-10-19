@@ -423,3 +423,52 @@ export async function serviceAccount(
       .post(`/lending/access/service-account-requests/${req.id}/issue`),
   );
 }
+
+const SIGNED_FORM_PDF = Buffer.from('%PDF-1.4 signed key facts').toString(
+  'base64',
+);
+
+/**
+ * The customer accepts the key facts statement of an approved application
+ * (D-123) through the staff path: the statement issued at approval (or a new
+ * one, when the terms changed since) is read, the customer's signed form is
+ * filed in their library, and `user` records the acceptance. Booking is
+ * refused without it.
+ */
+export async function acceptKeyFacts(
+  f: Pick<Fixture, 'as'>,
+  applicationId: string,
+  user = 'ro',
+) {
+  const kfs = expectOk(
+    await f.as(user).get(`/lending/applications/${applicationId}/key-facts`),
+  );
+  let current = kfs.current;
+  if (!current || current.termsHash !== kfs.currentTermsHash)
+    current = expectOk(
+      await f.as(user).post(`/lending/applications/${applicationId}/key-facts`),
+    );
+  if (current.status === 'ACCEPTED') return current;
+  const app = expectOk(
+    await f.as(user).get(`/lending/applications/${applicationId}`),
+  );
+  const form = expectOk(
+    await f.as(user).post(`/lending/customers/${app.borrowerId}/documents`, {
+      category: 'AGREEMENT',
+      typeCode: 'KEY_FACTS_SIGNED',
+      title: `Signed key facts statement v${current.version}`,
+      fileName: 'key-facts-signed.pdf',
+      mimeType: 'application/pdf',
+      contentBase64: SIGNED_FORM_PDF,
+      applicationId,
+    }),
+  );
+  return expectOk(
+    await f
+      .as(user)
+      .post(
+        `/lending/applications/${applicationId}/key-facts/${current.id}/acceptance`,
+        { method: 'SIGNED_FORM', documentId: form.id },
+      ),
+  );
+}

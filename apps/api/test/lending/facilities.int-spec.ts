@@ -10,6 +10,7 @@
  *  • facility.staged_drawdown— tranches gated by date and conditions
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -142,6 +143,7 @@ d('Lending facilities (integration)', () => {
         rationale: 'Approved within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

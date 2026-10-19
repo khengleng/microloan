@@ -7,6 +7,7 @@
  * Evidence for: liability.group_joint
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   bootstrap,
@@ -333,6 +334,7 @@ d('Group lending (integration)', () => {
           rationale: 'Approved within authority',
         }),
       );
+      await acceptKeyFacts(f, app.id);
       const booked = expectOk(
         await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
       );
@@ -508,6 +510,7 @@ d('Group lending (integration)', () => {
           rationale: 'Approved within authority',
         }),
       );
+      await acceptKeyFacts(f, app.id);
       loanId = expectOk(
         await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
       ).account.id;
