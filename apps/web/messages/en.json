@@ -1680,6 +1680,7 @@
         "payments_maxBackdateDays": "Unidentified receipts and payment files: most days back-dated",
         "access_maxDelegationDays": "Longest delegation of authority (days)",
         "legacyServicing_defaultAfterDaysOverdue": "Original loan book: mark DEFAULTED after days overdue",
+        "legacyServicing_penaltyCapRate": "Original loan book: most late penalty on one instalment (fraction of its principal + interest)",
         "scoring_monitoring_badDaysPastDue": "Scorecard monitoring: a loan is bad once an instalment is this many days late",
         "scoring_monitoring_performanceMonths": "Scorecard monitoring: … within this many months of disbursement",
         "scoring_monitoring_baselineWindowDays": "Scorecard monitoring: baseline window for stability (days)",
@@ -8683,5 +8684,12 @@
     "colAction": "Action",
     "colResource": "Resource",
     "colActor": "Actor"
+  },
+  "LegacyFreeze": {
+    "title": "The original loan module is read-only",
+    "body": "Its loans can be viewed, exported and printed, but no money moves here any more: no new loans, disbursements, repayments, settlements, reversals, write-offs, restructures, provisioning runs or late penalties. Service loans in Lending › Loans and move running loans across with the loan-book migration.",
+    "lendingLoans": "Lending › Loans",
+    "migrate": "Migrate loans",
+    "newApplication": "New application"
   }
 }

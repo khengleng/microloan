@@ -249,16 +249,43 @@ API: `GET /v1/lending/regulatory/returns?year=`, `GET …/preview?year=&month=`,
 lending journals side by side per account and currency, with the combined
 balance and whether each book, and the two together, balance.
 
-**Closing the legacy book to new business.** Turn on the flag
-`lending.legacy_loans.readonly` (Lending › Access & policy › Flags; proposed
-by one administrator, approved by another). The legacy module then refuses
-new loans and disbursements (`409 LEGACY_LOANS_READONLY`) while repayments,
-payoff, reversals, write-offs and restructuring of existing legacy loans go
-on. Legacy screens hide "new loan" and "disburse" and show a banner pointing
-to Lending › Applications and Lending › Migration
-(`GET /v1/loans/legacy-status`). The original screens stay in the menu,
-labelled "(original)" — Loans (original), Collections (original), Accounting
-(original), Products (original). Nothing is deleted.
+**The legacy book is read-only (D-097).** The flag
+`lending.legacy_loans.readonly` is **on by default** for every tenant. While
+it is on, the original module moves no money: it refuses new loans,
+disbursements, repayments, early settlements, repayment reversals,
+write-offs, restructures and legacy provisioning runs with
+`409 LEGACY_LOANS_READONLY` (the body names the `operation` and links to
+Lending › Loans and Lending › Migration), and the late-penalty job skips the
+tenant. Reading loans, schedules, repayments and receipts, payoff quotes,
+exports, statements, the combined ledger and the loan-book migration
+(Lending › Migration) all continue. Legacy screens hide every money button and
+show a banner pointing to Lending › Loans and Lending › Migration
+(`GET /v1/loans/legacy-status` returns `readonly` and `frozenOperations`). The
+original screens stay in the menu, labelled "(original)"; nothing is deleted.
+
+The way out is to migrate running legacy loans to the lending platform. A
+tenant that must keep collecting in the original module meanwhile opts out
+with a **TENANT rule switching the flag off** (Lending › Access & policy ›
+Flags; one administrator proposes, a second approves). Remove the rule to
+freeze the book again. Existing databases are moved to the new default by
+migration `20261019003100_legacy_freeze`; a tenant rule created earlier is
+kept.
+
+For a tenant that opted out, the legacy money operations are safe to run
+concurrently (D-098 – D-104): each locks the loan row and re-reads it inside
+its transaction and allocates in exact decimals; disbursement and write-off
+move the status at most once; a write-off uses the provision held for the
+loan (shortfall to write-off expense 5100, any excess released to provision
+expense) and the next provisioning run does not release it again;
+provisioning runs and write-offs of a tenant are serialised by an advisory
+lock (`LEGACY_PROVISIONING_TX_TIMEOUT_MS`, default 120 000, bounds a run); only
+the latest repayment of a loan can be reversed, and reversing a settlement
+makes its waived interest owed again. The legacy jobs (penalties, reminders,
+late alerts, promise reviews) run in `LENDING_EOD_TZ` (Asia/Phnom_Penh); an
+instalment is late from the calendar day after its due date, only
+instalments with principal or interest unpaid are charged, and one
+instalment's penalty stops at `legacyServicing.penaltyCapRate` (lending
+settings, default 0.25) × its principal + interest.
 
 ## Taking over a loan book (migration)
 

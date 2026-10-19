@@ -148,6 +148,11 @@ export const tenantLendingSettingsSchema = z
       .object({
         /** A loan with an instalment overdue more than this many days is marked DEFAULTED. */
         defaultAfterDaysOverdue: z.number().int().min(1).max(3650).default(30),
+        /**
+         * Most late penalty one instalment can carry, as a fraction of its
+         * principal + interest (0.25 = 25%; D-102). The daily charge stops there.
+         */
+        penaltyCapRate: rateFraction.default('0.25'),
       })
       .strict()
       .default({}),

@@ -643,6 +643,11 @@ model Repayment {
   reversedAt       DateTime?
   reversedByUserId String?
   reversalReason   String?
+  /// D-103: what the payment did to each instalment, so a reversal undoes exactly
+  /// that: { kind: REPAYMENT | SETTLEMENT, lines: [{ scheduleId, principal,
+  /// interest, penalty, waivedInterest }] } (decimal strings). Null on rows
+  /// posted before it was recorded.
+  allocation       Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

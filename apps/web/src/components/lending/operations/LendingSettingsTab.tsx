@@ -43,6 +43,7 @@ const LABELS: Record<string, string> = {
     'payments.maxBackdateDays': 'Unidentified receipts and payment files: most days back-dated',
     'access.maxDelegationDays': 'Longest delegation of authority (days)',
     'legacyServicing.defaultAfterDaysOverdue': 'Original loan book: mark DEFAULTED after days overdue',
+    'legacyServicing.penaltyCapRate': 'Original loan book: most late penalty on one instalment (fraction of its principal + interest)',
     'scoring.monitoring.badDaysPastDue': 'Scorecard monitoring: a loan is bad once an instalment is this many days late',
     'scoring.monitoring.performanceMonths': 'Scorecard monitoring: … within this many months of disbursement',
     'scoring.monitoring.baselineWindowDays': 'Scorecard monitoring: baseline window for stability (days)',

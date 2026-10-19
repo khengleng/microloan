@@ -30,6 +30,7 @@ import { TenantSettingsService } from '../../tenant-settings/tenant-settings.ser
 import { operationalConfig } from '../../config/operational-config';
 import { LedgerService } from '../../ledger/ledger.service';
 import { blindIndex } from '../../common/field-crypto';
+import { lockLegacyLoan } from '../../loans/legacy-money';
 
 type Json = Prisma.InputJsonValue;
 
@@ -1289,6 +1290,8 @@ export class LoanMigrationService {
       ? v.external_loan_id.slice('LEGACY-'.length)
       : null;
     if (legacyId) {
+      // Wait for any legacy write on the loan to finish (D-098), then read it.
+      await lockLegacyLoan(tx, legacyId, tenantId);
       const legacy = await tx.loan.findFirst({
         where: {
           id: legacyId,

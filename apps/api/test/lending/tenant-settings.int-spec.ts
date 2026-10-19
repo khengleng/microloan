@@ -10,6 +10,7 @@ import {
   borrower,
   expectOk,
   grant,
+  openLegacyBook,
 } from './harness';
 import { standardRoles } from './setup';
 
@@ -22,6 +23,8 @@ d('Tenant lending settings and job claims (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'nobody', 'RISK_COMPLIANCE');
+    // The legacy penalty job skips a read-only book (D-097); this tenant opted out.
+    await openLegacyBook(f, f.t1);
   }, 90_000);
   afterAll(async () => f?.app.close());
 

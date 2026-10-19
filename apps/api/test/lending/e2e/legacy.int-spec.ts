@@ -11,7 +11,7 @@
  * already due when the journey begins.
  */
 import { CollectionsService } from '../../../src/collections/collections.service';
-import { TEST_DB } from '../harness';
+import { TEST_DB, openLegacyBook } from '../harness';
 import { Journey, c2, expectOk } from './journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -25,6 +25,8 @@ d('S32 legacy loan: borrower creation to POST /repayments/settlements', () => {
 
   beforeAll(async () => {
     j = await Journey.start();
+    // The legacy book is read-only by default (D-097); this tenant opted out.
+    await openLegacyBook(j.f, j.f.t1);
   }, 120_000);
   afterAll(async () => j?.close());
 

@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { LoanStatus, PtpStatus } from '@microloan/db';
+import { LEGACY_TIME_ZONE } from '../loans/legacy-money';
 
 const MS_PER_DAY = 86400000;
 
@@ -98,7 +99,7 @@ export class CollectionsService {
 
     private readonly logger = new Logger(CollectionsService.name);
 
-    @Cron(process.env.COLLECTIONS_PTP_REVIEW_CRON || '30 1 * * *')
+    @Cron(process.env.COLLECTIONS_PTP_REVIEW_CRON || '30 1 * * *', { timeZone: LEGACY_TIME_ZONE })
     @SystemContext('cron: reviews promises to pay across tenants')
     async reviewPromisesDaily() {
         if (process.env.NODE_ENV === 'test') return;

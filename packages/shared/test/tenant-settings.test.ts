@@ -30,6 +30,7 @@ describe('tenant lending settings', () => {
     assert.deepEqual(d.payments, { maxFileLines: L.MAX_FILE_LINES, maxBackdateDays: 30 });
     assert.equal(d.access.maxDelegationDays, 30);
     assert.equal(d.legacyServicing.defaultAfterDaysOverdue, 30);
+    assert.equal(d.legacyServicing.penaltyCapRate, '0.25');
     assert.deepEqual(L.validateTenantLendingSettings(d), []);
   });
 

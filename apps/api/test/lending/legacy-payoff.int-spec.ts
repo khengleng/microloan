@@ -4,7 +4,14 @@
  * quote closes the loan. An ordinary repayment of the same amount does not,
  * because it pays future instalments' interest before principal.
  */
-import { Fixture, TEST_DB, bootstrap, borrower, expectOk } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  borrower,
+  expectOk,
+  openLegacyBook,
+} from './harness';
 
 const d = TEST_DB ? describe : describe.skip;
 
@@ -13,6 +20,8 @@ d('Legacy payoff and settlement (integration)', () => {
 
   beforeAll(async () => {
     f = await bootstrap();
+    // The legacy book is read-only by default (D-097); this tenant opted out.
+    await openLegacyBook(f, f.t1);
   }, 60_000);
   afterAll(async () => f?.app.close());
 

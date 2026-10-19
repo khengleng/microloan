@@ -73,6 +73,7 @@ Literal credentials, tokens, keys, connection strings, bucket names, tenant/user
 | B8 | `packages/shared/src/lending/channels.ts:83` | 5,000 lines per settlement/payroll file | `payments.maxFileLines` (5000); engine takes it as a parameter |
 | B9 | `apps/api/src/lending/access/access-admin.service.ts:39` and `apps/web/src/components/lending/access/DelegationsTab.tsx:15` | Delegation at most 30 days, duplicated in the web form | `access.maxDelegationDays` (30); the form reads it from the access overview (`limits`) |
 | B10 | `apps/api/src/penalty-cron/penalty-cron.service.ts:80` | Legacy loan marked DEFAULTED after 30 days overdue | `legacyServicing.defaultAfterDaysOverdue` (30) |
+| B10a | `apps/api/src/penalty-cron/penalty-cron.service.ts` (new, D-102) | Cap on one legacy instalment's late penalty (there was none) | `legacyServicing.penaltyCapRate` ("0.25" of principal + interest) |
 
 ### Moved to product configuration (product versions, editable in the product editor)
 
@@ -104,6 +105,8 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B27 | `packages/shared/src/currency.ts:93`, `tenants/settings.controller.ts:66`, `lending/reporting/regulatory-return.service.ts:415`, `risk/risk.service.ts:96,173` | NBC 18% ceiling (a tenant may only lower it) | `REGULATORY_MAX_ANNUAL_RATE_PCT` (18); the shared functions take the ceiling as a parameter |
 | B28 | `penalty-cron.service.ts:19,114`, `reminder/reminder.service.ts:19`, `bot/bot.service.ts:319`, `collections/collections.service.ts:101` | Legacy job schedules | `LEGACY_PENALTY_CRON`, `LEGACY_UPCOMING_REMINDER_CRON`, `LEGACY_REMINDER_CRON`, `LEGACY_LATE_ALERT_CRON`, `COLLECTIONS_PTP_REVIEW_CRON` (previous times) |
 | B29 | `penalty-cron.service.ts:66` | Penalty fallback `?? 10.0` | Removed: `Tenant.penaltyRatePerDay` is required with a column default, so the literal could never apply |
+| B30 | `penalty-cron.service.ts`, `reminder/reminder.service.ts`, `bot/bot.service.ts`, `collections/collections.service.ts` (D-102) | Legacy jobs ran in the server's time zone | `timeZone: LENDING_EOD_TZ` (Asia/Phnom_Penh), shared with end of day via `loans/legacy-money.ts` |
+| B31 | `provisioning/provisioning.service.ts` (new, D-101) | Transaction timeout of a legacy provisioning run under its advisory lock | `LEGACY_PROVISIONING_TX_TIMEOUT_MS` (120000) |
 
 ### Ledger postings that bypassed the account mapping
 
