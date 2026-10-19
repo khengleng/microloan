@@ -97,6 +97,12 @@ d('Restructuring and hardship (integration)', () => {
       f,
       'PERSONAL_INSTALMENT',
       'PL-RST',
+      // The capacities below were worked out at the template's former 15%
+      // default (it is 14% since the rate cap, D-110); 15% + the 1% fee over
+      // twelve months is within the cap.
+      (c: any) => {
+        c.pricing.fixed.defaultAnnualRate = '0.15';
+      },
     );
     const terms = {
       principal: '6000',

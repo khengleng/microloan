@@ -130,7 +130,9 @@ export class RegulatoryReturnService {
     const [tenant, branches, businessDate] = await Promise.all([
       tx.tenant.findUnique({
         where: { id: tenantId },
-        select: { name: true, maxAnnualInterestRatePct: true },
+        // `id` lets the tenant guard confirm the row is ours; without it the
+        // read comes back null and the return shows the deployment ceiling.
+        select: { id: true, name: true, maxAnnualInterestRatePct: true },
       }),
       tx.branch.findMany({
         where: { tenantId },

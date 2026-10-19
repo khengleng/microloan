@@ -4,6 +4,7 @@ import { LedgerModule } from '../ledger/ledger.module';
 import { LendingPrisma } from './common/lending-prisma';
 import { AuditEventService } from './common/audit-event.service';
 import { BusinessDateService } from './common/business-date.service';
+import { RateCapService } from './common/rate-cap.service';
 import { PolicyService } from './policy/policy.service';
 import { LendingActionGuard } from './policy/lending-action.guard';
 import { PostingService } from './accounting/posting.service';
@@ -178,6 +179,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     LendingPrisma,
     AuditEventService,
     BusinessDateService,
+    RateCapService,
     PolicyService,
     LendingActionGuard,
     PostingService,

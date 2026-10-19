@@ -3,7 +3,14 @@
  * Early payoff of a flat-rate loan under a Rule of 78 rebate (UC-33, TV-12)
  * through the live loan flow.
  */
-import { Fixture, TEST_DB, bootstrap, expectOk, key } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  expectOk,
+  key,
+  raiseRateCap,
+} from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -11,16 +18,20 @@ const d = TEST_DB ? describe : describe.skip;
 d('Flat-rate payoff rebates (integration)', () => {
   let f: Fixture;
   let loanId: string;
+  let restoreCap: () => Promise<void>;
 
   beforeAll(async () => {
     f = await bootstrap();
     await standardRoles(f);
+    // TV-12's 12% flat is 21.45% on a reducing balance: above the NBC cap.
+    restoreCap = await raiseRateCap(f, '36');
     const { productId } = await activeProduct(
       f,
       'PERSONAL_INSTALMENT',
       'PL-FLAT78',
       (c) => {
         c.pricing.interestMethod = 'FLAT';
+        c.pricing.regulatoryCapAnnualRate = null;
         c.pricing.fees = [];
         c.repayment.prepayment.allowed = false;
         c.repayment.earlySettlement.rebateMethod = 'RULE_OF_78';
@@ -35,7 +46,10 @@ d('Flat-rate payoff rebates (integration)', () => {
       })
     ).loanId;
   }, 90_000);
-  afterAll(async () => f?.app.close());
+  afterAll(async () => {
+    await restoreCap?.();
+    await f?.app.close();
+  });
 
   it('a flat product cannot be configured with a rebate on reducing-balance interest', async () => {
     const tpl = expectOk(

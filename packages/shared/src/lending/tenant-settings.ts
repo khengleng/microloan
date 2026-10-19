@@ -143,6 +143,20 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * How the interest-rate cap is applied (NBC Prakas B7-017-109; DECISIONS
+     * D-108, D-109 — assumed, needs compliance sign-off). The cap itself is the
+     * lowest of the regulatory ceiling, the lender's cap and the product's cap.
+     */
+    rateCap: z
+      .object({
+        /** The effective rate including upfront fees must also fit under the cap. */
+        includeFeesInEffectiveRate: z.boolean().default(true),
+        /** Penalty interest on overdue amounts may not be priced above the cap. */
+        penaltyRateMustFitCap: z.boolean().default(true),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({

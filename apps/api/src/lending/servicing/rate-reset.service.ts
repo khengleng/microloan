@@ -19,6 +19,7 @@ import {
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { ServicingService } from './servicing.service';
+import { RateCapService } from '../common/rate-cap.service';
 import { LoanState, engineLine, loadLoanState, resourceOf } from './loan-state';
 
 type Json = Prisma.InputJsonValue;
@@ -40,7 +41,10 @@ type Json = Prisma.InputJsonValue;
  *  • the reset takes effect from the first period starting on or after the
  *    reset date, so interest already earned is never re-priced;
  *  • nothing is posted: a reset moves no money. It changes what future
- *    interest will be, and accrual follows the new schedule from there.
+ *    interest will be, and accrual follows the new schedule from there;
+ *  • a reset never re-prices above the interest-rate cap in force on the
+ *    day it is applied: the rate is held at the cap (bound REGULATORY_CAP),
+ *    not refused, so the loan keeps a lawful rate (DECISIONS D-111).
  */
 @Injectable()
 export class RateResetService {
@@ -51,6 +55,7 @@ export class RateResetService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
+    private readonly rateCap: RateCapService,
   ) {
     // Resets are a daily contractual event, so they belong in the end-of-day
     // batch rather than waiting for someone to remember to run them.
@@ -238,12 +243,17 @@ export class RateResetService {
         resetDate,
       });
     }
+    const { cap } = await this.rateCap.resolve(tenantId, state.config, tx);
     const resolved = engineCall(() =>
-      lending.resolveFloatingRate(terms, {
-        benchmarkCode: observation.benchmarkCode,
-        observationDate: toLocalDate(observation.observationDate)!,
-        rate: decStr(observation.rate),
-      }),
+      lending.resolveFloatingRate(
+        terms,
+        {
+          benchmarkCode: observation.benchmarkCode,
+          observationDate: toLocalDate(observation.observationDate)!,
+          rate: decStr(observation.rate),
+        },
+        cap.annualRate,
+      ),
     );
 
     // Only unpaid lines are re-priced; a line already settled keeps its terms.

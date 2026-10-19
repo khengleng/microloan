@@ -215,7 +215,11 @@ const STAGED = (availabilityMonths: number, tranches: { code: string; label: str
 export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   // Personal / consumer
   template('PERSONAL_INSTALMENT', 'PERSONAL', 'Personal instalment loan', 'Unsecured level-instalment consumer loan.', {
-    pricing: { fees: [{ code: 'PROCESSING', name: 'Processing fee', calculation: 'PERCENT_OF_PRINCIPAL', rate: '0.01', treatment: 'DEDUCTED', waivable: true }] },
+    // 14% leaves room for the 1% fee under an 18% cap from six months up (rate cap, D-110).
+    pricing: {
+      fixed: { defaultAnnualRate: '0.14', minAnnualRate: '0.10', maxAnnualRate: '0.18' },
+      fees: [{ code: 'PROCESSING', name: 'Processing fee', calculation: 'PERCENT_OF_PRINCIPAL', rate: '0.01', treatment: 'DEDUCTED', waivable: true }],
+    },
   }, [], true),
   template('SALARY_LOAN', 'PERSONAL', 'Salary loan', 'Instalments deducted from salary.', { eligibility: { employmentTypes: ['SALARIED'] } }),
   template('SALARY_ADVANCE', 'PERSONAL', 'Salary advance', 'Short single-payment advance repaid on payday.', {
@@ -318,7 +322,8 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     repayment: { frequency: 'FORTNIGHTLY' },
     limits: { minAmount: '100', maxAmount: '5000', minInstalments: 6, maxInstalments: 52 },
     pricing: {
-      fixed: { defaultAnnualRate: '0.18', minAnnualRate: '0.12', maxAnnualRate: '0.18' },
+      // Below the 18% cap so the administration fee still fits under it (rate cap, D-110).
+      fixed: { defaultAnnualRate: '0.16', minAnnualRate: '0.12', maxAnnualRate: '0.17' },
       fees: [{ code: 'ADMIN', name: 'Administration fee', calculation: 'FIXED', amount: '5', treatment: 'SEPARATE', taxRate: '0.1', waivable: true }],
       penalty: { type: 'FLAT_PER_INSTALMENT', flatAmount: '2', annualRate: null, graceDays: 2 },
     },
@@ -600,7 +605,9 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
     attributes: { structure: 'MURABAHA' },
     pricing: {
       interestMethod: 'FLAT',
-      fixed: { defaultAnnualRate: '0.08', minAnnualRate: '0.04', maxAnnualRate: '0.15' },
+      // A flat rate's reducing-balance equivalent is what the rate cap measures:
+      // 10% flat over 60 months is about 16.5% (D-105).
+      fixed: { defaultAnnualRate: '0.08', minAnnualRate: '0.04', maxAnnualRate: '0.10' },
       penalty: { type: 'FLAT_PER_INSTALMENT', flatAmount: '5', annualRate: null, graceDays: 3 },
     },
     repayment: { prepayment: { allowed: false }, allocation: { excessHandling: 'ADVANCE' } },

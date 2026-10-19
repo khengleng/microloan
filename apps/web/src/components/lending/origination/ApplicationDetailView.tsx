@@ -334,6 +334,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
                                     <td className={td}>{d.rationale}</td>
                                     <td className={td}><Person id={d.decidedBy} /></td>
                                     <td className={td}>
+                                        <RateCapLine assessment={d.assessment} />
                                         {(d.assessment !== undefined || d.policyDecision !== undefined) && (
                                             <Disclosure summary={tr('detail.assessment')}><JsonBlock value={{ assessment: d.assessment, policyDecision: d.policyDecision }} /></Disclosure>
                                         )}
@@ -354,4 +355,17 @@ function BorrowerName({ id, borrower }: { id: string; borrower?: { firstName?: s
     const nameOf = useBorrowerNames(borrower ? [] : [id]);
     const label = borrower ? fullName(borrower) : nameOf(id);
     return <Link href={`/${locale}/borrowers/${id}`} className="font-semibold text-[#635BFF] hover:underline">{label}</Link>;
+}
+
+/** The interest-rate cap the assessment checked the terms against, and the rates it computed (D-105…D-110). */
+function RateCapLine({ assessment }: { assessment: unknown }) {
+    const tr = useTranslations('LendingOrigination');
+    const m = (assessment as { metrics?: Record<string, string | null> } | null | undefined)?.metrics;
+    if (!m?.rateCap) return null;
+    const source = m.rateCapSource && ['REGULATOR', 'TENANT', 'PRODUCT'].includes(m.rateCapSource) ? tr(`detail.rateCapSource.${m.rateCapSource}`) : '—';
+    return (
+        <p className="text-[11px] text-[#697386] mb-1">
+            {tr('detail.rateCap', { cap: fmtRate(m.rateCap, 2), source, rate: fmtRate(m.rateCapComparableRate, 2), effective: fmtRate(m.rateCapEffectiveRate, 2) })}
+        </p>
+    );
 }
