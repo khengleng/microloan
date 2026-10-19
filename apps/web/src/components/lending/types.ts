@@ -250,6 +250,18 @@ export interface AccessOverview {
     limits?: { maxDelegationDays: number };
 }
 
+/**
+ * Lending settings switches for staff sign-in and the Telegram customer bot
+ * (D-128, D-132). Part of the tenant's lending settings, changed like the
+ * others by a maker-checker proposal.
+ */
+export interface TenantSecuritySettings {
+    /** Tenant administrators must use an authenticator (default on). */
+    security?: { requireMfaForAdmins?: boolean };
+    /** Customers may apply for loans in the Telegram bot (default off). */
+    telegramBot?: { allowLoanApplications?: boolean };
+}
+
 export interface FlagEvaluation { enabled: boolean; source: string; ruleId: string | null; scope: string | null }
 export interface Flag { key: string; description: string; category: string; sensitive: boolean; defaultEnabled: boolean; evaluation: FlagEvaluation }
 export interface FlagRule {

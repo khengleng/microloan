@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound, ShieldOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useWorkspace } from '@/lib/workspace';
+import { SuperadminGrantsPanel } from '@/components/platform/SuperadminGrants';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
 // Platform operators have no organisation (tenantId null); the API accepts
@@ -48,13 +49,15 @@ export default function UsersPage() {
     const [mfaResettingId, setMfaResettingId] = useState<string | null>(null);
     const [reactivatingId, setReactivatingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
+    const [grantsKey, setGrantsKey] = useState(0);
 
     const isSuperAdmin = user?.role === 'SUPERADMIN';
     // Mirrors the API: only the platform operator manages an administrator.
     const isAdminRole = (role: string) => ['ADMIN', 'TENANT_ADMIN', 'SUPERADMIN'].includes(role);
     const canManage = (m: TeamMember) => m.id !== user?.sub && (isSuperAdmin || !isAdminRole(m.role));
-    // Resetting someone's authenticator needs the actor's own code-verified sign-in.
-    const stepUpDone = (user as { amr?: string } | null)?.amr === 'mfa';
+    // Resetting someone's authenticator needs the actor's own code-verified
+    // sign-in; an enrolled actor is asked for a code when the API wants one.
+    const stepUpDone = user?.amr === 'mfa' || !!user?.mfaEnrolled;
     const ROLES = isSuperAdmin ? PLATFORM_ROLES : TENANT_ROLES;
 
     const fetchUsers = useCallback(async () => {
@@ -75,8 +78,15 @@ export default function UsersPage() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post('/users', { ...form, role: isSuperAdmin ? 'SUPERADMIN' : form.role });
-            showToast(t('invited', { email: form.email, role: isSuperAdmin ? 'SUPERADMIN' : form.role }), 'success');
+            const res = await api.post<{ superadminGrant?: { status: string; message?: string } }>('/users', { ...form, role: isSuperAdmin ? 'SUPERADMIN' : form.role });
+            // A new super-admin stays inactive until a second super-admin approves.
+            const grant = res.data?.superadminGrant;
+            if (grant) {
+                showToast(grant.message || (grant.status === 'EXECUTED' ? t('invited', { email: form.email, role: 'SUPERADMIN' }) : t('superadminGrants.pending', { email: form.email })), grant.status === 'EXECUTED' ? 'success' : 'info');
+                setGrantsKey((k) => k + 1);
+            } else {
+                showToast(t('invited', { email: form.email, role: isSuperAdmin ? 'SUPERADMIN' : form.role }), 'success');
+            }
             setIsModalOpen(false);
             setForm({ email: '', password: '', role: 'SALES' });
             fetchUsers();
@@ -206,6 +216,8 @@ export default function UsersPage() {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic flex items-center gap-1.5"><Shield size={10} className="text-purple-500" /> {t('rbacEnforced')}</p>
                 </div>
             </div>
+
+            {isSuperAdmin && <SuperadminGrantsPanel refreshKey={grantsKey} onDecided={fetchUsers} />}
 
             {/* User Registry Table */}
             <div className="glass rounded-[2.5rem] premium-shadow border-indigo-100/10 overflow-hidden">

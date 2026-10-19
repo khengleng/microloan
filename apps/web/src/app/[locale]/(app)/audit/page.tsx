@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { HelpLink } from '@/components/help/HelpLink';
 import { useToast } from '@/components/ui/toast';
@@ -30,7 +31,21 @@ interface Summary { totalEvents: number; loginEvents: number; failedLogins: numb
 
 const fieldCls = "h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
 
+/**
+ * Who did it: the user, or — when no user is joined — "Platform operator"
+ * for platform staff acting in a lender's workspace (their identity is kept
+ * from the lender), or a system actor's label such as "Telegram bot".
+ */
+function actorOf(log: AuditLog, platformLabel: string): { name: string; platform: boolean } {
+    const platform = log.metadata?.platformOperator === true;
+    if (log.user?.email) return { name: log.user.email, platform };
+    if (platform) return { name: platformLabel, platform };
+    const label = log.metadata?.newValue?.actorLabel;
+    return { name: typeof label === 'string' && label ? label : log.userId, platform };
+}
+
 export default function AuditPage() {
+    const ts = useTranslations('Security.audit');
     const { showToast } = useToast();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
@@ -187,6 +202,7 @@ export default function AuditPage() {
                             const isExpanded = expanded === log.id;
                             const evt = log.metadata?.event || log.action;
                             const isAlert = evt?.includes('FAILED') || evt?.includes('SUSPENDED') || evt?.includes('PROMOTED');
+                            const actor = actorOf(log, ts('platformOperator'));
                             return (
                                 <div
                                     key={log.id}
@@ -205,8 +221,11 @@ export default function AuditPage() {
                                             </div>
                                             <div className="flex gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
                                                 <span className="flex items-center gap-1">
-                                                    <Users size={11} /> {log.user?.email || log.userId}
+                                                    <Users size={11} /> {!(actor.platform && !log.user) && actor.name}
                                                     {log.user?.role && <span className="badge-neutral text-[10px] ml-1">{log.user.role}</span>}
+                                                    {actor.platform && (
+                                                        <span className="badge-warning text-[10px] ml-1" title={ts('platformOperatorHint')}>{ts('platformOperator')}</span>
+                                                    )}
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <Calendar size={11} /> {new Date(log.createdAt).toLocaleString()}

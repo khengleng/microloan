@@ -1,11 +1,12 @@
 "use client";
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
-import { LogOut, Menu, X, ChevronRight, UserCog, CircleHelp } from 'lucide-react';
+import { LogOut, Menu, X, ChevronRight, UserCog, CircleHelp, Loader2, ShieldAlert } from 'lucide-react';
 import { ApiErrorListener } from '@/components/ApiErrorListener';
+import { StepUpModal } from '@/components/auth/step-up-modal';
 import { useEffect } from 'react';
 import { clarityIdentify, claritySetTag } from '@/lib/clarity';
 import { WorkspaceProvider, useQueueCount, useWorkspace } from '@/lib/workspace';
@@ -22,6 +23,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const t = useTranslations('Nav');
     const tw = useTranslations('Workspace');
     const ta = useTranslations('Account');
+    const te = useTranslations('Security.enrolment');
+    const router = useRouter();
     const ws = useWorkspace();
     const queueCount = useQueueCount();
     const pathname = usePathname();
@@ -40,7 +43,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const isPlatform = user?.isPlatform;
     // Menus come from the lending permission engine (GET /me/access) and the
     // legacy screens' own permissions — never from legacy role names alone.
-    const sections = visibleNav(isPlatform ? PLATFORM_NAV : NAV, ws);
+    // The role must use an authenticator and this session has none yet:
+    // only My account (to set one up) and signing out stay open.
+    const enrolmentLock = !!user?.mfaEnrolmentRequired;
+    const onAccount = pathname === `/${locale}/account`;
+    const sections = enrolmentLock ? [] : visibleNav(isPlatform ? PLATFORM_NAV : NAV, ws);
+
+    useEffect(() => {
+        if (enrolmentLock && !onAccount) router.replace(`/${locale}/account?enrol=1`);
+    }, [enrolmentLock, onAccount, locale, router]);
 
     useEffect(() => {
         if (!user) return;
@@ -112,6 +123,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
                 {/* Nav */}
                 <nav data-tour="nav-menu" className="flex-1 p-2 overflow-y-auto no-scrollbar space-y-0.5">
+                    {enrolmentLock && (
+                        <p className="m-1 flex gap-2 rounded px-2.5 py-2 text-[12px] leading-snug text-amber-100 bg-amber-500/15">
+                            <ShieldAlert size={14} className="flex-shrink-0 mt-0.5" />
+                            {te('navLocked')}
+                        </p>
+                    )}
                     {sections.map((sec) => (
                         <div key={sec.key}>
                             {navSection(tw(`sections.${sec.key}`))}
@@ -176,9 +193,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             </span>
                         </nav>
                     </div>
-                    <GlobalSearch platform={!!isPlatform} />
-                    <ShellChips />
-                    {!pathname.startsWith(`/${locale}/lending`) && <TourButton compact />}
+                    {!enrolmentLock && <GlobalSearch platform={!!isPlatform} />}
+                    {!enrolmentLock && <ShellChips />}
+                    {!enrolmentLock && !pathname.startsWith(`/${locale}/lending`) && <TourButton compact />}
                     <Link
                         data-tour="help-link"
                         href={`/${locale}/help`}
@@ -204,15 +221,20 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     </div>
                 </header>
 
-                <ShellBanners />
+                {!enrolmentLock && <ShellBanners />}
 
                 {/* Page content */}
                 <main className="flex-1 p-6">
-                    {children}
+                    {enrolmentLock && !onAccount ? (
+                        <div className="flex h-64 items-center justify-center text-muted-foreground">
+                            <Loader2 className="animate-spin" size={18} />
+                        </div>
+                    ) : children}
                 </main>
             </div>
             <ApiErrorListener />
-            {!isPlatform && <OrientationPrompt />}
+            <StepUpModal />
+            {!isPlatform && !enrolmentLock && <OrientationPrompt />}
         </div>
     );
 }

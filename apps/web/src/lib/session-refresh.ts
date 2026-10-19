@@ -86,3 +86,18 @@ export function renewSession(sentAt: number): Promise<RefreshOutcome> {
     if (!browserRefresher) browserRefresher = createSessionRefresher(browserDeps());
     return browserRefresher(sentAt);
 }
+
+/**
+ * Run a call that ROTATES the session cookies itself (authenticator step-up,
+ * finishing authenticator setup) under the same cross-tab lock as a refresh,
+ * so it never overlaps a refresh presenting the same refresh token. A 2xx
+ * answer stamps the renewal for other tabs.
+ */
+export function rotateSessionWith<T extends { status: number }>(fn: () => Promise<T>): Promise<T> {
+    const deps = browserDeps();
+    return deps.withLock(async () => {
+        const out = await fn();
+        if (out.status >= 200 && out.status < 300) deps.writeStamp(deps.now());
+        return out;
+    });
+}

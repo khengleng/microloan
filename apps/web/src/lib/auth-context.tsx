@@ -10,6 +10,19 @@ interface AuthUser {
     tenantId: string;
     tenantName: string;
     isPlatform: boolean;
+    /** The person has an authenticator set up. */
+    mfaEnrolled?: boolean;
+    /** The person's role must use an authenticator. */
+    mfaRequired?: boolean;
+    /** How this session signed in: password only, or with an authenticator code. */
+    amr?: 'pwd' | 'mfa';
+    /** When the session last verified an authenticator code (epoch seconds). */
+    mfaAt?: number | null;
+    /**
+     * The role must use an authenticator and this session is not an
+     * authenticator session yet: every page but My account is locked.
+     */
+    mfaEnrolmentRequired?: boolean;
 }
 
 interface AuthContextValue {

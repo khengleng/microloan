@@ -573,7 +573,67 @@
     "done": "Done",
     "loadFailed": "Failed to load platform data",
     "orgUpdated": "Organization updated",
-    "orgRegistered": "Organization registered with Admin access"
+    "orgRegistered": "Organization registered with Admin access",
+    "purge": {
+      "title": "Permanently purge {name}",
+      "desc": "Four steps, each checked again by the system: archive the data, request the purge, a second super-administrator approves, then purge.",
+      "loading": "Checking the organisation…",
+      "notErased": "Erasure has not been requested for this organisation. Mark it for erasure first.",
+      "graceRunning": "Grace period: the organisation can still be restored until {date} ({days} days after the erasure request). It cannot be purged before then.",
+      "graceOver": "The {days}-day grace period ended on {date}.",
+      "blockedTitle": "The purge is blocked:",
+      "legalHolds": "{count, plural, one {# record is} other {# records are}} under legal hold",
+      "openRelationships": "{count, plural, one {# customer still has} other {# customers still have}} an open loan or relationship",
+      "withinRetention": "{count, plural, one {# record} other {# records}} must still be kept (retention period) until {date}",
+      "examples": "For example:",
+      "noBlockers": "No legal holds, open relationships or retention periods stop the purge.",
+      "step1": "Archive the data",
+      "step1Desc": "Write a sealed archive of the organisation’s records. A purge needs an archive made after the erasure request.",
+      "archiveCreated": "Latest archive:",
+      "sha256": "SHA-256 fingerprint",
+      "archiveStale": "This archive was made before the erasure request. Create a new one.",
+      "archive": "Create archive",
+      "archiveAgain": "Create a new archive",
+      "archived": "Archive created",
+      "step2": "Request the purge",
+      "step2Desc": "Record why the organisation is being purged. Another super-administrator must approve the request.",
+      "reason": "Reason",
+      "request": "Request purge",
+      "requestLocked": "Available once the grace period has ended, a current archive exists and nothing blocks the purge.",
+      "requested": "Purge requested. Another super-administrator must approve it.",
+      "requestedBy": "Requested by {who} on {at}",
+      "expires": "Lapses on {at}",
+      "reasonShown": "Reason: {reason}",
+      "step3": "Second approval",
+      "step3Desc": "A different super-administrator reviews and approves or rejects the request.",
+      "waitingOther": "Waiting for another super-administrator: you cannot approve your own request.",
+      "comment": "Comment (required to reject)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "ownRequest": "You raised this request; another super-administrator must decide it.",
+      "rejectNeedsReason": "Give a reason to reject.",
+      "approved": "Purge approved",
+      "rejected": "Purge request rejected",
+      "approvedBy": "Approved by {who}.",
+      "step4": "Purge",
+      "step4Desc": "Destroys every record and file of the organisation. Only the archive is kept. This cannot be undone.",
+      "typeName": "Type the organisation name to confirm: {name}",
+      "purge": "Purge permanently",
+      "purgedTitle": "{name} has been purged",
+      "filesDeleted": "{count, plural, one {# file} other {# files}} deleted.",
+      "archiveKept": "The archive is kept. Its SHA-256 fingerprint:",
+      "close": "Close",
+      "pendingTitle": "Purge requests awaiting approval ({count})",
+      "review": "Review",
+      "you": "you",
+      "errors": {
+        "grace": "The grace period has not ended. The organisation can be purged after {date}.",
+        "noArchive": "Create an archive first: a purge needs an archive made after the erasure request.",
+        "blocked": "Something still blocks the purge (legal hold, open relationship or retention period). See the list above.",
+        "notApproved": "The purge has not been approved by a second super-administrator yet.",
+        "generic": "That step could not be completed. Please try again."
+      }
+    }
   },
   "Users": {
     "platformTeam": "Platform Team",
@@ -616,7 +676,24 @@
     "suspended": "{email} has been suspended",
     "suspendFailed": "Cannot suspend this user",
     "roleUpdated": "Role updated",
-    "roleUpdateFailed": "Failed to update role"
+    "roleUpdateFailed": "Failed to update role",
+    "superadminGrants": {
+      "title": "Super-admin requests awaiting approval ({count})",
+      "desc": "A new super-administrator stays inactive until a different super-administrator approves.",
+      "pending": "{email} will be able to sign in once another super-administrator approves.",
+      "modePromote": "Promotion",
+      "modeNew": "New account",
+      "requestedBy": "Requested by {who} on {at}",
+      "expires": "Lapses on {at}",
+      "ownRequest": "You raised this request; another super-administrator must decide it.",
+      "note": "Comment (required to reject)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectNeedsReason": "Give a reason to reject.",
+      "approved": "{email} is now a super-administrator",
+      "rejected": "Request for {email} rejected",
+      "you": "you"
+    }
   },
   "Workspace": {
     "sections": {
@@ -1688,7 +1765,17 @@
         "scoring_monitoring_psiEpsilon": "Scorecard monitoring: share given to an empty grade in the stability index",
         "scoring_consent_maxValidityDays": "Alternative data: longest a customer consent may run (days)",
         "scoring_alternativeData_maxRecordAgeDays": "Alternative data: verified records older than this no longer count (days)",
-        "scoring_alternativeData_digitalChannels": "Alternative data: payment channels counted as digital repayments"
+        "scoring_alternativeData_digitalChannels": "Alternative data: payment channels counted as digital repayments",
+        "security_requireMfaForAdmins": "Tenant administrators must use an authenticator",
+        "telegramBot_allowLoanApplications": "Customers may apply for loans in the Telegram bot"
+      },
+      "switches": {
+        "title": "Sign-in and Telegram",
+        "subtitle": "Changed like every other setting: propose a new version below for a second person to approve.",
+        "requireMfaForAdmins": "Administrators set up an authenticator app and sign in with a code before they can use anything else.",
+        "allowLoanApplications": "Linked customers can start a loan application in the chat, within the product’s amount and term limits. Recorded as “Telegram bot”.",
+        "on": "On",
+        "off": "Off"
       }
     }
   },
@@ -8718,5 +8805,31 @@
     "lendingLoans": "Lending › Loans",
     "migrate": "Migrate loans",
     "newApplication": "New application"
+  },
+  "Security": {
+    "stepUp": {
+      "title": "Enter a code to continue",
+      "desc": "This action needs a fresh code from your authenticator app. Enter the 6-digit code it shows now.",
+      "codeLabel": "Authenticator code",
+      "codeFormat": "Enter the 6 digits shown in the app.",
+      "failed": "That code was not accepted. Enter the newest code from your app.",
+      "unreachable": "Could not check the code. Check your connection and try again.",
+      "cancel": "Cancel",
+      "submit": "Continue"
+    },
+    "enrolment": {
+      "navLocked": "Set up your authenticator on My account to open the rest of the app.",
+      "requiredTitle": "Set up an authenticator to continue",
+      "requiredTenant": "Your role (organisation administrator) must sign in with an authenticator app. Until one is set up, only My account is available.",
+      "requiredPlatform": "Platform super-administrators must sign in with an authenticator app. Until one is set up, only My account is available.",
+      "requiredNext": "Use \"Set up authenticator\" below: scan the QR code with your phone and enter the 6-digit code it shows.",
+      "stepUpTitle": "Enter a code to continue",
+      "stepUpBody": "You have an authenticator, but this session signed in without it. Enter a code from your app to unlock the rest of the app.",
+      "stepUpButton": "Enter a code to continue"
+    },
+    "audit": {
+      "platformOperator": "Platform operator",
+      "platformOperatorHint": "Done by a member of the platform team, not by a person in your organisation."
+    }
   }
 }

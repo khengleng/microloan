@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ShieldAlert, ShieldCheck, Loader2, Key } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { postSessionCode } from '@/lib/step-up';
 
 type Status = 'LOADING' | 'ENROLLED' | 'NOT_ENROLLED' | 'UNKNOWN';
 
@@ -60,31 +61,34 @@ export function MfaSetup() {
         const digits = code.replace(/\s+/g, '');
         if (!/^\d{6}$/.test(digits)) { setError(t('codeFormat')); return; }
         setStep('SUBMITTING');
-        try {
-            await api.post('/auth/mfa/enable', { code: digits }, { quiet: true });
+        // Through the Next route: the API answers with a fresh authenticator
+        // session, stored as HttpOnly cookies there (never seen by this code).
+        const res = await postSessionCode('/api/auth/mfa/enable', digits);
+        if (res.ok) {
             setStatus('ENROLLED');
             setJustEnabled(true);
             setMfaData(null);
             setStep('IDLE');
             showToast(t('enabled'), 'success');
-        } catch (err: any) {
-            const httpStatus = err?.response?.status;
-            if (httpStatus === 409) {
-                setStatus('ENROLLED');
-                setMfaData(null);
-                setStep('IDLE');
-                return;
-            }
-            const message: string = String(err?.response?.data?.message ?? '');
-            if (httpStatus === 400 && /not been started/i.test(message)) {
-                setMfaData(null);
-                setStep('IDLE');
-                setError(t('notStarted'));
-                return;
-            }
-            setError(httpStatus === 400 ? t('wrongCode') : t('verifyFailed'));
-            setStep('VERIFYING');
+            // Reload so the shell, permissions and banners see the new session.
+            window.setTimeout(() => window.location.replace(window.location.pathname), 600);
+            return;
         }
+        if (res.status === 409) {
+            setStatus('ENROLLED');
+            setMfaData(null);
+            setStep('IDLE');
+            return;
+        }
+        if (res.status === 400 && /not been started/i.test(res.message)) {
+            setMfaData(null);
+            setStep('IDLE');
+            setError(t('notStarted'));
+            return;
+        }
+        // A replayed code has its own advice (wait for the next one).
+        setError(res.status === 400 && !/already used/i.test(res.message) ? t('wrongCode') : res.message || t('verifyFailed'));
+        setStep('VERIFYING');
     };
 
     if (status === 'ENROLLED') {

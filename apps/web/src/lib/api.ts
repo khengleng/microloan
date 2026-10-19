@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { renewSession } from '@/lib/session-refresh';
+import { canStepUp, requestStepUp } from '@/lib/step-up';
 
 /**
  * Axios instance for the NestJS API.
@@ -57,7 +58,18 @@ declare module 'axios' {
     }
 }
 
-type SessionConfig = InternalAxiosRequestConfig & { _sentAt?: number; _retried?: boolean };
+type SessionConfig = InternalAxiosRequestConfig & { _sentAt?: number; _retried?: boolean; _steppedUp?: boolean };
+
+/**
+ * The account must set up an authenticator first: send the browser to
+ * My account (where enrolment is) unless it is already there.
+ */
+function goToEnrolment() {
+    const parts = window.location.pathname.split('/');
+    const locale = parts[1] || 'en';
+    if (parts[2] === 'account') return;
+    window.location.href = `/${locale}/account?enrol=1`;
+}
 
 /**
  * Sign-in flows that answer 401 for a wrong password or code. They run with
@@ -88,7 +100,7 @@ function signOutAndRedirect() {
 // ── Global response interceptor ───────────────────────────────────────────
 api.interceptors.response.use(
     (response) => response,
-    async (error: AxiosError<{ message?: string | string[] }>) => {
+    async (error: AxiosError<{ message?: string | string[]; code?: string }>) => {
         if (typeof window === 'undefined') return Promise.reject(error);
 
         const status: number | undefined = error.response?.status;
@@ -112,6 +124,26 @@ api.interceptors.response.use(
             }
             signOutAndRedirect();
             return Promise.reject(error);
+        }
+
+        const code = error.response?.data?.code;
+
+        // The role must use an authenticator and has none yet: everything but
+        // enrolment is refused until it is set up. No toast — go to My account.
+        if (status === 403 && code === 'MFA_ENROLMENT_REQUIRED') {
+            goToEnrolment();
+            return Promise.reject(error);
+        }
+
+        // The action needs a recent authenticator code: ask for one (one
+        // prompt shared by concurrent requests) and replay the request once.
+        // Cancelling rejects quietly.
+        if (status === 403 && code === 'MFA_STEP_UP_REQUIRED' && config && !config._steppedUp && canStepUp()) {
+            if (await requestStepUp(apiMessage)) {
+                config._steppedUp = true;
+                return api.request(config);
+            }
+            return Promise.reject(Object.assign(error, { stepUpCancelled: true }));
         }
 
         // For all other restriction codes, fire a browser custom event so that

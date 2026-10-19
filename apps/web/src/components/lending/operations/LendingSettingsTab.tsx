@@ -13,6 +13,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { EditorModeSwitch, StructuredJsonEditor, jsonProblem } from '../StructuredJsonEditor';
 import { fmtDateTime } from '../format';
 import { Person } from '../People';
+import type { TenantSecuritySettings } from '../types';
 
 interface SettingsRow {
     id: string; version: number; status: string; settings: unknown; makerId: string; checkerId: string | null;
@@ -52,7 +53,15 @@ const LABELS: Record<string, string> = {
     'scoring.consent.maxValidityDays': 'Alternative data: longest a customer consent may run (days)',
     'scoring.alternativeData.maxRecordAgeDays': 'Alternative data: verified records older than this no longer count (days)',
     'scoring.alternativeData.digitalChannels': 'Alternative data: payment channels counted as digital repayments',
+    'security.requireMfaForAdmins': 'Tenant administrators must use an authenticator',
+    'telegramBot.allowLoanApplications': 'Customers may apply for loans in the Telegram bot',
 };
+
+/** On/off settings worth seeing at a glance, with the value used when none is set. */
+const SWITCHES: { path: string; read: (s: TenantSecuritySettings) => boolean | undefined; fallback: boolean; hint: string }[] = [
+    { path: 'security.requireMfaForAdmins', read: (s) => s.security?.requireMfaForAdmins, fallback: true, hint: 'requireMfaForAdmins' },
+    { path: 'telegramBot.allowLoanApplications', read: (s) => s.telegramBot?.allowLoanApplications, fallback: false, hint: 'allowLoanApplications' },
+];
 
 function flatten(v: unknown, prefix = ''): [string, unknown][] {
     if (v && typeof v === 'object' && !Array.isArray(v))
@@ -112,6 +121,24 @@ export function LendingSettingsTab() {
                     {t('defaultsInForceBody')}
                 </Notice>
             )}
+            <Card title={t('switches.title')} subtitle={t('switches.subtitle')} bodyClass="p-0">
+                <ul className="divide-y divide-[#F0F2F5]">
+                    {SWITCHES.map((sw) => {
+                        const on = sw.read(effective as TenantSecuritySettings) ?? sw.fallback;
+                        return (
+                            <li key={sw.path} className="flex items-start justify-between gap-4 px-5 py-3">
+                                <div>
+                                    <p className="text-[13px] font-semibold text-[#1A1F36]">{labels[sw.path]}</p>
+                                    <p className="text-[12px] text-[#697386]">{t(`switches.${sw.hint}`)}</p>
+                                </div>
+                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F0F2F5] text-[#697386]'}`}>
+                                    {on ? t('switches.on') : t('switches.off')}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </Card>
             <Card title={active ? t('inForce', { version: active.version }) : t('inForceDefaults')} subtitle={active?.decidedAt ? t('approvedAt', { at: fmtDateTime(active.decidedAt) }) : undefined} bodyClass="p-0">
                 <Table>
                     <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('colSetting')}</th><th className={th}>{t('colValue')}</th><th className={th}>{t('colDefault')}</th></tr></thead>
