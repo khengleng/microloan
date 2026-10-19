@@ -30,7 +30,7 @@ export interface ClassificationTier {
 export const NBC_CLASSIFICATION_TIERS: ClassificationTier[] = [
     { classification: LoanClassification.STANDARD, minDaysOverdue: 0, provisionRate: 0.01, label: 'Standard' },
     { classification: LoanClassification.SPECIAL_MENTION, minDaysOverdue: 15, provisionRate: 0.03, label: 'Special Mention' },
-    { classification: LoanClassification.SUBSTANDARD, minDaysOverdue: 31, provisionRate: 0.25, label: 'Substandard' },
+    { classification: LoanClassification.SUBSTANDARD, minDaysOverdue: 31, provisionRate: 0.2, label: 'Substandard' },
     { classification: LoanClassification.DOUBTFUL, minDaysOverdue: 61, provisionRate: 0.5, label: 'Doubtful' },
     { classification: LoanClassification.LOSS, minDaysOverdue: 91, provisionRate: 1.0, label: 'Loss' },
 ];
