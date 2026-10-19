@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { KeyRound, Loader2, LogOut, ShieldAlert, ShieldCheck, UserCircle } from 'lucide-react';
 import api, { signOut } from '@/lib/api';
@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useWorkspace } from '@/lib/workspace';
 import { MfaSetup } from '@/components/auth/mfa-setup';
 import { useToast } from '@/components/ui/toast';
+import { requestStepUp } from '@/lib/step-up';
 
 /**
  * My account — the signed-in person's own sign-in details and security.
@@ -16,7 +17,9 @@ import { useToast } from '@/components/ui/toast';
  */
 export default function AccountPage() {
     const t = useTranslations('Account');
+    const te = useTranslations('Security.enrolment');
     const { locale } = useParams();
+    const pathname = usePathname();
     const { user, loading } = useAuth();
     const ws = useWorkspace();
     const { showToast } = useToast();
@@ -31,8 +34,16 @@ export default function AccountPage() {
     }
 
     // /auth/me returns the verified token claims, including how this session signed in.
-    const amr = (user as { amr?: string } | null)?.amr;
-    const mfaSession = amr === 'mfa';
+    const mfaSession = user?.amr === 'mfa';
+    // The role must use an authenticator and has none yet.
+    const mustEnrol = !!user?.mfaEnrolmentRequired && !user?.mfaEnrolled;
+    // Enrolled, but this session signed in before (or without) a code.
+    const enrolled = !!user?.mfaEnrolled || !!ws.access?.assurance.mfaEnrolled;
+    const canStepUpHere = enrolled && !mfaSession;
+    const stepUp = async () => {
+        // A fresh MFA session: reload so the shell and permissions see it.
+        if (await requestStepUp()) window.location.replace(pathname || `/${locale}/account`);
+    };
     const roleLabel = ws.access?.roles.length ? ws.access.roles.map((r) => r.name).join(', ') : user?.role;
     const organization = user?.isPlatform ? t('platformScope') : user?.tenantName;
 
@@ -62,6 +73,34 @@ export default function AccountPage() {
                 <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
             </div>
 
+            {mustEnrol && (
+                <div role="alert" className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                    <ShieldAlert size={18} className="flex-shrink-0 mt-0.5 text-amber-600" />
+                    <div className="space-y-1">
+                        <p className="font-bold">{te('requiredTitle')}</p>
+                        <p>{user?.isPlatform ? te('requiredPlatform') : te('requiredTenant')}</p>
+                        <p>{te('requiredNext')}</p>
+                    </div>
+                </div>
+            )}
+            {canStepUpHere && user?.mfaEnrolmentRequired && (
+                <div role="alert" className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                    <ShieldAlert size={18} className="flex-shrink-0 text-amber-600" />
+                    <div className="flex-1 space-y-1">
+                        <p className="font-bold">{te('stepUpTitle')}</p>
+                        <p>{te('stepUpBody')}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void stepUp()}
+                        className="inline-flex items-center gap-2 h-9 px-4 rounded bg-primary text-sm font-semibold text-white hover:bg-primary/90 whitespace-nowrap"
+                    >
+                        <KeyRound size={14} />
+                        {te('stepUpButton')}
+                    </button>
+                </div>
+            )}
+
             <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-5">
                     <section className="bg-white border border-border rounded-md">
@@ -80,13 +119,20 @@ export default function AccountPage() {
                                 </span>
                             ))}
                         </dl>
-                        {!mfaSession && ws.access?.assurance.mfaEnrolled && (
+                        {canStepUpHere && !user?.mfaEnrolmentRequired && (
                             <div className="mx-5 mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                                 <p className="flex-1">{t('signInAgainHint')}</p>
                                 <button
                                     type="button"
-                                    onClick={() => void signOut(String(locale))}
+                                    onClick={() => void stepUp()}
                                     className="font-bold underline whitespace-nowrap text-left"
+                                >
+                                    {te('stepUpButton')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void signOut(String(locale))}
+                                    className="underline whitespace-nowrap text-left"
                                 >
                                     {t('signInAgain')}
                                 </button>

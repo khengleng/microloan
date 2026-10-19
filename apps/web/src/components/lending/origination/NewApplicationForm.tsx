@@ -10,6 +10,7 @@ import { todayIso } from '../format';
 import type { Product } from '../types';
 import { emptyTermsDraft, TermsFields, termsFromDraft, validateTerms } from './TermsFields';
 import { PolicyChoices, policyProblems, usePolicyMenus, type PolicyChoicesValue } from './PolicyChoices';
+import { DeclaredObligationsFields, declaredBody, declaredProblems, draftFromDeclared } from './DeclaredObligationsFields';
 import { useBorrowerNames } from '../groups/borrowers';
 import { LoanPicker } from '../LoanPicker';
 import type { BorrowerGroupDetail } from '../groups/types';
@@ -34,6 +35,8 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
     // A group loan: the group, and the member who signs for it (the leader by default).
     const [groupId, setGroupId] = useState(initialGroup);
     const [policies, setPolicies] = useState<PolicyChoicesValue | undefined>(undefined);
+    // Debts the applicant declares to other lenders (D-126).
+    const [obligations, setObligations] = useState(() => draftFromDeclared(null));
     const { busy, error, run, clearError } = useAction();
 
     const borrowers = useApi<{ data: LegacyBorrower[] }>(`/borrowers${qs({ search: query, limit: 20, page: 1 })}`);
@@ -76,7 +79,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
         if (refinancesLoanId.trim() && !UUID_RE.test(refinancesLoanId.trim())) errs.unshift(t('new.errRefinance'));
         if (groupProduct === true && !groupId) errs.unshift(tc('groupApp.errNoGroup'));
         if (groupId && groupProduct !== false && group.data && !activeMembers.some((m) => m.borrowerId === borrowerId.trim())) errs.unshift(tc('groupApp.errNotMember'));
-        errs.push(...policyProblems(policies, menus, tc));
+        errs.push(...policyProblems(policies, menus, tc), ...declaredProblems(obligations, t));
         setLocalErrors(errs);
         if (errs.length) return;
         const res = await run('create', () =>
@@ -88,6 +91,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
                 refinancesLoanId: refinancesLoanId.trim(),
                 // An individual product refuses a group, so it is only sent for a group product (or when unknown).
                 groupId: groupProduct === false ? undefined : groupId || undefined,
+                ...declaredBody(obligations),
             })),
         );
         if (res?.data?.id) onCreated(res.data.id);
@@ -176,6 +180,7 @@ export function NewApplicationForm({ onCreated, onClose, refinancesLoanId: initi
             </div>
             <TermsFields value={terms} onChange={setTerms} />
             <PolicyChoices productVersionId={versionId} value={policies} onChange={setPolicies} />
+            <DeclaredObligationsFields value={obligations} onChange={setObligations} />
             {localErrors.length > 0 && (
                 <Notice tone="warn" title={t('common.pleaseFix')}>
                     <ul className="list-disc pl-4">{localErrors.map((e) => <li key={e}>{e}</li>)}</ul>

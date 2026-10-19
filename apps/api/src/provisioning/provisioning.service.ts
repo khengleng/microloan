@@ -6,7 +6,7 @@ import { Permission } from '../authz/permission.enum';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { LedgerService } from '../ledger/ledger.service';
 import { LoanStatus, JournalSource, Currency, LoanClassification as PrismaClassification } from '@microloan/db';
-import { classifyByDaysOverdue, provisionAmount, LoanClassification } from '@microloan/shared';
+import { classifyByDaysOverdue, provisionAmount, LoanClassification, lending } from '@microloan/shared';
 import type { ClassificationTier } from '@microloan/shared';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { BusinessDateService } from '../lending/common/business-date.service';
@@ -47,12 +47,22 @@ export class ProvisioningService {
         const tenantId = this.requireTenant(actor);
         await this.legacyGate?.assertOpen(tenantId, 'provisioning');
         const settings = await this.settings.get(tenantId);
-        const tiers: ClassificationTier[] = settings.regulatory.classes.map((c) => ({
-            classification: c.code as LoanClassification,
-            minDaysOverdue: c.minDpd,
-            provisionRate: Number(c.rate),
-            label: c.label,
-        }));
+        const toTiers = (classes: typeof settings.regulatory.classes): ClassificationTier[] =>
+            classes.map((c) => ({
+                classification: c.code as LoanClassification,
+                minDaysOverdue: c.minDpd,
+                provisionRate: Number(c.rate),
+                label: c.label,
+            }));
+        // D-114: the band set follows the loan's original term (short-term up to
+        // shortTermMaxDays from its start, long-term beyond).
+        const shortTiers = toTiers(settings.regulatory.classes);
+        const longTiers = toTiers(settings.regulatory.longTermClasses);
+        const tiersFor = (start: Date, termMonths: number): ClassificationTier[] => {
+            const from = toLocalDate(start)!;
+            const days = termMonths ? lending.daysBetween(from, lending.addMonths(from, termMonths)) : null;
+            return lending.termBasis(settings.regulatory.shortTermMaxDays, days) === 'LONG' ? longTiers : shortTiers;
+        };
         const legacyAcc = settings.accounting.legacy;
         const actorId = this.authz.actorId(actor);
 
@@ -89,7 +99,10 @@ export class ProvisioningService {
                     }
                 }
                 outstandingPrincipal = CENTS(outstandingPrincipal);
-                const { classification, provisionRate, daysOverdue } = classifyByDaysOverdue(maxDaysOverdue, tiers);
+                const { classification, provisionRate, daysOverdue } = classifyByDaysOverdue(
+                    maxDaysOverdue,
+                    tiersFor(loan.startDate, loan.termMonths),
+                );
                 const amount = provisionAmount(outstandingPrincipal, provisionRate);
                 return {
                     loanId: loan.id,

@@ -87,9 +87,24 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 3. Run the batch: `POST /v1/lending/loans/batch/run` — auto-debit collection
    under active mandates (first, so a collected instalment is never late), accrual, interest
    capitalization, penalties, delinquency buckets and collection stages,
-   restructure monitoring and system referrals. It is idempotent and processes
+   restructure monitoring and system referrals, and — once an impairment
+   policy is approved — each loan's classification and the change in its loss
+   allowance (see *Classification and provisioning* below). It is idempotent and processes
    only accounts in the caller's scope; each account is its own transaction.
 4. Check reconciliation: `GET /v1/lending/ops/reconciliation` must report no breaks.
+   It includes penalties in suspense (ledger 2450) against the loans' balances.
+
+**Late penalties (D-133…D-135).** Daily penalty interest is accrued unrounded
+per instalment and the rounded running total is posted, so small overdue
+amounts are neither overcharged (USD) nor never charged (KHR rounded to 100
+riel). Each assessment is kept (`PenaltyAccrual`). On a non-accrual loan the
+penalty is credited to penalty suspense (`accounting.penaltySuspense`, 2450)
+and moves to penalty income when collected or when the loan cures. A
+repayment valued before the penalty assessed-through date first undoes the
+penalty for the days from its value date (`PENALTY_REVERSAL` event, balanced
+journal), is then allocated, and the instalments are re-charged on what is
+left overdue; the repayment event's `penaltyRewind` records both. Reversing
+that repayment restores the penalty.
 
 The scheduler (`EodSchedulerService`, LENDING_EOD_CRON, default 00:15 in
 LENDING_EOD_TZ) does steps 2–3 automatically, a day at a time, on one instance.
@@ -186,8 +201,21 @@ snapshot) and waits for a person to approve it.
 
 * **Checks** — the business date has reached month end; end of day has
   processed every day without failures; the previous month is closed;
-  debits equal credits; the sub-ledgers reconcile. Open money approvals and
-  unidentified payments are warnings shown to the approver.
+  debits equal credits; **an impairment policy is approved** whenever lending
+  loans are active (`IMPAIRMENT_POLICY`, D-116: without one no allowance has
+  been posted, so the month cannot close); the sub-ledgers reconcile. Open
+  money approvals and unidentified payments are warnings shown to the
+  approver, and so is REGULATORY impairment mode (`REGULATORY_RESERVE`: the
+  books are not CIFRS 9 compliant).
+* **Regulatory reserve** (ECL policy, D-115) — preparing the close measures
+  the NBC provision on the active lending loans against the ECL allowance
+  held, per currency, and brings the regulatory reserve to the excess with a
+  journal dated the month end: Dr retained earnings (3100) / Cr regulatory
+  reserve (3200, lending setting `accounting.regulatoryReserve`) to raise it,
+  the reverse to release it (event `REGULATORY_RESERVE`). It is measured
+  against the ledger, so preparing again posts nothing; the figures are kept
+  in `snapshot.regulatoryReserve`. In REGULATORY mode the reserve is released
+  to zero.
 * **Snapshot** — trial balance at month end, the month's disbursements,
   collections, write-offs and net income, and the portfolio (outstanding,
   PAR 1/30/90, buckets, allowance), kept with the close.
@@ -206,6 +234,39 @@ snapshot) and waits for a person to approve it.
 
 The close covers the lending ledger. The legacy ledger is closed separately.
 
+## Classification and provisioning (NBC)
+
+Assumptions: DECISIONS D-113 – D-117 (need compliance sign-off).
+
+* **Policy** — Operations › Impairment: finance proposes, risk approves. Until
+  one is approved no allowance is posted and month-end close is refused while
+  loans are outstanding (D-010, D-116).
+* **Bands by term** — lending settings `regulatory.classes` (short-term,
+  original maturity up to `regulatory.shortTermMaxDays`, default 366 days:
+  0–14 / 15–30 / 31–60 / 61–90 / 91+) and `regulatory.longTermClasses`
+  (0–29 / 30–89 / 90–179 / 180–359 / 360+); rates 1 / 3 / 20 / 50 / 100 %.
+  The term is disbursement → original maturity
+  (`LoanAccount.originalMaturityDate`, kept by a trigger through restructures).
+  In REGULATORY mode end of day provisions on these settings; in ECL mode the
+  allowance is PD × LGD × exposure and the NBC figure drives the reserve.
+* **Restructured loans** — while on probation a loan is graded on max(actual
+  days past due, days past due at the restructure) and, in REGULATORY mode and
+  the return, at least `regulatory.restructured.minClass` (default
+  Substandard). Probation ends after max(product
+  `restructuring.probationInstalments`,
+  `regulatory.restructured.minProbationInstalments` (default 3)) consecutive
+  on-time revised instalments.
+* **Regulatory reserve** — under ECL, the NBC provision above the allowance
+  is appropriated to equity at each month-end close (see above).
+* **Write-off floor** — a write-off needs max(product `writeOffMinDpd`,
+  `regulatory.writeOffMinDpd.shortTerm` / `.longTerm`; default the Loss class
+  of the loan's bands: 91 / 360 days), checked at proposal and approval
+  (`WRITE_OFF_TOO_EARLY`). Loss loans at the floor appear in the work queue
+  **Loss loans due for write-off** (`AGED_LOSS`, `loan.writeoff.propose`).
+* Changing any of these is a lending-settings version (Operations › Lending
+  settings), maker-checker. A version approved before this change keeps its
+  25% Substandard rate until a new one is approved.
+
 ## Regulatory returns and the two loan books
 
 Lending › Regulatory returns. One monthly NBC-style return per organisation
@@ -213,12 +274,19 @@ covers the lending platform **and** the legacy loans, per currency
 (assumptions: DECISIONS D-045..D-049).
 
 * **Tables** — portfolio by currency and book; classification and
-  provisioning (NBC classes, required provision against allowance held);
+  provisioning (NBC classes on the short- or long-term bands by each loan's
+  original term, restructured loans held at their probation floor and
+  minimum class; required provision against allowance held);
   PAR 1/30/90; by product and family, branch, purpose, borrower type (group
   or individual) and loan size; restructured loans by class; disbursed,
   written off and recovered in the month; the 20 largest borrowers; interest
-  rates against the cap. Every table carries per-currency totals, and the
-  return checks that every breakdown adds up to the portfolio.
+  rates against the cap; the **regulatory provision and reserve** (NBC
+  provision, allowance held, reserve required and reserve on the ledger, with
+  a note that REGULATORY-mode books are not CIFRS 9 compliant). Every table
+  carries per-currency totals, and the return checks that every breakdown
+  adds up to the portfolio and that an impairment policy is approved while
+  lending loans are outstanding. Loss loans at the write-off floor that are
+  not written off are listed as a warning.
 * **Reconciliation** — for each currency and book, principal and allowance of
   the loans in the return against loans receivable and the allowance in that
   book's journal at month end (the lending book also against the trial
@@ -555,6 +623,49 @@ Tell borrowers what the holiday costs: only `WAIVE` is free. `CAPITALIZE`
 adds the deferred interest to the principal and charges interest on it
 thereafter.
 
+## Consumer disclosure: key facts statement and cooling-off
+
+Decisions D-123 … D-127. Before go-live, set the tenant lending settings
+(`POST /v1/lending/ops/settings`, maker-checker) under `consumerProtection`:
+`lenderLegalName`, `licenceNumber`, `complaints.phone` / `email` / `address`,
+`regulatorContact`, and review `coolingOffDays` (default 7; 0 = none),
+`coolingOffChargesAccruedInterest` (default true) and
+`coolingOffRefundsLenderFees` (default true). Unset contacts print as "not
+configured" and each statement carries a `warnings` list.
+
+* **Issue.** Approval issues the key facts statement from the approved terms
+  (`keyFacts` in the approval response); `POST
+  /v1/lending/applications/:id/key-facts` issues one on demand (permission
+  `key_facts.manage`; returns the statement in force when the terms are
+  unchanged). English and Khmer documents (`KEY_FACTS`) are filed in the
+  customer's library. A generation failure at approval is audited
+  (`key_facts.generate`, FAILURE) and leaves booking blocked.
+* **Read.** `GET /v1/lending/applications/:id/key-facts` — every version, the
+  one in force, the current terms hash and the booking blocker.
+* **Accept.** Staff: `POST …/key-facts/:statementId/acceptance` with
+  `{ method: 'SIGNED_FORM', documentId }` (the signed form, uploaded to the
+  customer's library first). Customer: `GET /v1/lending/portal/key-facts`, then
+  `POST /v1/lending/portal/key-facts/:statementId/accept` with `{ termsHash }`.
+* **Book.** Refused with 409 `KEY_FACTS_MISSING`, `KEY_FACTS_NOT_ACCEPTED` or
+  `KEY_FACTS_STALE` until the statement for the current terms hash is accepted;
+  on booking the statement becomes `BOOKED` and its documents are linked to the
+  loan.
+* **Cooling-off cancellation.** `GET /v1/lending/loans/:id/cooling-off` (window,
+  open request, today's cancellation amount); `POST
+  …/cooling-off-cancellations` (`reason`, `customerReference`; inside the
+  window), `POST …/cooling-off-cancellations/:taskId/decision` (another
+  person), `POST …/cooling-off-cancellations/:taskId/execute` (`amount` exactly
+  the cancellation amount, `Idempotency-Key`). The loan closes through the
+  settlement path: Dr cash / fee income (refund) / tax payable / penalty income
+  (waived), Cr every receivable. Reconciliation must stay clean.
+* **Affordability.** Applications may carry `declaredExternalMonthlyPayments`
+  and `declaredOtherLenders`. The debt-service ratio counts other live loans,
+  credit-line minimum payments and the declared payments
+  (`affordability.includeOwnLoans`, `includeFacilityMinimumPayments`); set
+  `affordability.maxLendersPerBorrower` to enforce a lender-count limit
+  (blocks with `LENDERS`). A scoring strategy that tests the ratio refers when
+  income is unknown (`scoring.strategy.knockouts.missingDebtServiceRatio`).
+
 ## Refinancing
 
 * The product must set `restructuring.allowRefinance`.
@@ -806,7 +917,10 @@ published exchange rates (`/v1/fx/rates`, FX_MANAGE); a payment is refused when
 no rate is published for its value date (tolerance configurable).
 `LENDING_FX_SOURCE=MOCK` uses fixed development rates instead (refused in
 production). Postings: payment currency Dr cash / Cr FX position (1050); loan
-currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410).
+currency Dr FX position at mid / Cr the loan / Cr FX gain-loss (4410). The
+loan is credited in its own rounding increment (`pricing.rounding`, e.g.
+KHR 100); what that rounding leaves over goes to the product's rounding
+differences account (4900) and shows on the preview (D-136).
 
 **Settings** (FINANCE_OFFICER, `rate_observation.manage`): FX spread in basis
 points, how many days old a rate may be, auto-debit attempts per due date and
@@ -819,6 +933,17 @@ library (from the customer profile: Documents). Files go to S3 when
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_S3_BUCKET_NAME` are set;
 otherwise to local disk under `DOCUMENT_STORAGE_DIR` (required in production
 without S3; a temporary directory is used in development).
+
+* **Encryption at rest (D-137).** S3 objects use bucket-side encryption. Files
+  on disk are encrypted by the API: AES-256-GCM with a random key per file,
+  that key wrapped under a key derived from `DOCUMENT_ENCRYPTION_KEY`
+  (32 bytes, base64 or hex; required in production without S3 — the API will
+  not boot without it). Files written before encryption are still read. To
+  encrypt them, run once on a machine that mounts the volume, with the API's
+  key: `DOCUMENT_STORAGE_DIR=… DOCUMENT_ENCRYPTION_KEY=… pnpm encrypt:documents`
+  (`--dry-run` lists what it would do). It is safe to repeat: encrypted files
+  are skipped. Back the key up separately from the volume — losing it makes
+  every encrypted document unreadable.
 
 * Every upload waits for review by a different user (Credit analyst, Loan
   operations maker/checker hold `document.review`).
@@ -1023,6 +1148,120 @@ To score thin-file borrowers: enable `scoring.thinFile` on the product (and
 optionally install and adjust `THIN_FILE`), collect consents, capture and
 verify the customer's documents' data, then submit the application.
 
+## Authenticator step-up, platform approvals and tenant purge
+
+- **Step-up (D-129).** Every lending action with `minAssurance: 'MFA'` needs an
+  authenticator code verified within `AUTH_MFA_STEP_UP_MINUTES` (default 15).
+  A stale session gets 403 `MFA_STEP_UP_REQUIRED` (the decision's only failing
+  check is `ASSURANCE`; any other failure stays `ACCESS_DENIED`). The web asks
+  for a code, calls `POST /auth/mfa/step-up` and retries. `GET /me/access`
+  reports `assurance.stepUpNeeded` on the same rule, so "Needs MFA" in the work
+  queues means "needs a fresh code".
+- **Administrators (D-128).** Tenant administrators must have an authenticator
+  unless the tenant's lending settings turn `security.requireMfaForAdmins` off.
+- **Platform audit (D-130).** Platform actions on a tenant's users or on the
+  tenant appear in that tenant's audit log as "Platform operator".
+- **Tenant purge (D-131).** Grace period, archive (SHA-256 recorded), legal
+  holds and retention (D-020 rules) and a second super-administrator are all
+  required; see DEPLOYMENT.md › Platform super-administrators.
+- **Telegram applications (D-132).** Off unless `telegramBot.allowLoanApplications`
+  is on; recorded by the "Telegram bot" system principal within the product's
+  limits.
+## AML/CFT controls (DECISIONS D-118…D-122)
+
+Cambodia's 2020 Law on AML/CFT; CAFIU is the FIU. User guide: chapter 26.
+
+**The gate.** `ApplicationsService.submit/approve/book`, loan disbursement
+(prepare and execute, via a disbursement guard) and facility drawdowns
+(request and release) refuse with `400 AML_CDD_INCOMPLETE` unless every
+party — the borrower, the active members of a group (the frozen
+`LoanGroupMember`s once booked), and guarantors linked to a customer record
+(`Guarantee.guarantorBorrowerId`) — has `kycStatus = VERIFIED`,
+`amlStatus = CLEAR`, no screening case `OPEN`/`PENDING_APPROVAL`, and, when
+`amlRiskRating = HIGH` or `pep`, an `APPROVED` EDD record. It is independent
+of workflow steps. The error carries `blockedBy` (layer `AML`) and the
+capability map (`GET /lending/access/capabilities/{APPLICATION|LOAN_ACCOUNT}/:id`)
+adds the same layer to the gated actions. Cards and BNPL purchases are gated
+at booking only. Legacy (`/loans`) origination is frozen (D-097) and not gated.
+
+**Status.** `POST /lending/aml/customers/:id/status` — `FLAGGED` at once
+(`aml.screen`); `CLEAR` screens the customer afresh (committed even if the
+clearance is then refused), refuses while a case is undisposed or a
+sanctions match is confirmed, then records an `ApprovalTask`
+(`BORROWER`/`AML_CLEAR`) that a second person approves
+(`…/clearance/decision`, `aml.disposition`, maker ≠ checker). The legacy
+`PATCH /borrowers/:id/kyc` can only flag. Every change writes an
+`AuditEvent` (`aml.status.*`) and `Borrower.amlStatusChangedAt/By`.
+
+**Watch lists and screening.** CSV upload (`POST /lending/aml/watch-lists`:
+`name,type,source,list_date[,aliases,country,date_of_birth,reference]`,
+`aml.watchList.maxEntries`) creates a `PENDING` `AmlWatchListVersion` with
+immutable `AmlWatchListEntry` rows; activation by another person
+(`…/:versionId/decision`) supersedes the list's previous `ACTIVE` version
+(one active version per list code, a partial unique index) and queues an
+`AmlRescreenJob`. Screening runs at customer create/update (legacy
+`BorrowersService`), on demand (`…/customers/:id/screen`), before a clearance
+and in re-screen jobs. Matching: `lending.screenName` — names normalised
+(Latin accents, case, punctuation, doubled letters, `aml.screening.ignoredTitles`),
+token-set Jaro-Winkler (pairs below `tokenFloor` ignored; score relative to
+the shorter name; `singleTokenPenalty` for one-word names) or plain Jaro on
+the names without spaces when the token counts differ; a hit is ≥
+`aml.screening.matchThreshold` (0.88). Hits open one `AmlScreeningCase` per
+customer (partial unique index); entries already disposed for the same
+normalised name are suppressed.
+
+**Re-screen jobs.** `AmlRescreenScheduler` (`AML_RESCREEN_CRON`, default
+every 5 minutes; `AML_RESCREEN_DISABLED`) or `POST /lending/aml/rescreen-jobs/run`
+works `PENDING`/`RUNNING` jobs: an instance takes the job's lease in
+`ScheduledJobClaim` (job `aml.rescreen`, run key = job id,
+`AML_RESCREEN_LEASE_SECONDS`), screens `aml.screening.rescreenBatchSize`
+customers per transaction, and commits the cursor and counts on the job row,
+so another instance resumes after a crash once the lease lapses. No
+in-process state.
+
+**Dispositions.** `POST …/cases/:caseId/disposition` (`TRUE_MATCH` |
+`FALSE_POSITIVE`, reason) creates an `ApprovalTask`
+(`AML_SCREENING_CASE`/`AML_DISPOSITION`); `…/disposition/decision` by
+another person. A true match flags the customer (cancelling any pending
+clearance); a PEP hit sets `Borrower.pep` and re-rates (HIGH); a SANCTION or
+INTERNAL hit also creates an `AmlStrCase` linked to the case. Disposed cases
+are immutable (trigger) and cannot be deleted.
+
+**Risk rating.** `lending.rateCustomerRisk` over `aml.risk`: weights for PEP,
+nationality in `highRiskCountries`, occupation matching
+`highRiskOccupations`, open/active product family in
+`highRiskProductFamilies`, cash intensity (cash share of repayments over
+`cashLookbackDays` ≥ `cashShareThreshold`, or a `cashIntensiveOccupations`
+match); `mediumAt`/`highAt` thresholds; `pepAlwaysHigh`; next review by
+`reviewMonths`. Re-rated at screening, on demand (`…/risk-rating`), on
+clearance and disposition. EDD: `POST …/customers/:id/edd` (one `PENDING` at
+a time), `POST …/edd/:eddId/decision` (`aml.edd.approve`, maker ≠ checker);
+approving supersedes the previous approved record.
+
+**Cash transaction report.** `GET /lending/aml/ctr?from&to` (≤ 1 year) and
+`GET /lending/aml/ctr.csv`. Posted `REPAYMENT` (amount) and `DISBURSEMENT`
+(net paid out) events whose channel — `components.channel` (new optional
+`channel` on `POST loans/:id/repayments`, `fx-repayments` and
+`disbursements/execute`), else the channel-file line, else the matched
+unidentified receipt — is in `aml.ctr.cashChannels` (default `BRANCH_CASH`),
+grouped per customer, business date and currency, reported when the day's
+total (in and out together) ≥ `aml.ctr.thresholds[currency]`
+(USD 10,000 / KHR 40,000,000, assumed). Events with no channel are counted
+(`withoutChannel`), not guessed. Scoped to the reader's branches; full ID
+numbers only for `aml.str.review` holders. Each extraction is audited.
+
+**STR referrals.** `POST /lending/aml/str` (`aml.str.raise`, customer in
+scope) returns only `{id, reference, status: SUBMITTED}`; the audit event
+carries the reference only. `GET/POST /lending/aml/str…` (`aml.str.review`):
+review (`TO_REPORT` | `NO_FURTHER_ACTION`), then `…/reported` with the
+CAFIU reference and date. Rows cannot be deleted; a reported referral is
+final.
+
+**Retention.** AML rows reference the customer with `ON DELETE RESTRICT`
+and refuse deletion (triggers); the legacy customer delete refuses a customer
+with AML records. `aml.retentionYearsAfterRelationship` (5) records the
+period; no purge job exists yet.
+
 ## Known limitations
 
 * Not implemented: connected-party (group) exposure checks
@@ -1040,13 +1279,23 @@ verify the customer's documents' data, then submit the application.
 * Institutional limits are per currency (no FX conversion of exposures) and
   per counterparty and country only; connected groups are not aggregated.
 * Reversal is latest-first and not available for repayments that triggered a
-  prepayment reschedule; amendment reversal only before later activity.
+  prepayment reschedule; amendment reversal only before later activity. A
+  repayment cannot be reversed automatically once the loan's agreement changed
+  after it (rate reset, payment holiday, restructure, reschedule) or the
+  instalment it paid is no longer live (D-137); correct it by adjustment.
+* A held down payment can be refunded (maker-checker) only before
+  disbursement (D-137).
+* Penalties charged before the D-133 change are not undone by a backdated
+  repayment (no accrual records exist for them).
 * Money with no loan goes to the unidentified-payments suspense account
   (Lending › Unidentified payments) and is matched or refunded; money beyond
   what is due is held as an advance or prepaid per the product.
 * Penalty interest uses ACT/365F on overdue principal + interest.
 * Impairment (regulatory class rates or ECL by stage) posts only once a
-  policy is approved; modification accounting still needs integration review.
+  policy is approved, and a month cannot close without one; modification
+  accounting still needs integration review. The NBC bands, the restructured
+  minimum class and the write-off floor are the team's reading of the Prakas
+  and need compliance sign-off (D-113 – D-117).
 * The business date is per tenant (not per branch or legal entity).
 
 ## API index (`/v1/lending/...`)
@@ -1073,6 +1322,7 @@ verify the customer's documents' data, then submit the application.
 | Covenants | `GET/POST loans/:id/covenants`, `POST loans/:id/covenants/:covenantId/{tests,waive}` |
 | Scoring | `GET/POST scorecards`, `GET scorecards/:scorecardId`, `POST scorecards/:scorecardId/versions`, `PUT scorecard-versions/:versionId`, `POST scorecard-versions/:versionId/{submit,approve,reject,activate,retire}`, `POST scorecard-test`, `GET scorecard-monitoring`, `GET/POST applications/:id/scores` |
 | Alternative data | `GET customers/:borrowerId/alternative-data`, `POST customers/:borrowerId/consents`, `POST consents/:consentId/revoke`, `POST customers/:borrowerId/alternative-data`, `POST alternative-data/:recordId/decision`, `GET/POST alternative-data-providers`, `POST alternative-data-providers/:configId/decision` |
+| AML/CFT | `GET aml/customers/:borrowerId`, `POST aml/customers/:borrowerId/{screen,status,clearance/decision,risk-rating,edd}`, `POST aml/edd/:eddId/decision`, `GET aml/risk-ratings`, `GET/POST aml/watch-lists`, `GET aml/watch-lists/:versionId`, `POST aml/watch-lists/:versionId/decision`, `POST aml/rescreen-jobs/run`, `GET aml/cases`, `GET aml/cases/:caseId`, `POST aml/cases/:caseId/{disposition,disposition/decision}`, `GET aml/ctr`, `GET aml/ctr.csv`, `GET/POST aml/str`, `GET aml/str/:strId`, `POST aml/str/:strId/{review,reported}` |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
 Money endpoints require an `Idempotency-Key` header.

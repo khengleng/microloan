@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
     AlertTriangle, BarChart2, BookOpenCheck, Boxes, Building, Calculator, CalendarCheck, ClipboardList, Coins,
     CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
-    Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldCheck, Ship, Siren, SlidersHorizontal,
+    Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldAlert, ShieldCheck, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
     Globe2, GraduationCap, LineChart, CircleHelp, School,
 } from 'lucide-react';
@@ -100,7 +100,7 @@ export const NAV: NavSection[] = [
                 queues: ['RESTRUCTURES_TO_ASSESS', 'RESTRUCTURES_TO_PROPOSE', 'RESTRUCTURES_TO_APPROVE', 'RESTRUCTURE_ACCEPTANCES', 'RESTRUCTURES_TO_EXECUTE', 'RESTRUCTURE_MONITORING'],
             },
             { key: 'relief', href: '/lending/relief', icon: Umbrella, lending: ['payment_holiday.read'], queues: ['HOLIDAY_PROGRAMMES_TO_PUBLISH'] },
-            { key: 'recovery', href: '/lending/recovery', icon: HandCoins, lending: ['loan.recovery.post', 'loan.writeoff.propose', 'loan.writeoff.approve'], queues: ['RECOVERY_TO_APPROVE'] },
+            { key: 'recovery', href: '/lending/recovery', icon: HandCoins, lending: ['loan.recovery.post', 'loan.writeoff.propose', 'loan.writeoff.approve'], queues: ['RECOVERY_TO_APPROVE', 'AGED_LOSS'] },
             { key: 'suspense', href: '/lending/suspense', icon: PiggyBank, lending: ['loan.repayment.post', 'loan.repayment.reverse'], queues: ['UNIDENTIFIED_PAYMENTS', 'REFUNDS_TO_APPROVE'] },
             { key: 'paymentChannels', href: '/lending/payment-channels', icon: Banknote, lending: ['loan.repayment.post', 'rate_observation.manage'] },
         ],
@@ -145,6 +145,7 @@ export const NAV: NavSection[] = [
     {
         key: 'risk',
         items: [
+            { key: 'aml', href: '/lending/aml', icon: ShieldAlert, lending: ['aml.read', 'aml.screen', 'aml.str.review'] },
             { key: 'auditTrail', href: '/lending/audit', icon: ScrollText, lending: ['audit.read'] },
             { key: 'legacyAudit', href: '/audit', icon: Shield, legacy: ['AUDIT_VIEW'], legacyRoles: LEGACY_ADMIN },
             {

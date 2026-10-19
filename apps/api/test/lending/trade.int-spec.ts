@@ -12,6 +12,7 @@
  * Evidence for: trade.invoice_finance, trade.letter_of_credit
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -112,6 +113,7 @@ d('Trade finance (integration)', () => {
         rationale: 'Within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

@@ -5,7 +5,7 @@
  * and the product's cap, and it is enforced on product versions, applications,
  * bookings, restructures and floating-rate resets (DECISIONS D-105…D-112).
  */
-import { TEST_DB, expectOk } from './harness';
+import { acceptKeyFacts, TEST_DB, expectOk } from './harness';
 import { Journey, lending } from './e2e/journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -236,6 +236,7 @@ d('Interest-rate cap (integration)', () => {
       if ((a.application ?? a).status === 'APPROVED') break;
     }
     await lenderCap('13');
+    await acceptKeyFacts(j, appId);
     const refused = await j
       .as('opsMaker')
       .post(`/lending/applications/${appId}/book`, {});

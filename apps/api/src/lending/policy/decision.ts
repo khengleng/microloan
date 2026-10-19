@@ -329,7 +329,7 @@ export function decide(input: DecisionInput): Decision {
       ok,
       ok
         ? 'Multi-factor sign-in'
-        : 'This action requires signing in with multi-factor authentication',
+        : 'This action requires a recent multi-factor authentication code',
       `assurance=${env.assurance}`,
     );
   }

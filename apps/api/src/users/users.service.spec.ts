@@ -24,7 +24,8 @@ describe('UsersService security', () => {
   };
   const authz = new AuthzService(audit);
   const planTiers: any = { ceilingsFor: jest.fn() };
-  const service = new UsersService(prisma, audit, authz, planTiers);
+  const grants: any = { requestForNewAccount: jest.fn() };
+  const service = new UsersService(prisma, audit, authz, planTiers, grants);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -110,7 +111,7 @@ describe('UsersService security', () => {
 
   describe('reset authenticator (lost phone)', () => {
     const admin = (amr: 'mfa' | 'pwd' = 'mfa') =>
-      ({ sub: 'admin1', role: 'TENANT_ADMIN', tenantId: 't1', branchId: null, permissions: [], amr }) as any;
+      ({ sub: 'admin1', role: 'TENANT_ADMIN', tenantId: 't1', branchId: null, permissions: [], amr, mfaAt: Math.floor(Date.now() / 1000) }) as any;
     const officer = {
       id: 'u2',
       email: 'officer@example.com',

@@ -100,6 +100,7 @@ function buildService(
       findUnique: jest.fn(async () => overrides.existingUser ?? null),
       update: jest.fn(async () => ({})),
     },
+    mfaChallenge: { create: jest.fn(async () => ({})) },
     federatedIdentity: {
       findUnique: jest.fn(async () => overrides.existingIdentity ?? null),
       create: jest.fn(async () => ({})),

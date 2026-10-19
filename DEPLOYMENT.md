@@ -228,6 +228,27 @@ same Railway project is not a recovery plan.
   changing `DOCUMENT_LINK_SECRET` invalidates outstanding download links (they
   expire within minutes anyway).
 
+**`DOCUMENT_ENCRYPTION_KEY` — customer documents on a disk volume.** When S3
+is not configured, customer documents are written to `DOCUMENT_STORAGE_DIR`
+and the API encrypts each file (AES-256-GCM, a random data key per file,
+wrapped under a key derived from this one; DECISIONS D-137). In production the
+api refuses to boot without it whenever S3 is not configured, and
+`pnpm security:prod-config-check` checks it (32 bytes, base64 or 64 hex
+characters). It is a separate key from `FIELD_ENCRYPTION_KEY`; generate it in
+the secrets vault, never in a terminal session that is logged.
+
+- Escrow it exactly like `FIELD_ENCRYPTION_KEY`, and separately from the
+  volume and its backups: a volume snapshot without the key is unreadable.
+- **Turning it on for an existing volume**: set the variable and redeploy (new
+  uploads are encrypted; older files are still read as plaintext), then run
+  once with the volume mounted:
+  `railway run -s api -- pnpm encrypt:documents --dry-run`, then without
+  `--dry-run`. The run is idempotent — encrypted files are skipped — so it can
+  be repeated or resumed.
+- **Rotation** needs the data keys re-wrapped under the new key; there is no
+  automated tool yet. Do not change the variable without one: files written
+  under the old key would become unreadable.
+
 ## Watching a deploy
 
 ```bash
@@ -320,6 +341,50 @@ Prisma pool, stops scheduled jobs).
   PostgreSQL; rate limits share Redis. Customer documents need S3 (or one
   volume every instance mounts) — today they are on the single api's `/data`
   volume.
+
+## Platform super-administrators, MFA and tenant purges
+
+- **Super-administrators must use an authenticator** (`AUTH_MFA_REQUIRED_SUPERADMIN`,
+  default `true`; D-128). A SUPERADMIN without one reaches only `auth/me`,
+  `auth/mfa/{status,generate,enable,step-up}`, `auth/change-password`,
+  `auth/sessions/revoke-all` and sign-out; everything else answers 403
+  `MFA_ENROLMENT_REQUIRED` and the web sends them to My account. Tenant
+  administrators follow their tenant's `security.requireMfaForAdmins` (default
+  on). **After this deploy the production super-admin (contact@cambobia.com)
+  has no authenticator** and will be sent to My account at the next sign-in:
+  have the phone ready, scan the QR, enter the code — the session is upgraded
+  on the spot. Keep `FIELD_ENCRYPTION_KEY` escrowed: the authenticator secret
+  is encrypted with it.
+- **Step-up window** `AUTH_MFA_STEP_UP_MINUTES` (default 15; D-129). MFA-gated
+  actions (25 lending actions with `minAssurance: 'MFA'`, authenticator
+  resets, super-admin grants, purges) need a code at most this old; refresh
+  keeps `amr=mfa` but never moves `mfaAt`. Sessions issued before this deploy
+  carry no `mfaAt`, so the first gated action after the deploy asks for a
+  code (the web shows a "Confirm it is you" box and retries).
+- **TOTP codes are single-use** (the accepted time step is stored per user)
+  and the login `mfaToken` is redeemed once (`MfaChallenge` rows). Expired
+  challenge rows are harmless; prune them with
+  `DELETE FROM "MfaChallenge" WHERE "expiresAt" < now() - interval '1 day'`
+  if the table grows.
+- **Second super-administrator** (D-130): granting SUPERADMIN and purging a
+  tenant are `PlatformApproval` requests another super-administrator approves
+  (`PLATFORM_APPROVAL_TTL_DAYS`, default 7). With a single super-administrator
+  a grant proceeds on MFA alone and logs `SUPERADMIN_SOLE_APPROVER` (warning
+  in the api log). **Add a second super-administrator** — a tenant purge
+  cannot be requested without one.
+- **Tenant purge** (D-131): erasure request → grace period
+  (`TENANT_ERASURE_GRACE_DAYS`, default 30, now enforced) → archive (a JSON
+  bundle of every tenant row, credentials excluded, written to document
+  storage under `platform/tenant-archives/<tenantId>/`, SHA-256 recorded in
+  `TenantArchive`, which is immutable) → purge request → second approval →
+  purge. Refused while any customer document is under legal hold, a customer
+  relationship is open, or anything is inside its retention period (KYC/AML
+  and loan periods from the tenant's document retention rules, D-020). The
+  purge deletes the tenant's stored files (`tenants/<id>/`, `lending/<id>/`,
+  `<id>/` in S3 or under `DOCUMENT_STORAGE_DIR`) first, then its rows, in a
+  transaction bounded by `TENANT_PURGE_TX_TIMEOUT_MS`. The archive is held in
+  memory while it is written: archive very large tenants on an instance with
+  headroom. **Keep archives** under your records policy; they contain PII.
 
 ## Monitoring
 

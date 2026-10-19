@@ -27,6 +27,8 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     const confirm = useConfirm();
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
+    // How the money went out; cash counts towards the cash transaction report (AML).
+    const [channel, setChannel] = useState('');
     const [problem, setProblem] = useState('');
     // Down-payment problems show next to the down-payment form, which is used before approval.
     const [dpProblem, setDpProblem] = useState('');
@@ -45,7 +47,36 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     const appr = can('loan.disbursement.approve');
     const exec = can('loan.disbursement.execute');
     const recordDp = can('loan.down_payment.record');
+    const refundPropose = can('loan.down_payment.refund.propose');
+    const refundApprove = can('loan.down_payment.refund.approve');
     const me = useMyId();
+    // D-137: a held down payment goes back to the borrower before disbursement, four-eyes.
+    const [refund, setRefund] = useState({ amount: '', reason: '' });
+    const [refundProblem, setRefundProblem] = useState('');
+    const refundKey = useIdempotencyKey();
+    const refunds = tasks.filter((x) => x.action === 'DOWN_PAYMENT_REFUND' && x.status === 'PENDING');
+    const held = Number(account?.downPaymentHeld ?? '0');
+
+    const proposeRefund = async () => {
+        const amount = refund.amount.trim();
+        if (!/^\d+(\.\d{1,4})?$/.test(amount) || !/[1-9]/.test(amount) || Number(amount) > held) { setRefundProblem(t('downPayment.refundEnterAmount')); return; }
+        if (refund.reason.trim().length < 3) { setRefundProblem(t('downPayment.refundEnterReason')); return; }
+        setRefundProblem('');
+        const res = await run('dp-refund', () => api.post(`/lending/loans/${loanId}/down-payment-refunds`, { amount, reason: refund.reason.trim() }));
+        if (res) {
+            setRefund({ amount: '', reason: '' });
+            onDone(t('downPayment.refundProposed'));
+        }
+    };
+
+    const decideRefund = async (taskId: string, approve: boolean) => {
+        const body = { approve };
+        const res = await run(`dp-refund-${taskId}:${approve}`, () => api.post(`/lending/loans/${loanId}/down-payment-refunds/${taskId}/decision`, body, idem(refundKey.keyFor({ taskId, ...body }))));
+        if (res) {
+            refundKey.reset();
+            onDone(approve ? t('downPayment.refundPaid') : t('downPayment.refundRejected'));
+        }
+    };
 
     const recordDownPayment = async () => {
         if (!/^\d+(\.\d{1,4})?$/.test(dp.amount.trim()) || !/[1-9]/.test(dp.amount)) { setDpProblem(t('errors.dpAmount')); return; }
@@ -89,6 +120,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
         }
         const body = {
             externalReference: externalReference.trim(),
+            ...(channel ? { channel } : {}),
             ...(payees.length ? {
                 payees: payees.map((p) => clean({ type: p.type, name: p.name.trim(), reference: p.reference.trim(), account: p.account.trim(), loanId: p.type === 'INTERNAL_LOAN' ? p.loanId.trim() : '', amount: p.amount.trim() })),
             } : {}),
@@ -141,6 +173,27 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
                         <Field label={t('downPayment.receiptReference')}><TextInput value={dp.externalReference} onChange={(v) => setDp({ ...dp, externalReference: v })} maxLength={120} className="w-44" /></Field>
                         <Btn onClick={recordDownPayment} busy={busy === 'dp'} disabled={!recordDp.allowed} reason={recordDp.reason}>{t('downPayment.record')}</Btn>
                     </div>
+                    {(held > 0 || refunds.length > 0) && (
+                        <div data-tour="disb-down-payment-refund" className="border-t border-[#E3E8EE] pt-2 space-y-2">
+                            <div className="text-[13px] font-medium text-[#1A1F36]">{t('downPayment.refundTitle')}</div>
+                            <div className="text-[12px] text-[#697386]">{t('downPayment.refundBody')}</div>
+                            {refunds.map((task) => (
+                                <div key={task.id} className="flex flex-wrap items-center gap-2 text-[12px]">
+                                    <span>{t('downPayment.refundPending', { currency, amount: task.amount ?? '' })}</span>
+                                    <span className="text-[11px] text-[#8792A2]">{t.rich('downPayment.refundProposedBy', { who: () => task.makerEmail ?? <Person id={task.makerId} /> })}</span>
+                                    {task.makerId !== me && <Btn size="sm" variant="primary" onClick={() => decideRefund(task.id, true)} busy={busy === `dp-refund-${task.id}:true`} disabled={!refundApprove.allowed} reason={refundApprove.reason}>{t('downPayment.refundApprove')}</Btn>}
+                                    {task.makerId !== me && <Btn size="sm" variant="danger" onClick={() => decideRefund(task.id, false)} busy={busy === `dp-refund-${task.id}:false`} disabled={!refundApprove.allowed} reason={refundApprove.reason}>{t('downPayment.refundReject')}</Btn>}
+                                </div>
+                            ))}
+                            {refunds.length === 0 && (
+                                <div className="flex flex-wrap items-end gap-2">
+                                    <Field label={t('downPayment.refundAmount')} error={refundProblem || undefined}><TextInput value={refund.amount} onChange={(v) => setRefund({ ...refund, amount: v })} inputMode="decimal" className="w-32" /></Field>
+                                    <Field label={t('downPayment.refundReason')}><TextInput value={refund.reason} onChange={(v) => setRefund({ ...refund, reason: v })} maxLength={500} className="w-64" /></Field>
+                                    <Btn onClick={proposeRefund} busy={busy === 'dp-refund'} disabled={!refundPropose.allowed} reason={refundPropose.reason}>{t('downPayment.refundPropose')}</Btn>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -173,6 +226,9 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
                 <div data-tour="disb-execute" className="flex flex-wrap items-end gap-2">
                     <Field label={t('externalReference')} hint={t('externalReferenceHint')} error={problem || undefined}>
                         <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} className="w-64" />
+                    </Field>
+                    <Field label={t('channel')} hint={t('channelHint')}>
+                        <SelectInput value={channel} onChange={setChannel} placeholder={t('channelUnknown')} options={['BRANCH_CASH', 'BANK_TRANSFER', 'MOBILE', 'WALLET', 'AGENT', 'OTHER'].map((c) => ({ value: c, label: t(`channels.${c}`) }))} className="w-44" />
                     </Field>
                     <Btn variant="primary" onClick={execute} busy={busy === 'execute'} disabled={!exec.allowed} reason={exec.reason}>{t('execute')}</Btn>
                 </div>

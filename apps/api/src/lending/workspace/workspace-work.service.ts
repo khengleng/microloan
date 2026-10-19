@@ -5,6 +5,9 @@ import { LendingPrisma, Tx } from '../common/lending-prisma';
 import { BusinessDateService } from '../common/business-date.service';
 import { decStr, fromLocalDate, type LendingActor } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
+import { lending } from '@microloan/shared';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
+import { originalTermDays } from '../servicing/loan-state';
 import { ACTION_BY_CODE } from '../policy/actions';
 import type { Subject } from '../policy/decision';
 import {
@@ -80,6 +83,11 @@ const TASK_QUEUES: Record<
     code: 'REFUNDS_TO_APPROVE',
     title: 'Refunds to approve',
     action: 'loan.advance_refund.approve',
+  },
+  DOWN_PAYMENT_REFUND: {
+    code: 'REFUNDS_TO_APPROVE',
+    title: 'Refunds to approve',
+    action: 'loan.down_payment.refund.approve',
   },
   SUSPENSE_REFUND: {
     code: 'REFUNDS_TO_APPROVE',
@@ -171,6 +179,7 @@ const QUEUE_HREF: Record<string, string> = {
   FACILITY_LIMITS_TO_APPROVE: '/lending/facilities',
   COLLECTION_TASKS: '/lending/collections',
   PAST_DUE: '/lending/collections',
+  AGED_LOSS: '/lending/recovery',
   DOCUMENTS_TO_REVIEW: '/lending/documents',
   UNIDENTIFIED_PAYMENTS: '/lending/suspense',
   PERIODS_TO_APPROVE: '/lending/close',
@@ -212,6 +221,7 @@ export class WorkspaceWorkService {
     private readonly lp: LendingPrisma,
     private readonly policy: PolicyService,
     private readonly businessDate: BusinessDateService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   async work(actor: LendingActor) {
@@ -961,6 +971,102 @@ export class WorkspaceWorkService {
                 id: r.id,
                 reference: r.reference,
                 label: `${names.get(r.borrowerId) ?? ''} · ${r.daysPastDue} days`,
+                amount: decStr(r.principalOutstanding),
+                currency: r.currency,
+                href: loanHref(r.id),
+              })),
+            );
+          }
+        }
+        // D-117: loans graded Loss at the write-off floor, not yet written off.
+        if (has('loan.writeoff.propose')) {
+          const sw = scopeOf('loan.writeoff.propose');
+          if (sw) {
+            const s = await this.settings.get(tenantId, tx);
+            const bands = lending.regulatoryBands(s);
+            const floors = [
+              lending.writeOffFloorDpd(
+                bands,
+                null,
+                s.regulatory.writeOffMinDpd,
+              ),
+              lending.writeOffFloorDpd(
+                bands,
+                s.regulatory.shortTermMaxDays + 1,
+                s.regulatory.writeOffMinDpd,
+              ),
+            ];
+            const candidates = await tx.loanAccount.findMany({
+              where: {
+                tenantId,
+                status: 'ACTIVE',
+                daysPastDue: { gte: Math.min(...floors) },
+                ...(sw as Prisma.LoanAccountWhereInput),
+              },
+              orderBy: { daysPastDue: 'desc' },
+              select: {
+                id: true,
+                reference: true,
+                borrowerId: true,
+                currency: true,
+                principalOutstanding: true,
+                daysPastDue: true,
+                disbursementDate: true,
+                maturityDate: true,
+                originalMaturityDate: true,
+                isRestructured: true,
+                probationRemaining: true,
+                delinquencyFloorDpd: true,
+              },
+            });
+            const pending = new Set(
+              (
+                await tx.approvalTask.findMany({
+                  where: {
+                    tenantId,
+                    action: 'WRITE_OFF',
+                    status: 'PENDING',
+                    subjectId: { in: candidates.map((c) => c.id) },
+                  },
+                  select: { subjectId: true },
+                })
+              ).map((t) => t.subjectId),
+            );
+            const aged = candidates.filter((l) => {
+              if (pending.has(l.id)) return false;
+              const term = originalTermDays(l);
+              const grade = lending.classifyRegulatory(bands, {
+                daysPastDue: l.daysPastDue,
+                originalTermDays: term,
+                restructured: l.isRestructured,
+                onProbation: l.probationRemaining > 0,
+                floorDpd: l.delinquencyFloorDpd,
+              });
+              return (
+                grade.cls.code === 'LOSS' &&
+                l.daysPastDue >=
+                  lending.writeOffFloorDpd(
+                    bands,
+                    term,
+                    s.regulatory.writeOffMinDpd,
+                  )
+              );
+            });
+            const names = await this.borrowerNames(
+              tx,
+              tenantId,
+              aged.slice(0, TOP).map((r) => r.borrowerId),
+            );
+            add(
+              'AGED_LOSS',
+              'Loss loans due for write-off',
+              'loan.writeoff.propose',
+              'MAKER',
+              aged.length,
+              aged.map((r) => ({
+                id: r.id,
+                reference: r.reference,
+                label: `${names.get(r.borrowerId) ?? ''} · Loss · ${r.daysPastDue} days`,
                 amount: decStr(r.principalOutstanding),
                 currency: r.currency,
                 href: loanHref(r.id),

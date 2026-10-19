@@ -16,7 +16,7 @@ import { JwtStrategy } from '../auth/jwt.strategy';
 import { GlobalAuthGuard } from '../auth/global-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { AnyAuthenticated, Public } from '../auth/auth-scope.decorator';
+import { AnyAuthenticated, MfaEnrolmentRoute, Public } from '../auth/auth-scope.decorator';
 import { PermissionGuard } from './permission.guard';
 import { TenantScopeGuard } from './tenant-scope.guard';
 import { BranchScopeGuard } from './branch-scope.guard';
@@ -48,6 +48,7 @@ const USERS: Record<
     role: string;
     tenantId: string | null;
     branchId: string | null;
+    twoFactorEnabled?: boolean;
   }
 > = {
   'user-tenant-a': {
@@ -68,6 +69,33 @@ const USERS: Record<
     tenantId: null,
     branchId: null,
   },
+  // No authenticator yet (D-128).
+  'super-no-mfa': {
+    isActive: true,
+    role: 'SUPERADMIN',
+    tenantId: null,
+    branchId: null,
+    twoFactorEnabled: false,
+  },
+  'admin-no-mfa': {
+    isActive: true,
+    role: 'TENANT_ADMIN',
+    tenantId: 'tenant-a',
+    branchId: null,
+    twoFactorEnabled: false,
+  },
+  'admin-no-mfa-b': {
+    isActive: true,
+    role: 'TENANT_ADMIN',
+    tenantId: 'tenant-b',
+    branchId: null,
+    twoFactorEnabled: false,
+  },
+};
+
+/** Tenant lending settings in force, per tenant (tenant-b turned the admin MFA rule off). */
+const TENANT_SETTINGS: Record<string, unknown> = {
+  'tenant-b': { security: { requireMfaForAdmins: false } },
 };
 
 /** Captures what the handler sees, so assertions can inspect the context. */
@@ -91,6 +119,13 @@ class ProbeController {
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get('permission-gated')
   permissionGated() {
+    return { ok: true };
+  }
+
+  @AnyAuthenticated()
+  @MfaEnrolmentRoute()
+  @Get('enrol')
+  enrol() {
     return { ok: true };
   }
 
@@ -140,9 +175,18 @@ class ProbeController {
           findUnique: jest.fn(async () => ({ status: 'ACTIVE', plan: 'PRO' })),
         },
         user: {
-          findUnique: jest.fn(
-            async ({ where }: { where: { id: string } }) =>
-              USERS[where.id] ?? null,
+          findUnique: jest.fn(async ({ where }: { where: { id: string } }) =>
+            USERS[where.id]
+              ? { twoFactorEnabled: true, ...USERS[where.id] }
+              : null,
+          ),
+        },
+        tenantLendingSettings: {
+          findFirst: jest.fn(
+            async ({ where }: { where: { tenantId: string } }) =>
+              TENANT_SETTINGS[where.tenantId]
+                ? { settings: TENANT_SETTINGS[where.tenantId] }
+                : null,
           ),
         },
       },
@@ -185,11 +229,14 @@ describe('Guard chain over HTTP', () => {
 
   const tokenFor = (sub: string) => {
     const u = USERS[sub];
+    const mfa = u.twoFactorEnabled !== false;
     return jwt.sign({
       sub,
       email: `${sub}@example.com`,
       role: u.role,
       tenantId: u.tenantId,
+      amr: mfa ? 'mfa' : 'pwd',
+      ...(mfa ? { mfaAt: Math.floor(Date.now() / 1000) } : {}),
     });
   };
 
@@ -282,6 +329,43 @@ describe('Guard chain over HTTP', () => {
     it('confines a branch-scoped role to its own branch', async () => {
       await get('/t/branch/branch-2', 'user-officer-a').expect(403);
       await get('/t/branch/branch-1', 'user-officer-a').expect(200);
+    });
+  });
+
+  describe('authenticator requirement (D-128)', () => {
+    it('a SUPERADMIN without an authenticator reaches only the enrolment routes', async () => {
+      const denied = await get('/t/self-service', 'super-no-mfa').expect(403);
+      expect(denied.body.code).toBe('MFA_ENROLMENT_REQUIRED');
+      await get('/t/enrol', 'super-no-mfa').expect(200);
+    });
+
+    it('a TENANT_ADMIN without an authenticator is held at enrolment by default', async () => {
+      const denied = await get('/t/role-gated', 'admin-no-mfa').expect(403);
+      expect(denied.body.code).toBe('MFA_ENROLMENT_REQUIRED');
+      await get('/t/enrol', 'admin-no-mfa').expect(200);
+    });
+
+    it('a tenant that turned the rule off lets its administrators through', async () => {
+      await get('/t/role-gated', 'admin-no-mfa-b').expect(200);
+    });
+
+    it('an enrolled SUPERADMIN whose session predates MFA is asked to step up', async () => {
+      const token = jwt.sign({
+        sub: 'user-super',
+        email: 'user-super@example.com',
+        role: 'SUPERADMIN',
+        tenantId: null,
+        amr: 'pwd',
+      });
+      const res = await request(app.getHttpServer())
+        .get('/t/self-service')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+      expect(res.body.code).toBe('MFA_STEP_UP_REQUIRED');
+    });
+
+    it('roles without the requirement are unaffected', async () => {
+      await get('/t/permission-gated', 'user-officer-a').expect(200);
     });
   });
 });

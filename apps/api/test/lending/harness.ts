@@ -44,6 +44,10 @@ export function configureEnv() {
     process.env.JWT_REFRESH_TOKEN_PEPPER || 'test-pepper-0123456789';
   process.env.FIELD_ENCRYPTION_KEY =
     process.env.FIELD_ENCRYPTION_KEY || 'a'.repeat(64);
+  // A test key, not a real one: documents on the local-disk store are
+  // encrypted at rest (DECISIONS D-137).
+  process.env.DOCUMENT_ENCRYPTION_KEY =
+    process.env.DOCUMENT_ENCRYPTION_KEY || 'b'.repeat(64);
   process.env.CORS_ORIGINS = 'http://localhost:3000';
   process.env.LENDING_OUTBOX_DISABLED = 'true';
 }
@@ -189,6 +193,9 @@ export async function bootstrap(): Promise<Fixture> {
         tenantId: u.tenantId,
         branchId: u.branchId,
         amr: 'mfa',
+        // When the authenticator code was verified (D-129): MFA-gated actions
+        // need it within AUTH_MFA_STEP_UP_MINUTES.
+        mfaAt: Math.floor(Date.now() / 1000),
       },
       { expiresIn: '1h' },
     );
@@ -339,6 +346,10 @@ export async function borrower(
         firstName: 'Sok',
         lastName: 'Dara',
         kycStatus: 'VERIFIED',
+        // Lending needs an AML-cleared, low-risk customer (D-118); the
+        // two-person clearance itself is tested in aml.int-spec.
+        amlStatus: 'CLEAR',
+        amlRiskRating: 'LOW',
         dateOfBirth: new Date(Date.UTC(1985, 3, 12)),
         monthlyIncome: '3000',
         ...over,
@@ -388,6 +399,81 @@ export async function raiseRateCap(
   };
 }
 
+/**
+ * Put a version of the lender's settings in force for a suite (as if
+ * proposed and approved under maker-checker): `patch` over the defaults.
+ * For suites whose scenario needs a setting the NBC defaults forbid, such as
+ * writing off a loan before it reaches the Loss class (D-117).
+ */
+export async function lendingSettings(
+  f: Fixture,
+  tenantId: string,
+  patch: Record<string, unknown>,
+) {
+  const { lending } = require('@microloan/shared');
+  const settings = lending.tenantLendingSettingsSchema.parse(patch);
+  await f.system(async () => {
+    await f.prisma.tenantLendingSettings.updateMany({
+      where: { tenantId, status: 'ACTIVE' },
+      data: { status: 'RETIRED' },
+    });
+    const last = await f.prisma.tenantLendingSettings.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+    });
+    await f.prisma.tenantLendingSettings.create({
+      data: {
+        tenantId,
+        version: (last?.version ?? 0) + 1,
+        settings,
+        status: 'ACTIVE',
+        makerId: f.users.finance.id,
+        checkerId: f.users.approver.id,
+        decidedAt: new Date(),
+        reason: 'integration test fixture',
+      },
+    });
+  });
+}
+
+/**
+ * Approve an impairment policy for a suite (the NBC classes in REGULATORY
+ * mode unless given): a month with loans outstanding cannot be closed
+ * without one (D-116).
+ */
+export async function impairmentPolicy(
+  f: Fixture,
+  tenantId: string,
+  settings?: Record<string, unknown>,
+) {
+  const { lending } = require('@microloan/shared');
+  await f.system(async () => {
+    await f.prisma.impairmentPolicy.updateMany({
+      where: { tenantId, status: 'ACTIVE' },
+      data: { status: 'RETIRED' },
+    });
+    const last = await f.prisma.impairmentPolicy.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+    });
+    await f.prisma.impairmentPolicy.create({
+      data: {
+        tenantId,
+        version: (last?.version ?? 0) + 1,
+        settings: settings ?? {
+          mode: 'REGULATORY',
+          classes: lending.NBC_IMPAIRMENT_CLASSES,
+        },
+        status: 'ACTIVE',
+        makerId: f.users.finance.id,
+        checkerId: f.users.approver.id,
+        decidedAt: new Date(),
+        reason: 'integration test fixture',
+      },
+    });
+  });
+}
+
 export function expectOk(res: request.Response, status = [200, 201]) {
   if (!status.includes(res.status)) {
     throw new Error(
@@ -421,5 +507,54 @@ export async function serviceAccount(
     await f
       .as(maker)
       .post(`/lending/access/service-account-requests/${req.id}/issue`),
+  );
+}
+
+const SIGNED_FORM_PDF = Buffer.from('%PDF-1.4 signed key facts').toString(
+  'base64',
+);
+
+/**
+ * The customer accepts the key facts statement of an approved application
+ * (D-123) through the staff path: the statement issued at approval (or a new
+ * one, when the terms changed since) is read, the customer's signed form is
+ * filed in their library, and `user` records the acceptance. Booking is
+ * refused without it.
+ */
+export async function acceptKeyFacts(
+  f: Pick<Fixture, 'as'>,
+  applicationId: string,
+  user = 'ro',
+) {
+  const kfs = expectOk(
+    await f.as(user).get(`/lending/applications/${applicationId}/key-facts`),
+  );
+  let current = kfs.current;
+  if (!current || current.termsHash !== kfs.currentTermsHash)
+    current = expectOk(
+      await f.as(user).post(`/lending/applications/${applicationId}/key-facts`),
+    );
+  if (current.status === 'ACCEPTED') return current;
+  const app = expectOk(
+    await f.as(user).get(`/lending/applications/${applicationId}`),
+  );
+  const form = expectOk(
+    await f.as(user).post(`/lending/customers/${app.borrowerId}/documents`, {
+      category: 'AGREEMENT',
+      typeCode: 'KEY_FACTS_SIGNED',
+      title: `Signed key facts statement v${current.version}`,
+      fileName: 'key-facts-signed.pdf',
+      mimeType: 'application/pdf',
+      contentBase64: SIGNED_FORM_PDF,
+      applicationId,
+    }),
+  );
+  return expectOk(
+    await f
+      .as(user)
+      .post(
+        `/lending/applications/${applicationId}/key-facts/${current.id}/acceptance`,
+        { method: 'SIGNED_FORM', documentId: form.id },
+      ),
   );
 }

@@ -171,6 +171,15 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.down_payment.record', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
+  // A held down payment goes back to the borrower before disbursement (or
+  // when the booked loan is cancelled); someone else approves the payout (D-137).
+  A('loan.down_payment.refund.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  A('loan.down_payment.refund.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
   A('loan.payoff_quote.issue', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
@@ -207,6 +216,17 @@ export const ACTIONS: ActionDefinition[] = [
   }),
   A('loan.fee_waiver.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
+  // Cooling-off cancellation (D-125): the customer's request is recorded by
+  // one person and approved by another; the repayment then closes the loan.
+  A('loan.cooling_off.request', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.cooling_off.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    workflowStates: ['ACTIVE'],
     makerChecker: true,
   }),
   A('loan.advance_refund.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
@@ -298,6 +318,24 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.agreement.book', 'APPLICATION', 'ORIGINATION', {
     workflowStates: ['APPROVED'],
     requiresActiveProduct: true,
+  }),
+  // Pre-contract key facts statement (D-123): issued after approval, accepted
+  // by the customer (signed form recorded by staff, or in the portal) before
+  // booking. Reading it is reading the application.
+  A('key_facts.read', 'APPLICATION', 'READ', {
+    permission: 'loan_application.read',
+  }),
+  A('key_facts.generate', 'APPLICATION', 'ORIGINATION', {
+    permission: 'key_facts.manage',
+    workflowStates: ['APPROVED'],
+  }),
+  A('key_facts.record_acceptance', 'APPLICATION', 'ORIGINATION', {
+    permission: 'key_facts.manage',
+    workflowStates: ['APPROVED'],
+  }),
+  A('key_facts.read_own', 'APPLICATION', 'READ'),
+  A('key_facts.accept_own', 'APPLICATION', 'ORIGINATION', {
+    workflowStates: ['APPROVED'],
   }),
   // Scoring (D-075…D-077): a score is read with the application; credit
   // staff may re-run it while the application is undecided.
@@ -860,6 +898,42 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'access_policy.approve',
     makerChecker: true,
   }),
+  // AML/CFT (D-118…D-122). The customer is the resource, branch-scoped, as
+  // for documents; lists, the re-screen queue and the reports are tenant-wide.
+  // A clearance, a disposition, a watch-list version and EDD each need a
+  // second person; suspicious transaction referrals are seen only by
+  // compliance (tipping-off).
+  A('aml.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.case.read', 'TENANT', 'READ', { permission: 'aml.read' }),
+  A('aml.ctr.read', 'TENANT', 'READ', { permission: 'aml.read' }),
+  A('aml.screen', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.status.approve', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.case.propose', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+  }),
+  A('aml.case.decide', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.edd.approve', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.watchlist.read', 'TENANT', 'READ', { permission: 'aml.screen' }),
+  A('aml.watchlist.upload', 'TENANT', 'CONFIG', { permission: 'aml.screen' }),
+  A('aml.watchlist.activate', 'TENANT', 'CONFIG', {
+    permission: 'aml.disposition',
+    makerChecker: true,
+  }),
+  A('aml.rescreen.run', 'TENANT', 'CONFIG', { permission: 'aml.disposition' }),
+  A('aml.str.raise', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.str.review', 'TENANT', 'READ'),
   // The borrower, in the portal, on their own documents only.
   A('document.read_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),
   A('document.upload_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),

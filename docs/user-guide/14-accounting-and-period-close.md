@@ -99,12 +99,12 @@ The **Credit bureau file** on the same tab is described in [15 Reports and regul
 
 ## Chart of accounts and account mapping
 
-The platform posts to standard ledger account codes (for example 1000 cash, 1200 loans receivable, 1300 loss allowance, 3100 retained earnings, 3900 migration clearing, 4000 interest income, 5000 provision expense). The accounts are created automatically for your organisation.
+The platform posts to standard ledger account codes (for example 1000 cash, 1200 loans receivable, 1300 loss allowance, 3100 retained earnings, 3200 regulatory reserve, 3900 migration clearing, 4000 interest income, 5000 provision expense). The accounts are created automatically for your organisation.
 
 There are two levels of account mapping:
 
 1. **Per product.** Each product version has an **Accounting** section ("Ledger account codes used when events post journals") listing the accounts its events post to: cash, loans receivable, interest income, write-off expense and so on. This is set by the product maker and approved by the product checker. See [04 Products and policies](04-products-and-policies.md).
-2. **Organisation-wide.** Accounts that do not belong to one product (cash, retained earnings, migration clearing, FX position, unidentified receipts suspense, and the accounts used by the original loan module) are in the **Lending settings** tab described below.
+2. **Organisation-wide.** Accounts that do not belong to one product (cash, retained earnings, the regulatory reserve, migration clearing, FX position, unidentified receipts suspense, and the accounts used by the original loan module) are in the **Lending settings** tab described below.
 
 To see the list of accounts, open **Finance › Accounting (original)** and the **Chart of Accounts** tab (columns **Code**, **Name**, **Type**, **Status**).
 
@@ -202,11 +202,23 @@ The **Integrations** tab shows, for each external capability (**Payments**, **KY
 
 ## Impairment policy (loss allowance)
 
-The impairment policy decides how much loss allowance each lending-platform loan carries. Until a policy is approved, lending loans carry **no** loss allowance, and the tab shows **No impairment policy in force**. Once approved, end of day posts each loan's change in allowance (provision expense against the allowance account).
+The impairment policy decides how much loss allowance each lending-platform loan carries. Until a policy is approved, lending loans carry **no** loss allowance, the tab shows **No impairment policy in force**, and **a month with loans outstanding cannot be closed** (the close check **An impairment policy is approved** fails). Once approved, end of day posts each loan's change in allowance (provision expense against the allowance account).
 
 There are two modes:
-- **REGULATORY** (the NBC classes): each class's rate applies to outstanding principal. Default classes: Standard from 0 days past due at 1%, Special mention from 15 days at 3%, Substandard from 31 days at 25%, Doubtful from 61 days at 50%, Loss from 91 days at 100%.
-- **ECL** (expected credit loss): allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring. Class rates are ignored.
+- **REGULATORY** (the NBC classes): the allowance is the NBC provision — the class rate on outstanding principal, using the classes in **Lending settings**. The classes depend on the loan's **original term** (from disbursement to the maturity first agreed; a restructure does not change it):
+
+  | Class | Short-term loans (up to 1 year) | Long-term loans (over 1 year) | Rate |
+  |---|---|---|---|
+  | Standard | 0–14 days past due | 0–29 days | 1% |
+  | Special mention | 15–30 | 30–89 | 3% |
+  | Substandard | 31–60 | 90–179 | 20% |
+  | Doubtful | 61–90 | 180–359 | 50% |
+  | Loss | 91 or more | 360 or more | 100% |
+
+  These are the defaults (NBC Prakas B7-017-344 as the team recalls it; awaiting compliance sign-off). Books in this mode are **not CIFRS 9 compliant**; the month-end close and the regulatory return say so.
+- **ECL** (expected credit loss, CIFRS 9): allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring. Class rates are ignored for the allowance, but the NBC provision is still worked out at each month end: where it is higher than the ECL allowance, the difference is held in the **regulatory reserve** (see **Period close** below).
+
+**Restructured loans.** A restructure does not make a loan performing. While the loan is on probation it is classified and provisioned on the days past due it had when it was restructured (if more than today's), and in REGULATORY mode it is at least **Substandard** (the lender's minimum class). Probation ends after the product's number of consecutive on-time revised instalments, but never fewer than the lender's minimum (3 by default); a missed instalment starts the count again. The loan screen shows the class and the explanation on each **Provision** event, e.g. "…held at the minimum class until cured".
 
 Finance proposes, a different person (Risk / compliance) approves.
 
@@ -240,8 +252,11 @@ Note: this policy covers lending-platform loans only. Loans in the original modu
 ## Lending settings
 
 The **Lending settings** tab holds your organisation's own operating parameters:
-- regulatory loan classes (days past due and provision rate) and the regulatory return bands (loan size bands in USD, KHR per USD for those bands, interest-rate bands);
-- organisation-wide ledger accounts (cash / bank, retained earnings, migration clearing, FX position, FX gain / loss, unidentified receipts suspense, and the original loan book's accounts);
+- regulatory loan classes (days past due and provision rate) for **short-term** and **long-term** loans, and how many days of original term count as short-term (366 by default);
+- restructured loans: the lowest class while on probation (Substandard by default) and the fewest consecutive on-time instalments that end probation (3 by default, at least 1);
+- the write-off floor: the fewest days past due a loan may be written off at, for short-term and long-term loans (empty = when the loan reaches the Loss class: 91 or 360 days). A product's own minimum can only raise it;
+- the regulatory return bands (loan size bands in USD, KHR per USD for those bands, interest-rate bands);
+- organisation-wide ledger accounts (cash / bank, retained earnings, the regulatory reserve (3200), migration clearing, FX position, FX gain / loss, unidentified receipts suspense, and the original loan book's accounts);
 - payment-file limits (most lines per file, most days back-dated);
 - the longest delegation of authority (days);
 - after how many days overdue an original-module loan is marked DEFAULTED.
@@ -259,7 +274,8 @@ To approve (Risk / compliance, not the proposer): in **Versions**, on the **PEND
 Rules:
 - Account codes must exist in the chart of accounts.
 - A changed account applies to new postings only; past postings are not moved.
-- The regulatory classes are fixed in number and order; their day thresholds must increase.
+- The regulatory classes are fixed in number and order (in both sets); their day thresholds must increase.
+- A version approved before the long-term classes existed keeps its own classes and rates (including a 25% Substandard rate) until a new version is approved.
 - Invalid settings are refused with "The lending settings are not valid." and the list of problems.
 
 See also [18 Tenant administration](18-tenant-administration.md).
@@ -302,9 +318,19 @@ Each month shows **Close checks**, each with a green tick (pass), amber warning 
 | **End of day processed every day of the month** | Yes | Run end of day; rerun if accounts failed ("*N* account(s) failed in the last end of day; rerun it.") |
 | **Previous month is closed** | Yes | "Months are closed in order; close the previous month first." |
 | **Debits equal credits** | Yes | Report to IT |
+| **An impairment policy is approved** | Yes, when loans are outstanding | "*N* loan(s) are outstanding but no impairment policy is approved…": approve a policy (**Impairment policy** tab), run end of day, then prepare the close |
+| **Regulatory reserve covers the NBC provision** | Warning in REGULATORY mode | ECL mode: shows the NBC provision, the allowance and the reserve per currency, and what the close will appropriate or release. REGULATORY mode: "…the books are not CIFRS 9 compliant." |
 | **Sub-ledgers reconcile to the ledger** | Yes | See **Ledger & reconciliation** ("*N* break(s) — see Accounting › Reconciliation.") |
 | **No money approvals left waiting** | Warning only | Open disbursement, write-off, refund or set-off approvals will post in a later month |
 | **Unidentified payments cleared** | Warning only | Match or refund items in **Collections & relief › Unidentified payments** |
+
+### Regulatory reserve (ECL policies)
+
+When your impairment policy is ECL, preparing a month's close also brings the **regulatory reserve** (account 3200, in equity) to the amount by which the NBC provision exceeds the ECL allowance, per currency. The journal is dated the last day of the month:
+- reserve goes up: **Dr 3100 Retained earnings / Cr 3200 Regulatory reserve**;
+- reserve goes down: the reverse.
+
+It is not an expense and does not change the loss allowance. Preparing the close again (for example after a rejection) posts nothing more, because the reserve is measured against what the ledger already holds. In REGULATORY mode no reserve is needed and any reserve held is released.
 
 ### Month-end snapshot
 

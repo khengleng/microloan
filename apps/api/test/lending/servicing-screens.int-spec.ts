@@ -5,8 +5,19 @@
  * server; who made each open task; and a facility's loan account, which is
  * never disbursed directly.
  */
-import { Fixture, TEST_DB, bootstrap, expectOk } from './harness';
-import { activeProduct, docs, originateAndDisburse, standardRoles } from './setup';
+import {
+  acceptKeyFacts,
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  expectOk,
+} from './harness';
+import {
+  activeProduct,
+  docs,
+  originateAndDisburse,
+  standardRoles,
+} from './setup';
 import { borrower } from './harness';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -102,7 +113,9 @@ d('Servicing screens (integration)', () => {
   });
 
   it('names the maker of each task on the loan, and says the loan has no facility', async () => {
-    const loan = expectOk(await f.as('opsMaker').get(`/lending/loans/${loanId}`));
+    const loan = expectOk(
+      await f.as('opsMaker').get(`/lending/loans/${loanId}`),
+    );
     expect(loan.facility).toBeNull();
     expect(loan.tasks.length).toBeGreaterThan(0);
     for (const t of loan.tasks) expect(t.makerEmail).toMatch(/@test\.local$/);
@@ -178,13 +191,16 @@ d('Servicing screens (integration)', () => {
         rationale: 'Approved within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );
     const facilityId = booked.facility.id as string;
     const account = booked.account.id as string;
 
-    const loan = expectOk(await f.as('opsMaker').get(`/lending/loans/${account}`));
+    const loan = expectOk(
+      await f.as('opsMaker').get(`/lending/loans/${account}`),
+    );
     expect(loan.facility.id).toBe(facilityId);
     expect(loan.facility.facilityType).toBe('REVOLVING');
     const fac = expectOk(

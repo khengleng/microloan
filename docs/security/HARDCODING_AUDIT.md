@@ -75,6 +75,9 @@ Literal credentials, tokens, keys, connection strings, bucket names, tenant/user
 | B10 | `apps/api/src/penalty-cron/penalty-cron.service.ts:80` | Legacy loan marked DEFAULTED after 30 days overdue | `legacyServicing.defaultAfterDaysOverdue` (30) |
 | B10a | `apps/api/src/penalty-cron/penalty-cron.service.ts` (new, D-102) | Cap on one legacy instalment's late penalty (there was none) | `legacyServicing.penaltyCapRate` ("0.25" of principal + interest) |
 | B10b | (new, not a former constant) | Whether upfront fees count toward the interest-rate cap, and whether penalty interest and the over-limit rate must fit under it (DECISIONS D-108, D-109) | `rateCap.includeFeesInEffectiveRate` (true), `rateCap.penaltyRateMustFitCap` (true) |
+| B10c | (new, not a former constant) | Who the key facts statement names and where customers complain; the cooling-off right and its pricing (DECISIONS D-123 … D-125) | `consumerProtection.lenderLegalName` (null = organisation name), `licenceNumber` (null), `complaints.phone/email/address` (null), `regulatorContact` (NBC consumer protection, by name), `coolingOffDays` (7), `coolingOffChargesAccruedInterest` (true), `coolingOffRefundsLenderFees` (true) |
+| B10d | (new, not a former constant) | Obligations in the debt-service ratio and the lender-count limit (D-126) | `affordability.maxLendersPerBorrower` (null = off), `includeOwnLoans` (true), `includeFacilityMinimumPayments` (true); per product `scoring.strategy.knockouts.missingDebtServiceRatio` (REFER) |
+| B10e | (new, not a former constant; DECISIONS D-118…D-122, assumed) | AML/CFT: name-match threshold, token floor, one-word penalty, ignored titles, re-screen batch size; watch-list size; risk weights, MEDIUM/HIGH thresholds, high-risk countries / occupations / product families, cash-intensive occupations, cash-share threshold and look-back, review months; cash transaction report thresholds and cash channels; record retention | `aml.screening.*` (0.88, 0.80, 0.80, titles, 200), `aml.watchList.maxEntries` (50,000), `aml.risk.*` (weights 10/6/3/2/3, 3/6, KP·IR·MM, …, 0.5, 365 days, 36/24/12 months), `aml.ctr.thresholds` (USD 10,000, KHR 40,000,000), `aml.ctr.cashChannels` (BRANCH_CASH), `aml.retentionYearsAfterRelationship` (5) |
 
 ### Moved to product configuration (product versions, editable in the product editor)
 
@@ -99,7 +102,7 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B20 | `borrower-portal/borrower-auth.service.ts:10-14` | OTP 5 minutes, 5 guesses, 3 codes per 15 minutes (the SMS also said "5 minutes") | `BORROWER_OTP_TTL_SECONDS` (300), `BORROWER_OTP_MAX_ATTEMPTS` (5), `BORROWER_OTP_MAX_PER_WINDOW` (3), `BORROWER_OTP_WINDOW_MINUTES` (15) |
 | B21 | `borrower-portal/borrower-jwt.ts:15` | Borrower session 2 h | `BORROWER_TOKEN_TTL` (2h) |
 | B22 | `billing/signup-payment.service.ts:16` | Signup QR valid 7 days | `SIGNUP_PAYMENT_TTL_DAYS` (7) |
-| B23 | `tenants/tenants.service.ts:298` | Erasure notice 30 days | `TENANT_ERASURE_GRACE_DAYS` (30) |
+| B23 | `tenants/tenants.service.ts:298` | Erasure grace 30 days (enforced before a purge, D-131) | `TENANT_ERASURE_GRACE_DAYS` (30) |
 | B24 | `app.module.ts:55` | 120 requests/second | `RATE_LIMIT_PER_SECOND` (120) |
 | B25 | `main.ts:70,71` | 5 MB body limit | `API_BODY_LIMIT` (5mb) |
 | B26 | `lending/policy/policy.service.ts:37` | Authorization memo 30 s | `LENDING_AUTHZ_CACHE_TTL_MS` (30000); new bound `LENDING_AUTHZ_CACHE_MAX_ENTRIES` (5000) |
@@ -108,6 +111,9 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B29 | `penalty-cron.service.ts:66` | Penalty fallback `?? 10.0` | Removed: `Tenant.penaltyRatePerDay` is required with a column default, so the literal could never apply |
 | B30 | `penalty-cron.service.ts`, `reminder/reminder.service.ts`, `bot/bot.service.ts`, `collections/collections.service.ts` (D-102) | Legacy jobs ran in the server's time zone | `timeZone: LENDING_EOD_TZ` (Asia/Phnom_Penh), shared with end of day via `loans/legacy-money.ts` |
 | B31 | `provisioning/provisioning.service.ts` (new, D-101) | Transaction timeout of a legacy provisioning run under its advisory lock | `LEGACY_PROVISIONING_TX_TIMEOUT_MS` (120000) |
+| B32 | `auth/mfa-policy.ts` (new, D-128, D-129) | Who must use an authenticator; how recent a code an MFA-gated action needs | `AUTH_MFA_REQUIRED_SUPERADMIN` (true), tenant setting `security.requireMfaForAdmins` (true), `AUTH_MFA_STEP_UP_MINUTES` (15) |
+| B33 | `platform-approvals/platform-approval.service.ts`, `tenants/tenant-purge.service.ts` (new, D-130, D-131) | Life of a second-super-administrator request; purge transaction timeout | `PLATFORM_APPROVAL_TTL_DAYS` (7), `TENANT_PURGE_TX_TIMEOUT_MS` (300000) |
+| B34 | `bot/bot.service.ts` (D-132) | Loan applications from the Telegram bot | Tenant setting `telegramBot.allowLoanApplications` (false); limits from the product's rate policy |
 
 ### Ledger postings that bypassed the account mapping
 

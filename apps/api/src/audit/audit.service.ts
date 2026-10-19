@@ -59,6 +59,13 @@ export class AuditService {
     actorUserId: string | null;
     actorRole: string | null;
     actorTenantId: string | null;
+    /**
+     * The tenant whose records the action touched, when it differs from the
+     * actor's: a platform super-administrator resetting a tenant user's
+     * password. The entry is then stored in that tenant's audit log, flagged
+     * `platformOperator`, so the tenant sees what the platform did (D-130).
+     */
+    subjectTenantId?: string | null;
     targetType: string;
     targetId: string;
     action: string;
@@ -70,8 +77,11 @@ export class AuditService {
     result: 'SUCCESS' | 'FAILURE';
     timestamp?: string;
   }) {
+    const recordTenantId = event.subjectTenantId || event.actorTenantId || null;
+    const platformOperator =
+      !event.actorTenantId && !!event.subjectTenantId && event.actorRole === 'SUPERADMIN';
     return this.logAction(
-      event.actorTenantId || null,
+      recordTenantId,
       event.actorUserId || null,
       event.action,
       event.targetType,
@@ -79,6 +89,7 @@ export class AuditService {
       {
         actorRole: event.actorRole,
         actorTenantId: event.actorTenantId,
+        ...(platformOperator ? { platformOperator: true } : {}),
         oldValue: event.oldValue,
         newValue: event.newValue,
         reason: event.reason,

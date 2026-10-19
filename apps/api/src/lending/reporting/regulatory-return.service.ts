@@ -26,6 +26,8 @@ import { periodLabel } from '../accounting/period-lock';
 import { ACCOUNT_CODES } from '../../ledger/chart-of-accounts';
 import { operationalConfig } from '../../config/operational-config';
 import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
+import { RegulatoryReserveService } from '../accounting/regulatory-reserve.service';
+import { originalTermDays } from '../servicing/loan-state';
 import {
   LedgerFact,
   LoanPosition,
@@ -53,11 +55,23 @@ interface CloseSnapshot {
       dpd: number;
       classification: string | null;
       restructured: boolean;
+      /** Kept since D-113/D-114; absent in older closes. */
+      onProbation?: boolean;
+      floorDpd?: number | null;
+      termDays?: number | null;
     }[];
   };
+  regulatoryReserve?: { mode: 'REGULATORY' | 'ECL' | 'NONE' };
 }
 
 const DAY_MS = 86_400_000;
+
+/** A legacy loan's original term in days: its start to start + term months (D-114). */
+function legacyTermDays(start: Date, termMonths: number): number | null {
+  if (!termMonths) return null;
+  const s = toLocalDate(start)!;
+  return lending.daysBetween(s, lending.addMonths(s, termMonths));
+}
 
 /**
  * Monthly regulatory returns (OPS-7) for the lending platform and the legacy
@@ -82,6 +96,7 @@ export class RegulatoryReturnService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly settings: TenantSettingsService,
+    private readonly reserve: RegulatoryReserveService,
   ) {}
 
   private validMonth(year: number, month: number) {
@@ -161,6 +176,11 @@ export class RegulatoryReturnService {
         classification: true,
         isRestructured: true,
         lastRestructuredAt: true,
+        probationRemaining: true,
+        delinquencyFloorDpd: true,
+        disbursementDate: true,
+        maturityDate: true,
+        originalMaturityDate: true,
       },
     });
     const versionIds = [...new Set(accounts.map((a) => a.productVersionId))];
@@ -302,6 +322,15 @@ export class RegulatoryReturnService {
           recordedClass: g ? g.classification : a.classification,
           restructured,
           annualRatePct: rateOf.get(a.id) ?? null,
+          // The band set by original term; the restructure floor (D-113, D-114).
+          originalTermDays:
+            g && g.termDays !== undefined ? g.termDays : originalTermDays(a),
+          onProbation:
+            g && g.onProbation !== undefined
+              ? g.onProbation
+              : a.probationRemaining > 0,
+          floorDpd:
+            g && g.floorDpd !== undefined ? g.floorDpd : a.delinquencyFloorDpd,
         };
       });
 
@@ -544,6 +573,8 @@ export class RegulatoryReturnService {
         currency: true,
         isRestructured: true,
         restructuredAt: true,
+        termMonths: true,
+        startDate: true,
         product: { select: { name: true } },
         schedules: {
           select: {
@@ -632,6 +663,7 @@ export class RegulatoryReturnService {
           (!l.restructuredAt ||
             l.restructuredAt.getTime() < endExclusive.getTime()),
         annualRatePct: D(l.annualInterestRate).toString(),
+        originalTermDays: legacyTermDays(l.startDate, l.termMonths),
       };
     });
     // Recoveries: repayments in the month on loans already written off.
@@ -730,11 +762,26 @@ export class RegulatoryReturnService {
     );
     // The lender's classes and bands (lending settings `regulatory`).
     const { regulatory } = await this.settings.get(tenantId, tx);
+    // The impairment basis (as it was at the close, when kept) and the
+    // regulatory reserve on the ledger at month end (D-115, D-116).
+    const { end } = monthBounds(year, month);
+    const measured = await this.reserve.measure(tx, tenantId, end);
+    const snap = closed
+      ? (period.snapshot as unknown as CloseSnapshot | null)
+      : null;
     return {
       content: buildReturn({
         ...input,
         regulatory,
         basis: closed ? 'CLOSED_PERIOD' : 'LIVE_PREVIEW',
+        impairmentMode: snap?.regulatoryReserve?.mode ?? measured.mode,
+        reserve: {
+          account: measured.account,
+          held: measured.rows.map((r) => ({
+            currency: r.currency,
+            balance: r.held,
+          })),
+        },
       }),
       period: period ? { id: period.id, status: period.status } : null,
     };

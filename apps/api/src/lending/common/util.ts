@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
 import type { JwtPayload } from '../../auth/jwt.strategy';
+import { mfaIsFresh } from '../../auth/mfa-policy';
 
 /** The principal performing a lending action. Built server-side; nothing here comes from the client. */
 export interface LendingActor {
@@ -33,7 +34,9 @@ export function actorFromJwt(
     tenantId: platform ? null : user.tenantId,
     legacyRole: user.role,
     branchId: user.branchId ?? null,
-    assurance: user.amr === 'mfa' ? 'MFA' : 'SINGLE_FACTOR',
+    // MFA only while the authenticator code is recent (AUTH_MFA_STEP_UP_MINUTES,
+    // D-129): a refreshed session keeps amr=mfa for weeks, its mfaAt does not move.
+    assurance: mfaIsFresh(user) ? 'MFA' : 'SINGLE_FACTOR',
     channel: 'STAFF_PORTAL',
   };
 }

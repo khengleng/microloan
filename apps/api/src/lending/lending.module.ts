@@ -14,12 +14,17 @@ import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
+import { KeyFactsService } from './origination/key-facts.service';
+import { KeyFactsPortalController } from './origination/key-facts.controller';
+import { BorrowerObligationsService } from './origination/obligations.service';
+import { CoolingOffService } from './servicing/cooling-off.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
 import { LendingOverviewService } from './reporting/overview.service';
 import { LendingOverviewController } from './reporting/overview.controller';
 import { PeriodCloseService } from './accounting/period-close.service';
+import { RegulatoryReserveService } from './accounting/regulatory-reserve.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { WebhooksService } from './integrations/webhooks.service';
@@ -118,6 +123,13 @@ import {
 import { WorkspaceAccessService } from './workspace/workspace-access.service';
 import { WorkspaceWorkService } from './workspace/workspace-work.service';
 import { WorkspaceSearchService } from './workspace/workspace-search.service';
+import { AmlController } from './aml/aml.controller';
+import { AmlGateService } from './aml/aml-gate.service';
+import { AmlRiskService } from './aml/aml-risk.service';
+import { AmlScreeningService } from './aml/aml-screening.service';
+import { AmlCustomersService } from './aml/aml-customers.service';
+import { AmlReportsService } from './aml/aml-reports.service';
+import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
 
 /**
  * Configurable lending platform (modular monolith). Shares tenants, users,
@@ -131,6 +143,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     LendingOverviewController,
     RestructuringController,
     RestructuringPortalController,
+    KeyFactsPortalController,
     LendingProductsController,
     LendingApplicationsController,
     LendingLoansController,
@@ -166,11 +179,13 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     ScoringController,
     LearningMeController,
     LearningTeamController,
+    AmlController,
   ],
   providers: [
     ReportingService,
     LendingOverviewService,
     PeriodCloseService,
+    RegulatoryReserveService,
     RegulatoryReturnService,
     LoanMigrationService,
     WebhooksService,
@@ -189,6 +204,9 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     WorkflowsService,
     LendingPoliciesService,
     ApplicationsService,
+    KeyFactsService,
+    BorrowerObligationsService,
+    CoolingOffService,
     GroupsService,
     ServicingService,
     SuspenseService,
@@ -231,8 +249,15 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     AltDataProvidersService,
     ScoreMonitoringService,
     LearningService,
+    AmlGateService,
+    AmlRiskService,
+    AmlScreeningService,
+    AmlCustomersService,
+    AmlReportsService,
+    AmlRescreenScheduler,
   ],
   exports: [
+    AmlScreeningService,
     CustomerDocumentsService,
     PolicyService,
     LendingActionGuard,

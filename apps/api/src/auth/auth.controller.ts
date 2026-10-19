@@ -6,8 +6,8 @@ import {
   HttpStatus,
   Get,
   Param,
-  UnauthorizedException,
   Req,
+  Query,
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -16,7 +16,8 @@ import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { Roles } from './roles.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { JwtPayload } from './jwt.strategy';
-import { AnyAuthenticated, Public } from './auth-scope.decorator';
+import { AnyAuthenticated, MfaEnrolmentRoute, Public } from './auth-scope.decorator';
+import { SuperadminGrantService } from '../platform-approvals/superadmin-grant.service';
 import { GoogleLoginDto, GoogleRegisterTenantDto } from './dto/google-auth.dto';
 import { SignupPaymentService } from '../billing/signup-payment.service';
 import { webOrigin } from '../config/operational-config';
@@ -35,6 +36,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly signupPayments: SignupPaymentService,
+    private readonly superadminGrants: SuperadminGrantService,
   ) { }
 
   /**
@@ -138,6 +140,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
   @Post('sessions/revoke-all')
   revokeAllSessions(@CurrentUser() user: JwtPayload, @Req() req: any) {
     return this.authService.revokeAllSessions(user.sub, getIp(req));
@@ -147,6 +150,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
   @Post('change-password')
   changePassword(
     @CurrentUser() user: JwtPayload,
@@ -177,9 +181,15 @@ export class AuthController {
 
   @SkipThrottle()
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
   @Get('me')
   getProfile(@CurrentUser() user: JwtPayload) {
-    return user;
+    // `mfaEnrolmentRequired` tells the web to send the person to My account
+    // until their role's authenticator requirement is met (D-128).
+    return {
+      ...user,
+      mfaEnrolmentRequired: !!user.mfaRequired && !(user.mfaEnrolled && user.amr === 'mfa'),
+    };
   }
 
   /**
@@ -199,35 +209,103 @@ export class AuthController {
   /** Whether the caller already has an authenticator enrolled. */
   @SkipThrottle()
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
   @Get('mfa/status')
   mfaStatus(@CurrentUser() user: JwtPayload) {
     return this.authService.mfaStatus(user.sub);
   }
 
-  @SkipThrottle()
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
   @Post('mfa/generate')
   generateMfaSecret(@CurrentUser() user: JwtPayload) {
     return this.authService.generateMfaSecret(user.sub);
   }
 
-  @SkipThrottle()
+  /**
+   * Turn the authenticator on. Answers a fresh MFA session (tokens); the web
+   * calls it through its own /api/auth/mfa/enable route, which stores them as
+   * HttpOnly cookies and passes the refresh token it held for revocation.
+   */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @AnyAuthenticated()
+  @MfaEnrolmentRoute()
+  @HttpCode(HttpStatus.OK)
   @Post('mfa/enable')
-  enableMfa(@CurrentUser() user: JwtPayload, @Body() dto: { code: string }) {
-    return this.authService.enableMfa(user.sub, dto.code);
+  enableMfa(@CurrentUser() user: JwtPayload, @Body() dto: { code: string; refreshToken?: string }) {
+    return this.authService.enableMfa(
+      user.sub,
+      dto?.code,
+      typeof dto?.refreshToken === 'string' ? dto.refreshToken : undefined,
+    );
   }
 
   /**
-   * Promote a user to SUPERADMIN — requires an existing SUPERADMIN JWT.
-   * Replaces the previous shared-secret body pattern.
+   * Step-up (D-129): a fresh authenticator code inside the current session
+   * renews `mfaAt`. Answers new tokens; the web's /api/auth/step-up route
+   * stores them as cookies. Same budget as the MFA sign-in step.
+   */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @AnyAuthenticated()
+  @MfaEnrolmentRoute()
+  @HttpCode(HttpStatus.OK)
+  @Post('mfa/step-up')
+  stepUp(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: { code: string; refreshToken?: string },
+    @Req() req: any,
+  ) {
+    return this.authService.stepUp(
+      user.sub,
+      dto?.code,
+      typeof dto?.refreshToken === 'string' ? dto.refreshToken : undefined,
+      getIp(req),
+    );
+  }
+
+  /**
+   * Ask for a user to become SUPERADMIN (D-130). Needs a recent authenticator
+   * code; a second super-administrator approves it before it takes effect
+   * (unless the caller is the only one, which is logged loudly).
    */
   @SkipThrottle()
   @Roles('SUPERADMIN')
   @HttpCode(HttpStatus.OK)
   @Post('promote-superadmin')
-  async promoteSuperadmin(@Body() body: { email: string }) {
-    return this.authService.promoteSuperadmin(body.email);
+  async promoteSuperadmin(@CurrentUser() user: JwtPayload, @Body() body: { email: string }) {
+    return this.superadminGrants.requestPromotion(user, body?.email);
+  }
+
+  @SkipThrottle()
+  @Roles('SUPERADMIN')
+  @Get('superadmin-grants')
+  superadminGrantRequests(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
+    return this.superadminGrants.list(user, status || undefined);
+  }
+
+  @SkipThrottle()
+  @Roles('SUPERADMIN')
+  @HttpCode(HttpStatus.OK)
+  @Post('superadmin-grants/:approvalId/approve')
+  approveSuperadminGrant(
+    @CurrentUser() user: JwtPayload,
+    @Param('approvalId') approvalId: string,
+    @Body() body: { comment?: string },
+  ) {
+    return this.superadminGrants.approve(user, approvalId, body?.comment);
+  }
+
+  @SkipThrottle()
+  @Roles('SUPERADMIN')
+  @HttpCode(HttpStatus.OK)
+  @Post('superadmin-grants/:approvalId/reject')
+  rejectSuperadminGrant(
+    @CurrentUser() user: JwtPayload,
+    @Param('approvalId') approvalId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.superadminGrants.reject(user, approvalId, body?.reason ?? '');
   }
 
   /**

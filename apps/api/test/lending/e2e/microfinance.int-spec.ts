@@ -14,7 +14,12 @@
  *      flat late fee and the guarantor paying the arrears (UC-01, UC-20,
  *      UC-55)
  */
-import { TEST_DB, raiseRateCap, serviceAccount } from '../harness';
+import {
+  TEST_DB,
+  lendingSettings,
+  raiseRateCap,
+  serviceAccount,
+} from '../harness';
 import { Journey, c2, expectOk, key, lending, sum } from './journey';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -327,6 +332,12 @@ d(
 
     beforeAll(async () => {
       j = await Journey.start();
+      // One harvest instalment cures the restructure. The lender's minimum
+      // (D-113, default 3) would otherwise raise the product's 1: a lender
+      // with seasonal loans approves a lower one.
+      await lendingSettings(j.f, j.f.t1, {
+        regulatory: { restructured: { minProbationInstalments: 1 } },
+      });
       const productId = await j.product(
         'AGRI_CROP_SEASONAL',
         'AG-CROP',

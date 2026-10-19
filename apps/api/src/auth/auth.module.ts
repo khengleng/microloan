@@ -8,12 +8,14 @@ import { GoogleIdentityService } from './google-identity.service';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { BillingModule } from '../billing/billing.module';
+import { PlatformApprovalsModule } from '../platform-approvals/platform-approvals.module';
 import { operationalConfig } from '../config/operational-config';
 
 @Module({
   imports: [
     PrismaModule,
     BillingModule,
+    PlatformApprovalsModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET,

@@ -13,6 +13,7 @@ describe('tenant lending settings', () => {
     assert.deepEqual(d.accounting, {
       cash: '1000',
       retainedEarnings: '3100',
+      regulatoryReserve: '3200',
       migrationClearing: '3900',
       fxPosition: '1050',
       fxGainLoss: '4410',
@@ -54,8 +55,26 @@ describe('tenant lending settings', () => {
 
   test('every account code is listed for the chart check', () => {
     const codes = L.settingsAccountCodes(L.defaultTenantLendingSettings());
-    assert.equal(codes.length, 13);
-    assert.ok(codes.includes('3900') && codes.includes('1200'));
+    assert.equal(codes.length, 14);
+    assert.ok(codes.includes('3900') && codes.includes('1200') && codes.includes('3200'));
+  });
+
+  test('both NBC band sets, the term threshold and the restructure rules are settings (D-113, D-114)', () => {
+    const d = L.defaultTenantLendingSettings();
+    assert.deepEqual(d.regulatory.classes, L.NBC_SHORT_TERM_CLASSES);
+    assert.deepEqual(d.regulatory.longTermClasses, L.NBC_LONG_TERM_CLASSES);
+    assert.equal(d.regulatory.shortTermMaxDays, 366);
+    assert.deepEqual(d.regulatory.restructured, { minClass: 'SUBSTANDARD', minProbationInstalments: 3 });
+    assert.deepEqual(d.regulatory.writeOffMinDpd, { shortTerm: null, longTerm: null });
+    // The cure can't be switched off: at least one on-time instalment.
+    assert.equal(L.tenantLendingSettingsSchema.safeParse({ regulatory: { restructured: { minProbationInstalments: 0 } } }).success, false);
+    const long = L.NBC_LONG_TERM_CLASSES.map((c) => ({ ...c }));
+    long[2].minDpd = 20;
+    const s = L.tenantLendingSettingsSchema.parse({ regulatory: { longTermClasses: long } });
+    assert.ok(L.validateTenantLendingSettings(s).some((m) => m.includes('longTermClasses') && m.includes('SUBSTANDARD')));
+    const b = L.regulatoryBands(d);
+    assert.equal(b.longTerm[4].minDpd, 360);
+    assert.equal(b.restructuredMinClass, 'SUBSTANDARD');
   });
 });
 

@@ -297,7 +297,7 @@ export const STEPS: StepSpec[] = [
         fields: [
             'cash', 'loansReceivable', 'interestReceivable', 'feesReceivable', 'penaltyReceivable', 'interestIncome', 'feeIncome',
             'penaltyIncome', 'taxPayable', 'writeOffExpense', 'roundingDifferences', 'concessionsExpense', 'principalForgivenessExpense',
-            'recoveryIncome', 'customerAdvances', 'interestSuspense', 'merchantDiscountIncome', 'merchantClawbackReceivable',
+            'recoveryIncome', 'customerAdvances', 'interestSuspense', 'penaltySuspense', 'merchantDiscountIncome', 'merchantClawbackReceivable',
             'cardCashAdvanceFeeIncome', 'returnedLeaseAssets',
         ].map((k) => ({ path: `accounting.${k}`, label: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()), kind: 'text' as const })),
     },

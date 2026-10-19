@@ -7,6 +7,7 @@
  * and the line is serviced to closure with the books reconciling.
  */
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -202,6 +203,7 @@ d('Inventory-backed borrowing base (integration)', () => {
         rationale: 'Approved within authority',
       }),
     );
+    await acceptKeyFacts(f, app.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${app.id}/book`, {}),
     );

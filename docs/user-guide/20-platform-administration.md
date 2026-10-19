@@ -114,10 +114,14 @@ Caution: **Reactivate Data** also appears on **PENDING_PAYMENT** organisations a
 
 ### 4.4 Request Data Erasure / Purge Environment Permanently
 
-1. **Request Data Erasure** — confirm **Soft-Delete "…"?** ("The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data."). The organisation moves to the trash.
-2. **Purge Environment Permanently** (from **Show Trash**) — confirm **PURGE IRREVERSIBLY: …?** with **PURGE NOW**. "All PII (Personal Identifiable Information) will be anonymized and all database records for this organization will be DESTROYED." This cannot be undone.
-
-Make sure the organisation's legal retention obligations (loan records, ledgers, audit) have been met before purging.
+1. **Request Data Erasure** — confirm **Soft-Delete "…"?** ("The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data."). The organisation moves to the trash and its **grace period** starts (30 days by default, `TENANT_ERASURE_GRACE_DAYS`).
+2. **Purge Environment Permanently** (from **Show Trash**) opens the purge steps for that organisation. A purge is allowed only when **all** of these hold, and each is checked again at the moment of purging:
+   - **Grace period over.** Before then, requests and purges are refused with the date it ends.
+   - **Archive written.** Click **Archive** first. The platform writes every record of the organisation to one file in document storage (outside the organisation's own folder, so it survives the purge) and shows its **SHA-256** fingerprint and size. Passwords, authenticator secrets and tokens are left out. The archive must be made after the erasure request.
+   - **Nothing held or still within retention.** Refused while any customer document is under **legal hold**, while any customer still has an open application or a live loan, or while any customer, loan or document is inside its retention period (customers: the KYC period after the relationship ended — 5 years by default, for AML; loans: the loan-records period after closure — 7 years by default; documents: their own rule). The organisation's own retention rules apply where it set them. The screen lists what blocks the purge and the last date anything must be kept until.
+   - **A second super-administrator approved it.** Click **Request purge** (with a reason). Another super-administrator — not you — opens **Purge requests awaiting approval** and clicks **Approve** (or **Reject** with a reason). Requests lapse after 7 days (`PLATFORM_APPROVAL_TTL_DAYS`). If you are the only super-administrator, a purge cannot be requested.
+   - Each of these steps needs a recent authenticator code (you may be asked for one).
+3. Once approved, **Purge** (typing the organisation's name to confirm) deletes the organisation's stored files (S3 or disk) first and then all its database records. If the files cannot be deleted, nothing is removed and you can try again. The result shows how many files were deleted and the archive's fingerprint. This cannot be undone; the archive and the approval record remain.
 
 An email address belonging to an organisation in the trash cannot be reused until that organisation is purged ("This email is tied to an existing organization … You must permanently PURGE that organization from the "Show Trash" view before you can reuse this email.").
 
@@ -178,13 +182,35 @@ When an organisation reaches a quota (for example its user limit), creating more
 
 ---
 
+### 4.5 Your actions appear in the organisation's audit log
+
+Password resets, authenticator resets, suspensions and reactivations of an organisation's users, status and plan changes, and archive and erasure steps are recorded in **that organisation's** audit log, with you as the actor and the badge **Platform operator**, as well as in the platform log.
+
+---
+
 ## 7. Platform team
 
 The page **Platform Team** — "Manage your platform operations staff — FinOps, CX, Sales, Marketing".
 
 Caution: for the operator this list shows **every user account on the platform, in every organisation**, not only platform staff. The buttons work as on **Team members** ([18-tenant-administration.md](18-tenant-administration.md), section 3): **Reset Password**, **Suspend Access** (for the operator this permanently deletes the account), and changing the account type.
 
-**Onboard Member** cannot currently create platform staff: accounts other than a super-admin must belong to an organisation, so the request is refused with **Non-SUPERADMIN users must have a tenantId.** To add another platform operator, ask your system administrator / IT team.
+**Onboard Member** cannot currently create platform staff: accounts other than a super-admin must belong to an organisation, so the request is refused with **Non-SUPERADMIN users must have a tenantId.**
+
+### 7.1 Adding a super-administrator needs a second super-administrator
+
+A new super-administrator — an account created with the SUPERADMIN role, or an existing user promoted — needs a **second** super-administrator's approval:
+
+1. You create the account (it starts **suspended**) or request the promotion. You may be asked for a fresh authenticator code.
+2. Another super-administrator opens **Super-admin requests awaiting approval** and clicks **Approve** (or **Reject** with a reason). You cannot approve your own request. Requests lapse after 7 days.
+3. On approval the account becomes an active super-administrator, leaves any organisation it belonged to, and is signed out everywhere. The audit entry names the approver as the actor and records who requested it.
+
+If you are the **only** active super-administrator, nobody could approve, so the grant goes ahead on your authenticator code alone; it is recorded with **SUPERADMIN_SOLE_APPROVER** and a warning in the server log. Add a second super-administrator as soon as possible so later grants and purges have a second pair of eyes.
+
+Changing an existing user's role to SUPERADMIN on this page is refused; use the promotion request.
+
+### 7.2 Your own authenticator
+
+Super-administrators must have an authenticator. Until it is set up, every page sends you to **My account** ([01-getting-started.md](01-getting-started.md), section 3.1). Platform approvals (super-administrator grants, purge requests and purges) also need a code from the last 15 minutes.
 
 ---
 

@@ -10,8 +10,10 @@ import { ROLES_KEY } from './roles.decorator';
 import {
   IS_ANY_AUTHENTICATED_KEY,
   IS_BORROWER_ROUTE_KEY,
+  IS_MFA_ENROLMENT_ROUTE_KEY,
   IS_PUBLIC_KEY,
 } from './auth-scope.decorator';
+import { enrolmentRequired, stepUpRequired } from './mfa-policy';
 
 /**
  * Global, fail-closed authentication + authorization-declaration gate.
@@ -56,6 +58,24 @@ export class GlobalAuthGuard extends AuthGuard('jwt') {
     // establishes the request's tenant context.
     const authenticated = (await super.canActivate(context)) as boolean;
     if (!authenticated) return false;
+
+    // A role that must use an authenticator (SUPERADMIN; TENANT_ADMIN unless
+    // the tenant turned it off) reaches only the enrolment routes until it
+    // has one enrolled and the session was signed in with it (D-128).
+    const user = context.switchToHttp().getRequest()?.user as
+      | { mfaRequired?: boolean; mfaEnrolled?: boolean; amr?: string }
+      | undefined;
+    if (
+      user?.mfaRequired &&
+      !(user.mfaEnrolled && user.amr === 'mfa') &&
+      !this.reflector.getAllAndOverride<boolean>(IS_MFA_ENROLMENT_ROUTE_KEY, targets)
+    ) {
+      if (!user.mfaEnrolled) throw enrolmentRequired();
+      // Enrolled, but this session predates it: a fresh code upgrades it.
+      throw stepUpRequired(
+        'Your role requires signing in with your authenticator. Enter a code from your authenticator app to continue.',
+      );
+    }
 
     if (
       this.reflector.getAllAndOverride<boolean>(

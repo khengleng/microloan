@@ -573,7 +573,67 @@
     "done": "Done",
     "loadFailed": "Failed to load platform data",
     "orgUpdated": "Organization updated",
-    "orgRegistered": "Organization registered with Admin access"
+    "orgRegistered": "Organization registered with Admin access",
+    "purge": {
+      "title": "Permanently purge {name}",
+      "desc": "Four steps, each checked again by the system: archive the data, request the purge, a second super-administrator approves, then purge.",
+      "loading": "Checking the organisation…",
+      "notErased": "Erasure has not been requested for this organisation. Mark it for erasure first.",
+      "graceRunning": "Grace period: the organisation can still be restored until {date} ({days} days after the erasure request). It cannot be purged before then.",
+      "graceOver": "The {days}-day grace period ended on {date}.",
+      "blockedTitle": "The purge is blocked:",
+      "legalHolds": "{count, plural, one {# record is} other {# records are}} under legal hold",
+      "openRelationships": "{count, plural, one {# customer still has} other {# customers still have}} an open loan or relationship",
+      "withinRetention": "{count, plural, one {# record} other {# records}} must still be kept (retention period) until {date}",
+      "examples": "For example:",
+      "noBlockers": "No legal holds, open relationships or retention periods stop the purge.",
+      "step1": "Archive the data",
+      "step1Desc": "Write a sealed archive of the organisation’s records. A purge needs an archive made after the erasure request.",
+      "archiveCreated": "Latest archive:",
+      "sha256": "SHA-256 fingerprint",
+      "archiveStale": "This archive was made before the erasure request. Create a new one.",
+      "archive": "Create archive",
+      "archiveAgain": "Create a new archive",
+      "archived": "Archive created",
+      "step2": "Request the purge",
+      "step2Desc": "Record why the organisation is being purged. Another super-administrator must approve the request.",
+      "reason": "Reason",
+      "request": "Request purge",
+      "requestLocked": "Available once the grace period has ended, a current archive exists and nothing blocks the purge.",
+      "requested": "Purge requested. Another super-administrator must approve it.",
+      "requestedBy": "Requested by {who} on {at}",
+      "expires": "Lapses on {at}",
+      "reasonShown": "Reason: {reason}",
+      "step3": "Second approval",
+      "step3Desc": "A different super-administrator reviews and approves or rejects the request.",
+      "waitingOther": "Waiting for another super-administrator: you cannot approve your own request.",
+      "comment": "Comment (required to reject)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "ownRequest": "You raised this request; another super-administrator must decide it.",
+      "rejectNeedsReason": "Give a reason to reject.",
+      "approved": "Purge approved",
+      "rejected": "Purge request rejected",
+      "approvedBy": "Approved by {who}.",
+      "step4": "Purge",
+      "step4Desc": "Destroys every record and file of the organisation. Only the archive is kept. This cannot be undone.",
+      "typeName": "Type the organisation name to confirm: {name}",
+      "purge": "Purge permanently",
+      "purgedTitle": "{name} has been purged",
+      "filesDeleted": "{count, plural, one {# file} other {# files}} deleted.",
+      "archiveKept": "The archive is kept. Its SHA-256 fingerprint:",
+      "close": "Close",
+      "pendingTitle": "Purge requests awaiting approval ({count})",
+      "review": "Review",
+      "you": "you",
+      "errors": {
+        "grace": "The grace period has not ended. The organisation can be purged after {date}.",
+        "noArchive": "Create an archive first: a purge needs an archive made after the erasure request.",
+        "blocked": "Something still blocks the purge (legal hold, open relationship or retention period). See the list above.",
+        "notApproved": "The purge has not been approved by a second super-administrator yet.",
+        "generic": "That step could not be completed. Please try again."
+      }
+    }
   },
   "Users": {
     "platformTeam": "Platform Team",
@@ -616,7 +676,24 @@
     "suspended": "{email} has been suspended",
     "suspendFailed": "Cannot suspend this user",
     "roleUpdated": "Role updated",
-    "roleUpdateFailed": "Failed to update role"
+    "roleUpdateFailed": "Failed to update role",
+    "superadminGrants": {
+      "title": "Super-admin requests awaiting approval ({count})",
+      "desc": "A new super-administrator stays inactive until a different super-administrator approves.",
+      "pending": "{email} will be able to sign in once another super-administrator approves.",
+      "modePromote": "Promotion",
+      "modeNew": "New account",
+      "requestedBy": "Requested by {who} on {at}",
+      "expires": "Lapses on {at}",
+      "ownRequest": "You raised this request; another super-administrator must decide it.",
+      "note": "Comment (required to reject)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectNeedsReason": "Give a reason to reject.",
+      "approved": "{email} is now a super-administrator",
+      "rejected": "Request for {email} rejected",
+      "you": "you"
+    }
   },
   "Workspace": {
     "sections": {
@@ -688,7 +765,8 @@
       "userGuide": "User guide",
       "learn": "Learning centre",
       "platformCatalogue": "Product catalogue",
-      "platformFlags": "Platform flags"
+      "platformFlags": "Platform flags",
+      "aml": "AML & compliance"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -781,7 +859,8 @@
       "ORGANISATIONS_SUSPENDED": "Suspended organisations",
       "MIGRATIONS_TO_APPROVE": "Migration files to approve",
       "RETURNS_TO_SUBMIT": "Regulatory returns to submit",
-      "SERVICE_KEYS_TO_COLLECT": "Service account keys to collect"
+      "SERVICE_KEYS_TO_COLLECT": "Service account keys to collect",
+      "AGED_LOSS": "Loss loans due for write-off"
     },
     "search": {
       "label": "Search",
@@ -1610,7 +1689,7 @@
       "approved": "Policy in force from the next end of day",
       "rejected": "Policy rejected",
       "noneInForce": "No impairment policy in force",
-      "noneInForceBody": "Lending loans carry no loss allowance until a policy is approved. Start from the NBC regulatory template or an ECL template below.",
+      "noneInForceBody": "Lending loans carry no loss allowance until a policy is approved, and a month with loans outstanding cannot be closed. Start from the NBC regulatory template or an ECL template below.",
       "noVersions": "No policy has been proposed.",
       "colMode": "Mode",
       "needApprove": "Needs impairment.approve",
@@ -1621,7 +1700,7 @@
       "startNbc": "Start from NBC regulatory",
       "startEcl": "Start from ECL",
       "pickStart": "Pick a starting point.",
-      "modesExplain": "REGULATORY: each class's rate applies to outstanding principal. ECL: allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring; class rates are ignored.",
+      "modesExplain": "REGULATORY: the allowance is the NBC provision — the class rates of the lending settings (short- or long-term bands by the loan’s original term; restructured loans held at their floor and minimum class until cured) on outstanding principal. These books are not CIFRS 9 compliant. ECL: allowance = PD × LGD × exposure, with the stage set by days past due, non-accrual and restructuring; at each month-end close the NBC provision above it is appropriated to the regulatory reserve in equity.",
       "policyJson": "Policy (JSON)",
       "sameAsInForce": "Same as the policy in force."
     },
@@ -1659,7 +1738,7 @@
       "settingsJson": "Settings (JSON)",
       "sameAsInForce": "Same as the settings in force.",
       "labels": {
-        "regulatory_classes": "Regulatory loan classes (days past due → provision rate)",
+        "regulatory_classes": "Regulatory loan classes, short-term loans (days past due → provision rate)",
         "regulatory_sizeBandEdgesUsd": "Regulatory return: loan-size band edges (USD)",
         "regulatory_sizeBandKhrPerUsd": "Regulatory return: KHR per USD for the size bands",
         "regulatory_rateBandEdgesPct": "Regulatory return: interest-rate band edges (% a year)",
@@ -1688,7 +1767,51 @@
         "scoring_monitoring_psiEpsilon": "Scorecard monitoring: share given to an empty grade in the stability index",
         "scoring_consent_maxValidityDays": "Alternative data: longest a customer consent may run (days)",
         "scoring_alternativeData_maxRecordAgeDays": "Alternative data: verified records older than this no longer count (days)",
-        "scoring_alternativeData_digitalChannels": "Alternative data: payment channels counted as digital repayments"
+        "scoring_alternativeData_digitalChannels": "Alternative data: payment channels counted as digital repayments",
+        "security_requireMfaForAdmins": "Tenant administrators must use an authenticator",
+        "telegramBot_allowLoanApplications": "Customers may apply for loans in the Telegram bot",
+        "regulatory_longTermClasses": "Regulatory loan classes, long-term loans (days past due → provision rate)",
+        "regulatory_shortTermMaxDays": "Short-term loans: original term up to this many days (longer loans use the long-term classes)",
+        "regulatory_restructured_minClass": "Restructured loans: lowest class while on probation",
+        "regulatory_restructured_minProbationInstalments": "Restructured loans: fewest consecutive on-time instalments that end probation",
+        "regulatory_writeOffMinDpd_shortTerm": "Write-off: fewest days past due, short-term loans (empty: the Loss class)",
+        "regulatory_writeOffMinDpd_longTerm": "Write-off: fewest days past due, long-term loans (empty: the Loss class)",
+        "accounting_regulatoryReserve": "Regulatory reserve (equity; NBC provision above the ECL allowance)",
+        "aml_screening_matchThreshold": "AML: name similarity (0–1) that counts as a watch-list match",
+        "aml_screening_tokenFloor": "AML: least similarity for two name parts to be paired",
+        "aml_screening_singleTokenPenalty": "AML: multiplier for a one-word name inside a longer one",
+        "aml_screening_ignoredTitles": "AML: titles and honorifics ignored in names",
+        "aml_screening_rescreenBatchSize": "AML: customers re-screened per step after a list is activated",
+        "aml_watchList_maxEntries": "AML: most entries in one watch-list version",
+        "aml_risk_weights_pep": "AML risk weight: politically exposed person",
+        "aml_risk_weights_highRiskCountry": "AML risk weight: higher-risk nationality",
+        "aml_risk_weights_highRiskOccupation": "AML risk weight: higher-risk occupation or business",
+        "aml_risk_weights_highRiskProduct": "AML risk weight: higher-risk product type",
+        "aml_risk_weights_cashIntensive": "AML risk weight: cash intensity",
+        "aml_risk_mediumAt": "AML risk: score from which a customer is MEDIUM",
+        "aml_risk_highAt": "AML risk: score from which a customer is HIGH",
+        "aml_risk_pepAlwaysHigh": "AML risk: a politically exposed person is always HIGH",
+        "aml_risk_highRiskCountries": "AML risk: higher-risk nationalities (ISO codes)",
+        "aml_risk_highRiskOccupations": "AML risk: higher-risk occupations and businesses",
+        "aml_risk_cashIntensiveOccupations": "AML risk: cash-intensive occupations",
+        "aml_risk_highRiskProductFamilies": "AML risk: higher-risk product families",
+        "aml_risk_cashShareThreshold": "AML risk: share of repayments in cash (0–1) that makes a customer cash intensive",
+        "aml_risk_cashLookbackDays": "AML risk: days of repayments looked at for the cash share",
+        "aml_risk_reviewMonths_LOW": "AML review: months between reviews of a LOW-risk customer",
+        "aml_risk_reviewMonths_MEDIUM": "AML review: months between reviews of a MEDIUM-risk customer",
+        "aml_risk_reviewMonths_HIGH": "AML review: months between reviews of a HIGH-risk customer",
+        "aml_ctr_thresholds_USD": "Cash transaction report threshold (USD)",
+        "aml_ctr_thresholds_KHR": "Cash transaction report threshold (KHR)",
+        "aml_ctr_cashChannels": "Cash transaction report: payment channels that are cash",
+        "aml_retentionYearsAfterRelationship": "AML records kept for this many years after the relationship ends"
+      },
+      "switches": {
+        "title": "Sign-in and Telegram",
+        "subtitle": "Changed like every other setting: propose a new version below for a second person to approve.",
+        "requireMfaForAdmins": "Administrators set up an authenticator app and sign in with a code before they can use anything else.",
+        "allowLoanApplications": "Linked customers can start a loan application in the chat, within the product’s amount and term limits. Recorded as “Telegram bot”.",
+        "on": "On",
+        "off": "Off"
       }
     }
   },
@@ -1797,7 +1920,23 @@
     "WITHDRAWN": "Withdrawn",
     "WITHIN_LIMIT": "Within limit",
     "WRITTEN_OFF": "Written off",
-    "YES": "Yes"
+    "YES": "Yes",
+    "ISSUED": "Issued",
+    "CLEAR": "Clear",
+    "NOT_SCREENED": "Not screened",
+    "FLAGGED": "Flagged",
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "PEP": "PEP",
+    "SANCTION": "Sanction",
+    "INTERNAL": "Internal list",
+    "TRUE_MATCH": "True match",
+    "FALSE_POSITIVE": "False positive",
+    "TO_REPORT": "To report",
+    "REPORTED": "Reported",
+    "NO_FURTHER_ACTION": "No further action",
+    "RUNNING": "Running"
   },
   "LendingUi": {
     "loading": "Loading…",
@@ -2044,7 +2183,7 @@
       "CLEAR": "Clear",
       "FLAGGED": "Flagged"
     },
-    "amlHint": "Record the result of the anti-money-laundering screening check.",
+    "amlHint": "Flag a customer here if you have AML concerns. Clearing a customer is done on the AML/CFT panel of their profile, where a second person approves it.",
     "monthlyIncome": "Monthly income",
     "monthlyExpenses": "Monthly expenses",
     "errDobFormat": "Enter the date of birth as a full date.",
@@ -2143,7 +2282,10 @@
       "title": "Applications",
       "application": "Application",
       "requested": "Requested"
-    }
+    },
+    "nationality": "Nationality",
+    "nationalityHint": "Two-letter country code (KH for Cambodia). Used in the AML risk rating.",
+    "errNationality": "Nationality must be a two-letter country code, such as KH."
   },
   "Servicing": {
     "downloadError": {
@@ -2206,11 +2348,13 @@
       "tab": {
         "FEE_WAIVER": "Fee waivers",
         "ADVANCE_REFUND": "Advance refunds",
+        "DOWN_PAYMENT_REFUND": "Down-payment refunds",
         "SET_OFF": "Set-offs"
       },
       "kind": {
         "FEE_WAIVER": "fee waiver",
         "ADVANCE_REFUND": "advance refund",
+        "DOWN_PAYMENT_REFUND": "down-payment refund",
         "SET_OFF": "set-off"
       },
       "feeKind": {
@@ -2323,7 +2467,8 @@
     "workflows": "Origination workflows: optional checks and amount-based approval levels.",
     "simulator": "Price a loan against any product version. Side-effect free: nothing is booked.",
     "auditTrail": "Every lending action and policy decision, with the configuration versions in force at the time.",
-    "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled."
+    "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled.",
+    "aml": "Watch-list screening, customer risk, enhanced due diligence, cash transaction reports and suspicious transaction referrals."
   },
   "Overview": {
     "asOf": "As of business date {date} · amounts in {currency}",
@@ -2605,7 +2750,8 @@
         "recordRecovery": "Record recovery",
         "feeWaiver": "Fee waiver",
         "paymentHoliday": "Payment holiday",
-        "rateResets": "Rate resets"
+        "rateResets": "Rate resets",
+        "coolingOff": "Cooling-off cancellation"
       },
       "whyBlocked": {
         "prepareDisbursement": "Prepare disbursement",
@@ -2619,7 +2765,9 @@
         "negotiatedSettlement": "Negotiated settlement",
         "postRecovery": "Post recovery",
         "proposeAdvanceRefund": "Propose advance refund",
-        "approveAdvanceRefund": "Approve advance refund"
+        "approveAdvanceRefund": "Approve advance refund",
+        "requestCoolingOff": "Request cooling-off cancellation",
+        "approveCoolingOff": "Approve cooling-off cancellation"
       },
       "noActions": "This account is {status}; no servicing actions are available.",
       "refinance": {
@@ -2882,7 +3030,21 @@
         "collectedLender": "Us (held until payout)",
         "collectedSeller": "Seller directly",
         "receiptReference": "Receipt reference",
-        "record": "Record down payment"
+        "record": "Record down payment",
+        "refundTitle": "Refund the down payment held",
+        "refundBody": "Before disbursement, the down payment we hold can be paid back to the borrower. A different user approves and pays it out.",
+        "refundAmount": "Refund amount",
+        "refundReason": "Reason",
+        "refundPropose": "Propose refund",
+        "refundPending": "Refund of {currency} {amount} awaiting approval",
+        "refundProposedBy": "Proposed by <who></who>.",
+        "refundApprove": "Approve and pay",
+        "refundReject": "Reject",
+        "refundEnterAmount": "Enter a positive amount, at most what we hold.",
+        "refundEnterReason": "Record why the down payment is refunded.",
+        "refundProposed": "Refund proposed — a different user must approve it",
+        "refundPaid": "Down payment refunded",
+        "refundRejected": "Refund rejected"
       },
       "payees": {
         "title": "Pay to",
@@ -2899,7 +3061,20 @@
       },
       "externalReference": "External reference",
       "externalReferenceHint": "Payment rail / bank transfer reference",
-      "execute": "Execute disbursement"
+      "execute": "Execute disbursement",
+      "channel": "Channel",
+      "channelHint": "How the money moved. Cash counts towards the cash transaction report.",
+      "channelUnknown": "Not recorded",
+      "channels": {
+        "BRANCH_CASH": "Cash at branch",
+        "AGENT": "Agent",
+        "BANK_TRANSFER": "Bank transfer",
+        "MOBILE": "Mobile banking",
+        "QR": "KHQR",
+        "WALLET": "E-wallet",
+        "PAYROLL": "Payroll",
+        "OTHER": "Other"
+      }
     },
     "collections": {
       "changeTitle": "Change business date",
@@ -3269,7 +3444,20 @@
       "post": "Post repayment",
       "enterAmount": "Enter a positive decimal amount (up to 4 decimals).",
       "done": "Repayment posted",
-      "doneFx": "Payment in {currency} converted and posted"
+      "doneFx": "Payment in {currency} converted and posted",
+      "channel": "Channel",
+      "channelHint": "How the money moved. Cash counts towards the cash transaction report.",
+      "channelUnknown": "Not recorded",
+      "channels": {
+        "BRANCH_CASH": "Cash at branch",
+        "AGENT": "Agent",
+        "BANK_TRANSFER": "Bank transfer",
+        "MOBILE": "Mobile banking",
+        "QR": "KHQR",
+        "WALLET": "E-wallet",
+        "PAYROLL": "Payroll",
+        "OTHER": "Other"
+      }
     },
     "workQueue": {
       "title": "Collector work queues",
@@ -3440,6 +3628,40 @@
       "post": "Post recovery",
       "enterAmount": "Enter a positive amount.",
       "done": "Recovery posted"
+    },
+    "coolingOff": {
+      "title": "Cooling-off cancellation",
+      "disabled": "This lender offers no cooling-off period.",
+      "window": "The customer may cancel within {days} days of disbursement ({from} to {until}).",
+      "closedTitle": "The cooling-off period has ended",
+      "closed": "It ended on {date}. The loan can only be settled early on its own terms.",
+      "rows": {
+        "principal": "Principal outstanding",
+        "interest": "Interest to today",
+        "fees": "Fees outstanding",
+        "feesRefunded": "Upfront fees refunded",
+        "lessAdvance": "Held on advance",
+        "payable": "To cancel today"
+      },
+      "penaltiesWaived": "Penalties of {amount} are waived.",
+      "approvedTitle": "Cancellation approved — take the repayment",
+      "pendingTitle": "Cancellation requested — awaiting approval",
+      "requestedBy": "Requested by",
+      "approve": "Approve",
+      "reject": "Reject",
+      "externalReference": "Receipt reference",
+      "optional": "Optional",
+      "execute": "Take repayment and cancel",
+      "confirmTitle": "Cancel the loan?",
+      "confirm": "Take {amount} {currency} from the customer and close the loan as cancelled. This cannot be undone.",
+      "reason": "Customer’s reason",
+      "customerReference": "Customer’s request reference",
+      "customerReferenceHint": "The letter, form or call reference.",
+      "request": "Record cancellation request",
+      "requested": "Cancellation request recorded",
+      "approved": "Cancellation approved",
+      "rejected": "Cancellation rejected",
+      "cancelled": "Loan cancelled"
     }
   },
   "LendingFacilities": {
@@ -4136,7 +4358,9 @@
         "reject": "Reject",
         "book": "Book agreement",
         "satisfy": "Satisfy condition",
-        "waive": "Waive condition"
+        "waive": "Waive condition",
+        "keyFactsGenerate": "Generate key facts statement",
+        "keyFactsAccept": "Record customer acceptance"
       },
       "simulation": "Simulation",
       "hide": "Hide",
@@ -4195,6 +4419,65 @@
       "decisionRecorded": "Decision recorded",
       "booked": "Loan account booked",
       "conditionResolved": "Condition resolved"
+    },
+    "obligations": {
+      "payments": "Monthly repayments to other lenders",
+      "paymentsHint": "As declared by the applicant, in the application’s currency. Counted in the debt-service ratio.",
+      "lenders": "Number of other lenders",
+      "lendersHint": "Lenders the applicant owes besides us. Checked against the lender-count limit.",
+      "errPayments": "Monthly repayments to other lenders must be an amount, e.g. 150.00.",
+      "errLenders": "The number of other lenders must be a whole number from 0 to 50.",
+      "notDeclared": "Not declared"
+    },
+    "keyFacts": {
+      "title": "Key facts statement",
+      "subtitle": "What the customer is told before the contract, in English and Khmer. The loan can only be booked once the customer accepts the statement for the current terms.",
+      "noneApproved": "No statement has been issued for the approved terms. Generate one and give it to the customer.",
+      "noneYet": "The statement is issued when the application is approved.",
+      "version": "Version {version}",
+      "issued": "Issued {date}",
+      "limit": "Credit limit",
+      "principal": "Amount borrowed",
+      "nominal": "Nominal annual rate",
+      "effective": "Effective annual rate (APR)",
+      "fees": "Total fees",
+      "costOfCredit": "Total cost of credit",
+      "repayable": "Total repayable",
+      "instalments": "Instalments",
+      "instalmentsValue": "{count} · last {last}",
+      "coolingOff": "Cooling-off",
+      "coolingOffDays": "{days} days after disbursement",
+      "coolingOffNone": "None",
+      "acceptance": "Customer acceptance",
+      "notAccepted": "Not yet accepted",
+      "warningsTitle": "Contact details missing from the statement — set them in Lending settings",
+      "blocksBooking": "Booking is blocked",
+      "readyToBook": "Accepted by the customer",
+      "readyToBookHint": "The customer accepted the statement for the current terms; the loan can be booked.",
+      "acceptedForBooking": "Key facts statement v{version} accepted",
+      "open": {
+        "en": "Open English",
+        "km": "Open Khmer"
+      },
+      "generate": "Generate statement for the current terms",
+      "generated": "Key facts statement issued",
+      "recordAcceptance": "Record customer acceptance",
+      "recordAcceptanceTitle": "Record acceptance of statement v{version}",
+      "recordAcceptanceHint": "Upload the statement the customer signed. It is filed in their document library and the acceptance is recorded against this version of the terms.",
+      "signedForm": "Signed statement",
+      "signedFormHint": "PDF or image, at most 3.5 MB.",
+      "signedFormTitle": "Signed key facts statement v{version}",
+      "confirmAcceptance": "Record acceptance",
+      "accepted": "Customer acceptance recorded",
+      "methods": {
+        "SIGNED_FORM": "Signed form",
+        "PORTAL": "Borrower portal"
+      },
+      "history": "All versions ({count})",
+      "colVersion": "Version",
+      "colStatus": "Status",
+      "colIssued": "Issued",
+      "colAccepted": "Accepted"
     }
   },
   "LendingGroups": {
@@ -6517,6 +6800,9 @@
         "accounting_interestSuspense": {
           "label": "Interest Suspense"
         },
+        "accounting_penaltySuspense": {
+          "label": "Penalty Suspense"
+        },
         "accounting_merchantDiscountIncome": {
           "label": "Merchant Discount Income"
         },
@@ -8664,6 +8950,24 @@
         "thanks": "Thank you — your acceptance has been recorded.",
         "noOffer": "There is no offer yet. We will let you know when one is ready."
       }
+    },
+    "keyFacts": {
+      "title": "Your key facts statement",
+      "intro": "Before your loan agreement is made, read the key facts statement: the rate, every fee, the total you will pay and your rights. Accept it here when you are ready.",
+      "statement": "Application {reference} · version {version}",
+      "accepted": "Accepted",
+      "principal": "Amount borrowed",
+      "effective": "Effective annual rate",
+      "costOfCredit": "Total cost of credit",
+      "repayable": "Total you will pay",
+      "read": {
+        "km": "Read in Khmer",
+        "en": "Read in English"
+      },
+      "coolingOff": "You may cancel within {days} days after the money is paid out.",
+      "confirm": "I have read and understood this statement, including the effective rate and the total cost of credit.",
+      "accept": "Accept the statement",
+      "somethingWrong": "Something went wrong ({status}). Please try again."
     }
   },
   "LendingSimulator": {
@@ -8718,5 +9022,249 @@
     "lendingLoans": "Lending › Loans",
     "migrate": "Migrate loans",
     "newApplication": "New application"
+  },
+  "Security": {
+    "stepUp": {
+      "title": "Enter a code to continue",
+      "desc": "This action needs a fresh code from your authenticator app. Enter the 6-digit code it shows now.",
+      "codeLabel": "Authenticator code",
+      "codeFormat": "Enter the 6 digits shown in the app.",
+      "failed": "That code was not accepted. Enter the newest code from your app.",
+      "unreachable": "Could not check the code. Check your connection and try again.",
+      "cancel": "Cancel",
+      "submit": "Continue"
+    },
+    "enrolment": {
+      "navLocked": "Set up your authenticator on My account to open the rest of the app.",
+      "requiredTitle": "Set up an authenticator to continue",
+      "requiredTenant": "Your role (organisation administrator) must sign in with an authenticator app. Until one is set up, only My account is available.",
+      "requiredPlatform": "Platform super-administrators must sign in with an authenticator app. Until one is set up, only My account is available.",
+      "requiredNext": "Use \"Set up authenticator\" below: scan the QR code with your phone and enter the 6-digit code it shows.",
+      "stepUpTitle": "Enter a code to continue",
+      "stepUpBody": "You have an authenticator, but this session signed in without it. Enter a code from your app to unlock the rest of the app.",
+      "stepUpButton": "Enter a code to continue"
+    },
+    "audit": {
+      "platformOperator": "Platform operator",
+      "platformOperatorHint": "Done by a member of the platform team, not by a person in your organisation."
+    }
+  },
+  "Aml": {
+    "subtitle": "Watch-list screening, customer risk, enhanced due diligence, cash transaction reports and suspicious transaction referrals.",
+    "noAccess": "You have no AML/CFT permissions.",
+    "tabs": {
+      "cases": "Screening cases",
+      "lists": "Watch lists",
+      "risk": "Risk & EDD",
+      "ctr": "Cash transactions",
+      "str": "Suspicious transactions"
+    },
+    "common": {
+      "all": "All",
+      "customer": "Customer",
+      "status": "Status",
+      "created": "Created"
+    },
+    "caseStatus": {
+      "OPEN": "Open",
+      "PENDING_APPROVAL": "Awaiting approval",
+      "TRUE_MATCH": "True match",
+      "FALSE_POSITIVE": "False positive"
+    },
+    "strStatus": {
+      "OPEN": "Open",
+      "TO_REPORT": "To report",
+      "REPORTED": "Reported to CAFIU",
+      "NO_FURTHER_ACTION": "No further action"
+    },
+    "rating": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High"
+    },
+    "triggers": {
+      "CUSTOMER_CREATE": "Customer created",
+      "CUSTOMER_UPDATE": "Customer changed",
+      "ON_DEMAND": "On demand",
+      "LIST_ACTIVATION": "New list version",
+      "STATUS_CLEARANCE": "Clearance"
+    },
+    "factors": {
+      "PEP": "Politically exposed person",
+      "COUNTRY": "Nationality",
+      "OCCUPATION": "Occupation or business",
+      "PRODUCT": "Product type",
+      "CASH_INTENSITY": "Cash intensity"
+    },
+    "indicators": {
+      "STRUCTURING": "Structuring (amounts kept under limits)",
+      "UNUSUAL_CASH": "Unusual cash",
+      "THIRD_PARTY_PAYMENTS": "Payments by unrelated third parties",
+      "UNEXPLAINED_EARLY_REPAYMENT": "Unexplained early repayment",
+      "INCONSISTENT_WITH_PROFILE": "Inconsistent with the customer's profile",
+      "WATCH_LIST_MATCH": "Watch-list match",
+      "IDENTITY_CONCERN": "Identity concern",
+      "OTHER": "Other"
+    },
+    "panel": {
+      "title": "AML/CFT",
+      "subtitle": "Screening, risk rating and due diligence. Lending needs verified identity, AML clearance by two people and, for high risk, approved enhanced due diligence.",
+      "risk": "Risk",
+      "gateClear": "This customer may borrow: identity verified, AML-cleared and due diligence complete.",
+      "gateBlocked": "This customer cannot borrow yet",
+      "kyc": "Identity (KYC)",
+      "lastScreened": "Last screened",
+      "never": "Never",
+      "statusChanged": "Status changed",
+      "nextReview": "Next review",
+      "reviewDue": "due",
+      "score": "Risk score",
+      "nationality": "Nationality",
+      "edd": "Enhanced due diligence",
+      "notRequired": "Not required",
+      "factors": "Risk factors present",
+      "openCase": "Watch-list match {reference} awaits compliance review",
+      "reviewCase": "Open the screening case",
+      "clearancePending": "AML clearance recorded by {who}, awaiting a second person",
+      "approveClearance": "Approve clearance",
+      "refuseClearance": "Refuse",
+      "refuseReason": "Reason (to refuse or send back)",
+      "eddPending": "Enhanced due diligence recorded by {who}, awaiting approval",
+      "approveEdd": "Approve EDD",
+      "rejectEdd": "Reject",
+      "screenNow": "Screen now",
+      "rerate": "Re-rate risk",
+      "proposeClear": "Record AML clearance",
+      "flag": "Flag customer",
+      "recordEdd": "Record EDD",
+      "raiseStr": "Raise suspicious transaction referral",
+      "reason": "Reason",
+      "clearHint": "The customer is screened again first. A second compliance user must approve the clearance before it takes effect.",
+      "flagHint": "Flagging takes effect at once and stops new lending and payouts to this customer.",
+      "eddHistory": "Due diligence history"
+    },
+    "edd": {
+      "sourceOfFunds": "Source of funds",
+      "sourceOfWealth": "Source of wealth",
+      "documentReference": "Supporting document reference",
+      "documentHint": "The document you saw (title deed, bank statements, payslips) and where it is filed."
+    },
+    "cases": {
+      "title": "Screening cases",
+      "subtitle": "Customers whose name matched a watch list. One person proposes the outcome; a second approves it.",
+      "none": "No screening cases.",
+      "reference": "Reference",
+      "type": "Type",
+      "score": "Score",
+      "trigger": "Screened on",
+      "listEntry": "List entry",
+      "matchedOn": "Matched name",
+      "list": "List",
+      "notes": "Notes",
+      "joined": "matched without spaces",
+      "dobMismatch": "date of birth differs",
+      "disposition": "Outcome",
+      "proposedBy": "Proposed by",
+      "decidedBy": "Approved by",
+      "reason": "Reason",
+      "propose": "Propose outcome",
+      "outcome": "Outcome",
+      "trueMatchHint": "A true match flags the customer; a PEP needs enhanced due diligence; a sanctions or internal-list match raises a referral.",
+      "falsePositiveHint": "Say why this is not the listed person (date of birth, nationality, identity document).",
+      "awaiting": "Outcome proposed by {who}, awaiting a second person",
+      "approve": "Approve outcome",
+      "sendBack": "Send back",
+      "secondPerson": "A different compliance user must approve it."
+    },
+    "lists": {
+      "title": "Watch lists",
+      "subtitle": "Sanctions, PEP and internal lists uploaded by compliance. A version is used for screening only once a second person activates it; activation re-screens every customer.",
+      "upload": "Upload list version",
+      "runRescreen": "Run queued re-screens",
+      "format": "CSV with columns name, type (SANCTION, PEP or INTERNAL), source, list_date (YYYY-MM-DD); optional aliases (separated by ;), country, date_of_birth, reference.",
+      "code": "List code",
+      "codeHint": "e.g. UN_SANCTIONS, PEP_REGISTER, INTERNAL",
+      "name": "Name",
+      "file": "CSV file",
+      "none": "No watch lists uploaded yet.",
+      "entries": "Entries",
+      "uploadedBy": "Uploaded by",
+      "activatedBy": "Decided by",
+      "activate": "Activate",
+      "reject": "Reject",
+      "jobs": "Re-screening",
+      "jobsSubtitle": "Every customer is screened again in the background after a list version is activated.",
+      "noJobs": "No re-screens yet.",
+      "screened": "Screened",
+      "casesOpened": "Cases opened",
+      "completed": "Completed"
+    },
+    "risk": {
+      "title": "Customer risk ratings",
+      "subtitle": "Ratings from the factors and weights in the lending settings. HIGH-risk and politically exposed customers need approved enhanced due diligence before they borrow.",
+      "dueOnly": "Review due only",
+      "none": "No customers match.",
+      "rating": "Rating"
+    },
+    "ctr": {
+      "title": "Cash transaction report",
+      "subtitle": "Cash repayments and disbursements at or above the threshold, single or added up per customer and day, for reporting to CAFIU.",
+      "from": "From",
+      "to": "To",
+      "run": "Run",
+      "download": "Download CSV",
+      "thresholds": "Thresholds",
+      "cashChannels": "Cash channels",
+      "cashTransactions": "Cash transactions in the period",
+      "withoutChannel": "{count} payment(s) in the period have no channel recorded and could not be classed as cash or not.",
+      "unassessed": "No threshold is set for {currencies}; those payments were not assessed.",
+      "none": "No cash transactions reach the threshold in this period.",
+      "date": "Business date",
+      "id": "Identity document",
+      "branch": "Branch",
+      "total": "Day total",
+      "basis": "Basis",
+      "basisSINGLE": "Single transaction",
+      "basisAGGREGATED": "Same-day total",
+      "transactions": "Transactions",
+      "in": "In",
+      "out": "Out"
+    },
+    "str": {
+      "title": "Suspicious transaction referrals",
+      "subtitle": "Referrals raised by staff. Review each one and record whether and when it was reported to CAFIU.",
+      "tippingOff": "Confidential: never tell the customer, or anyone outside compliance, that a referral has been raised (tipping-off is an offence).",
+      "none": "No referrals.",
+      "raisedBy": "Raised by",
+      "grounds": "What made you suspicious",
+      "groundsHint": "Facts only: what happened, when, amounts and who was involved.",
+      "raised": "Referral {reference} sent to compliance. Keep it confidential.",
+      "reviewedBy": "Reviewed by",
+      "notes": "Review notes",
+      "cafiuReference": "CAFIU reference",
+      "reportedOn": "Reported on",
+      "review": "Record review",
+      "decision": "Decision",
+      "markReported": "Mark reported to CAFIU"
+    },
+    "toast": {
+      "cleared": "Customer AML-cleared",
+      "refused": "Recorded",
+      "eddApproved": "Enhanced due diligence approved",
+      "hits": "{count} watch-list match(es): a screening case is open",
+      "noHits": "No watch-list match",
+      "rated": "Risk rating updated",
+      "clearProposed": "Clearance recorded; a second person must approve it",
+      "flagged": "Customer flagged",
+      "eddRecorded": "Enhanced due diligence recorded for approval",
+      "proposed": "Outcome proposed for approval",
+      "decided": "Outcome approved",
+      "sentBack": "Sent back",
+      "uploaded": "List version uploaded; a second person must activate it",
+      "activated": "List activated; customers will be re-screened",
+      "rescreened": "{count} re-screen job(s) worked",
+      "reviewed": "Review recorded",
+      "reported": "Recorded as reported to CAFIU"
+    }
   }
 }

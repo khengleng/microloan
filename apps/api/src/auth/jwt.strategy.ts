@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Permission } from '../authz/permission.enum';
 import { permissionsForRole } from '../authz/role-permissions';
 import { SystemContext, setRequestContext } from '../prisma/tenant-context';
+import { adminMfaSettingFrom, roleRequiresMfa } from './mfa-policy';
+import { canonicalRole } from '../authz/role-permissions';
 
 export type JwtPayload = {
   sub: string;
@@ -19,6 +21,12 @@ export type JwtPayload = {
   permissions?: Permission[];
   /** Authentication method: "mfa" after a verified TOTP challenge, otherwise "pwd". */
   amr?: 'pwd' | 'mfa';
+  /** Seconds since the epoch of the last verified authenticator code (amr=mfa only). */
+  mfaAt?: number | null;
+  /** Set by validate(): the person has an authenticator enrolled. */
+  mfaEnrolled?: boolean;
+  /** Set by validate(): the role must use an authenticator for every route but enrolment (D-128). */
+  mfaRequired?: boolean;
 };
 
 @Injectable()
@@ -80,7 +88,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // revoked INSTANTLY (next request), not when the 15min token expires.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { isActive: true, role: true, tenantId: true, branchId: true },
+      select: { isActive: true, role: true, tenantId: true, branchId: true, twoFactorEnabled: true },
     });
 
     if (!user || !user.isActive) {
@@ -111,6 +119,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         : { mode: 'tenant', tenantId: user.tenantId!, actorId: payload.sub, branchId: user.branchId },
     );
 
+    // Whether this role must use an authenticator (D-128). A tenant
+    // administrator follows the tenant's approved setting; one indexed read,
+    // only for that role.
+    let tenantSettings: unknown;
+    if (canonicalRole(user.role) === 'TENANT_ADMIN' && user.tenantId) {
+      const row = await this.prisma.tenantLendingSettings.findFirst({
+        where: { tenantId: user.tenantId, status: 'ACTIVE' },
+        select: { settings: true },
+      });
+      tenantSettings = row?.settings;
+    }
+    const mfaRequired = roleRequiresMfa(user.role, adminMfaSettingFrom(tenantSettings));
+    const amr = payload.amr === 'mfa' ? 'mfa' : 'pwd';
+
     return {
       id: payload.sub,
       sub: payload.sub,
@@ -122,7 +144,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenantPlan: tenant?.plan || null,
       isPlatform,
       permissions: Array.from(permissionsForRole(user.role)),
-      amr: payload.amr === 'mfa' ? 'mfa' : 'pwd',
+      amr,
+      mfaAt: amr === 'mfa' && typeof payload.mfaAt === 'number' ? payload.mfaAt : null,
+      mfaEnrolled: user.twoFactorEnabled === true,
+      mfaRequired,
     };
   }
 }

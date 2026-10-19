@@ -4,7 +4,15 @@
  * a tenant policy approved under maker-checker; end of day posts only the
  * change in each loan's allowance; write-off uses it; closure releases it.
  */
-import { Fixture, TEST_DB, bootstrap, expectOk, grant, key } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  expectOk,
+  grant,
+  key,
+  lendingSettings,
+} from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -173,6 +181,20 @@ d('Impairment (integration)', () => {
     const before = await loan(loanA);
     const held = Number(before.account.allowance);
     expect(held).toBeGreaterThan(0);
+    // D-117: the product allows 30 days, but the lender's floor is the Loss
+    // class of the short-term bands (91 days) until it approves another.
+    const early = await f
+      .as('opsMaker')
+      .post(`/lending/loans/${loanA}/write-offs`, { reason: 'Too early' });
+    expect(early.status).toBe(400);
+    expect(early.body).toMatchObject({
+      code: 'WRITE_OFF_TOO_EARLY',
+      productMinimumDpd: 30,
+      lenderFloorDpd: 91,
+    });
+    await lendingSettings(f, f.t1, {
+      regulatory: { writeOffMinDpd: { shortTerm: 30, longTerm: 30 } },
+    });
     const task = expectOk(
       await f.as('opsMaker').post(`/lending/loans/${loanA}/write-offs`, {
         reason: 'Borrower absconded',

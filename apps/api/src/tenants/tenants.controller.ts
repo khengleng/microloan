@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException, Query } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
+import { TenantPurgeService } from './tenant-purge.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -17,7 +18,10 @@ import { Permission } from '../authz/permission.enum';
 @UseGuards(PlatformGuard)
 @Controller('tenants')
 export class TenantsController {
-    constructor(private readonly tenantsService: TenantsService) { }
+    constructor(
+        private readonly tenantsService: TenantsService,
+        private readonly purges: TenantPurgeService,
+    ) { }
 
     @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_VIEW)
@@ -90,7 +94,58 @@ export class TenantsController {
         return this.tenantsService.remove(user, id);
     }
 
-    // Fix 9 – Phase 2: Irreversible GDPR hard-delete + PII anonymization
+    // ── Purge flow (D-131): archive → request → second approval → purge ──
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
+    @Get('purge-requests/list')
+    purgeRequests(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
+        return this.purges.listRequests(user, status || undefined);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_SUSPEND)
+    @Post('purge-requests/:approvalId/approve')
+    approvePurge(
+        @CurrentUser() user: JwtPayload,
+        @Param('approvalId') approvalId: string,
+        @Body() body: { comment?: string },
+    ) {
+        return this.purges.decide(user, approvalId, true, body?.comment);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_SUSPEND)
+    @Post('purge-requests/:approvalId/reject')
+    rejectPurge(
+        @CurrentUser() user: JwtPayload,
+        @Param('approvalId') approvalId: string,
+        @Body() body: { reason?: string },
+    ) {
+        return this.purges.decide(user, approvalId, false, body?.reason);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
+    @Get(':id/purge')
+    purgeStatus(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.purges.status(user, id);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_SUSPEND)
+    @Post(':id/archive')
+    archive(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+        return this.purges.archive(user, id);
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_SUSPEND)
+    @Post(':id/purge-requests')
+    requestPurge(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() body: { reason?: string }) {
+        return this.purges.requestPurge(user, id, body?.reason);
+    }
+
+    // Phase 2: the irreversible purge, once approved (TenantPurgeService)
     @Roles('SUPERADMIN')
     @RequirePermissions(Permission.TENANT_SUSPEND)
     @Delete(':id/hard')

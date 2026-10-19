@@ -1,5 +1,7 @@
 import { parseFieldEncryptionKey } from '../common/field-crypto';
 import { operationalConfig } from './operational-config';
+import { s3Settings } from './s3';
+import { parseDocumentEncryptionKey } from '../lending/documents/document-crypto';
 
 type RuntimeConfig = {
   nodeEnv: string;
@@ -117,6 +119,17 @@ export function loadRuntimeConfig(): RuntimeConfig {
       'AWS_REGION is required in production when AWS_S3_BUCKET_NAME is set.',
     );
   }
+  // Without S3, customer documents live on a disk volume, encrypted by the
+  // API with a key derived from DOCUMENT_ENCRYPTION_KEY (DECISIONS D-137).
+  // Production refuses to boot without it; a key that is set is always
+  // checked, so a malformed one stops the boot rather than the first upload.
+  const documentKey = process.env.DOCUMENT_ENCRYPTION_KEY?.trim();
+  if (isProduction && !s3Settings().configured && !documentKey) {
+    throw new Error(
+      'DOCUMENT_ENCRYPTION_KEY is required in production when documents are stored on disk (S3 is not configured).',
+    );
+  }
+  if (documentKey) parseDocumentEncryptionKey(documentKey);
   // Outgoing email needs a real sender address, not a development placeholder.
   if (
     isProduction &&

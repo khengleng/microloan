@@ -68,7 +68,8 @@ Check these, or the application will be refused later:
    - **Promotion code** (optional — the product's campaign code)
    - **Annual net operating income** (optional — business loans, for the debt-service coverage ratio)
    - **Declared annual income** (income-contingent education loans only — see [Specialised products](12-specialised-products.md))
-7. Click **Create draft application**.
+7. Optional, but ask the applicant: **Monthly repayments to other lenders** (what they pay other banks and MFIs each month, in the application's currency) and **Number of other lenders**. Both count in the affordability assessment; if your organisation limits how many lenders a borrower may owe, the number is required (see [Affordability](#assessment-and-the-credit-score)).
+8. Click **Create draft application**.
 
 What happens next: the application opens in **DRAFT** with a reference such as APP-…. Any conditions precedent configured on the product (things that must be done before money is paid out) are added automatically.
 
@@ -95,6 +96,7 @@ Click an application's **Reference** to open it. The page shows:
 - **Documents** — files uploaded to this application. If the product lists required documents, they appear as labels at the top (ticked when on file; amber when mandatory and missing).
 - **Conditions precedent** — see [Conditions precedent](#conditions-precedent).
 - **Collateral** and **Guarantees**.
+- **Key facts statement** — once approved: the statement given to the customer before the contract, in English and Khmer, and whether they accepted it. See [Key facts statement](#key-facts-statement).
 - **Credit decisions** — every recommendation, approval and rejection, oldest first, with the assessment behind it.
 - After booking, a green **Booked** box links to the new loan account.
 
@@ -103,7 +105,7 @@ Click an application's **Reference** to open it. The page shows:
 ### Edit terms (draft only)
 
 1. Click **Edit terms**.
-2. Change the fields (same as when creating) and **Purpose** if needed.
+2. Change the fields (same as when creating), **Purpose** and the declared repayments to other lenders if needed (empty a field to clear it).
 3. Click **Save terms**. You see "Terms updated".
 
 Terms can only change while the application is **DRAFT** ("Terms can only change while the application is a draft.").
@@ -153,6 +155,7 @@ The system checks the application first. If anything is missing you see "The app
 | Required documents for the application stage (if the workflow has a document check) | "Missing document: …" or "Document … is rejected / expired" |
 | Age (if the product has age rules) | "Minimum age is …", "Maximum age at maturity is …", "The borrower's date of birth is required for this product." |
 | Minimum income (if set) | "Minimum monthly income is …" |
+| Number of lenders (if your organisation limits it) | "Record how many other lenders the borrower owes; …" or "The borrower would owe … lenders; at most … are allowed." — the other lenders declared plus your organisation must not exceed the limit. Correct the number with **Edit terms** while the application is a draft. |
 
 ---
 
@@ -160,7 +163,7 @@ The system checks the application first. If anything is missing you see "The app
 
 Each time an application is submitted, recommended or approved the system runs an **assessment**. At recommendation and at each approval it is stored with the decision. It covers:
 
-- **Affordability** — the average monthly repayment and the **debt-service ratio** (repayment ÷ the borrower's monthly income). For a group loan, the combined income of all active members is used.
+- **Affordability** — the average monthly repayment and the **debt-service ratio**: everything the borrower repays each month ÷ their monthly income. "Everything" is this loan's average repayment **plus** the repayments still due on the borrower's other loans with you (booked or active; a loan this application refinances is left out), the latest minimum payment on their open credit lines and cards, and the monthly repayments to other lenders declared on the application. The assessment shows each part (`otherLoansMonthlyPayment`, `creditLinesMinimumPayment`, `declaredExternalMonthlyPayments`) and this loan's own ratio (`loanDebtServiceRatio`). Loans in another currency are not converted; their number is shown (`obligationsInOtherCurrencies`) for the approver to weigh. For a group loan, the combined income and obligations of all active members are used.
 - **Debt-service coverage** (business loans) — annual net operating income ÷ annual debt service.
 - **Loan-to-value** — for secured products: the loan plus loans ranking ahead, divided by the collateral's lending value (market value less the product's haircut).
 - **Guarantors** — how many are recorded.
@@ -226,6 +229,7 @@ The system re-runs the assessment. If a rule is not met you see "Approval requir
 | "Missing document: …" | Required documents for the approval stage are missing. |
 | "Credit score … (grade …) is below the minimum …" | Below the product's minimum score. |
 | "The … scorecard strategy declines: …" | A knock-out, the score cut-off or the grade rule says decline. See [chapter 24](24-scorecards-and-alternative-data.md). |
+| "The borrower would owe … lenders; at most … are allowed." | Over your organisation's lender-count limit. |
 | "Grade … allows at most … on this product." | The amount is above the maximum for the customer's grade. |
 | "Grade … is priced at least … (default rate plus … bp); the terms say …" | The product requires a higher rate for this grade. |
 
@@ -277,9 +281,23 @@ To waive a condition (credit approver; not the application's creator):
 
 ---
 
+## Key facts statement
+
+Before the contract is made the customer receives a **key facts statement** and accepts it. It is issued automatically when the application is approved, from the approved terms, in **English and Khmer**, and filed in the customer's document library. It shows the amount borrowed and the cash they will receive, the term and repayment summary, the **nominal annual rate and the effective annual rate (APR, fees included) as percentages**, every fee and its tax, the **total cost of credit** and the **total they will repay**, what happens if they pay late, what paying early costs, any lock-in period, the collateral and guarantors, their **right to cancel (cooling-off)**, where to complain (your organisation and the regulator), and your organisation's name and licence.
+
+The **Key facts statement** card on the application shows the statement in force, its rates and totals, and whether the customer accepted it.
+
+1. Click **Open English** or **Open Khmer** to read or print the statement, and give it to the customer.
+2. When the customer has signed it, click **Record customer acceptance**, choose the scanned signed statement and click **Record acceptance**. The signed form is filed in the customer's library and the acceptance is recorded against this version of the terms. (Relationship officers and loan operations makers can do this.)
+3. Or the customer accepts it themselves in the borrower portal (**Your key facts statement › Accept the statement**). The card then shows "Borrower portal".
+
+If the approved terms change after the statement was issued (a new approval, a changed policy or product version), the statement is marked **Stale** and booking is refused: click **Generate statement for the current terms**, give the new version to the customer and record their acceptance again. If the statement could not be issued at approval, the card says so — click **Generate statement for the current terms**.
+
+If the statement shows "not configured" for the licence or a complaint contact, ask your administrator to set them in **Lending settings** (`consumerProtection`); the card lists what is missing.
+
 ## Book the agreement
 
-For loan operations makers, when the application is **APPROVED**. Booking creates the loan agreement and a loan account in status **BOOKED**, with the schedule and fees fixed from the approved terms and the product version. No money moves.
+For loan operations makers, when the application is **APPROVED** and the customer has **accepted the key facts statement** for the current terms. Booking creates the loan agreement and a loan account in status **BOOKED**, with the schedule and fees fixed from the approved terms and the product version. No money moves.
 
 1. Click **Book agreement**.
 2. Optional: **Planned disbursement date**. It cannot be before today's business date.
@@ -289,7 +307,16 @@ What happens next: the status becomes **BOOKED** and a green **Booked** box link
 
 Note: If you leave **Planned disbursement date** empty, the system uses today's **business date**, not the disbursement date entered in the terms. Enter the date you intend to pay out. If money is paid out on a different day, the schedule is recalculated at disbursement.
 
-If it is blocked: "The planned disbursement date cannot precede the business date." — choose today's business date or later.
+If it is blocked:
+
+| Message | What to do |
+|---|---|
+| "The planned disbursement date cannot precede the business date." | Choose today's business date or later. |
+| "No key facts statement has been issued for the approved terms; …" | Generate the statement (see [Key facts statement](#key-facts-statement)). |
+| "The customer has not accepted key facts statement v…; …" | Record the customer's acceptance, or ask them to accept in the portal. |
+| "Key facts statement v… no longer matches the approved terms; …" | Generate a new statement and record the customer's acceptance of it. |
+
+The **Book agreement** panel shows whether the statement was accepted, and **Why can't I…** lists a missing acceptance under the `DISCLOSURE` layer.
 
 ---
 

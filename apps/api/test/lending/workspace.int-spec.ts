@@ -11,6 +11,7 @@
  */
 import { JwtService } from '@nestjs/jwt';
 import {
+  acceptKeyFacts,
   Fixture,
   TEST_DB,
   authority,
@@ -77,6 +78,7 @@ d('Workspace: access, work queues and search (integration)', () => {
         tenantId,
         branchId,
         amr: 'mfa',
+        mfaAt: Math.floor(Date.now() / 1000),
       },
       { expiresIn: '1h' },
     );
@@ -413,6 +415,7 @@ d('Workspace: access, work queues and search (integration)', () => {
         (i: any) => i.id,
       ),
     ).toContain(a.id);
+    await acceptKeyFacts(f, a.id);
     const booked = expectOk(
       await f.as('opsMaker').post(`/lending/applications/${a.id}/book`, {}),
     );
@@ -545,7 +548,9 @@ d('Workspace: access, work queues and search (integration)', () => {
     ) as any[];
     expect(byId.map((p) => p.id)).toEqual([ro]);
     expect(byId[0].email).toMatch(/^ro-/);
-    const found = expectOk(await f.as('analyst').get('/me/people?q=ro-')) as any[];
+    const found = expectOk(
+      await f.as('analyst').get('/me/people?q=ro-'),
+    ) as any[];
     expect(found.map((p) => p.id)).toContain(ro);
     expect(found.every((p) => p.id !== foreign)).toBe(true);
     // Too short a fragment, and platform operators, get nothing.

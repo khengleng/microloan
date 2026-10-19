@@ -12,6 +12,7 @@ import {
   borrower,
   expectOk,
   grant,
+  impairmentPolicy,
   key,
 } from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
@@ -32,6 +33,8 @@ d('Regulatory returns and legacy consolidation (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'nobody', 'RISK_COMPLIANCE');
+    // A month with loans outstanding closes only under an impairment policy (D-116).
+    await impairmentPolicy(f, f.t1);
     const { productId } = await activeProduct(
       f,
       'PERSONAL_INSTALMENT',

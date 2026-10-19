@@ -43,3 +43,6 @@ export * from './income-contingent.js';
 export * from './murabaha.js';
 export * from './tenant-settings.js';
 export * from './rate-cap.js';
+export * from './penalty.js';
+export * from './key-facts.js';
+export * from './aml.js';

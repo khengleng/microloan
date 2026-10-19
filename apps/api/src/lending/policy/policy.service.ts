@@ -7,6 +7,7 @@ import type { Tx } from '../common/lending-prisma';
 import type { LendingActor } from '../common/util';
 import { currentBatch } from '../servicing/batch-scope';
 import { operationalConfig } from '../../config/operational-config';
+import { MFA_STEP_UP_REQUIRED } from '../../auth/mfa-policy';
 import { ACTION_BY_CODE, actionsFor, ResourceType } from './actions';
 import { CompiledPolicy, policyRulesSchema } from './abac';
 import {
@@ -529,9 +530,14 @@ export class PolicyService {
         }),
       );
       const explanation = publicExplanation(d);
+      // Denied only for want of a recent authenticator code: the client can
+      // step up (POST /auth/mfa/step-up) and retry, so say so (D-129).
+      const failing = d.checks.filter((c) => !c.passed);
+      const stepUp =
+        failing.length > 0 && failing.every((c) => c.code === 'ASSURANCE');
       throw new ForbiddenException({
         message: explanation.blockedBy[0]?.message ?? 'Not permitted',
-        code: 'ACCESS_DENIED',
+        code: stepUp ? MFA_STEP_UP_REQUIRED : 'ACCESS_DENIED',
         action: actionCode,
         blockedBy: explanation.blockedBy,
       });

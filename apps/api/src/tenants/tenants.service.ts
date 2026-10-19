@@ -8,6 +8,7 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { operationalConfig } from '../config/operational-config';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import { TenantPurgeService } from './tenant-purge.service';
 
 @Injectable()
 export class TenantsService {
@@ -16,6 +17,7 @@ export class TenantsService {
         private readonly audit: AuditService,
         private readonly authz: AuthzService,
         private readonly planTiers: PlanTierService,
+        private readonly purges: TenantPurgeService,
     ) { }
 
     /**
@@ -155,6 +157,7 @@ export class TenantsService {
             actorUserId: actor.sub,
             actorRole: actor.role,
             actorTenantId: actor.tenantId,
+            subjectTenantId: id,
             targetType: 'Tenant',
             targetId: id,
             action: 'TENANT_UPDATE',
@@ -183,6 +186,7 @@ export class TenantsService {
             actorUserId: actor.sub,
             actorRole: actor.role,
             actorTenantId: actor.tenantId,
+            subjectTenantId: id,
             targetType: 'Tenant',
             targetId: id,
             action: status === 'SUSPENDED' ? 'TENANT_SUSPEND' : 'TENANT_ACTIVATE',
@@ -260,6 +264,7 @@ export class TenantsService {
             actorUserId: actor.sub,
             actorRole: actor.role,
             actorTenantId: actor.tenantId,
+            subjectTenantId: payment.tenantId,
             targetType: 'Tenant',
             targetId: payment.tenantId,
             action: 'PLAN_PAYMENT_CONFIRMED',
@@ -300,6 +305,7 @@ export class TenantsService {
             actorUserId: actor.sub,
             actorRole: actor.role,
             actorTenantId: actor.tenantId,
+            subjectTenantId: payment.tenantId,
             targetType: 'Tenant',
             targetId: payment.tenantId,
             action: 'PLAN_PAYMENT_REJECTED',
@@ -327,10 +333,11 @@ export class TenantsService {
             actorUserId: actor.sub,
             actorRole: actor.role,
             actorTenantId: actor.tenantId,
+            subjectTenantId: id,
             targetType: 'Tenant',
             targetId: id,
             action: 'TENANT_ERASURE_REQUEST',
-            // TENANT_ERASURE_GRACE_DAYS (default 30): the notice recorded with the request.
+            // TENANT_ERASURE_GRACE_DAYS (default 30): the purge is refused before this date (D-131).
             newValue: { scheduledPurgeAfter: new Date(Date.now() + operationalConfig().tenantErasureGraceDays * 86_400_000).toISOString() },
             result: 'SUCCESS',
         });
@@ -338,72 +345,14 @@ export class TenantsService {
     }
 
     /**
-     * Fix 9 – Phase 2: GDPR hard-delete / right to erasure.
-     * Anonymizes all PII for this tenant's users and borrowers, then
-     * hard-deletes the tenant row (cascading to all child entities).
-     * SUPERADMIN only. Irreversible.
+     * Phase 2: the purge. Allowed only after the grace period, with an archive
+     * written, nothing under legal hold or retention, and a second
+     * super-administrator's approval (TenantPurgeService, D-131).
      */
     async hardDelete(actor: JwtPayload, id: string) {
         this.authz.assertPlatformOnly(actor);
         this.authz.assertPermission(actor, Permission.TENANT_SUSPEND);
-        const tenant = await (this.prisma.tenant.findUnique({ where: { id } }) as any);
-        if (!tenant) throw new BadRequestException('Tenant not found');
-        if (!tenant.deletedAt) {
-            throw new BadRequestException(
-                'Tenant must be soft-deleted first (erasure requested) before hard-delete.'
-            );
-        }
-
-        // NUCLEAR CLEANUP: Bottom-Up ordered deletion to avoid all Foreign Key constraints 
-        // This is necessary because some DB providers have lag in Cascade propagation
-        await this.prisma.$transaction(async (tx) => {
-            // 0. Lending financial and audit rows are immutable at the database
-            // level; an erasure purge is the one sanctioned exception and must
-            // declare itself for this transaction only.
-            await tx.$executeRawUnsafe("SET LOCAL lending.purge = 'on'");
-
-            // 1. Logs & Social Interactions
-            await tx.auditLog.deleteMany({ where: { tenantId: id } });
-            await tx.loanInteraction.deleteMany({ where: { loan: { tenantId: id } } });
-
-            // 2. Financial History
-            await tx.repayment.deleteMany({ where: { tenantId: id } });
-            await tx.repaymentSchedule.deleteMany({ where: { loan: { tenantId: id } } });
-
-            // 3. Assets & Documentation
-            await tx.collateral.deleteMany({ where: { loan: { tenantId: id } } });
-            await tx.guarantor.deleteMany({ where: { loan: { tenantId: id } } });
-            await tx.document.deleteMany({ where: { tenantId: id } });
-
-            // 4. Core Entities
-            await tx.loan.deleteMany({ where: { tenantId: id } });
-            await tx.borrower.deleteMany({ where: { tenantId: id } });
-            await tx.user.deleteMany({ where: { tenantId: id } });
-
-            // 5. Product Logic
-            await tx.loanPolicy.deleteMany({ where: { product: { tenantId: id } } });
-            await tx.loanProduct.deleteMany({ where: { tenantId: id } });
-
-            // 6. Organization Shell
-            await tx.tenant.delete({ where: { id } });
-        });
-
-        // Best-effort post-purge audit (outside transaction)
-        await this.audit.logSecurityEvent({
-            actorUserId: actor.sub,
-            actorRole: actor.role,
-            actorTenantId: actor.tenantId,
-            targetType: 'Tenant',
-            targetId: id,
-            action: 'TENANT_HARD_DELETE',
-            oldValue: { name: tenant.name },
-            result: 'SUCCESS',
-        }).catch(() => { });
-
-        return {
-            success: true,
-            message: `Tenant "${tenant.name}" and all associated data have been permanently destroyed.`,
-        };
+        return this.purges.purge(actor, id);
     }
 
     async getTenantUsers(actor: JwtPayload, tenantId: string) {

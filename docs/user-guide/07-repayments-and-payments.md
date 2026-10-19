@@ -71,6 +71,8 @@ What happens next:
 - You see "Repayment posted". The payment appears in **Financial events** as **REPAYMENT** with status **POSTED**.
 - The money is allocated to what is due in the order the product defines (for example penalties, fees, interest, then principal). Expand the event row to see the **Allocation** by instalment and component.
 - Money held on advance is always used first, before new money.
+- **Back-dated payments and late penalties.** If you enter a **Value date** before the date late penalties were charged up to, the penalty for the days from the value date on is first undone (a **PENALTY_REVERSAL** event), then the payment is applied, and any instalment still overdue is charged again only on what is left. The borrower is not charged for days the payment covered. The repayment event shows what was undone and re-charged.
+- On a loan on **non-accrual**, collected late penalties move from penalty suspense to income, like suspended interest.
 - A prepayment creates a new agreement version and a new schedule (see [08-servicing-changes.md](08-servicing-changes.md#2-prepayment-and-rescheduling)).
 - When everything is paid the loan closes automatically.
 
@@ -114,6 +116,8 @@ To post a cross-currency repayment:
 
 The preview is only a preview; the system converts again when it posts.
 
+The loan is credited in its own rounding step (for example KHR loans in 100 riel): the amount converted is rounded to that step and what is left over is booked to rounding differences, so the loan never carries odd riel it cannot bill.
+
 If it is blocked:
 
 - **No rate for this date** - "No KHR/USD rate is published for <date> ...; the payment cannot be converted." Finance must publish the exchange rate first (see [14-accounting-and-period-close.md](14-accounting-and-period-close.md)), or the setting **Rate may be up to (days old)** must allow an older rate (section 8.5).
@@ -151,6 +155,29 @@ If it is blocked:
 | "This product does not allow early settlement." | The product forbids it. |
 | Code **SETTLEMENT_LOCKED_IN** with an explanation | The loan is still in its lock-in period. |
 | "Loan is CLOSED." (or another status) | Only active loans can be settled. |
+
+## 4a. Cooling-off cancellation
+
+If your organisation offers a cooling-off period (by default **7 days** after the money is paid out; the key facts statement tells the customer), the customer may change their mind and cancel the loan inside it. They repay the cash they received, plus interest for the days they had it if your settings charge it. There is **no settlement fee, lock-in charge or penalty**, and your organisation's upfront fees are **refunded** (credit-insurance premiums collected for an insurer are not).
+
+It takes two people. On the loan screen, while the period is open, click **Cooling-off cancellation**:
+
+1. A loan operations maker (anyone who can post repayments) records the request: the **Customer's reason** and the **Customer's request reference** (the letter, form or call), then clicks **Record cancellation request**. The panel shows the amount to cancel today: principal, interest, fees, less the fees refunded.
+2. A different person (a loan operations checker) opens the same panel and clicks **Approve** (or **Reject**).
+3. When the customer pays, the maker enters the **Receipt reference** and clicks **Take repayment and cancel**, then confirms. The amount must be exactly the one shown for today.
+
+What happens next: "Loan cancelled". A **SETTLEMENT** event is posted in its cooling-off form (fees refunded, penalties waived), the loan becomes **CLOSED** and a closure letter is filed.
+
+The request must be recorded inside the period; once approved it can be completed later, but interest keeps running until the money comes in.
+
+If it is blocked:
+
+| Message | What to do |
+|---|---|
+| "The cooling-off period ended on …" (code **COOLING_OFF_EXPIRED**) | Too late; the loan can only be settled early on its own terms (section 4). |
+| "This lender offers no cooling-off period." | The period is switched off in **Lending settings** (`consumerProtection.coolingOffDays` = 0). |
+| "A cooling-off cancellation is already pending or approved for this loan." | Approve or reject the open request first. |
+| "The cancellation request is pending; it must be approved first." | Ask a checker to approve it. |
 
 ### Legacy loans
 

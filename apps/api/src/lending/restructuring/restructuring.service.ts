@@ -26,8 +26,12 @@ import { PolicyService } from '../policy/policy.service';
 import { RateCapService } from '../common/rate-cap.service';
 import type { Resource } from '../policy/decision';
 import { PostingLine } from '../accounting/posting.service';
-import { ServicingService } from '../servicing/servicing.service';
+import {
+  ServicingService,
+  adjustPenaltySuspense,
+} from '../servicing/servicing.service';
 import { oncePerRun } from '../servicing/batch-scope';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import {
   LoanState,
   contractualAccrual,
@@ -89,7 +93,25 @@ export class RestructuringService implements OnModuleInit {
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
     private readonly rateCap: RateCapService,
+    private readonly tenantSettings: TenantSettingsService,
   ) {}
+
+  /**
+   * Consecutive on-time revised instalments that cure a restructure: the
+   * product's number, never fewer than the lender's minimum (D-113), so a
+   * product set to 0 cannot release a restructured loan at once.
+   */
+  private async probationInstalments(
+    tx: Tx,
+    tenantId: string,
+    config: lending.ProductConfig,
+  ): Promise<number> {
+    const s = await this.tenantSettings.get(tenantId, tx);
+    return Math.max(
+      config.restructuring.probationInstalments,
+      s.regulatory.restructured.minProbationInstalments,
+    );
+  }
 
   onModuleInit() {
     this.servicing.registerBatchHook((tx, state, businessDate, actor) =>
@@ -1274,6 +1296,7 @@ export class RestructuringService implements OnModuleInit {
         interestReceivable: a.interestReceivable.toString(),
         feesReceivable: a.feesReceivable.toString(),
         penaltyReceivable: a.penaltyReceivable.toString(),
+        penaltyInSuspense: a.penaltyInSuspense.toString(),
         instalmentAmount: a.instalmentAmount?.toString() ?? null,
         maturityDate: toLocalDate(a.maturityDate),
         daysPastDue: a.daysPastDue,
@@ -1396,6 +1419,13 @@ export class RestructuringService implements OnModuleInit {
     const waivedTotal = D(k.waived.interest)
       .plus(k.waived.fees)
       .plus(k.waived.penalties);
+    // Waived penalty held in suspense was never income, so waiving it costs
+    // nothing: it comes out of suspense against the concession (D-134).
+    const waivedFromSuspense = lending.D.min(
+      D(a.penaltyInSuspense),
+      D(k.waived.penalties),
+    );
+    await adjustPenaltySuspense(tx, state, waivedFromSuspense.negated());
     const lines: PostingLine[] = [
       { accountCode: acc.loansReceivable, debit: capTotal.toString() },
       { accountCode: acc.interestReceivable, credit: k.capitalized.interest },
@@ -1405,6 +1435,14 @@ export class RestructuringService implements OnModuleInit {
       { accountCode: acc.interestReceivable, credit: k.waived.interest },
       { accountCode: acc.feesReceivable, credit: k.waived.fees },
       { accountCode: acc.penaltyReceivable, credit: k.waived.penalties },
+      {
+        accountCode: acc.penaltySuspense,
+        debit: waivedFromSuspense.toString(),
+      },
+      {
+        accountCode: acc.concessionsExpense,
+        credit: waivedFromSuspense.toString(),
+      },
       { accountCode: acc.principalForgivenessExpense, debit: k.forgiven },
       { accountCode: acc.loansReceivable, credit: k.forgiven },
       { accountCode: acc.cash, debit: k.principalPaidAtRestructure },
@@ -1442,6 +1480,11 @@ export class RestructuringService implements OnModuleInit {
 
     // 4. Balances. Delinquency is NOT reset: the current bucket becomes a floor held through probation.
     const cfg = state.config.restructuring;
+    const probation = await this.probationInstalments(
+      tx,
+      tenantId,
+      state.config,
+    );
     const after = {
       principalOutstanding: calc.newPrincipal,
       interestReceivable: D(a.interestReceivable)
@@ -1477,7 +1520,7 @@ export class RestructuringService implements OnModuleInit {
         a.delinquencyBucket,
       ),
       delinquencyFloorDpd: Math.max(a.delinquencyFloorDpd ?? 0, a.daysPastDue),
-      probationRemaining: cfg.probationInstalments,
+      probationRemaining: probation,
       lastAccrualDate: a.lastAccrualDate,
     });
 
@@ -1529,17 +1572,15 @@ export class RestructuringService implements OnModuleInit {
         `relief:${amendment.id}`,
       );
     const probationLine =
-      calc.lines[
-        Math.min(calc.lines.length, Math.max(1, cfg.probationInstalments)) - 1
-      ];
-    if (cfg.probationInstalments > 0 && probationLine)
+      calc.lines[Math.min(calc.lines.length, Math.max(1, probation)) - 1];
+    if (probation > 0 && probationLine)
       await this.task(
         tx,
         c.id,
         tenantId,
         'PROBATION_REVIEW',
         probationLine.dueDate,
-        { probationInstalments: cfg.probationInstalments },
+        { probationInstalments: probation },
         `probation:${amendment.id}`,
       );
     if (options.balloonAmount)
@@ -1718,6 +1759,9 @@ export class RestructuringService implements OnModuleInit {
         interestReceivable: b.interestReceivable as string,
         feesReceivable: b.feesReceivable as string,
         penaltyReceivable: b.penaltyReceivable as string,
+        // Restructures executed before D-134 did not record it: left as is.
+        penaltyInSuspense:
+          (b.penaltyInSuspense as string | undefined) ?? undefined,
         instalmentAmount: (b.instalmentAmount as string | null) ?? null,
         maturityDate: b.maturityDate
           ? fromLocalDate(b.maturityDate as string)
@@ -1850,7 +1894,11 @@ export class RestructuringService implements OnModuleInit {
         onTime++;
       else onTime = 0;
     }
-    const required = state.config.restructuring.probationInstalments;
+    const required = await this.probationInstalments(
+      tx,
+      tenantId,
+      state.config,
+    );
     const remaining = broken ? required : Math.max(0, required - onTime);
     if (remaining !== state.account.probationRemaining) {
       state.account.probationRemaining = remaining;

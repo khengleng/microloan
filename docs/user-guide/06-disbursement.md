@@ -27,6 +27,8 @@ If the **Disbursement** button is greyed out, hover over it, or open **Why can't
 
 ## Before you start
 
+- The loan was booked, which needs the customer's acceptance of the **key facts statement** for the approved terms (see [Key facts statement](05-applications-and-credit-decisions.md#key-facts-statement)). The accepted statement, in English and Khmer, is in the customer's document library and linked to the loan.
+- Tell the customer about their **cooling-off right**: if your organisation offers one, they may cancel within that many days after the money is paid out by repaying what they received (see [Cooling-off cancellation](07-repayments-and-payments.md#4a-cooling-off-cancellation)).
 - All **conditions precedent** on the application are **SATISFIED** or **WAIVED** (see [Conditions precedent](05-applications-and-credit-decisions.md#conditions-precedent)). Otherwise execution is refused with "Conditions precedent outstanding: …".
 - If the terms include a **down payment**, it has been recorded (see below).
 - The value date is not after today's business date and not further back than the product allows.
@@ -51,6 +53,22 @@ To record a down payment (loan operations maker):
 The disbursement is refused until the agreed down payment has been received: "The … down payment has not been received (recorded: …)."
 
 Note: If the amount or receipt reference is invalid, the warning message currently only appears once a disbursement has been approved (it is shown under the **External reference** field). If nothing seems to happen when you click **Record down payment**, check that the amount is a plain number (e.g. 250.00) and the reference has at least 2 characters.
+
+### Refund a down payment we hold (maker-checker)
+
+If the borrower changes their mind, pays less down, or the purchase falls through before the loan is paid out, the down payment we hold can be paid back. One person proposes the refund; a different person approves and pays it.
+
+To propose (loan operations maker):
+
+1. In the **Disbursement** panel, under **Refund the down payment held**, enter the **Refund amount** (at most what we hold) and a **Reason**.
+2. Click **Propose refund**. You see "Refund proposed — a different user must approve it".
+
+To approve (loan operations checker, not the proposer):
+
+1. Open the loan's **Disbursement** panel (or **Lending › Approvals**, tab **Down-payment refunds**).
+2. Click **Approve and pay** (or **Reject**). You see "Down payment refunded". The amounts **Received** and **held by us** go down by the refund, and a **DOWN_PAYMENT_REFUND** event is posted (down payments held to cash).
+
+Only a down payment we hold (collected by us) can be refunded, and only before the loan is disbursed: afterwards the money has gone to the seller. If you try later you see "A down payment is refunded only before the loan is disbursed, or when the booked loan is cancelled." (code **DOWN_PAYMENT_NOT_REFUNDABLE**).
 
 ---
 

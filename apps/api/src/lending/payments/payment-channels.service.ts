@@ -821,6 +821,8 @@ export class PaymentChannelsService {
     tenantId: string,
     loanCurrency: string,
     body: { amount: string; currency: string; valueDate?: string },
+    /** The loan's rounding rule: the loan is credited in its own increment (D-136). */
+    rounding?: lending.RoundingRule,
   ) {
     const businessDate = await this.businessDate.get(tenantId, tx);
     const valueDate = body.valueDate ?? businessDate;
@@ -853,6 +855,7 @@ export class PaymentChannelsService {
         to: loanCurrency,
         quote,
         spreadBps: settings.fxSpreadBps,
+        rounding,
       }),
     );
     return {
@@ -885,11 +888,17 @@ export class PaymentChannelsService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadLoanState(tx, tenantId, loanId, { lock: false });
       await this.policy.enforce(actor, 'loan.read', resourceOf(state), tx);
-      const r = await this.convert(tx, tenantId, state.account.currency, {
-        amount: q.amount!,
-        currency: q.currency!.toUpperCase(),
-        valueDate: q.valueDate,
-      });
+      const r = await this.convert(
+        tx,
+        tenantId,
+        state.account.currency,
+        {
+          amount: q.amount!,
+          currency: q.currency!.toUpperCase(),
+          valueDate: q.valueDate,
+        },
+        state.config.pricing.rounding,
+      );
       return { valueDate: r.valueDate, conversion: r.conversion, rate: r.rate };
     });
   }
@@ -917,18 +926,19 @@ export class PaymentChannelsService {
     const tenantId = requireTenant(actor);
     const hash = requestHash({ op: 'fx-repay', id: loanId, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
-      const loan = await tx.loanAccount.findFirst({
-        where: { id: loanId, tenantId },
-        select: { currency: true },
-      });
-      if (!loan) throw new NotFoundException('Loan account not found');
+      const loan = await loadLoanState(tx, tenantId, loanId);
       const { businessDate, valueDate, conversion, rate } = await this.convert(
         tx,
         tenantId,
-        loan.currency,
+        loan.account.currency,
         body,
+        loan.config.pricing.rounding,
       );
       const gain = D(conversion.gainLoss);
+      // D-136: what the loan's rounding increment leaves over goes to the
+      // rounding-differences account, not to the borrower's balance.
+      const roundingDiff = D(conversion.roundingDifference ?? '0');
+      const roundingAccount = loan.config.accounting.roundingDifferences;
       // The lender's FX position, FX gain/loss and cash accounts (lending settings).
       const { fxPosition, fxGainLoss, cash } = (
         await this.tenantSettings.get(tenantId, tx)
@@ -944,23 +954,17 @@ export class PaymentChannelsService {
           prepaymentStrategy: body.prepaymentStrategy,
           applyExcessAs: body.applyExcessAs,
           payer: body.payer,
+          channel: body.channel,
         },
         idempotencyKey,
         hash,
         {
           fundingAccount: fxPosition,
           components: { fx: { ...conversion, rate } },
-          extraLines: gain.isZero()
-            ? []
-            : gain.gt(0)
-              ? [
-                  { accountCode: fxPosition, debit: gain.toString() },
-                  { accountCode: fxGainLoss, credit: gain.toString() },
-                ]
-              : [
-                  { accountCode: fxGainLoss, debit: gain.abs().toString() },
-                  { accountCode: fxPosition, credit: gain.abs().toString() },
-                ],
+          extraLines: [
+            ...differenceLines(fxPosition, fxGainLoss, gain),
+            ...differenceLines(fxPosition, roundingAccount, roundingDiff),
+          ],
         },
       );
       const narrative = `Received ${conversion.amount} ${conversion.from} for ${conversion.converted} ${conversion.to} at ${conversion.bankRate}`;
@@ -1023,4 +1027,26 @@ export class PaymentChannelsService {
       return { ...event, fxReceiptEventId: receipt.id, conversion };
     });
   }
+}
+
+/**
+ * Balanced lines moving `amount` from the FX position into `account`: a
+ * positive amount is kept by the bank (credited to `account`), a negative one
+ * given up (debited to it).
+ */
+function differenceLines(
+  position: string,
+  account: string,
+  amount: lending.Dec,
+) {
+  if (amount.isZero()) return [];
+  return amount.gt(0)
+    ? [
+        { accountCode: position, debit: amount.toString() },
+        { accountCode: account, credit: amount.toString() },
+      ]
+    : [
+        { accountCode: account, debit: amount.abs().toString() },
+        { accountCode: position, credit: amount.abs().toString() },
+      ];
 }

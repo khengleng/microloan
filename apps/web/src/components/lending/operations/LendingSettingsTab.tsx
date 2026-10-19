@@ -13,6 +13,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { EditorModeSwitch, StructuredJsonEditor, jsonProblem } from '../StructuredJsonEditor';
 import { fmtDateTime } from '../format';
 import { Person } from '../People';
+import type { TenantSecuritySettings } from '../types';
 
 interface SettingsRow {
     id: string; version: number; status: string; settings: unknown; makerId: string; checkerId: string | null;
@@ -22,12 +23,19 @@ interface SettingsList { active: SettingsRow | null; versions: SettingsRow[]; ef
 
 /** What each setting means, for the read-only view. Keys are dotted paths; translated as LendingOps.settings.labels.<path with _>. */
 const LABELS: Record<string, string> = {
-    'regulatory.classes': 'Regulatory loan classes (days past due → provision rate)',
+    'regulatory.classes': 'Regulatory loan classes, short-term loans (days past due → provision rate)',
+    'regulatory.longTermClasses': 'Regulatory loan classes, long-term loans (days past due → provision rate)',
+    'regulatory.shortTermMaxDays': 'Short-term loans: original term up to this many days (longer loans use the long-term classes)',
+    'regulatory.restructured.minClass': 'Restructured loans: lowest class while on probation',
+    'regulatory.restructured.minProbationInstalments': 'Restructured loans: fewest consecutive on-time instalments that end probation',
+    'regulatory.writeOffMinDpd.shortTerm': 'Write-off: fewest days past due, short-term loans (empty: the Loss class)',
+    'regulatory.writeOffMinDpd.longTerm': 'Write-off: fewest days past due, long-term loans (empty: the Loss class)',
     'regulatory.sizeBandEdgesUsd': 'Regulatory return: loan-size band edges (USD)',
     'regulatory.sizeBandKhrPerUsd': 'Regulatory return: KHR per USD for the size bands',
     'regulatory.rateBandEdgesPct': 'Regulatory return: interest-rate band edges (% a year)',
     'accounting.cash': 'Cash / bank account',
     'accounting.retainedEarnings': 'Retained earnings (year-end close)',
+    'accounting.regulatoryReserve': 'Regulatory reserve (equity; NBC provision above the ECL allowance)',
     'accounting.migrationClearing': 'Migration clearing (opening balances)',
     'accounting.fxPosition': 'FX position',
     'accounting.fxGainLoss': 'FX gain / loss',
@@ -52,7 +60,54 @@ const LABELS: Record<string, string> = {
     'scoring.consent.maxValidityDays': 'Alternative data: longest a customer consent may run (days)',
     'scoring.alternativeData.maxRecordAgeDays': 'Alternative data: verified records older than this no longer count (days)',
     'scoring.alternativeData.digitalChannels': 'Alternative data: payment channels counted as digital repayments',
+    'security.requireMfaForAdmins': 'Tenant administrators must use an authenticator',
+    'telegramBot.allowLoanApplications': 'Customers may apply for loans in the Telegram bot',
+    'consumerProtection.lenderLegalName': 'Key facts statement: lender’s legal name (empty: the organisation name)',
+    'consumerProtection.licenceNumber': 'Key facts statement: NBC licence number',
+    'consumerProtection.complaints.phone': 'Complaints: phone',
+    'consumerProtection.complaints.email': 'Complaints: email',
+    'consumerProtection.complaints.address': 'Complaints: address',
+    'consumerProtection.regulatorContact': 'Complaints: the regulator’s consumer-protection contact',
+    'consumerProtection.coolingOffDays': 'Cooling-off: days after disbursement the customer may cancel (0 = no cooling-off)',
+    'consumerProtection.coolingOffChargesAccruedInterest': 'Cooling-off: interest accrued to the cancellation date is payable',
+    'consumerProtection.coolingOffRefundsLenderFees': 'Cooling-off: the lender’s upfront fees are refunded',
+    'affordability.maxLendersPerBorrower': 'Affordability: most lenders a borrower may owe, counting this one (empty = no limit)',
+    'affordability.includeOwnLoans': 'Affordability: count the borrower’s other loans with this lender in the debt-service ratio',
+    'affordability.includeFacilityMinimumPayments': 'Affordability: count credit-line and card minimum payments in the debt-service ratio',
+    'aml.screening.matchThreshold': 'AML: name similarity (0–1) that counts as a watch-list match',
+    'aml.screening.tokenFloor': 'AML: least similarity for two name parts to be paired',
+    'aml.screening.singleTokenPenalty': 'AML: multiplier for a one-word name inside a longer one',
+    'aml.screening.ignoredTitles': 'AML: titles and honorifics ignored in names',
+    'aml.screening.rescreenBatchSize': 'AML: customers re-screened per step after a list is activated',
+    'aml.watchList.maxEntries': 'AML: most entries in one watch-list version',
+    'aml.risk.weights.pep': 'AML risk weight: politically exposed person',
+    'aml.risk.weights.highRiskCountry': 'AML risk weight: higher-risk nationality',
+    'aml.risk.weights.highRiskOccupation': 'AML risk weight: higher-risk occupation or business',
+    'aml.risk.weights.highRiskProduct': 'AML risk weight: higher-risk product type',
+    'aml.risk.weights.cashIntensive': 'AML risk weight: cash intensity',
+    'aml.risk.mediumAt': 'AML risk: score from which a customer is MEDIUM',
+    'aml.risk.highAt': 'AML risk: score from which a customer is HIGH',
+    'aml.risk.pepAlwaysHigh': 'AML risk: a politically exposed person is always HIGH',
+    'aml.risk.highRiskCountries': 'AML risk: higher-risk nationalities (ISO codes)',
+    'aml.risk.highRiskOccupations': 'AML risk: higher-risk occupations and businesses',
+    'aml.risk.cashIntensiveOccupations': 'AML risk: cash-intensive occupations',
+    'aml.risk.highRiskProductFamilies': 'AML risk: higher-risk product families',
+    'aml.risk.cashShareThreshold': 'AML risk: share of repayments in cash (0–1) that makes a customer cash intensive',
+    'aml.risk.cashLookbackDays': 'AML risk: days of repayments looked at for the cash share',
+    'aml.risk.reviewMonths.LOW': 'AML review: months between reviews of a LOW-risk customer',
+    'aml.risk.reviewMonths.MEDIUM': 'AML review: months between reviews of a MEDIUM-risk customer',
+    'aml.risk.reviewMonths.HIGH': 'AML review: months between reviews of a HIGH-risk customer',
+    'aml.ctr.thresholds.USD': 'Cash transaction report threshold (USD)',
+    'aml.ctr.thresholds.KHR': 'Cash transaction report threshold (KHR)',
+    'aml.ctr.cashChannels': 'Cash transaction report: payment channels that are cash',
+    'aml.retentionYearsAfterRelationship': 'AML records kept for this many years after the relationship ends',
 };
+
+/** On/off settings worth seeing at a glance, with the value used when none is set. */
+const SWITCHES: { path: string; read: (s: TenantSecuritySettings) => boolean | undefined; fallback: boolean; hint: string }[] = [
+    { path: 'security.requireMfaForAdmins', read: (s) => s.security?.requireMfaForAdmins, fallback: true, hint: 'requireMfaForAdmins' },
+    { path: 'telegramBot.allowLoanApplications', read: (s) => s.telegramBot?.allowLoanApplications, fallback: false, hint: 'allowLoanApplications' },
+];
 
 function flatten(v: unknown, prefix = ''): [string, unknown][] {
     if (v && typeof v === 'object' && !Array.isArray(v))
@@ -112,6 +167,24 @@ export function LendingSettingsTab() {
                     {t('defaultsInForceBody')}
                 </Notice>
             )}
+            <Card title={t('switches.title')} subtitle={t('switches.subtitle')} bodyClass="p-0">
+                <ul className="divide-y divide-[#F0F2F5]">
+                    {SWITCHES.map((sw) => {
+                        const on = sw.read(effective as TenantSecuritySettings) ?? sw.fallback;
+                        return (
+                            <li key={sw.path} className="flex items-start justify-between gap-4 px-5 py-3">
+                                <div>
+                                    <p className="text-[13px] font-semibold text-[#1A1F36]">{labels[sw.path]}</p>
+                                    <p className="text-[12px] text-[#697386]">{t(`switches.${sw.hint}`)}</p>
+                                </div>
+                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F0F2F5] text-[#697386]'}`}>
+                                    {on ? t('switches.on') : t('switches.off')}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </Card>
             <Card title={active ? t('inForce', { version: active.version }) : t('inForceDefaults')} subtitle={active?.decidedAt ? t('approvedAt', { at: fmtDateTime(active.decidedAt) }) : undefined} bodyClass="p-0">
                 <Table>
                     <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('colSetting')}</th><th className={th}>{t('colValue')}</th><th className={th}>{t('colDefault')}</th></tr></thead>

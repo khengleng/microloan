@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { PurgeRequestsPanel, TenantPurgeDialog } from '@/components/platform/TenantPurge';
 
 // Plans come from the platform's plan tiers (GET /platform/plan-tiers).
 interface PlanTierOption { name: string; displayName: string; isActive: boolean }
@@ -74,6 +75,9 @@ export default function TenantsPage() {
     const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
     const [showArchived, setShowArchived] = useState(false);
     const [planTiers, setPlanTiers] = useState<PlanTierOption[]>([]);
+    // Permanent purge is a stepped, two-person flow (archive → request → approve → purge).
+    const [purgeTenant, setPurgeTenant] = useState<{ id: string; name: string } | null>(null);
+    const [purgeKey, setPurgeKey] = useState(0);
     const { locale } = useParams();
     const o = useTranslations('Overview');
     const defaultPlan = planTiers.find((p) => p.isActive)?.name ?? '';
@@ -150,27 +154,25 @@ export default function TenantsPage() {
     };
 
     const handleDelete = async (t: Tenant) => {
-        const isSoftDeleted = !!t.deletedAt;
+        // Already marked for erasure: the permanent purge is the stepped flow.
+        if (t.deletedAt) {
+            setMenu(null);
+            setPurgeTenant({ id: t.id, name: t.name });
+            return;
+        }
 
         const ok = await confirm({
-            title: isSoftDeleted ? `PURGE IRREVERSIBLY: ${t.name}?` : `Soft-Delete "${t.name}"?`,
-            message: isSoftDeleted
-                ? 'This action is PERMANENT. All PII (Personal Identifiable Information) will be anonymized and all database records for this organization will be DESTROYED. Proceed with extreme caution.'
-                : 'The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data.',
-            confirmLabel: isSoftDeleted ? 'PURGE NOW' : 'Soft-Delete',
+            title: `Soft-Delete "${t.name}"?`,
+            message: 'The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data.',
+            confirmLabel: 'Soft-Delete',
             variant: 'danger',
         });
 
         if (!ok) return;
 
         try {
-            if (isSoftDeleted) {
-                await api.delete(`/tenants/${t.id}/hard`);
-                showToast(`${t.name} and all associated data has been purged.`, 'success');
-            } else {
-                await api.delete(`/tenants/${t.id}`);
-                showToast(`${t.name} is now suspended and marked for erasure.`, 'success');
-            }
+            await api.delete(`/tenants/${t.id}`);
+            showToast(`${t.name} is now suspended and marked for erasure.`, 'success');
             fetchAll();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Purge operation failed', 'error');
@@ -317,6 +319,8 @@ export default function TenantsPage() {
                     </button>
                 </div>
             </div>
+
+            <PurgeRequestsPanel refreshKey={purgeKey} onOpen={setPurgeTenant} />
 
             {/* Tenant Cards Grid */}
             {loading ? (
@@ -508,6 +512,12 @@ export default function TenantsPage() {
                     </form>
                 </DialogContent>
             </Dialog>
+            <TenantPurgeDialog
+                tenant={purgeTenant}
+                open={!!purgeTenant}
+                onOpenChange={(open) => { if (!open) { setPurgeTenant(null); setPurgeKey((k) => k + 1); } }}
+                onPurged={() => { setPurgeKey((k) => k + 1); fetchAll(); }}
+            />
             {/* Users Modal */}
             <Dialog open={isUsersModalOpen} onOpenChange={setUsersModalOpen}>
                 <DialogContent className="max-w-3xl rounded-[2.5rem] border-none shadow-2xl overflow-hidden p-0 bg-slate-50">

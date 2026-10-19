@@ -24,10 +24,14 @@ export const ACCOUNT_CODES = {
   TAX_PAYABLE: '2200',
   CUSTOMER_ADVANCES: '2300',
   INTEREST_SUSPENSE: '2400',
+  // Late penalties on non-accrual loans not yet recognised (DECISIONS D-134)
+  PENALTY_SUSPENSE: '2450',
   UNIDENTIFIED_SUSPENSE: '2500',
   DOWN_PAYMENTS_HELD: '2600',
   // Year-end close: the year's income and expense are carried here (OPS-6)
   RETAINED_EARNINGS: '3100',
+  // Regulatory reserve: the NBC provision above the ECL allowance, appropriated from retained earnings (D-115)
+  REGULATORY_RESERVE: '3200',
   // Opening balances of loans taken over from another system
   MIGRATION_CLEARING: '3900',
   SET_OFF_CLEARING: '2700',
@@ -157,6 +161,12 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
     name: 'Interest in Suspense (non-accrual)',
     type: LedgerAccountType.ASSET,
   },
+  // Contra to penalties receivable: late penalties charged on non-accrual loans.
+  {
+    code: ACCOUNT_CODES.PENALTY_SUSPENSE,
+    name: 'Penalties in Suspense (non-accrual)',
+    type: LedgerAccountType.ASSET,
+  },
   {
     code: ACCOUNT_CODES.UNIDENTIFIED_SUSPENSE,
     name: 'Unidentified Payments (suspense)',
@@ -165,6 +175,11 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.RETAINED_EARNINGS,
     name: 'Retained Earnings',
+    type: LedgerAccountType.EQUITY,
+  },
+  {
+    code: ACCOUNT_CODES.REGULATORY_RESERVE,
+    name: 'Regulatory Reserve',
     type: LedgerAccountType.EQUITY,
   },
   {

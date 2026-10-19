@@ -13,6 +13,7 @@ import {
   bootstrap,
   expectOk,
   grant,
+  impairmentPolicy,
   key,
 } from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
@@ -61,6 +62,8 @@ d('Restructuring and hardship (integration)', () => {
     await grant(f, f.t1, 'approver2', 'RESTRUCTURE_COMMITTEE');
     await grant(f, f.t1, 'finance', 'LOAN_OPS_CHECKER');
     await grant(f, f.t1, 'opsMaker', 'COLLECTIONS_OFFICER');
+    // REGULATORY impairment: the allowance follows the NBC grade (D-113, D-114).
+    await impairmentPolicy(f, f.t1);
     await authority(
       f,
       f.t1,
@@ -554,6 +557,23 @@ d('Restructuring and hardship (integration)', () => {
     );
     expect(after.account.probationRemaining).toBe(5);
     expect(after.account.delinquencyBucket).toBe('DPD_1_30'); // still floored
+    // D-113: classification and provisioning hold too. The days past due at
+    // the restructure are kept as a floor, and while on probation the loan is
+    // at least Substandard (the lender's default minimum class), so end of
+    // day provisions 20% of principal however current the revised schedule is.
+    const floor = after.account.delinquencyFloorDpd;
+    expect(floor).toBeGreaterThan(after.account.daysPastDue);
+    expect(after.account.classification).toBe('SUBSTANDARD');
+    expect(Number(after.account.allowance)).toBeCloseTo(
+      Number(after.account.principalOutstanding) * 0.2,
+      2,
+    );
+    const lastProvision = after.events
+      .filter((e: any) => e.type === 'PROVISION')
+      .at(-1);
+    expect(lastProvision.components.explanation).toMatch(
+      /held at the minimum class until cured/,
+    );
     await reconcile();
   });
 

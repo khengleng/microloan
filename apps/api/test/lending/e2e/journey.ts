@@ -3,7 +3,7 @@
  * End-to-end journey harness (docs/servicing/SCENARIOS.md).
  *
  * A journey takes one customer from onboarding to closure over the real HTTP
- * API: borrower created through the legacy borrower API, KYC verified,
+ * API: borrower created through the legacy borrower API, KYC verified and AML-cleared,
  * lending application, assessment, approval, booking, conditions precedent,
  * disbursement under maker-checker, end of day in at most 31-day steps, and
  * whatever servicing events the scenario needs. After every step a
@@ -17,6 +17,7 @@
 import { lending } from '@microloan/shared';
 import {
   Fixture,
+  acceptKeyFacts,
   authority,
   bootstrap,
   expectOk,
@@ -245,8 +246,35 @@ export class Journey {
     );
     expect(b.branchId).toBe(this.f.b1);
     expect(b.kycStatus).toBe('PENDING');
-    if (verify) await this.verifyKyc(b.id);
+    if (verify) {
+      await this.verifyKyc(b.id);
+      await this.clearAml(b.id);
+    }
     return b.id as string;
+  }
+
+  /**
+   * AML clearance (D-118), two people: a credit analyst records it after a
+   * fresh watch-list screening, a compliance reviewer approves it.
+   */
+  async clearAml(borrowerId: string) {
+    const proposed = expectOk(
+      await this.as('analyst').post(
+        `/lending/aml/customers/${borrowerId}/status`,
+        {
+          status: 'CLEAR',
+          reason: 'Screened against the watch lists in force: no match',
+        },
+      ),
+    );
+    expect(proposed.pendingClearance.taskId).toEqual(expect.any(String));
+    const cleared = expectOk(
+      await this.as('nobody').post(
+        `/lending/aml/customers/${borrowerId}/clearance/decision`,
+        { approve: true },
+      ),
+    );
+    expect(cleared.amlStatus).toBe('CLEAR');
   }
 
   async verifyKyc(borrowerId: string) {
@@ -366,6 +394,8 @@ export class Journey {
       if ((approved.application ?? approved).status === 'APPROVED') break;
     }
     expect((approved.application ?? approved).status).toBe('APPROVED');
+    // D-123: the customer accepts the key facts statement before the contract.
+    await acceptKeyFacts(this, app.id);
     const booked = expectOk(
       await this.as('opsMaker').post(
         `/lending/applications/${app.id}/book`,

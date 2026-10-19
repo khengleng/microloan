@@ -1,5 +1,5 @@
 import { D, Dec, dec, EngineError, ZERO } from './decimal.js';
-import { getCurrency, isRepresentable, roundMoney } from './money.js';
+import { getCurrency, isRepresentable, roundMoney, type RoundingRule } from './money.js';
 import { addDays, compareDates, parseDate } from './dates.js';
 
 /**
@@ -341,8 +341,15 @@ export interface FxConversion {
   converted: string;
   /** The payment valued at the mid rate, in the loan's currency. */
   midValue: string;
-  /** midValue − converted: positive is a gain to the bank, negative a loss. */
+  /** midValue − (converted + roundingDifference): positive is a gain to the bank, negative a loss. */
   gainLoss: string;
+  /**
+   * The converted amount at the loan currency's minor units less what the
+   * loan is credited after the loan's own rounding increment (KHR 100, say):
+   * kept by the bank (positive) or given to the borrower (negative), and
+   * posted to the rounding-differences account (DECISIONS D-136).
+   */
+  roundingDifference: string;
   explanation: string;
 }
 
@@ -365,6 +372,8 @@ export function convertPayment(input: {
   to: string;
   quote: FxRateQuote;
   spreadBps: number;
+  /** The loan's rounding rule (pricing.rounding); the currency's minor units when absent. */
+  rounding?: RoundingRule;
 }): FxConversion {
   const from = getCurrency(input.from).code;
   const to = getCurrency(input.to).code;
@@ -389,11 +398,15 @@ export function convertPayment(input: {
   // the rates reported and stored are rounded to RATE_SIGNIFICANT digits.
   const bankRate = mid.times(new D(1).minus(new D(input.spreadBps).div(10_000)));
   const minor = { increment: new D(1).div(new D(10).pow(getCurrency(to).minorUnits)).toString(), mode: 'HALF_UP' as const };
-  const converted = roundMoney(amount.times(bankRate), minor);
+  const atMinor = roundMoney(amount.times(bankRate), minor);
+  // The loan is credited in its own rounding increment, so its balances stay
+  // in amounts it can bill and collect.
+  const converted = input.rounding ? roundMoney(atMinor, input.rounding) : atMinor;
+  const roundingDifference = atMinor.minus(converted);
   const midValue = roundMoney(amount.times(mid), minor);
   if (converted.lte(0))
     throw new EngineError('FX_AMOUNT_TOO_SMALL', `${input.amount} ${from} converts to nothing in ${to}.`);
-  const gainLoss = midValue.minus(converted);
+  const gainLoss = midValue.minus(atMinor);
   return {
     amount: amount.toString(),
     from,
@@ -404,9 +417,11 @@ export function convertPayment(input: {
     converted: converted.toString(),
     midValue: midValue.toString(),
     gainLoss: gainLoss.toString(),
+    roundingDifference: roundingDifference.toString(),
     explanation:
-      `${amount} ${from} at ${shown(bankRate)} (mid ${shown(mid)} less ${input.spreadBps} bp) = ${converted} ${to}; ` +
-      `valued at mid ${midValue} ${to}, ${gainLoss.gte(0) ? 'gain' : 'loss'} ${gainLoss.abs()} ${to}.`,
+      `${amount} ${from} at ${shown(bankRate)} (mid ${shown(mid)} less ${input.spreadBps} bp) = ${atMinor} ${to}` +
+      (roundingDifference.isZero() ? '' : `, credited ${converted} ${to} after rounding (difference ${roundingDifference} ${to})`) +
+      `; valued at mid ${midValue} ${to}, ${gainLoss.gte(0) ? 'gain' : 'loss'} ${gainLoss.abs()} ${to}.`,
   };
 }
 

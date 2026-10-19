@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { lending } from '@microloan/shared';
 
 const money = z
   .string()
@@ -54,6 +55,8 @@ export const PC = {
       currency,
       valueDate: date.optional(),
       externalReference: z.string().max(120).optional(),
+      /** How the money came in; the cash transaction report counts cash (D-121). */
+      channel: z.enum(lending.PAYMENT_CHANNEL_CODES).optional(),
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
       applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
       payer: z

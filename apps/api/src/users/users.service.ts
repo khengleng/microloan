@@ -14,9 +14,11 @@ import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import { SuperadminGrantService } from '../platform-approvals/superadmin-grant.service';
+import { mfaIsFresh, stepUpRequired } from '../auth/mfa-policy';
 
 type UserActor = Pick<JwtPayload, 'sub' | 'role' | 'tenantId' | 'branchId' | 'permissions'> &
-  Partial<Pick<JwtPayload, 'amr' | 'tenantPlan'>>;
+  Partial<Pick<JwtPayload, 'amr' | 'mfaAt' | 'tenantPlan'>>;
 
 @Injectable()
 export class UsersService {
@@ -25,6 +27,7 @@ export class UsersService {
     private audit: AuditService,
     private authz: AuthzService,
     private planTiers: PlanTierService,
+    private superadminGrants: SuperadminGrantService,
   ) { }
 
   async findOneByEmail(email: string): Promise<User | null> {
@@ -92,6 +95,11 @@ export class UsersService {
       if (!branch) throw new BadRequestException('Invalid branch assignment');
     }
 
+    // A new super-administrator needs a second super-administrator's approval
+    // (D-130): the account is created inactive and activated by the approval.
+    const grantsSuperadmin = requestedRole === Role.SUPERADMIN;
+    if (grantsSuperadmin && !mfaIsFresh(actor)) throw stepUpRequired();
+
     const user = await this.prisma.user.create({
       data: {
         tenantId,
@@ -99,6 +107,7 @@ export class UsersService {
         email: data.email,
         passwordHash: hash,
         role: requestedRole,
+        ...(grantsSuperadmin ? { isActive: false } : {}),
       },
       select: { id: true, email: true, role: true, tenantId: true, branchId: true },
     });
@@ -109,11 +118,19 @@ export class UsersService {
       actorTenantId: actor.tenantId,
       targetType: 'User',
       targetId: user.id,
+      subjectTenantId: user.tenantId,
       action: 'USER_CREATE',
       newValue: { role: user.role, tenantId: user.tenantId, branchId: user.branchId },
       result: 'SUCCESS',
     });
 
+    if (grantsSuperadmin) {
+      const grant = await this.superadminGrants.requestForNewAccount(
+        { ...actor, tenantId: actor.tenantId ?? null },
+        user,
+      );
+      return { ...user, superadminGrant: grant };
+    }
     return user;
   }
 
@@ -138,6 +155,7 @@ export class UsersService {
         actorUserId: actor.sub,
         actorRole: actor.role,
         actorTenantId: actor.tenantId,
+        subjectTenantId: user.tenantId,
         targetType: 'User',
         targetId: id,
         action: 'USER_DELETE',
@@ -164,6 +182,7 @@ export class UsersService {
       actorUserId: actor.sub,
       actorRole: actor.role,
       actorTenantId: actor.tenantId,
+      subjectTenantId: user.tenantId,
       targetType: 'User',
       targetId: id,
       action: 'USER_DISABLE',
@@ -215,6 +234,7 @@ export class UsersService {
       actorUserId: actor.sub,
       actorRole: actor.role,
       actorTenantId: actor.tenantId,
+      subjectTenantId: user.tenantId,
       targetType: 'User',
       targetId: id,
       action: 'USER_PASSWORD_RESET',
@@ -277,6 +297,7 @@ export class UsersService {
       actorUserId: actor.sub,
       actorRole: actor.role,
       actorTenantId: actor.tenantId,
+      subjectTenantId: user.tenantId,
       targetType: 'User',
       targetId: id,
       action: 'USER_REACTIVATE',
@@ -309,10 +330,10 @@ export class UsersService {
         'You cannot reset your own authenticator. Ask another administrator.',
       );
     }
-    if (actor.amr !== 'mfa') {
-      await this.authz.auditAuthzFailure(actor, 'USER_MFA_RESET', 'User', id, 'Actor session is not MFA-verified');
-      throw new ForbiddenException(
-        'Resetting an authenticator requires you to be signed in with your own authenticator code. Sign out and sign in again with your code.',
+    if (!mfaIsFresh(actor)) {
+      await this.authz.auditAuthzFailure(actor, 'USER_MFA_RESET', 'User', id, 'Actor authenticator code is not recent');
+      throw stepUpRequired(
+        'Resetting an authenticator needs a recent code from your own authenticator app.',
       );
     }
     if (!user.twoFactorEnabled && !user.twoFactorSecret) {
@@ -334,6 +355,7 @@ export class UsersService {
       actorUserId: actor.sub,
       actorRole: actor.role,
       actorTenantId: actor.tenantId,
+      subjectTenantId: user.tenantId,
       targetType: 'User',
       targetId: id,
       action: 'USER_MFA_RESET',
@@ -367,6 +389,13 @@ export class UsersService {
     if (this.authz.actorId(actor) === user.id && canonicalRole(user.role) === 'SUPERADMIN' && canonicalRole(targetRole) !== 'SUPERADMIN') {
       throw new BadRequestException('SUPERADMIN cannot self-demote.');
     }
+    // Granting SUPERADMIN goes through Promote to super-administrator, which
+    // needs a second super-administrator's approval (D-130).
+    if (canonicalRole(targetRole) === 'SUPERADMIN' && canonicalRole(user.role) !== 'SUPERADMIN') {
+      throw new BadRequestException(
+        'Use "Promote to super-administrator": it needs a second super-administrator\'s approval.',
+      );
+    }
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -378,6 +407,7 @@ export class UsersService {
       actorUserId: actor.sub,
       actorRole: actor.role,
       actorTenantId: actor.tenantId,
+      subjectTenantId: user.tenantId,
       targetType: 'User',
       targetId: id,
       action: 'USER_UPDATE_ROLE',

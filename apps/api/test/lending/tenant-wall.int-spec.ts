@@ -92,7 +92,12 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'suspense/:id': 'unidentifiedPayment',
       'refunds/:taskId': 'approvalTask',
       'advance-refunds/:taskId': 'approvalTask',
+      'down-payment-refunds/:taskId': 'approvalTask',
       'fee-waivers/:taskId': 'approvalTask',
+      // Key facts statements and cooling-off cancellations (D-123, D-125):
+      // the victim's booked loans carry an accepted statement.
+      'key-facts/:statementId': 'keyFactsStatement',
+      'cooling-off-cancellations/:taskId': 'approvalTask',
       'impairment-policy/:id': 'impairmentPolicy',
       'settings/:id': 'tenantLendingSettings',
       'collateral/:collateralId': 'collateralAsset',
@@ -142,6 +147,11 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'consents/:consentId': 'altDataConsent',
       'alternative-data/:recordId': 'altDataRecord',
       'alternative-data-providers/:configId': 'altDataProviderConfig',
+      // AML/CFT (aml.int-spec creates the victims).
+      'watch-lists/:versionId': 'amlWatchListVersion',
+      'cases/:caseId': 'amlScreeningCase',
+      'edd/:eddId': 'amlEddRecord',
+      'str/:strId': 'amlStrCase',
       // Learning centre team report (learning.int-spec): a member of the victim tenant.
       'users/:userId': 'user',
       ':resourceType/:id': 'loanAccount',
@@ -192,6 +202,8 @@ const LITERALS: Record<string, string> = {
 /** Global (platform) rows: not tenant data, so no victim to name. */
 const PLATFORM_ROWS: Record<string, string> = {
   'plan-tiers/:id': 'planTier',
+  // Platform-only second-super-administrator requests (D-130, D-131).
+  'purge-requests/:approvalId': 'platformApproval',
 };
 
 /** Routes outside the wall's subject matter: sign-in flows and health. */

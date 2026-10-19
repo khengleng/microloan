@@ -72,13 +72,22 @@ Notes:
 - A wrong code shows **Invalid MFA code**. Wrong codes count towards the same lockout as wrong passwords.
 - If your phone's clock is wrong, codes will not work. Set the phone to set its time automatically.
 
-**Why it matters:** some actions (approvals, disbursements, write-offs, reversals and restructure executions) are allowed only when you signed in **with** your code. Signing in with only a password lets you look at everything but not approve. See [02-roles-and-approvals.md](02-roles-and-approvals.md), section 6.
+**Why it matters:** some actions (approvals, disbursements, write-offs, reversals and restructure executions) need an authenticator code from the **last 15 minutes** (the platform operator can change this). If your code is older, a box **Confirm it is you** asks for a fresh code and then carries on with what you were doing — you do not need to sign out. See [02-roles-and-approvals.md](02-roles-and-approvals.md), section 6.
+
+- **Each code works once.** If you type a code that was already used (for example twice within the same 30 seconds), you see **That code was already used. Wait for the next code in your authenticator app.**
+- **The sign-in code step works once.** After a successful code, going back and submitting the same sign-in step again shows **Invalid or expired MFA session. Please log in again.**
+
+### 3.1 Administrators must use an authenticator
+
+If you are an **organisation administrator** (ADMIN / Tenant administrator) or a **platform super-administrator**, an authenticator is required. Until you have set one up, every page sends you to **My account**, where a banner explains that your role requires an authenticator; only setting it up, changing your password and signing out work. Set it up as in section 4 — as soon as you confirm the code you can carry on (you do not need to sign in again).
+
+Your organisation can turn this requirement off for its administrators (lending settings, `security.requireMfaForAdmins`, approved by a second person); it is on unless changed. For platform super-administrators it is a deployment setting and is always on in production.
 
 ---
 
 ## 4. Setting up your authenticator
 
-Do this once, on your first day, if you approve or execute anything. It is also good practice for everyone.
+Do this once, on your first day, if you approve or execute anything. Administrators must do it before they can use anything else (section 3.1). It is also good practice for everyone. You can set it up under **My account** (your name or the account icon at the top) as well as on the Settings page described below.
 
 To set up your authenticator:
 
@@ -95,7 +104,7 @@ To set up your authenticator:
 What happens next:
 
 - The box turns green and shows **MFA Active** — "Your account is protected with Multi-Factor Authentication."
-- **Sign out and sign in again**, entering your code. Your current session still counts as "password only" until you do. After signing in with the code, the chip at the top of the screen shows **MFA** instead of **Password only** (section 9).
+- Your session is upgraded straight away: the code you just entered counts as a sign-in with your authenticator, and the chip at the top of the screen shows **MFA** instead of **Password only** (section 9). From now on every sign-in asks for a code.
 
 If it is blocked:
 

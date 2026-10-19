@@ -9,6 +9,8 @@ import { clean, useAction } from '../useAsync';
 import type { Terms } from '../types';
 import { draftFromTerms, TermsFields, termsFromDraft, validateTerms } from './TermsFields';
 import { PolicyChoices, policyProblems, usePolicyMenus, type PolicyChoicesValue } from './PolicyChoices';
+import { DeclaredObligationsFields, declaredBody, declaredProblems, draftFromDeclared } from './DeclaredObligationsFields';
+import { KeyFactsBookingStatus } from './KeyFactsCard';
 
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 
@@ -24,25 +26,27 @@ function Problems({ items }: { items: string[] }) {
 
 /* ── Edit terms ──────────────────────────────────────────────────────────── */
 
-export function EditTermsForm({ appId, terms, purpose, currency, productVersionId, onDone, onClose }: {
+export function EditTermsForm({ appId, terms, purpose, declared, currency, productVersionId, onDone, onClose }: {
     appId: string; terms: Partial<Terms> | null; purpose: string | null | undefined; currency?: string; productVersionId?: string | null; onDone: () => void; onClose: () => void;
+    declared?: { declaredExternalMonthlyPayments?: string | null; declaredOtherLenders?: number | null } | null;
 }) {
     const tc = useTranslations('Customers');
     const t = useTranslations('LendingOrigination');
     const [draft, setDraft] = useState(() => draftFromTerms(terms));
     const [purp, setPurp] = useState(purpose ?? '');
+    const [obligations, setObligations] = useState(() => draftFromDeclared(declared));
     const [policies, setPolicies] = useState<PolicyChoicesValue | undefined>(terms?.policies ?? undefined);
     const { menus } = usePolicyMenus(productVersionId);
     const [problems, setProblems] = useState<string[]>([]);
     const { busy, error, run, clearError } = useAction();
 
     const save = async () => {
-        const errs = [...validateTerms(draft, t), ...policyProblems(policies, menus, tc)];
+        const errs = [...validateTerms(draft, t), ...policyProblems(policies, menus, tc), ...declaredProblems(obligations, t)];
         setProblems(errs);
         if (errs.length) return;
         // The policy choice replaces the stored one; leaving every policy on its default removes it.
         const next = { ...termsFromDraft(draft, terms), policies };
-        const res = await run('terms', () => api.put(`/lending/applications/${appId}/terms`, clean({ terms: next, purpose: purp.trim() })));
+        const res = await run('terms', () => api.put(`/lending/applications/${appId}/terms`, { ...clean({ terms: next, purpose: purp.trim() }), ...declaredBody(obligations, true) }));
         if (res) onDone();
     };
 
@@ -53,6 +57,7 @@ export function EditTermsForm({ appId, terms, purpose, currency, productVersionI
             <Field label={t('common.purpose')} hint={t('common.optional')}>
                 <TextArea value={purp} onChange={setPurp} rows={2} maxLength={500} />
             </Field>
+            <DeclaredObligationsFields value={obligations} onChange={setObligations} />
             <Problems items={problems} />
             <ErrorBox error={error} onDismiss={clearError} />
             <Btn variant="primary" onClick={save} busy={busy === 'terms'}>{t('forms.saveTerms')}</Btn>
@@ -286,6 +291,7 @@ export function BookForm({ appId, onBooked, onClose }: { appId: string; onBooked
     };
     return (
         <ActionPanel title={t('forms.bookAgreement')} onClose={onClose}>
+            <KeyFactsBookingStatus appId={appId} />
             <Field label={t('forms.plannedDisbursementDate')} hint={tc('bookDateHint')}>
                 <TextInput type="date" value={date} onChange={setDate} className="max-w-xs" />
             </Field>

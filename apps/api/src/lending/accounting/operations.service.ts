@@ -33,6 +33,7 @@ const SUBLEDGER_FIELDS: {
     | 'penaltyReceivable'
     | 'advanceBalance'
     | 'interestInSuspense'
+    | 'penaltyInSuspense'
     | 'allowance'
     | 'downPaymentHeld';
   mapping: string;
@@ -56,6 +57,12 @@ const SUBLEDGER_FIELDS: {
     mapping: 'interestSuspense',
     credit: true,
     fallback: '2400',
+  },
+  {
+    field: 'penaltyInSuspense',
+    mapping: 'penaltySuspense',
+    credit: true,
+    fallback: '2450',
   },
   // The loss allowance is a contra-asset: a credit balance per loan.
   {

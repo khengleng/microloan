@@ -23,6 +23,8 @@ describe('operationalConfig', () => {
       maxFailedLogins: 5,
       lockoutMinutes: 30,
       mfaChallengeTtl: '5m',
+      mfaRequiredSuperadmin: true,
+      mfaStepUpMinutes: 15,
       passwordResetMinutes: 60,
       refreshTtl: '30d',
       accessTtl: '15m',
@@ -107,6 +109,8 @@ describe('loadRuntimeConfig in production', () => {
     FIELD_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
     DOCUMENT_LINK_SECRET: 'd'.repeat(32),
     SERVICE_KEY_PEPPER: 'e'.repeat(32),
+    // A test key, not a real one.
+    DOCUMENT_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'),
   };
   const without = (name: keyof typeof base) => {
     const env: Record<string, string> = { ...base };
@@ -165,6 +169,27 @@ describe('loadRuntimeConfig in production', () => {
     );
     expect(withEnv({ ...base, SERVICE_KEY_PEPPER: 'short' })).toThrow(
       'SERVICE_KEY_PEPPER',
+    );
+  });
+  it('refuses to store documents on disk without DOCUMENT_ENCRYPTION_KEY', () => {
+    expect(withEnv(without('DOCUMENT_ENCRYPTION_KEY'))).toThrow(
+      'DOCUMENT_ENCRYPTION_KEY',
+    );
+  });
+  it('does not need DOCUMENT_ENCRYPTION_KEY when S3 holds the documents', () => {
+    expect(
+      withEnv({
+        ...without('DOCUMENT_ENCRYPTION_KEY'),
+        AWS_ACCESS_KEY_ID: 'AKIA-TEST',
+        AWS_SECRET_ACCESS_KEY: 'test-secret',
+        AWS_S3_BUCKET_NAME: 'docs',
+        AWS_REGION: 'ap-southeast-1',
+      })(),
+    ).toMatchObject({ isProduction: true });
+  });
+  it('refuses a document encryption key that is not 32 bytes', () => {
+    expect(withEnv({ ...base, DOCUMENT_ENCRYPTION_KEY: 'not-a-key' })).toThrow(
+      'DOCUMENT_ENCRYPTION_KEY',
     );
   });
   it('does not require the dedicated secrets outside production', () => {

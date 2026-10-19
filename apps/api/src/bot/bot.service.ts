@@ -11,6 +11,10 @@ import { phoneCandidates, verifiedOwnPhone } from './telegram-link';
 import { JobClaimService } from '../prisma/job-claim.service';
 import { operationalConfig } from '../config/operational-config';
 import { LEGACY_TIME_ZONE } from '../loans/legacy-money';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+
+/** The system principal a chat-made application is recorded under (D-132). */
+const TELEGRAM_BOT_PRINCIPAL = { code: 'TELEGRAM_BOT', label: 'Telegram bot' } as const;
 
 /** How long one instance's claim to poll a tenant's bot lasts; renewed every third of it. */
 const POLLING_LEASE_MS = 90_000;
@@ -55,7 +59,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         @Inject(forwardRef(() => LoansService))
         private readonly loansService: LoansService,
         private readonly claims: JobClaimService,
+        private readonly tenantSettings: TenantSettingsService,
     ) { }
+
+    /** Whether the tenant lets customers apply for loans from the chat (default off, D-132). */
+    private async loanApplicationsAllowed(tenantId: string): Promise<boolean> {
+        try {
+            return (await this.tenantSettings.get(tenantId)).telegramBot.allowLoanApplications;
+        } catch {
+            return false;
+        }
+    }
 
     @SystemContext('startup: loads bot tokens for every tenant')
     async onModuleInit() {
@@ -170,12 +184,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             ];
             try {
                 await ctx.sendChatAction('typing');
+                // The application tool is offered only where the tenant turned it on.
+                const canApply = await this.loanApplicationsAllowed(tenantId);
                 const response = await this.openai.chat.completions.create({
                     model,
                     messages: conversation,
                     tools: [
-                        {
-                            type: 'function',
+                        ...(canApply ? [{
+                            type: 'function' as const,
                             function: {
                                 name: 'originate_loan',
                                 description: `Creates a DRAFT loan in the ${platformName} system`,
@@ -189,7 +205,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                                     required: ['principal', 'termMonths', 'productId']
                                 }
                             }
-                        },
+                        }] : []),
                         {
                             type: 'function',
                             function: {
@@ -268,12 +284,19 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         return token ? new Telegram(token) : null;
     }
 
+    /**
+     * A loan application from the chat (D-132). Off unless the tenant turned
+     * on `telegramBot.allowLoanApplications`. Recorded by the system principal
+     * "Telegram bot" — never under a member of staff's identity — and only
+     * when the amount and term fit the product's limits for the rate offered.
+     */
     @TenantScopedByArg(0)
     async handleOriginateLoan(tenantId: string, chatId: number, args: any): Promise<string> {
-        // Find a valid user in this tenant for audit log
-        const user = await this.prisma.user.findFirst({ where: { tenantId } });
-        if (!user) throw new Error('No valid user found in tenant');
-        const userId = user.id;
+        if (!(await this.loanApplicationsAllowed(tenantId))) {
+            return JSON.stringify({
+                error: 'Loan applications by chat are not available. Please contact a loan officer to apply.',
+            });
+        }
 
         // The applicant is the borrower this chat was linked to by a verified
         // contact share — never whoever the conversation claims to be.
@@ -286,35 +309,43 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             });
         }
 
-        // Validate Product and Policy
+        const principal = Number(args?.principal);
+        const termMonths = Number(args?.termMonths);
+        if (!Number.isFinite(principal) || principal <= 0) {
+            return JSON.stringify({ error: 'The amount must be a positive number.' });
+        }
+        if (!Number.isInteger(termMonths) || termMonths <= 0) {
+            return JSON.stringify({ error: 'The term must be a whole number of months.' });
+        }
+
         const product = await this.prisma.loanProduct.findFirst({
-            where: { id: args.productId, tenantId },
-            include: { policies: true }
+            where: { id: typeof args?.productId === 'string' ? args.productId : '', tenantId, isActive: true },
+            include: { policies: true },
         });
+        if (!product) return JSON.stringify({ error: 'That loan product is not available.' });
 
-        if (!product) throw new Error('Invalid loan product ID');
+        const policy = product.policies.find(p => p.creditRating === 'GOOD') || product.policies[0];
+        if (!policy) return JSON.stringify({ error: 'That loan product has no rate set up yet.' });
 
-        let policy = product.policies.find(p => p.creditRating === 'GOOD') || product.policies[0];
-        if (!policy) throw new Error('Selected product has no valid interest policies.');
+        const limitError = productLimitError(policy, principal, termMonths);
+        if (limitError) return JSON.stringify({ error: limitError });
 
-        // 2. Create Loan
-        await this.loansService.create({
-            sub: userId,
-            id: userId,
-            role: 'TENANT_ADMIN',
-            tenantId,
-            branchId: borrower.branchId || null,
-            permissions: [],
-        } as any, {
-            borrowerId: borrower.id,
-            principal: args.principal,
-            annualInterestRate: Number(policy.interestRate),
-            termMonths: args.termMonths,
-            startDate: new Date().toISOString(),
-            interestMethod: product.interestMethod as InterestMethod,
-            productId: product.id,
-            creditRatingApplied: policy.creditRating,
-        });
+        try {
+            await this.loansService.createFromChannel(tenantId, TELEGRAM_BOT_PRINCIPAL, {
+                borrowerId: borrower.id,
+                principal,
+                annualInterestRate: Number(policy.interestRate),
+                termMonths,
+                startDate: new Date().toISOString(),
+                interestMethod: product.interestMethod as InterestMethod,
+                productId: product.id,
+                currency: product.currency,
+                creditRatingApplied: policy.creditRating,
+            } as any);
+        } catch (err) {
+            this.logger.warn(`Telegram application refused for tenant ${tenantId}: ${(err as Error).message}`);
+            return JSON.stringify({ error: 'The application could not be recorded. Please contact a loan officer.' });
+        }
         return JSON.stringify({ ok: true, message: 'Application submitted for review.' });
     }
 
@@ -432,4 +463,25 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             await this.claims.release(tenantId, 'telegram.polling', 'leader').catch(() => undefined);
         }
     }
+}
+
+/**
+ * Why an amount or term falls outside the product's limits for the rate
+ * offered, or null when it fits. Exported for its unit test.
+ */
+export function productLimitError(
+    policy: { minPrincipal?: unknown; maxPrincipal?: unknown; minTermMonths?: number | null; maxTermMonths?: number | null },
+    principal: number,
+    termMonths: number,
+): string | null {
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    const minP = num(policy.minPrincipal);
+    const maxP = num(policy.maxPrincipal);
+    if (minP !== null && principal < minP) return `The smallest amount for this product is ${minP}.`;
+    if (maxP !== null && principal > maxP) return `The largest amount for this product is ${maxP}.`;
+    if (policy.minTermMonths != null && termMonths < policy.minTermMonths)
+        return `The shortest term for this product is ${policy.minTermMonths} months.`;
+    if (policy.maxTermMonths != null && termMonths > policy.maxTermMonths)
+        return `The longest term for this product is ${policy.maxTermMonths} months.`;
+    return null;
 }

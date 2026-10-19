@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { LendingPrisma } from '../common/lending-prisma';
 import { AuditEventService } from '../common/audit-event.service';
-import { LendingActor, requireTenant, toLocalDate } from '../common/util';
+import { LendingActor, requireTenant } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { ServicingService } from '../servicing/servicing.service';
 import { CustomerDocumentsService } from './customer-documents.service';
@@ -9,9 +9,10 @@ import { htmlLetter } from './document-rules';
 
 /**
  * Generated documents filed in the customer library automatically (DOC-9):
- * the key facts statement at booking, settlement quote letters and the
- * closure letter when a loan is settled. Other modules file their own output
- * through `CustomerDocumentsService.fileGenerated`.
+ * settlement quote letters and the closure letter when a loan is settled.
+ * The key facts statement is issued before the contract, from the approved
+ * terms (origination/key-facts.service.ts, D-123). Other modules file their
+ * own output through `CustomerDocumentsService.fileGenerated`.
  *
  * Filing never fails the business action it follows: an error is logged and
  * audited, and the action stands.
@@ -34,10 +35,6 @@ export class GeneratedDocumentsService {
         where: { id: loanAccountId, tenantId },
       });
       if (!account) throw new NotFoundException('Loan not found');
-      const agreement = await tx.agreementVersion.findFirst({
-        where: { tenantId, agreementId: account.agreementId },
-        orderBy: { version: 'asc' },
-      });
       const borrower = await tx.borrower.findFirst({
         where: { id: account.borrowerId, tenantId },
         select: { id: true, firstName: true, lastName: true, branchId: true },
@@ -53,7 +50,6 @@ export class GeneratedDocumentsService {
       });
       return {
         account,
-        agreement,
         borrower: borrower!,
         filed: new Set(existing.map((e) => e.typeCode)),
       };
@@ -77,125 +73,6 @@ export class GeneratedDocumentsService {
       outcome: 'FAILURE',
       details: { document: what, error: (e as Error).message?.slice(0, 300) },
     });
-  }
-
-  /** The key facts statement of a booked loan, filed once. */
-  async fileKeyFacts(tenantId: string, loanAccountId: string, actorId: string) {
-    try {
-      const { account, agreement, borrower, filed } = await this.loan(
-        tenantId,
-        loanAccountId,
-      );
-      if (filed.has('KEY_FACTS')) return null;
-      const calc = (agreement?.calculation ?? {}) as {
-        schedule?: {
-          lines?: unknown[];
-          totals?: { principal?: string; interest?: string; payments?: string };
-          instalmentAmount?: string | null;
-          maturityDate?: string;
-        };
-        fees?: {
-          bookedPrincipal?: string;
-          netDisbursement?: string;
-          lines?: { code?: string; amount?: string; tax?: string }[];
-        };
-        effectiveAnnualRate?: string | null;
-      };
-      const terms = (agreement?.terms ?? {}) as {
-        principal?: string;
-        numberOfInstalments?: number;
-        annualRate?: string;
-        disbursementDate?: string;
-      };
-      const cur = account.currency;
-      const body = htmlLetter(
-        `Key facts statement — loan ${account.reference}`,
-        [
-          {
-            rows: [
-              ['Borrower', `${borrower.firstName} ${borrower.lastName}`],
-              ['Loan reference', account.reference],
-              ['Currency', cur],
-            ],
-          },
-          {
-            heading: 'Your loan',
-            rows: [
-              ['Amount borrowed', `${terms.principal ?? '—'} ${cur}`],
-              [
-                'Amount to be repaid over the term (principal)',
-                `${calc.fees?.bookedPrincipal ?? account.bookedPrincipal.toString()} ${cur}`,
-              ],
-              [
-                'Cash paid to you',
-                `${calc.fees?.netDisbursement ?? '—'} ${cur}`,
-              ],
-              [
-                'Number of instalments',
-                String(
-                  terms.numberOfInstalments ??
-                    calc.schedule?.lines?.length ??
-                    '—',
-                ),
-              ],
-              [
-                'Instalment',
-                `${calc.schedule?.instalmentAmount ?? account.instalmentAmount?.toString() ?? '—'} ${cur}`,
-              ],
-              ['First disbursement date', terms.disbursementDate ?? '—'],
-              [
-                'Final repayment date',
-                calc.schedule?.maturityDate ??
-                  toLocalDate(account.maturityDate) ??
-                  '—',
-              ],
-            ],
-          },
-          {
-            heading: 'Cost of credit',
-            rows: [
-              [
-                'Nominal annual rate',
-                terms.annualRate ? `${terms.annualRate}` : 'as per product',
-              ],
-              ['Effective annual rate', calc.effectiveAnnualRate ?? '—'],
-              [
-                'Total interest',
-                `${calc.schedule?.totals?.interest ?? '—'} ${cur}`,
-              ],
-              [
-                'Total of all payments',
-                `${calc.schedule?.totals?.payments ?? '—'} ${cur}`,
-              ],
-              ...(calc.fees?.lines ?? []).map(
-                (l) =>
-                  [`Fee ${l.code ?? ''}`, `${l.amount ?? '—'} ${cur}`] as [
-                    string,
-                    string,
-                  ],
-              ),
-            ],
-          },
-          {
-            text: `Contract version ${agreement?.version ?? 1}, engine ${agreement?.engineVersion ?? '—'}. This statement is filed in your document library.`,
-          },
-        ],
-      );
-      return await this.library.fileGenerated({
-        tenantId,
-        borrowerId: account.borrowerId,
-        typeCode: 'KEY_FACTS',
-        title: `Key facts statement ${account.reference}`,
-        mimeType: 'text/html',
-        body,
-        actorId,
-        applicationId: account.applicationId,
-        loanAccountId: account.id,
-      });
-    } catch (e) {
-      await this.failed(tenantId, loanAccountId, 'KEY_FACTS', e);
-      return null;
-    }
   }
 
   /**

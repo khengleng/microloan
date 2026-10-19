@@ -27,21 +27,64 @@ import { PostingService, PostingLine } from '../accounting/posting.service';
 import { ApplicationsService } from '../origination/applications.service';
 import { GroupsService } from '../origination/groups.service';
 import { ImpairmentService } from '../accounting/impairment.service';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import {
+  LIVE_STATUSES,
   Line,
   LoanState,
   contractualAccrual,
   engineLine,
   lineFullyPaid,
   loadLoanState,
+  originalTermDays,
   outstanding,
   resourceOf,
 } from './loan-state';
 import { eodConcurrency, runInBatchScope } from './batch-scope';
 
 type Json = Prisma.InputJsonValue;
+
+/**
+ * What a backdated repayment did to late penalties (DECISIONS D-135), kept on
+ * the repayment's event so a reversal of the repayment can put it back.
+ */
+export interface PenaltyRewind {
+  /** PENALTY_REVERSAL event that undid the prevented days. */
+  eventId: string;
+  reversed: string;
+  fromSuspense: string;
+  /** PenaltyAccrual rows marked REWOUND. */
+  rewound: string[];
+  /** PenaltyAccrual rows written by the rewind and the re-assessment. */
+  created: string[];
+  /** Each rewound line's previous assessed-through date. */
+  through: Record<string, string>;
+  /**
+   * Each rewound line's penalty fields before the rewind; once re-assessed,
+   * the net change the rewind and re-assessment made to them.
+   */
+  lines: {
+    id: string;
+    penaltyDue: string;
+    penaltyAccrued: string;
+    penaltyPosted: string;
+  }[];
+  /** PENALTY event that charged the lines again after the payment, if any. */
+  reassessEventId: string | null;
+  recharged: string;
+  rechargedToSuspense: string;
+}
 type Dec = InstanceType<typeof lending.D>;
 const ZERO = () => new lending.D(0);
+
+/** How a cooling-off cancellation is priced (D-125), from the lender's settings and the contract. */
+export interface CoolingOffTerms {
+  chargeAccruedInterest: boolean;
+  /** The lender's upfront fees given back (excluding tax). */
+  feeRefund: string;
+  /** Tax on those fees given back. */
+  feeRefundTax: string;
+}
 
 interface EventInput {
   type: string;
@@ -124,6 +167,7 @@ export class ServicingService {
     private readonly applications: ApplicationsService,
     private readonly groups: GroupsService,
     private readonly impairment: ImpairmentService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   // ── Reads ─────────────────────────────────────────────────────────────────
@@ -207,11 +251,17 @@ export class ServicingService {
       const visible = tasks.filter((t) => loanById.has(t.subjectId));
       const [borrowers, makers] = await Promise.all([
         tx.borrower.findMany({
-          where: { tenantId, id: { in: [...new Set(loans.map((l) => l.borrowerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(loans.map((l) => l.borrowerId))] },
+          },
           select: { id: true, firstName: true, lastName: true },
         }),
         tx.user.findMany({
-          where: { tenantId, id: { in: [...new Set(visible.map((t) => t.makerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(visible.map((t) => t.makerId))] },
+          },
           select: { id: true, email: true },
         }),
       ]);
@@ -226,7 +276,7 @@ export class ServicingService {
         const loan = loanById.get(t.subjectId)!;
         const payload = (t.payload ?? {}) as Record<string, unknown>;
         const text = (k: string) =>
-          typeof payload[k] === 'string' ? (payload[k] as string) : null;
+          typeof payload[k] === 'string' ? payload[k] : null;
         return {
           id: t.id,
           action: t.action,
@@ -293,7 +343,10 @@ export class ServicingService {
       ]);
       // Who made each open task, by email rather than a bare id.
       const makers = await tx.user.findMany({
-        where: { tenantId, id: { in: [...new Set(tasks.map((t) => t.makerId))] } },
+        where: {
+          tenantId,
+          id: { in: [...new Set(tasks.map((t) => t.makerId))] },
+        },
         select: { id: true, email: true },
       });
       const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
@@ -569,6 +622,8 @@ export class ServicingService {
     id: string,
     body: {
       externalReference: string;
+      /** How the money went out (cash transaction report, D-121). */
+      channel?: string;
       payees?: {
         type: string;
         name: string;
@@ -812,6 +867,7 @@ export class ServicingService {
         agreementVersion,
         downPaymentPaidOut: held.toString(),
         payees,
+        channel: body.channel ?? null,
       };
       const afterHooks: ((eventId: string) => Promise<void>)[] = [];
       for (const hook of this.disbursementHooks) {
@@ -1095,6 +1151,11 @@ export class ServicingService {
     };
     const acc = state.config.accounting;
     const released = suspenseRelease(state, comp.INTEREST);
+    const penaltyReleased = await releasePenaltySuspense(
+      tx,
+      state,
+      comp.PENALTY,
+    );
     await this.recordEvent(
       tx,
       state,
@@ -1110,6 +1171,7 @@ export class ServicingService {
           interest: comp.INTEREST.toString(),
           principal: comp.PRINCIPAL.toString(),
           suspenseReleased: released.amount.toString(),
+          penaltySuspenseReleased: penaltyReleased.amount.toString(),
           advanceLeft: held.minus(used).toString(),
         },
         idempotencyKey: `sys:advance:${state.account.id}:${randomUUID()}`,
@@ -1132,6 +1194,7 @@ export class ServicingService {
             credit: comp.PRINCIPAL.toString(),
           },
           ...released.lines,
+          ...penaltyReleased.lines,
         ],
       },
       allocations,
@@ -1164,6 +1227,7 @@ export class ServicingService {
     state: LoanState,
     dpd: number,
     policy: lending.ImpairmentPolicy,
+    bands: lending.RegulatoryBands,
     businessDate: string,
     actor: LendingActor,
   ) {
@@ -1185,8 +1249,12 @@ export class ServicingService {
           restructured: a.isRestructured,
           onProbation: a.probationRemaining > 0,
           nonAccrual: a.nonAccrual,
+          // The band set by original term; the restructure floor while on probation (D-113, D-114).
+          originalTermDays: originalTermDays(a),
+          floorDpd: a.delinquencyFloorDpd,
         },
         state.config.pricing.rounding,
+        bands,
       ),
     );
     const required = D(r.allowance);
@@ -1257,6 +1325,15 @@ export class ServicingService {
             D(a.interestReceivable).minus(D(a.interestInSuspense)),
           )
         : ZERO();
+      // Unpaid late penalties leave income the same way (D-134). Read from
+      // the lines, which already carry a penalty assessed in this same run.
+      const penaltyUnpaid = state.lines.reduce(
+        (t, l) => t.plus(lending.D.max(0, outstanding(l).PENALTY)),
+        ZERO(),
+      );
+      const penaltyMoved = na.reverseAccruedOnEntry
+        ? lending.D.max(0, penaltyUnpaid.minus(D(a.penaltyInSuspense)))
+        : ZERO();
       await this.recordEvent(tx, state, {
         type: 'NON_ACCRUAL',
         amount: moved,
@@ -1267,6 +1344,7 @@ export class ServicingService {
           daysPastDue: dpd,
           fromDpd: na.fromDpd,
           reversedIncome: moved.toString(),
+          reversedPenaltyIncome: penaltyMoved.toString(),
         },
         idempotencyKey: `sys:non-accrual:${a.id}:${randomUUID()}`,
         requestHash: 'system',
@@ -1275,8 +1353,14 @@ export class ServicingService {
         lines: [
           { accountCode: acc.interestIncome, debit: moved.toString() },
           { accountCode: acc.interestSuspense, credit: moved.toString() },
+          { accountCode: acc.penaltyIncome, debit: penaltyMoved.toString() },
+          {
+            accountCode: acc.penaltySuspense,
+            credit: penaltyMoved.toString(),
+          },
         ],
       });
+      await adjustPenaltySuspense(tx, state, penaltyMoved);
       a.nonAccrual = true;
       a.nonAccrualSince = fromLocalDate(businessDate);
       a.interestInSuspense = D(a.interestInSuspense)
@@ -1286,6 +1370,7 @@ export class ServicingService {
     }
     if (dpd > na.cureAtDpd) return;
     const released = D(a.interestInSuspense);
+    const penaltyReleased = D(a.penaltyInSuspense);
     await this.recordEvent(tx, state, {
       type: 'NON_ACCRUAL',
       amount: released,
@@ -1296,6 +1381,7 @@ export class ServicingService {
         daysPastDue: dpd,
         cureAtDpd: na.cureAtDpd,
         recognisedIncome: released.toString(),
+        recognisedPenaltyIncome: penaltyReleased.toString(),
         since: toLocalDate(a.nonAccrualSince),
       },
       idempotencyKey: `sys:non-accrual:${a.id}:${randomUUID()}`,
@@ -1305,8 +1391,14 @@ export class ServicingService {
       lines: [
         { accountCode: acc.interestSuspense, debit: released.toString() },
         { accountCode: acc.interestIncome, credit: released.toString() },
+        {
+          accountCode: acc.penaltySuspense,
+          debit: penaltyReleased.toString(),
+        },
+        { accountCode: acc.penaltyIncome, credit: penaltyReleased.toString() },
       ],
     });
+    await adjustPenaltySuspense(tx, state, penaltyReleased.negated());
     a.nonAccrual = false;
     a.nonAccrualSince = null;
     a.interestInSuspense = '0' as never;
@@ -1328,6 +1420,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
   ) {
@@ -1358,6 +1452,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
     hash: string,
@@ -1413,6 +1509,17 @@ export class ServicingService {
       state.config.repayment.maxBackdateDays,
     );
     state = await this.catchUp(tx, state, valueDate, businessDate, actor);
+    // D-135: penalties assessed for days from a backdated value date on are
+    // undone before the payment is applied, and charged again afterwards on
+    // what the payment left overdue.
+    let penaltyRewind = await this.rewindPenalties(
+      tx,
+      state,
+      valueDate,
+      businessDate,
+      actor,
+      idempotencyKey,
+    );
     // Money already held as an advance pays what is due before new money does.
     state = await this.applyAdvance(tx, state, valueDate, businessDate, actor);
 
@@ -1632,6 +1739,21 @@ export class ServicingService {
     };
     const acc = state.config.accounting;
     const released = suspenseRelease(state, comp.INTEREST);
+    // D-134: collected penalty that was held in suspense becomes income.
+    const penaltyReleased = await releasePenaltySuspense(
+      tx,
+      state,
+      comp.PENALTY,
+    );
+    if (penaltyRewind)
+      penaltyRewind = await this.reassessPenalties(
+        tx,
+        state,
+        penaltyRewind,
+        businessDate,
+        actor,
+        idempotencyKey,
+      );
     const event = await this.recordEvent(
       tx,
       state,
@@ -1660,7 +1782,10 @@ export class ServicingService {
             : undefined,
           advance: advanced.toString(),
           suspenseReleased: released.amount.toString(),
+          penaltySuspenseReleased: penaltyReleased.amount.toString(),
+          penaltyRewind,
           payer: body.payer ?? null,
+          channel: body.channel ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
           rescheduledTo,
@@ -1695,6 +1820,7 @@ export class ServicingService {
           { accountCode: acc.feeIncome, credit: prepaymentFee.toString() },
           { accountCode: acc.customerAdvances, credit: advanced.toString() },
           ...released.lines,
+          ...penaltyReleased.lines,
           ...(opts.extraLines ?? []),
         ],
       },
@@ -1782,10 +1908,21 @@ export class ServicingService {
     });
   }
 
-  /** The payoff of an active loan as of a date, inside the caller's transaction. */
-  async quote(tx: Tx, state: LoanState, asOf: string) {
+  /**
+   * The payoff of an active loan as of a date, inside the caller's
+   * transaction. With `coolingOff` it is the cancellation amount instead
+   * (D-125): no settlement or lock-in charge, penalties waived, interest only
+   * when the lender's settings charge it, the lender's upfront fees refunded.
+   */
+  async quote(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+    coolingOff?: CoolingOffTerms,
+  ) {
     if (state.account.status !== 'ACTIVE')
       throw new ConflictException(`Loan is ${state.account.status}.`);
+    if (coolingOff) return this.coolingOffQuote(tx, state, asOf, coolingOff);
     if (!state.config.repayment.earlySettlement.allowed)
       throw new BadRequestException(
         'This product does not allow early settlement.',
@@ -1879,6 +2016,66 @@ export class ServicingService {
           }
         : undefined,
       murabaha: murabaha ?? undefined,
+      coolingOff: undefined,
+      advanceApplied: advance.toString(),
+      total: total.toString(),
+      payable: payable.toString(),
+      roundingDifference: payable.minus(total).toString(),
+    };
+  }
+
+  /** The cooling-off cancellation amount (D-125); shape of `quote`. */
+  private async coolingOffQuote(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+    co: CoolingOffTerms,
+  ) {
+    const posted = await tx.accrualEvent.aggregate({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+      },
+      _sum: { amount: true },
+    });
+    const pendingAccrual = lending.D.max(
+      0,
+      contractualAccrual(state, asOf).minus(D(posted._sum.amount ?? '0')),
+    );
+    const accrued = D(state.account.interestReceivable).plus(pendingAccrual);
+    const interest = co.chargeAccruedInterest ? accrued : ZERO();
+    const principal = D(state.account.principalOutstanding);
+    const refund = D(co.feeRefund).plus(D(co.feeRefundTax));
+    const advance = D(state.account.advanceBalance);
+    const total = principal
+      .plus(interest)
+      .plus(D(state.account.feesReceivable))
+      .minus(refund)
+      .minus(advance);
+    if (total.lte(0))
+      throw new ConflictException(
+        'Nothing is owed on cancellation; refund the customer instead.',
+      );
+    const payable = lending.roundMoney(total, state.config.pricing.rounding);
+    return {
+      asOf,
+      currency: state.account.currency,
+      principal: principal.toString(),
+      interest: interest.toString(),
+      fees: D(state.account.feesReceivable).toString(),
+      penalties: '0',
+      settlementFee: '0',
+      settlementFeeExplanation:
+        'Cooling-off cancellation: no settlement or lock-in charge.',
+      feeWaiverTaskId: null as string | null,
+      interestRebate: undefined,
+      murabaha: undefined,
+      coolingOff: {
+        penaltiesWaived: D(state.account.penaltyReceivable).toString(),
+        interestWaived: co.chargeAccruedInterest ? '0' : accrued.toString(),
+        feesRefunded: D(co.feeRefund).toString(),
+        feeTaxRefunded: D(co.feeRefundTax).toString(),
+      },
       advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),
@@ -2098,7 +2295,12 @@ export class ServicingService {
     },
     idempotencyKey: string,
     hash: string,
-    opts: { fundingAccount?: string; authorizedByDisbursement?: boolean } = {},
+    opts: {
+      fundingAccount?: string;
+      authorizedByDisbursement?: boolean;
+      /** A cooling-off cancellation (D-125) rather than an early settlement. */
+      coolingOff?: CoolingOffTerms;
+    } = {},
   ) {
     const tenantId = requireTenant(actor);
     let state = await loadLoanState(tx, tenantId, id);
@@ -2122,7 +2324,7 @@ export class ServicingService {
       businessDate,
       state.config.repayment.maxBackdateDays,
     );
-    const q = await this.quote(tx, state, valueDate);
+    const q = await this.quote(tx, state, valueDate, opts.coolingOff);
     // UC-31: a payoff letter must be in date, unused, and still state the amount owed.
     const letter = body.payoffQuoteId
       ? await tx.payoffQuote.findFirst({
@@ -2225,6 +2427,11 @@ export class ServicingService {
       state,
       D(state.account.interestReceivable),
     );
+    const penaltyReleased = await releasePenaltySuspense(
+      tx,
+      state,
+      D(state.account.penaltyReceivable),
+    );
     const event = await this.recordEvent(
       tx,
       state,
@@ -2272,7 +2479,26 @@ export class ServicingService {
             D(q.interest).minus(D(state.account.interestReceivable)),
           ),
           ...released.lines,
+          ...penaltyReleased.lines,
           ...allowanceRelease(state).lines,
+          // D-125: what a cooling-off cancellation gives back — penalties
+          // waived, the lender's upfront fees and their tax refunded.
+          ...(q.coolingOff
+            ? [
+                {
+                  accountCode: acc.penaltyIncome,
+                  debit: q.coolingOff.penaltiesWaived,
+                },
+                {
+                  accountCode: acc.feeIncome,
+                  debit: q.coolingOff.feesRefunded,
+                },
+                {
+                  accountCode: acc.taxPayable,
+                  debit: q.coolingOff.feeTaxRefunded,
+                },
+              ]
+            : []),
           rounding.gte(0)
             ? {
                 accountCode: acc.roundingDifferences,
@@ -2386,6 +2612,8 @@ export class ServicingService {
         prepaidPrincipal?: string;
         advance?: string;
         suspenseReleased?: string;
+        penaltySuspenseReleased?: string;
+        penaltyRewind?: PenaltyRewind | null;
         rescheduled?: boolean;
         rescheduledTo?: {
           version: number;
@@ -2413,6 +2641,19 @@ export class ServicingService {
         throw new ConflictException(
           'The loan has been rescheduled or restructured since this prepayment; it cannot be reversed automatically.',
         );
+      // D-137: the payment was applied to the schedule of its agreement
+      // version; a rate reset, payment holiday, restructure or reschedule
+      // since then replaced that schedule, so undoing it line by line would
+      // put money back on the wrong instalments.
+      if (
+        !undo &&
+        original.agreementVersion != null &&
+        state.agreementVersion !== original.agreementVersion
+      )
+        throw new ConflictException({
+          message: `The loan's agreement has changed since this repayment (version ${original.agreementVersion}, now ${state.agreementVersion}); it cannot be reversed automatically. Correct it with an adjustment instead.`,
+          code: 'AGREEMENT_CHANGED_SINCE_PAYMENT',
+        });
       const later = await tx.financialEvent.count({
         where: {
           tenantId,
@@ -2513,20 +2754,25 @@ export class ServicingService {
         });
       }
 
-      // Undo the allocations on the schedule lines.
+      // Undo the allocations on the schedule lines: the very line paid where
+      // it was recorded (D-137), by number for older allocations.
       for (const a of original.allocations) {
         const line = await tx.scheduleInstalment.findFirst({
           where: {
             tenantId,
             loanAccountId: id,
-            number: a.instalmentNumber,
+            ...(a.instalmentId
+              ? { id: a.instalmentId }
+              : { number: a.instalmentNumber }),
             status: { in: ['DUE', 'PAID'] },
           },
         });
         if (!line)
-          throw new ConflictException(
-            'The schedule has changed since this repayment; it cannot be reversed automatically.',
-          );
+          throw new ConflictException({
+            message:
+              'The schedule has changed since this repayment; it cannot be reversed automatically.',
+            code: 'INSTALMENT_NO_LONGER_LIVE',
+          });
         const field = (
           {
             PENALTY: 'penaltyPaid',
@@ -2552,7 +2798,85 @@ export class ServicingService {
       const keptAsIncome = D(components.suspenseReleased ?? '0').minus(
         reSuspended,
       );
+      // Penalty released from suspense goes back the same way (D-134).
+      const penaltyReSuspended = state.account.nonAccrual
+        ? D(components.penaltySuspenseReleased ?? '0')
+        : ZERO();
+      const penaltyKeptAsIncome = D(
+        components.penaltySuspenseReleased ?? '0',
+      ).minus(penaltyReSuspended);
       const acc = state.config.accounting;
+      // D-135: what the repayment did to late penalties is put back.
+      const rewind = components.penaltyRewind ?? null;
+      const rewindLines: PostingLine[] = [];
+      let penaltyChange = ZERO();
+      if (rewind) {
+        const events = await tx.financialEvent.findMany({
+          where: {
+            tenantId,
+            loanAccountId: id,
+            id: {
+              in: [rewind.eventId, rewind.reassessEventId].filter(
+                (x): x is string => !!x,
+              ),
+            },
+            status: 'POSTED',
+          },
+          include: { journal: { include: { lines: true } } },
+        });
+        for (const e of events) {
+          if (e.journal)
+            rewindLines.push(...PostingService.reverseLines(e.journal.lines));
+          await tx.financialEvent.update({
+            where: { id: e.id },
+            data: { status: 'REVERSED' },
+          });
+        }
+        for (const n of rewind.lines) {
+          const l = await tx.scheduleInstalment.findFirst({
+            where: { tenantId, loanAccountId: id, id: n.id },
+          });
+          if (!l) continue;
+          // Assessed through whichever is later: the date before the rewind,
+          // or one a later end of day reached.
+          const was = rewind.through[n.id];
+          const now = toLocalDate(l.penaltyAssessedThrough);
+          const through =
+            was && (!now || lending.compareDates(was, now) > 0) ? was : now;
+          await tx.scheduleInstalment.update({
+            where: { id: l.id },
+            data: {
+              penaltyAssessedThrough: through ? fromLocalDate(through) : null,
+              penaltyDue: D(l.penaltyDue).minus(n.penaltyDue).toString(),
+              penaltyAccrued: lending.D.max(
+                0,
+                D(l.penaltyAccrued).minus(n.penaltyAccrued),
+              ).toString(),
+              penaltyPosted: lending.D.max(
+                0,
+                D(l.penaltyPosted).minus(n.penaltyPosted),
+              ).toString(),
+            },
+          });
+          penaltyChange = penaltyChange.minus(n.penaltyDue);
+        }
+        if (rewind.rewound.length)
+          await tx.penaltyAccrual.updateMany({
+            where: { tenantId, id: { in: rewind.rewound } },
+            data: { status: 'POSTED', rewoundByEventId: null },
+          });
+        if (rewind.created.length)
+          await tx.penaltyAccrual.updateMany({
+            where: { tenantId, id: { in: rewind.created } },
+            data: { status: 'REWOUND', rewoundByEventId: original.id },
+          });
+        await adjustPenaltySuspense(
+          tx,
+          state,
+          D(rewind.fromSuspense).minus(rewind.rechargedToSuspense),
+        );
+      }
+      await adjustPenaltySuspense(tx, state, penaltyReSuspended);
       const event = await this.recordEvent(tx, state, {
         type: 'REVERSAL',
         amount: D(original.amount),
@@ -2582,6 +2906,19 @@ export class ServicingService {
                 },
               ]
             : []),
+          ...(penaltyKeptAsIncome.gt(0)
+            ? [
+                {
+                  accountCode: acc.penaltySuspense,
+                  debit: penaltyKeptAsIncome.toString(),
+                },
+                {
+                  accountCode: acc.penaltyIncome,
+                  credit: penaltyKeptAsIncome.toString(),
+                },
+              ]
+            : []),
+          ...rewindLines,
         ],
       });
       await tx.financialEvent.update({
@@ -2656,6 +2993,7 @@ export class ServicingService {
           .toString(),
         penaltyReceivable: D(state.account.penaltyReceivable)
           .plus(components.penalty)
+          .plus(penaltyChange)
           .toString(),
         ...(undo
           ? {
@@ -2813,6 +3151,15 @@ export class ServicingService {
         ),
         concessionAccount,
       );
+      const penaltyReleased = await releasePenaltySuspense(
+        tx,
+        state,
+        D(
+          result.allocations.find((x) => x.component === 'PENALTY')?.amount ??
+            '0',
+        ),
+        concessionAccount,
+      );
 
       await tx.scheduleInstalment.updateMany({
         where: { tenantId, loanAccountId: id, status: 'DUE' },
@@ -2844,6 +3191,7 @@ export class ServicingService {
             ? [{ accountCode: concessionAccount, debit: concession.toString() }]
             : []),
           ...released.lines,
+          ...penaltyReleased.lines,
           ...allowanceRelease(state).lines,
           {
             accountCode: acc.loansReceivable,
@@ -3210,6 +3558,11 @@ export class ServicingService {
     refuseWhileAdvanceHeld(previous, 'refinance it');
     // The payoff clears all interest, so suspended interest is now income.
     const released = suspenseRelease(previous, D(a.interestReceivable));
+    const penaltyReleased = await releasePenaltySuspense(
+      tx,
+      previous,
+      D(a.penaltyReceivable),
+    );
 
     await tx.scheduleInstalment.updateMany({
       where: { tenantId, loanAccountId: a.id, status: 'DUE' },
@@ -3247,6 +3600,7 @@ export class ServicingService {
           credit: decStr(a.penaltyReceivable),
         },
         ...released.lines,
+        ...penaltyReleased.lines,
         ...allowanceRelease(previous).lines,
       ],
     });
@@ -3629,6 +3983,219 @@ export class ServicingService {
     });
   }
 
+  /**
+   * D-117: a loan is written off no earlier than the product's minimum days
+   * past due AND the lender's floor for its term (by default the first day
+   * of the Loss class), so a product set to 0 cannot write off a performing
+   * loan.
+   */
+  private async assertWriteOffFloor(tx: Tx, state: LoanState) {
+    const product = state.config.operations.writeOffMinDpd;
+    if (product === null)
+      throw new BadRequestException('This product does not allow write-off.');
+    const s = await this.settings.get(state.account.tenantId, tx);
+    const floor = lending.writeOffFloorDpd(
+      lending.regulatoryBands(s),
+      originalTermDays(state.account),
+      s.regulatory.writeOffMinDpd,
+    );
+    const min = Math.max(product, floor);
+    if (state.account.daysPastDue < min)
+      throw new BadRequestException({
+        message: `Write-off needs at least ${min} days past due (currently ${state.account.daysPastDue}).`,
+        code: 'WRITE_OFF_TOO_EARLY',
+        productMinimumDpd: product,
+        lenderFloorDpd: floor,
+      });
+  }
+
+  // ── Refund of a held down payment (UC-02, DECISIONS D-137) ────────────────
+
+  /** A down payment can go back only before disbursement, or once the booked loan is cancelled. */
+  private static refundableDownPayment(state: LoanState) {
+    if (!['BOOKED', 'CANCELLED'].includes(state.account.status))
+      throw new ConflictException({
+        message:
+          'A down payment is refunded only before the loan is disbursed, or when the booked loan is cancelled.',
+        code: 'DOWN_PAYMENT_NOT_REFUNDABLE',
+      });
+  }
+
+  /** Propose paying back (some of) the down payment the lender holds. */
+  async proposeDownPaymentRefund(
+    actor: LendingActor,
+    id: string,
+    body: { amount: string; reason: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const amount = lending.parseMoney(
+        String(body.amount ?? ''),
+        state.account.currency,
+        'amount',
+      );
+      await this.policy.enforce(
+        actor,
+        'loan.down_payment.refund.propose',
+        resourceOf(state, [], amount.toString()),
+        tx,
+      );
+      ServicingService.refundableDownPayment(state);
+      if (!body.reason?.trim())
+        throw new BadRequestException(
+          'Record why the down payment is refunded.',
+        );
+      const held = D(state.account.downPaymentHeld);
+      if (amount.lte(0) || amount.gt(held))
+        throw new BadRequestException(
+          `A refund must be positive and at most the ${held} ${state.account.currency} down payment held.`,
+        );
+      const open = await tx.approvalTask.findFirst({
+        where: {
+          tenantId,
+          subjectId: id,
+          action: 'DOWN_PAYMENT_REFUND',
+          status: 'PENDING',
+        },
+      });
+      if (open)
+        throw new ConflictException(
+          'A down-payment refund is already awaiting approval.',
+        );
+      const task = await tx.approvalTask.create({
+        data: {
+          tenantId,
+          subjectType: 'LOAN_ACCOUNT',
+          subjectId: id,
+          action: 'DOWN_PAYMENT_REFUND',
+          requiredPermission: 'loan.repayment.reverse',
+          amount: amount.toString(),
+          currency: state.account.currency,
+          payload: { reason: body.reason.slice(0, 500) },
+          makerId: actor.id,
+        },
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.down_payment.refund.propose',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: { task: task.id, amount: amount.toString() },
+        },
+        tx,
+      );
+      return task;
+    });
+  }
+
+  /** Approve and pay out (Dr down payments held, Cr cash), or reject. Someone other than the proposer decides. */
+  async decideDownPaymentRefund(
+    actor: LendingActor,
+    id: string,
+    taskId: string,
+    body: { approve: boolean; comment?: string },
+    idempotencyKey: string,
+  ) {
+    const tenantId = requireTenant(actor);
+    const hash = requestHash({ op: 'down-payment-refund', id, taskId, body });
+    return this.money(tenantId, idempotencyKey, hash, async (tx) => {
+      const state = await loadLoanState(tx, tenantId, id);
+      const task = await tx.approvalTask.findFirst({
+        where: {
+          id: taskId,
+          tenantId,
+          subjectId: id,
+          action: 'DOWN_PAYMENT_REFUND',
+        },
+      });
+      if (!task) throw new NotFoundException('Refund proposal not found');
+      const amount = D(task.amount);
+      const decision = await this.policy.enforce(
+        actor,
+        'loan.down_payment.refund.approve',
+        resourceOf(state, [task.makerId], amount.toString()),
+        tx,
+      );
+      const res = await tx.approvalTask.updateMany({
+        where: { id: taskId, tenantId, status: 'PENDING' },
+        data: {
+          status: body.approve ? 'EXECUTED' : 'REJECTED',
+          decidedBy: actor.id,
+          decidedAt: new Date(),
+          comment: body.comment?.slice(0, 500),
+        },
+      });
+      if (res.count !== 1) throw concurrentModification('This refund proposal');
+      if (!body.approve) {
+        await this.audit.write(
+          {
+            actor,
+            action: 'loan.down_payment.refund.approve',
+            resourceType: 'LoanAccount',
+            resourceId: id,
+            outcome: 'SUCCESS',
+            decision,
+            details: { task: taskId, approve: false },
+          },
+          tx,
+        );
+        return { rejected: true };
+      }
+      ServicingService.refundableDownPayment(state);
+      if (amount.gt(D(state.account.downPaymentHeld)))
+        throw new ConflictException(
+          'Less down payment is now held than this refund.',
+        );
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const acc = state.config.accounting;
+      const event = await this.recordEvent(tx, state, {
+        type: 'DOWN_PAYMENT_REFUND',
+        amount,
+        businessDate,
+        valueDate: businessDate,
+        components: {
+          task: taskId,
+          reason: (task.payload as { reason?: string }).reason ?? '',
+          heldBefore: D(state.account.downPaymentHeld).toString(),
+        },
+        idempotencyKey,
+        requestHash: hash,
+        actor,
+        narrative: `Refund of ${amount} ${state.account.currency} down payment held`,
+        lines: [
+          { accountCode: acc.downPaymentsHeld, debit: amount.toString() },
+          { accountCode: acc.cash, credit: amount.toString() },
+        ],
+      });
+      await this.casAccount(tx, state, state.account.status, {
+        downPaymentHeld: D(state.account.downPaymentHeld)
+          .minus(amount)
+          .toString(),
+        downPaymentReceived: lending.D.max(
+          0,
+          D(state.account.downPaymentReceived).minus(amount),
+        ).toString(),
+      });
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan.down_payment.refund.approve',
+          resourceType: 'LoanAccount',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          decision,
+          details: { event: event.id, amount: amount.toString() },
+          businessDate: fromLocalDate(businessDate),
+        },
+        tx,
+      );
+      return event;
+    });
+  }
+
   async proposeWriteOff(
     actor: LendingActor,
     id: string,
@@ -3644,13 +4211,7 @@ export class ServicingService {
         resourceOf(state, [], total.toString()),
         tx,
       );
-      const min = state.config.operations.writeOffMinDpd;
-      if (min === null)
-        throw new BadRequestException('This product does not allow write-off.');
-      if (state.account.daysPastDue < min)
-        throw new BadRequestException(
-          `Write-off needs at least ${min} days past due (currently ${state.account.daysPastDue}).`,
-        );
+      await this.assertWriteOffFloor(tx, state);
       if (!body.reason?.trim())
         throw new BadRequestException('A reason is required.');
       refuseWhileAdvanceHeld(state, 'write it off');
@@ -3740,11 +4301,19 @@ export class ServicingService {
         return { rejected: true };
       }
       refuseWhileAdvanceHeld(state, 'write it off');
+      // The floor is checked again: days past due can fall while the proposal waits.
+      await this.assertWriteOffFloor(tx, state);
       const businessDate = await this.businessDate.get(tenantId, tx);
       const acc = state.config.accounting;
       const a = state.account;
       // Suspended interest was never income, so writing it off is not a loss.
       const released = suspenseRelease(state, ZERO(), acc.writeOffExpense);
+      const penaltyReleased = await releasePenaltySuspense(
+        tx,
+        state,
+        ZERO(),
+        acc.writeOffExpense,
+      );
       const event = await this.recordEvent(tx, state, {
         type: 'WRITE_OFF',
         amount: total,
@@ -3756,6 +4325,7 @@ export class ServicingService {
           fees: a.feesReceivable.toString(),
           penalties: a.penaltyReceivable.toString(),
           interestInSuspense: released.amount.toString(),
+          penaltyInSuspense: penaltyReleased.amount.toString(),
           task: taskId,
         },
         idempotencyKey,
@@ -3783,6 +4353,7 @@ export class ServicingService {
             credit: a.penaltyReceivable.toString(),
           },
           ...released.lines,
+          ...penaltyReleased.lines,
         ],
       });
       await tx.scheduleInstalment.updateMany({
@@ -3955,6 +4526,8 @@ export class ServicingService {
     const businessDate = await this.businessDate.get(tenantId);
     // The tenant's impairment policy in force, if any (OPS-5, D-010).
     const impairment = await this.impairment.active(tenantId);
+    // The regulator's bands (lending settings `regulatory`), read once for the run.
+    const bands = lending.regulatoryBands(await this.settings.get(tenantId));
     for (const hook of this.tenantBatchHooks)
       await hook(
         tenantId,
@@ -3985,7 +4558,14 @@ export class ServicingService {
         const { id } = accounts[i];
         const loanStart = performance.now();
         try {
-          await this.batchLoan(tenantId, id, businessDate, actor, impairment);
+          await this.batchLoan(
+            tenantId,
+            id,
+            businessDate,
+            actor,
+            impairment,
+            bands,
+          );
           processed++;
           this.observe((o) =>
             o.loanProcessed?.(tenantId, performance.now() - loanStart, true),
@@ -4044,6 +4624,7 @@ export class ServicingService {
     businessDate: string,
     actor: LendingActor,
     impairment: lending.ImpairmentPolicy | null,
+    bands: lending.RegulatoryBands,
   ) {
     await this.lp.tenantTx(tenantId, async (tx) => {
       let state = await loadLoanState(tx, tenantId, id);
@@ -4073,6 +4654,7 @@ export class ServicingService {
           state,
           dq.dpd,
           impairment,
+          bands,
           businessDate,
           actor,
         );
@@ -4102,62 +4684,81 @@ export class ServicingService {
     });
   }
 
+  /**
+   * UC-55, UC-56: charge late penalties on overdue instalments up to the
+   * business date (or, for `through`, each listed line up to its own date).
+   * Daily penalty interest accrues unrounded per instalment and posts the
+   * rounded cumulative amount less what was already posted (DECISIONS D-133).
+   * Every assessment is recorded so a backdated payment can undo exactly the
+   * days it would have prevented (D-135). On a non-accrual loan the penalty is
+   * owed but held in suspense, not income (D-134). Updates the lines in
+   * `state`; returns the total charged, which the caller adds to the penalty
+   * receivable.
+   */
   private async assessPenalties(
     tx: Tx,
     state: LoanState,
     businessDate: string,
     actor: LendingActor,
+    opts: {
+      through?: Map<string, string>;
+      idempotencyKey?: string;
+      narrative?: string;
+    } = {},
   ): Promise<Dec> {
     const p = state.config.pricing.penalty;
     if (p.type === 'NONE') return ZERO();
+    const rounding = state.config.pricing.rounding;
     let total = ZERO();
     const chargedOnLoan = state.lines.reduce(
       (t, l) => t.plus(D(l.penaltyDue)),
       ZERO(),
     );
+    const suspended = state.account.nonAccrual;
+    const records: Prisma.PenaltyAccrualCreateManyInput[] = [];
     for (const l of state.lines) {
       if (l.status !== 'DUE' || l.number === 0) continue;
+      const asOf = opts.through ? opts.through.get(l.id) : businessDate;
+      if (!asOf) continue;
       const o = outstanding(l);
       const overdue = o.PRINCIPAL.plus(o.INTEREST);
       const dueDate = toLocalDate(l.dueDate)!;
       const penaltyStart = lending.addDays(dueDate, p.graceDays);
-      if (
-        overdue.lte(0) ||
-        lending.compareDates(businessDate, penaltyStart) <= 0
-      )
+      if (overdue.lte(0) || lending.compareDates(asOf, penaltyStart) <= 0)
         continue;
-      let charge = ZERO();
-      if (p.type === 'FLAT_PER_INSTALMENT') {
+      let charge: Dec;
+      let accrued = D(l.penaltyAccrued);
+      let record: { kind: 'DAILY' | 'ONCE'; from: string; accrued: Dec };
+      if (
+        p.type === 'FLAT_PER_INSTALMENT' ||
+        p.type === 'PERCENT_PER_INSTALMENT'
+      ) {
         if (l.penaltyAssessedThrough) continue;
-        charge = D(p.flatAmount);
-      } else if (p.type === 'PERCENT_PER_INSTALMENT') {
-        // UC-55: a percentage of what is overdue on the instalment, once.
-        if (l.penaltyAssessedThrough) continue;
-        charge = lending.roundMoney(
-          overdue.times(p.percentOfOverdue!),
-          state.config.pricing.rounding,
-        );
+        // UC-55: a fixed fee, or a percentage of what is overdue, once.
+        charge =
+          p.type === 'FLAT_PER_INSTALMENT'
+            ? D(p.flatAmount)
+            : lending.roundMoney(overdue.times(p.percentOfOverdue!), rounding);
+        record = { kind: 'ONCE', from: penaltyStart, accrued: charge };
       } else {
         const from = l.penaltyAssessedThrough
           ? toLocalDate(l.penaltyAssessedThrough)!
           : penaltyStart;
-        if (lending.compareDates(businessDate, from) <= 0) continue;
-        charge = lending.roundMoney(
-          D(
-            lending.dailyAccrual(
-              [
-                {
-                  from,
-                  to: businessDate,
-                  principal: overdue.toString(),
-                  annualRate: p.annualRate!,
-                },
-              ],
-              'ACT_365_FIXED',
-            ).interest,
-          ),
-          state.config.pricing.rounding,
+        if (lending.compareDates(asOf, from) <= 0) continue;
+        const r = engineCall(() =>
+          lending.accruePenalty({
+            accruedToDate: D(l.penaltyAccrued).toString(),
+            postedToDate: D(l.penaltyPosted).toString(),
+            from,
+            to: asOf,
+            overdue: overdue.toString(),
+            annualRate: p.annualRate!,
+            rounding,
+          }),
         );
+        charge = D(r.charge);
+        accrued = D(r.accruedToDate);
+        record = { kind: 'DAILY', from, accrued: D(r.periodAccrual) };
       }
       if (p.capPerInstalment) {
         const room = D(p.capPerInstalment).minus(D(l.penaltyDue));
@@ -4168,15 +4769,33 @@ export class ServicingService {
         const room = D(p.capPerLoan).minus(chargedOnLoan).minus(total);
         if (charge.gt(room)) charge = lending.D.max(0, room);
       }
-      await tx.scheduleInstalment.update({
-        where: { id: l.id },
-        data: {
-          penaltyDue: D(l.penaltyDue).plus(charge).toString(),
-          penaltyAssessedThrough: fromLocalDate(businessDate),
-        },
+      if (record.kind === 'ONCE') record.accrued = charge;
+      const data = {
+        penaltyDue: D(l.penaltyDue).plus(charge).toString(),
+        penaltyAssessedThrough: fromLocalDate(asOf),
+        penaltyAccrued: accrued.toString(),
+        penaltyPosted:
+          record.kind === 'DAILY'
+            ? D(l.penaltyPosted).plus(charge).toString()
+            : D(l.penaltyPosted).toString(),
+      };
+      await tx.scheduleInstalment.update({ where: { id: l.id }, data });
+      Object.assign(l, data);
+      records.push({
+        id: randomUUID(),
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        instalmentId: l.id,
+        kind: record.kind,
+        fromDate: fromLocalDate(record.from),
+        toDate: fromLocalDate(asOf),
+        basis: overdue.toString(),
+        accrued: record.accrued.toString(),
+        suspended,
       });
       total = total.plus(charge);
     }
+    if (records.length) await tx.penaltyAccrual.createMany({ data: records });
     if (total.gt(0)) {
       const acc = state.config.accounting;
       await this.recordEvent(tx, state, {
@@ -4184,18 +4803,293 @@ export class ServicingService {
         amount: total,
         businessDate,
         valueDate: businessDate,
-        components: { penalty: total.toString(), basis: p.type },
-        idempotencyKey: `sys:penalty:${state.account.id}:${randomUUID()}`,
+        components: {
+          penalty: total.toString(),
+          basis: p.type,
+          suspended,
+          accruals: records.map((r) => r.id),
+        },
+        idempotencyKey:
+          opts.idempotencyKey ??
+          `sys:penalty:${state.account.id}:${randomUUID()}`,
         requestHash: 'system',
         actor,
-        narrative: `Late penalty to ${businessDate}`,
+        narrative:
+          (opts.narrative ?? `Late penalty to ${businessDate}`) +
+          (suspended ? ', held in suspense (non-accrual)' : ''),
         lines: [
           { accountCode: acc.penaltyReceivable, debit: total.toString() },
-          { accountCode: acc.penaltyIncome, credit: total.toString() },
+          {
+            accountCode: suspended ? acc.penaltySuspense : acc.penaltyIncome,
+            credit: total.toString(),
+          },
         ],
       });
+      if (suspended) await adjustPenaltySuspense(tx, state, total);
     }
     return total;
+  }
+
+  /**
+   * D-135: a repayment valued before penalties were assessed would have
+   * prevented some of them. Undo every assessment on the lines it can pay
+   * (due by the value date) for the days from the value date on, with a
+   * balanced reversing journal, before the payment is allocated. The caller
+   * re-assesses those lines to their previous dates once the payment is
+   * applied (`reassessPenalties`), so only what the payment truly prevented
+   * stays reversed. Returns null when there is nothing to undo.
+   */
+  private async rewindPenalties(
+    tx: Tx,
+    state: LoanState,
+    valueDate: string,
+    businessDate: string,
+    actor: LendingActor,
+    idempotencyKey: string,
+  ): Promise<PenaltyRewind | null> {
+    const p = state.config.pricing.penalty;
+    if (p.type === 'NONE' || lending.compareDates(valueDate, businessDate) >= 0)
+      return null;
+    const lines = state.lines.filter(
+      (l) =>
+        l.status === 'DUE' &&
+        l.number > 0 &&
+        l.penaltyAssessedThrough &&
+        lending.compareDates(
+          toLocalDate(l.penaltyAssessedThrough)!,
+          valueDate,
+        ) > 0 &&
+        lending.compareDates(toLocalDate(l.dueDate)!, valueDate) <= 0,
+    );
+    if (!lines.length) return null;
+    const records = await tx.penaltyAccrual.findMany({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        instalmentId: { in: lines.map((l) => l.id) },
+        status: 'POSTED',
+      },
+    });
+    const rounding = state.config.pricing.rounding;
+    const eventId = randomUUID();
+    const rewound: string[] = [];
+    const kept: Prisma.PenaltyAccrualCreateManyInput[] = [];
+    const through: Record<string, string> = {};
+    const before: PenaltyRewind['lines'] = [];
+    let reversed = ZERO();
+    for (const l of lines) {
+      const mine = records
+        .filter((r) => r.instalmentId === l.id)
+        .map((r) => {
+          const rec = {
+            kind: r.kind as 'DAILY' | 'ONCE',
+            from: toLocalDate(r.fromDate)!,
+            to: toLocalDate(r.toDate)!,
+            accrued: D(r.accrued).toString(),
+          };
+          return {
+            r,
+            rec,
+            prevented: D(lending.penaltyPreventedBy(rec, valueDate)),
+          };
+        })
+        .filter((x) => x.prevented.gt(0));
+      if (!mine.length) continue;
+      const unpaid = D(l.penaltyDue).minus(D(l.penaltyPaid));
+      const once = mine.filter((x) => x.rec.kind === 'ONCE');
+      const rw = lending.rewindPenalty({
+        accruedToDate: D(l.penaltyAccrued).toString(),
+        postedToDate: D(l.penaltyPosted).toString(),
+        prevented: mine
+          .filter((x) => x.rec.kind === 'DAILY')
+          .reduce((s, x) => s.plus(x.prevented), ZERO())
+          .toString(),
+        unpaid: unpaid.toString(),
+        rounding,
+      });
+      const onceReversed = lending.D.min(
+        once.reduce((s, x) => s.plus(x.prevented), ZERO()),
+        lending.D.max(0, unpaid.minus(rw.reverse)),
+      );
+      const reverse = D(rw.reverse).plus(onceReversed);
+      for (const x of mine) {
+        rewound.push(x.r.id);
+        // The days before the value date stay charged, as a row of their own.
+        if (
+          x.rec.kind === 'DAILY' &&
+          lending.compareDates(x.rec.from, valueDate) < 0
+        )
+          kept.push({
+            id: randomUUID(),
+            tenantId: state.account.tenantId,
+            loanAccountId: state.account.id,
+            instalmentId: l.id,
+            kind: 'DAILY',
+            fromDate: x.r.fromDate,
+            toDate: fromLocalDate(valueDate),
+            basis: x.r.basis,
+            accrued: D(x.r.accrued).minus(x.prevented).toString(),
+            suspended: x.r.suspended,
+          });
+      }
+      const penaltyStart = lending.addDays(
+        toLocalDate(l.dueDate)!,
+        p.graceDays,
+      );
+      before.push({
+        id: l.id,
+        penaltyDue: D(l.penaltyDue).toString(),
+        penaltyAccrued: D(l.penaltyAccrued).toString(),
+        penaltyPosted: D(l.penaltyPosted).toString(),
+      });
+      through[l.id] = toLocalDate(l.penaltyAssessedThrough)!;
+      const data = {
+        penaltyDue: D(l.penaltyDue).minus(reverse).toString(),
+        penaltyAccrued: rw.accruedToDate,
+        penaltyPosted: rw.postedToDate,
+        penaltyAssessedThrough:
+          !once.length && lending.compareDates(valueDate, penaltyStart) > 0
+            ? fromLocalDate(valueDate)
+            : null,
+      };
+      await tx.scheduleInstalment.update({ where: { id: l.id }, data });
+      Object.assign(l, data);
+      reversed = reversed.plus(reverse);
+    }
+    if (!rewound.length) return null;
+    const acc = state.config.accounting;
+    // Penalty charged while on non-accrual sits in suspense; it is undone
+    // from there first, the rest from income.
+    const fromSuspense = lending.D.min(
+      reversed,
+      D(state.account.penaltyInSuspense),
+    );
+    const fromIncome = reversed.minus(fromSuspense);
+    await tx.financialEvent.create({
+      data: {
+        id: eventId,
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+        type: 'PENALTY_REVERSAL',
+        businessDate: fromLocalDate(businessDate),
+        valueDate: fromLocalDate(valueDate),
+        amount: reversed.toString(),
+        currency: state.account.currency,
+        components: {
+          valueDate,
+          reversed: reversed.toString(),
+          fromSuspense: fromSuspense.toString(),
+          rewound,
+        } as unknown as Json,
+        idempotencyKey: `${idempotencyKey}:penalty-rewind`,
+        requestHash: 'system',
+        productVersionId: state.account.productVersionId,
+        agreementVersion: state.agreementVersion,
+        engineVersion: lending.LENDING_ENGINE_VERSION,
+        actorId: actor.id,
+        actorType: actor.type,
+        narrative: `Late penalties from ${valueDate} undone: payment valued ${valueDate}`,
+      },
+    });
+    if (reversed.gt(0))
+      await this.posting.post(tx, {
+        tenantId: state.account.tenantId,
+        financialEventId: eventId,
+        loanAccountId: state.account.id,
+        entryDate: fromLocalDate(businessDate),
+        currency: state.account.currency,
+        description: `Late penalties from ${valueDate} undone`,
+        lines: [
+          { accountCode: acc.penaltyIncome, debit: fromIncome.toString() },
+          { accountCode: acc.penaltySuspense, debit: fromSuspense.toString() },
+          { accountCode: acc.penaltyReceivable, credit: reversed.toString() },
+        ],
+      });
+    await tx.penaltyAccrual.updateMany({
+      where: { tenantId: state.account.tenantId, id: { in: rewound } },
+      data: { status: 'REWOUND', rewoundByEventId: eventId },
+    });
+    if (kept.length) await tx.penaltyAccrual.createMany({ data: kept });
+    await adjustPenaltySuspense(tx, state, fromSuspense.negated());
+    state.account.penaltyReceivable = D(state.account.penaltyReceivable)
+      .minus(reversed)
+      .toString() as never;
+    return {
+      eventId,
+      reversed: reversed.toString(),
+      fromSuspense: fromSuspense.toString(),
+      rewound,
+      created: kept.map((k) => k.id!),
+      through,
+      lines: before,
+      reassessEventId: null,
+      recharged: '0',
+      rechargedToSuspense: '0',
+    };
+  }
+
+  /** D-135: after a backdated payment is applied, charge the rewound lines again to their previous dates on what is still overdue. */
+  private async reassessPenalties(
+    tx: Tx,
+    state: LoanState,
+    rewind: PenaltyRewind,
+    businessDate: string,
+    actor: LendingActor,
+    idempotencyKey: string,
+  ): Promise<PenaltyRewind> {
+    const where = {
+      tenantId: state.account.tenantId,
+      loanAccountId: state.account.id,
+      instalmentId: { in: Object.keys(rewind.through) },
+      status: 'POSTED',
+    };
+    const existing = new Set(
+      (await tx.penaltyAccrual.findMany({ where, select: { id: true } })).map(
+        (r) => r.id,
+      ),
+    );
+    const suspenseBefore = D(state.account.penaltyInSuspense);
+    const key = `${idempotencyKey}:penalty-reassess`;
+    const charged = await this.assessPenalties(tx, state, businessDate, actor, {
+      through: new Map(Object.entries(rewind.through)),
+      idempotencyKey: key,
+      narrative: 'Late penalty recomputed after a backdated payment',
+    });
+    state.account.penaltyReceivable = D(state.account.penaltyReceivable)
+      .plus(charged)
+      .toString() as never;
+    const after = await tx.penaltyAccrual.findMany({
+      where,
+      select: { id: true },
+    });
+    const event = charged.gt(0)
+      ? await tx.financialEvent.findFirst({
+          where: { tenantId: state.account.tenantId, idempotencyKey: key },
+          select: { id: true },
+        })
+      : null;
+    const net = rewind.lines.map((b) => {
+      const l = state.lines.find((x) => x.id === b.id)!;
+      return {
+        id: b.id,
+        penaltyDue: D(l.penaltyDue).minus(b.penaltyDue).toString(),
+        penaltyAccrued: D(l.penaltyAccrued).minus(b.penaltyAccrued).toString(),
+        penaltyPosted: D(l.penaltyPosted).minus(b.penaltyPosted).toString(),
+      };
+    });
+    return {
+      ...rewind,
+      lines: net,
+      reassessEventId: event?.id ?? null,
+      recharged: charged.toString(),
+      rechargedToSuspense: D(state.account.penaltyInSuspense)
+        .minus(suspenseBefore)
+        .toString(),
+      created: [
+        ...rewind.created,
+        ...after.map((r) => r.id).filter((id) => !existing.has(id)),
+      ],
+    };
   }
 
   // ── Export (scope-filtered) ───────────────────────────────────────────────
@@ -4351,6 +5245,13 @@ export class ServicingService {
             financialEventId: event.id,
             loanAccountId: a.id,
             instalmentNumber: x.instalmentNumber,
+            // D-137: the live line paid, so a reversal undoes exactly it.
+            instalmentId:
+              state.lines.find(
+                (l) =>
+                  l.number === x.instalmentNumber &&
+                  LIVE_STATUSES.includes(l.status),
+              )?.id ?? null,
             component: x.component,
             amount: x.amount,
           })),
@@ -4638,6 +5539,60 @@ export function suspenseRelease(
   };
 }
 
+/**
+ * Journal lines that take late penalties out of suspense (DECISIONS D-134),
+ * the penalty counterpart of `suspenseRelease`: collected penalty becomes
+ * income, up to what is held; with `rest` given, the remainder of the held
+ * balance is cleared to that account (a write-off or forgiveness). The
+ * loan's penalty-in-suspense balance is reduced here, in the database and in
+ * `state`, without touching the version, so the caller's compare-and-set
+ * still holds.
+ */
+export async function releasePenaltySuspense(
+  tx: Tx,
+  state: LoanState,
+  penaltyCollected: Dec,
+  rest?: string,
+): Promise<{
+  amount: Dec;
+  lines: { accountCode: string; debit?: string; credit?: string }[];
+}> {
+  const held = D(state.account.penaltyInSuspense);
+  if (held.lte(0)) return { amount: ZERO(), lines: [] };
+  const toIncome = lending.D.min(held, lending.D.max(0, penaltyCollected));
+  const cleared = rest ? held.minus(toIncome) : ZERO();
+  const amount = toIncome.plus(cleared);
+  if (amount.isZero()) return { amount, lines: [] };
+  await adjustPenaltySuspense(tx, state, amount.negated());
+  const acc = state.config.accounting;
+  return {
+    amount,
+    lines: [
+      { accountCode: acc.penaltySuspense, debit: amount.toString() },
+      { accountCode: acc.penaltyIncome, credit: toIncome.toString() },
+      ...(cleared.gt(0)
+        ? [{ accountCode: rest!, credit: cleared.toString() }]
+        : []),
+    ],
+  };
+}
+
+/** Move the loan's penalty-in-suspense balance by `delta` (database and `state`). */
+export async function adjustPenaltySuspense(
+  tx: Tx,
+  state: LoanState,
+  delta: Dec,
+) {
+  if (delta.isZero()) return;
+  state.account.penaltyInSuspense = D(state.account.penaltyInSuspense)
+    .plus(delta)
+    .toString() as never;
+  await tx.loanAccount.updateMany({
+    where: { id: state.account.id, tenantId: state.account.tenantId },
+    data: { penaltyInSuspense: { increment: delta.toString() } },
+  });
+}
+
 /** Write-off lines: the allowance first, then expense; surplus allowance released. */
 export function writeOffAgainstAllowance(state: LoanState, total: Dec) {
   const acc = state.config.accounting;
@@ -4727,7 +5682,12 @@ export function delinquency(
 }
 
 /** Loan maker-checker tasks listed for checkers by `pendingApprovals`. */
-export const PENDING_APPROVAL_ACTIONS = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
+export const PENDING_APPROVAL_ACTIONS = [
+  'FEE_WAIVER',
+  'ADVANCE_REFUND',
+  'DOWN_PAYMENT_REFUND',
+  'SET_OFF',
+];
 
 function view<T extends Record<string, unknown>>(a: T) {
   const out: Record<string, unknown> = { ...a };
