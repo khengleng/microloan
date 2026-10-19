@@ -954,6 +954,7 @@ export class PaymentChannelsService {
           prepaymentStrategy: body.prepaymentStrategy,
           applyExcessAs: body.applyExcessAs,
           payer: body.payer,
+          channel: body.channel,
         },
         idempotencyKey,
         hash,

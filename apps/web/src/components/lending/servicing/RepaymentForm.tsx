@@ -10,6 +10,8 @@ import { useTranslations } from 'next-intl';
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 const RELATIONSHIPS = ['GUARANTOR', 'FAMILY', 'EMPLOYER', 'GROUP_MEMBER', 'OTHER'];
 
+const PAYMENT_CHANNELS = ['BRANCH_CASH', 'AGENT', 'BANK_TRANSFER', 'MOBILE', 'QR', 'WALLET', 'PAYROLL', 'OTHER'];
+
 export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     loanId: string; currency: string; can: (code: string) => { allowed: boolean; reason?: string }; onDone: (msg: string) => void; onClose: () => void;
 }) {
@@ -17,6 +19,8 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     const [amount, setAmount] = useState('');
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
+    // How the money came in; cash counts towards the cash transaction report (AML).
+    const [channel, setChannel] = useState('');
     const [strategy, setStrategy] = useState('');
     const [excess, setExcess] = useState('');
     const [payerName, setPayerName] = useState('');
@@ -33,7 +37,7 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
         if (!MONEY_RE.test(amount.trim()) || !/[1-9]/.test(amount)) { setProblem(tl('enterAmount')); return; }
         setProblem('');
         const payer = payerName.trim() ? { name: payerName.trim(), relationship: payerRelationship || 'OTHER' } : undefined;
-        const body = clean({ amount: amount.trim(), currency: fx ? payCurrency : undefined, valueDate, externalReference: externalReference.trim(), prepaymentStrategy: strategy, applyExcessAs: excess, payer });
+        const body = clean({ amount: amount.trim(), currency: fx ? payCurrency : undefined, valueDate, externalReference: externalReference.trim(), channel, prepaymentStrategy: strategy, applyExcessAs: excess, payer });
         const k = key.keyFor(body);
         const res = await run('repay', () => api.post(`/lending/loans/${loanId}/${fx ? 'fx-repayments' : 'repayments'}`, body, idem(k)));
         if (res) {
@@ -64,6 +68,9 @@ export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
                 </Field>
                 <Field label={tl('externalReference')} hint={tl('optional')}>
                     <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} />
+                </Field>
+                <Field label={tl('channel')} hint={tl('channelHint')}>
+                    <SelectInput value={channel} onChange={setChannel} placeholder={tl('channelUnknown')} options={PAYMENT_CHANNELS.map((c) => ({ value: c, label: tl(`channels.${c}`) }))} />
                 </Field>
                 <Field label={tl('excess')} hint={tl('excessHint')}>
                     <SelectInput

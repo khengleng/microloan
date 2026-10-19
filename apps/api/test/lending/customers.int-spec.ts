@@ -5,11 +5,19 @@
  *
  * - Verifying a customer's identity is recorded by one person and confirmed by
  *   another; whoever filed one of the customer's identity documents can do
- *   neither. The legacy PATCH /borrowers/:id/kyc cannot shortcut it.
+ *   neither. The legacy PATCH /borrowers/:id/kyc cannot shortcut it, nor
+ *   AML clearance (only flagging).
  * - A customer's branch is chosen from the branches the user may assign: a
  *   branch-confined officer only their own, an administrator any active one.
  */
-import { Fixture, TEST_DB, bootstrap, borrower, expectOk, grant } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  borrower,
+  expectOk,
+  grant,
+} from './harness';
 import { standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -114,7 +122,9 @@ d('Customers: KYC verification and branch (integration)', () => {
         }),
       );
       expect(rejected.kycStatus).toBe('REJECTED');
-      expect(expectOk(await review('admin2', b.id)).pendingVerification).toBeNull();
+      expect(
+        expectOk(await review('admin2', b.id)).pendingVerification,
+      ).toBeNull();
     });
 
     it('cannot be set directly through the customer KYC/AML update', async () => {
@@ -124,12 +134,18 @@ d('Customers: KYC verification and branch (integration)', () => {
       });
       expect(r.status).toBe(400);
       expect(r.body.message).toMatch(/second person confirms/);
-      // AML screening status is still recorded there.
-      const aml = await patch('admin1', `/borrowers/${b.id}/kyc`, {
+      // Nor can AML clearance (D-118): it needs a fresh screening and a
+      // second person. Flagging a customer is still one step.
+      const clear = await patch('admin1', `/borrowers/${b.id}/kyc`, {
         amlStatus: 'CLEAR',
       });
-      expect([200, 201]).toContain(aml.status);
-      expect(aml.body.amlStatus).toBe('CLEAR');
+      expect(clear.status).toBe(400);
+      expect(clear.body.message).toMatch(/second person approves/);
+      const flag = await patch('admin1', `/borrowers/${b.id}/kyc`, {
+        amlStatus: 'FLAGGED',
+      });
+      expect([200, 201]).toContain(flag.status);
+      expect(flag.body.amlStatus).toBe('FLAGGED');
     });
   });
 
@@ -175,7 +191,9 @@ d('Customers: KYC verification and branch (integration)', () => {
 
     it('gives a customer without a branch one, so an application can follow', async () => {
       const b = expectOk(
-        await f.as('admin1').post('/borrowers', { ...person, lastName: 'Leak3' }),
+        await f
+          .as('admin1')
+          .post('/borrowers', { ...person, lastName: 'Leak3' }),
       );
       expect(b.branchId).toBeNull();
       const moved = expectOk(

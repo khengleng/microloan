@@ -72,6 +72,7 @@ export const HELP_BY_PATH: Readonly<Record<string, HelpTarget>> = {
     '/lending/regulatory': { chapter: '15-reports-and-regulatory-returns' },
     '/lending/migration': { chapter: '16-loan-book-migration' },
     '/lending/webhooks': { chapter: '17-webhooks-and-integrations', anchor: '1-webhooks' },
+    '/lending/aml': { chapter: '26-aml-and-compliance' },
     '/lending/audit': { chapter: '19-audit-trail', anchor: '1-audit-trail-risk--audit--audit-trail' },
     '/lending/access': { chapter: '18-tenant-administration', anchor: '6-access--policy-risk--audit--access--policy' },
     '/repayments': { chapter: '07-repayments-and-payments', anchor: '2-posting-a-repayment' },

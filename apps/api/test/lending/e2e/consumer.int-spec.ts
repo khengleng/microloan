@@ -24,7 +24,7 @@ d('S01 LT-01 personal loan paid on time to maturity (TV-01)', () => {
   }, 120_000);
   afterAll(async () => j?.close());
 
-  it('onboarding: KYC must be verified before the application can be submitted', async () => {
+  it('onboarding: KYC must be verified and the customer AML-cleared before the application can be submitted', async () => {
     const borrowerId = await j.onboard({}, false);
     const app = expectOk(
       await j.as('ro').post('/lending/applications', {
@@ -43,9 +43,17 @@ d('S01 LT-01 personal loan paid on time to maturity (TV-01)', () => {
       .as('ro')
       .post(`/lending/applications/${app.id}/submit`);
     expect(blocked.status).toBe(400);
-    expect(blocked.body.code).toBe('SUBMISSION_BLOCKED');
-    expect(blocked.body.issues.map((i: any) => i.code)).toContain('KYC');
+    // The AML/CFT gate (D-118) applies whatever the workflow steps.
+    expect(blocked.body.code).toBe('AML_CDD_INCOMPLETE');
+    expect(blocked.body.blockedBy[0].layer).toBe('AML');
+    expect(blocked.body.message).toMatch(/identity \(KYC\) is not verified/);
     await j.verifyKyc(borrowerId);
+    const stillBlocked = await j
+      .as('ro')
+      .post(`/lending/applications/${app.id}/submit`);
+    expect(stillBlocked.status).toBe(400);
+    expect(stillBlocked.body.message).toMatch(/not been AML-cleared/);
+    await j.clearAml(borrowerId);
     expectOk(await j.as('ro').post(`/lending/applications/${app.id}/submit`));
   });
 

@@ -301,12 +301,14 @@ async function main() {
     await prisma.exposureLimit.create({
       data: { tenantId: t, scope: 'COUNTRY', countryCode: 'KH', currency: 'USD', amount: '80000000', reviewOn, status: 'ACTIVE', note: 'Demo country limit', proposedBy: users.analyst, decidedBy: users.approver2, decidedAt: new Date() },
     });
+  await demoAml(t, users);
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
   console.log(`Demo tenant "${TENANT}" ready.`);
   console.log('  Scorecards STANDARD_RETAIL and THIN_FILE are in force; PL-STD runs THIN_FILE as a silent challenger, MF-IND scores thin-file borrowers on THIN_FILE.');
   console.log('  An impairment policy (NBC classes, REGULATORY mode) is in force: end of day provisions and month-end close is allowed.');
   console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
+  console.log('  AML: every demo borrower is screened and cleared (LOW/MEDIUM risk); watch list DEMO_FICTIONAL holds two fictional names, and "Demo Exposed Official" has an open screening case (Risk & audit › AML & compliance).');
   if (created.size)
     console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
   if (created.size < USERS.length + 4)
@@ -503,6 +505,70 @@ async function demoScoring(t: string, users: Record<string, string>) {
       });
       await prisma.altDataRecord.update({ where: { id: rec.id }, data: { status: 'VERIFIED', verifiedBy: users.analyst, verifiedAt: new Date() } });
     }
+  }
+}
+
+/**
+ * AML/CFT (DECISIONS D-118…D-122): every demo borrower screened and cleared
+ * by two people (the analyst records it, the risk reviewer approves) and
+ * rated LOW or MEDIUM, so the demo journeys pass the lending gate; one
+ * active watch-list version with two clearly fictional names; and a
+ * fictional customer whose name matches one of them, with an open
+ * screening case for compliance to disposition.
+ */
+async function demoAml(t: string, users: Record<string, string>) {
+  const aml = lending.defaultTenantLendingSettings().aml;
+  const today = new Date().toISOString().slice(0, 10);
+  const borrowers = await prisma.borrower.findMany({ where: { tenantId: t, amlStatus: { not: 'CLEAR' }, NOT: { firstName: 'Demo', lastName: 'Exposed Official' } } });
+  for (const b of borrowers) {
+    // Dara Pich repays mostly in cash at the branch: cash intensive, MEDIUM.
+    const cashShare = b.firstName === 'Dara' && b.lastName === 'Pich' ? '0.6' : null;
+    const r = lending.rateCustomerRisk({ pep: false, nationality: 'KH', occupation: b.occupation, productFamilies: [], cashShare }, aml.risk);
+    await prisma.approvalTask.create({
+      data: { tenantId: t, subjectType: 'BORROWER', subjectId: b.id, action: 'AML_CLEAR', requiredPermission: 'aml.disposition', payload: { reason: 'Demo: screened, no match', from: b.amlStatus }, status: 'EXECUTED', makerId: users.analyst, decidedBy: users.risk, decidedAt: new Date() },
+    });
+    await prisma.borrower.update({
+      where: { id: b.id },
+      data: {
+        amlStatus: 'CLEAR',
+        amlStatusChangedAt: new Date(),
+        amlStatusChangedBy: users.risk,
+        amlScreenedAt: new Date(),
+        nationality: 'KH',
+        amlRiskRating: r.rating,
+        amlRiskScore: r.score,
+        amlRiskFactors: r.factors as never,
+        amlRiskRatedAt: new Date(),
+        amlNextReviewOn: new Date(`${lending.nextAmlReviewDate(today, r.rating, aml.risk.reviewMonths)}T00:00:00Z`),
+      },
+    });
+  }
+
+  const LIST = [
+    { name: 'Fictional Sanctioned Person', entryType: 'SANCTION', aliases: ['Phantom Testname'], country: 'KP' },
+    { name: 'Demo Exposed Official', entryType: 'PEP', aliases: [], country: 'KH' },
+  ];
+  let version = await prisma.amlWatchListVersion.findFirst({ where: { tenantId: t, listCode: 'DEMO_FICTIONAL' } });
+  if (!version) {
+    version = await prisma.amlWatchListVersion.create({
+      data: { tenantId: t, listCode: 'DEMO_FICTIONAL', version: 1, name: 'Demo list (fictional names only)', fileName: 'demo-fictional.csv', fileHash: createHash('sha256').update(JSON.stringify(LIST)).digest('hex'), entryCount: LIST.length, status: 'ACTIVE', makerId: users.analyst, checkerId: users.risk, decidedAt: new Date() },
+    });
+    await prisma.amlWatchListEntry.createMany({
+      data: LIST.map((e, i) => ({ tenantId: t, versionId: version!.id, entryType: e.entryType, name: e.name, normalizedName: lending.normalizeName(e.name, aml.screening.ignoredTitles), aliases: e.aliases, source: 'Demo list — fictional names', listDate: new Date(`${today}T00:00:00Z`), country: e.country, lineNo: i + 2 })),
+    });
+  }
+
+  const pep =
+    (await prisma.borrower.findFirst({ where: { tenantId: t, firstName: 'Demo', lastName: 'Exposed Official' } })) ??
+    (await prisma.borrower.create({
+      data: { tenantId: t, branchId: (await prisma.branch.findFirst({ where: { tenantId: t, code: 'PNH' } }))?.id ?? null, firstName: 'Demo', lastName: 'Exposed Official', occupation: 'Civil servant', nationality: 'KH', kycStatus: 'VERIFIED', amlScreenedAt: new Date() },
+    }));
+  if (!(await prisma.amlScreeningCase.findFirst({ where: { tenantId: t, borrowerId: pep.id } }))) {
+    const entry = await prisma.amlWatchListEntry.findFirst({ where: { tenantId: t, versionId: version.id, entryType: 'PEP' } });
+    const hit = { entryId: entry!.id, entryType: 'PEP', listCode: 'DEMO_FICTIONAL', versionId: version.id, listName: entry!.name, matchedName: entry!.name, normalizedListName: entry!.normalizedName, source: entry!.source, score: 1, method: 'TOKENS', dobMismatch: false };
+    await prisma.amlScreeningCase.create({
+      data: { tenantId: t, reference: 'AMLC-DEMO-0001', borrowerId: pep.id, trigger: 'CUSTOMER_CREATE', screenedName: lending.normalizeName('Demo Exposed Official', aml.screening.ignoredTitles), hits: [hit], topScore: '1.0000', topType: 'PEP', createdBy: users.analyst },
+    });
   }
 }
 

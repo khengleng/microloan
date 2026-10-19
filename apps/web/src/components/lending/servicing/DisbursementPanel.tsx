@@ -27,6 +27,8 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
     const confirm = useConfirm();
     const [valueDate, setValueDate] = useState('');
     const [externalReference, setExternalReference] = useState('');
+    // How the money went out; cash counts towards the cash transaction report (AML).
+    const [channel, setChannel] = useState('');
     const [problem, setProblem] = useState('');
     // Down-payment problems show next to the down-payment form, which is used before approval.
     const [dpProblem, setDpProblem] = useState('');
@@ -118,6 +120,7 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
         }
         const body = {
             externalReference: externalReference.trim(),
+            ...(channel ? { channel } : {}),
             ...(payees.length ? {
                 payees: payees.map((p) => clean({ type: p.type, name: p.name.trim(), reference: p.reference.trim(), account: p.account.trim(), loanId: p.type === 'INTERNAL_LOAN' ? p.loanId.trim() : '', amount: p.amount.trim() })),
             } : {}),
@@ -223,6 +226,9 @@ export function DisbursementPanel({ loanId, currency, account, tasks, can, onDon
                 <div data-tour="disb-execute" className="flex flex-wrap items-end gap-2">
                     <Field label={t('externalReference')} hint={t('externalReferenceHint')} error={problem || undefined}>
                         <TextInput value={externalReference} onChange={setExternalReference} maxLength={120} className="w-64" />
+                    </Field>
+                    <Field label={t('channel')} hint={t('channelHint')}>
+                        <SelectInput value={channel} onChange={setChannel} placeholder={t('channelUnknown')} options={['BRANCH_CASH', 'BANK_TRANSFER', 'MOBILE', 'WALLET', 'AGENT', 'OTHER'].map((c) => ({ value: c, label: t(`channels.${c}`) }))} className="w-44" />
                     </Field>
                     <Btn variant="primary" onClick={execute} busy={busy === 'execute'} disabled={!exec.allowed} reason={exec.reason}>{t('execute')}</Btn>
                 </div>

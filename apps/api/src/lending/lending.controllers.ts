@@ -45,6 +45,7 @@ import { GeneratedDocumentsService } from './documents/generated-documents.servi
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { KeyFactsService } from './origination/key-facts.service';
 import { CoolingOffService } from './servicing/cooling-off.service';
+import { AmlCustomersService } from './aml/aml-customers.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -1374,6 +1375,7 @@ export class LendingAccessController {
     private readonly access: AccessAdminService,
     private readonly policy: PolicyService,
     private readonly keyFacts: KeyFactsService,
+    private readonly aml: AmlCustomersService,
   ) {}
 
   @LendingAction('access_policy.read')
@@ -1650,7 +1652,9 @@ export class LendingAccessController {
           blockedBy: [{ layer: 'DISCLOSURE', message: blocker.message }],
         };
     }
-    return caps;
+    // The AML/CFT gate (D-118) blocks origination and payout steps on the
+    // customer, not on the user's permissions; it is shown alongside them.
+    return this.aml.withGate(a.tenantId, rt, id, caps);
   }
 }
 

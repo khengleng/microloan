@@ -131,6 +131,13 @@ const DIRECT_TENANT_MODELS = new Set([
   'AltDataProviderConfig',
   // Learning centre progress, per person and lesson (D-094)
   'LearningProgress',
+  // AML/CFT: watch lists, screening cases, re-screens, EDD, STR (D-118…D-122)
+  'AmlWatchListVersion',
+  'AmlWatchListEntry',
+  'AmlScreeningCase',
+  'AmlRescreenJob',
+  'AmlEddRecord',
+  'AmlStrCase',
   'PricingConfiguration',
   'RepaymentConfiguration',
   'RateObservation',

@@ -28,6 +28,7 @@ import {
   resourceOf as loanResourceOf,
 } from '../servicing/loan-state';
 import { FacilityState, loadFacilityState, resourceOf } from './facility-state';
+import { AmlGateService } from '../aml/aml-gate.service';
 import {
   assertWithinBorrowingBase,
   borrowingBaseAvailabilityFor,
@@ -66,6 +67,7 @@ export class FacilitiesService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
+    private readonly amlGate: AmlGateService,
   ) {
     // A facility's loan account carries the drawn balance; money goes out
     // through the facility's drawdowns, so it is never disbursed directly.
@@ -315,6 +317,13 @@ export class FacilitiesService {
         resourceOf(state, [], { amount: body.amount }),
         tx,
       );
+      // AML/CFT gate (D-118): a drawdown is money out, like a disbursement.
+      await this.amlGate.assertClear(
+        tx,
+        tenantId,
+        await this.amlGate.loanParties(tx, tenantId, state.account),
+        'drawn',
+      );
       const businessDate = await this.businessDate.get(tenantId, tx);
       const valueDate = body.valueDate ?? businessDate;
       BusinessDateService.checkValueDate(
@@ -482,6 +491,12 @@ export class FacilitiesService {
           amount: decStr(drawdown.amount),
         }),
         tx,
+      );
+      await this.amlGate.assertClear(
+        tx,
+        tenantId,
+        await this.amlGate.loanParties(tx, tenantId, state.account),
+        'drawn',
       );
       if (!body.externalReference?.trim()) {
         throw new BadRequestException(

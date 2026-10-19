@@ -622,6 +622,8 @@ export class ServicingService {
     id: string,
     body: {
       externalReference: string;
+      /** How the money went out (cash transaction report, D-121). */
+      channel?: string;
       payees?: {
         type: string;
         name: string;
@@ -865,6 +867,7 @@ export class ServicingService {
         agreementVersion,
         downPaymentPaidOut: held.toString(),
         payees,
+        channel: body.channel ?? null,
       };
       const afterHooks: ((eventId: string) => Promise<void>)[] = [];
       for (const hook of this.disbursementHooks) {
@@ -1417,6 +1420,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
   ) {
@@ -1447,6 +1452,8 @@ export class ServicingService {
       contributions?: { borrowerId: string; amount: string }[];
       /** Someone other than the borrower paying (UC-20). */
       payer?: { name: string; relationship: string; reference?: string };
+      /** How the money came in (cash transaction report, D-121). */
+      channel?: string;
     },
     idempotencyKey: string,
     hash: string,
@@ -1778,6 +1785,7 @@ export class ServicingService {
           penaltySuspenseReleased: penaltyReleased.amount.toString(),
           penaltyRewind,
           payer: body.payer ?? null,
+          channel: body.channel ?? null,
           rescheduled: !!reschedule,
           reschedule: reschedule?.explanation,
           rescheduledTo,

@@ -898,6 +898,42 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'access_policy.approve',
     makerChecker: true,
   }),
+  // AML/CFT (D-118…D-122). The customer is the resource, branch-scoped, as
+  // for documents; lists, the re-screen queue and the reports are tenant-wide.
+  // A clearance, a disposition, a watch-list version and EDD each need a
+  // second person; suspicious transaction referrals are seen only by
+  // compliance (tipping-off).
+  A('aml.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.case.read', 'TENANT', 'READ', { permission: 'aml.read' }),
+  A('aml.ctr.read', 'TENANT', 'READ', { permission: 'aml.read' }),
+  A('aml.screen', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.status.approve', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.case.propose', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+  }),
+  A('aml.case.decide', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    permission: 'aml.disposition',
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.edd.approve', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
+    scoped: true,
+    makerChecker: true,
+  }),
+  A('aml.watchlist.read', 'TENANT', 'READ', { permission: 'aml.screen' }),
+  A('aml.watchlist.upload', 'TENANT', 'CONFIG', { permission: 'aml.screen' }),
+  A('aml.watchlist.activate', 'TENANT', 'CONFIG', {
+    permission: 'aml.disposition',
+    makerChecker: true,
+  }),
+  A('aml.rescreen.run', 'TENANT', 'CONFIG', { permission: 'aml.disposition' }),
+  A('aml.str.raise', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('aml.str.review', 'TENANT', 'READ'),
   // The borrower, in the portal, on their own documents only.
   A('document.read_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),
   A('document.upload_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),

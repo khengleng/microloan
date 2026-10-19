@@ -42,6 +42,7 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/migration', label: 'Migration' },
     { href: '/lending/webhooks', label: 'Webhooks' },
     { href: '/lending/operations', label: 'Operations' },
+    { href: '/lending/aml', label: 'AML & compliance' },
     { href: '/lending/audit', label: 'Audit' },
     { href: '/lending/access', label: 'Access & policy' },
 ];

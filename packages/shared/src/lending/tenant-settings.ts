@@ -7,6 +7,7 @@ import {
   RegulatoryBands,
 } from './impairment.js';
 import { MAX_FILE_LINES } from './channels.js';
+import { PAYMENT_CHANNEL_CODES } from './aml.js';
 
 /**
  * A lender's own operating parameters (TenantLendingSettings).
@@ -277,6 +278,102 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * AML/CFT controls (2020 Law on AML/CFT; DECISIONS D-118…D-122 — the
+     * defaults are assumed and need compliance sign-off).
+     */
+    aml: z
+      .object({
+        screening: z
+          .object({
+            /** Name similarity (0…1) at or above which a watch-list entry is a hit to disposition. */
+            matchThreshold: rateFraction.default('0.88'),
+            /** Two name tokens below this Jaro-Winkler similarity are not paired. */
+            tokenFloor: rateFraction.default('0.80'),
+            /** Multiplier for a one-word name matched inside a longer one. */
+            singleTokenPenalty: rateFraction.default('0.80'),
+            /** Titles and honorifics ignored when names are compared. */
+            ignoredTitles: z
+              .array(z.string().trim().min(1).max(40))
+              .max(100)
+              .default(['mr', 'mrs', 'ms', 'miss', 'dr', 'h e', 'his excellency', 'her excellency', 'oknha', 'neak oknha', 'lok', 'lok chumteav', 'samdech']),
+            /** Customers re-screened per step of a re-screening job after a list is activated. */
+            rescreenBatchSize: z.number().int().min(10).max(5000).default(200),
+          })
+          .strict()
+          .default({}),
+        watchList: z
+          .object({
+            /** Most entries one uploaded list version may hold. */
+            maxEntries: z.number().int().min(1).max(200_000).default(50_000),
+          })
+          .strict()
+          .default({}),
+        risk: z
+          .object({
+            weights: z
+              .object({
+                pep: z.number().int().min(0).max(100).default(10),
+                highRiskCountry: z.number().int().min(0).max(100).default(6),
+                highRiskOccupation: z.number().int().min(0).max(100).default(3),
+                highRiskProduct: z.number().int().min(0).max(100).default(2),
+                cashIntensive: z.number().int().min(0).max(100).default(3),
+              })
+              .strict()
+              .default({}),
+            mediumAt: z.number().int().min(1).max(1000).default(3),
+            highAt: z.number().int().min(1).max(1000).default(6),
+            pepAlwaysHigh: z.boolean().default(true),
+            /** Nationalities rated higher risk (ISO 3166 alpha-2; default: the FATF call-for-action list). */
+            highRiskCountries: z.array(z.string().regex(/^[A-Z]{2}$/, 'ISO 3166 alpha-2 codes')).max(250).default(['KP', 'IR', 'MM']),
+            /** Occupations or business types rated higher risk (whole words, case-insensitive). */
+            highRiskOccupations: z
+              .array(z.string().trim().min(2).max(60))
+              .max(200)
+              .default(['money changer', 'casino', 'gambling', 'precious metals', 'gold dealer', 'jewellery', 'real estate agent', 'arms dealer']),
+            /** Occupations that handle mostly cash. */
+            cashIntensiveOccupations: z
+              .array(z.string().trim().min(2).max(60))
+              .max(200)
+              .default(['market vendor', 'trader', 'restaurant', 'taxi', 'tuk tuk', 'construction contractor']),
+            /** Product family codes rated higher risk. */
+            highRiskProductFamilies: z.array(z.string().regex(/^[A-Z0-9_]{2,40}$/)).max(100).default([]),
+            /** Share of repayments by value made in cash (0…1) from which a customer is cash intensive. */
+            cashShareThreshold: rateFraction.default('0.5'),
+            /** Repayments looked at for the cash share. */
+            cashLookbackDays: z.number().int().min(30).max(1825).default(365),
+            /** Months until a rating is next reviewed. */
+            reviewMonths: z
+              .object({
+                LOW: z.number().int().min(1).max(120).default(36),
+                MEDIUM: z.number().int().min(1).max(120).default(24),
+                HIGH: z.number().int().min(1).max(120).default(12),
+              })
+              .strict()
+              .default({}),
+          })
+          .strict()
+          .default({}),
+        ctr: z
+          .object({
+            /** Cash transaction reporting threshold per currency (CAFIU). */
+            thresholds: z
+              .record(z.string().regex(/^[A-Z]{3}$/), decimalString)
+              .default({ USD: '10000', KHR: '40000000' }),
+            /** Payment channels that are cash. */
+            cashChannels: z
+              .array(z.enum(PAYMENT_CHANNEL_CODES))
+              .min(1)
+              .max(8)
+              .default(['BRANCH_CASH']),
+          })
+          .strict()
+          .default({}),
+        /** Customer due diligence and AML records are kept this long after the relationship ends. */
+        retentionYearsAfterRelationship: z.number().int().min(5).max(30).default(5),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({
@@ -325,6 +422,13 @@ export function validateTenantLendingSettings(s: TenantLendingSettings): string[
   });
   if (dec(s.scoring.monitoring.psiEpsilon).lte(0) || dec(s.scoring.monitoring.psiEpsilon).gte('0.1'))
     issues.push('scoring.monitoring.psiEpsilon must be greater than 0 and below 0.1.');
+  const aml = s.aml;
+  if (aml.risk.mediumAt >= aml.risk.highAt) issues.push('aml.risk.mediumAt must be below aml.risk.highAt.');
+  if (dec(aml.screening.matchThreshold).lt('0.5')) issues.push('aml.screening.matchThreshold below 0.5 would match almost every name.');
+  if (aml.risk.reviewMonths.HIGH > aml.risk.reviewMonths.MEDIUM || aml.risk.reviewMonths.MEDIUM > aml.risk.reviewMonths.LOW)
+    issues.push('aml.risk.reviewMonths: a higher rating must be reviewed at least as often as a lower one.');
+  for (const [currency, threshold] of Object.entries(aml.ctr.thresholds))
+    if (dec(threshold).lte(0)) issues.push(`aml.ctr.thresholds.${currency} must be greater than zero.`);
   return [...new Set(issues)];
 }
 
