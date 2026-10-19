@@ -546,7 +546,9 @@ d('Workspace: access, work queues and search (integration)', () => {
     ) as any[];
     expect(byId.map((p) => p.id)).toEqual([ro]);
     expect(byId[0].email).toMatch(/^ro-/);
-    const found = expectOk(await f.as('analyst').get('/me/people?q=ro-')) as any[];
+    const found = expectOk(
+      await f.as('analyst').get('/me/people?q=ro-'),
+    ) as any[];
     expect(found.map((p) => p.id)).toContain(ro);
     expect(found.every((p) => p.id !== foreign)).toBe(true);
     // Too short a fragment, and platform operators, get nothing.
