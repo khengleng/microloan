@@ -493,8 +493,12 @@ export class KeyFactsService {
       if (!app || app.status !== 'APPROVED') return null;
       const { version, config } = await this.apps.versionOf(tx, app);
       if (!config || !version) return null;
-      const ct = await this.contractTerms(tx, app, config, version.configHash);
-      return keyFactsBlocker(tx, tenantId, applicationId, ct.termsHash);
+      // Terms that no longer compose (a retired policy) are booking's to
+      // refuse with its own message; the capability map stays readable.
+      const hash = await this.contractTerms(tx, app, config, version.configHash)
+        .then((ct) => ct.termsHash)
+        .catch(() => null);
+      return keyFactsBlocker(tx, tenantId, applicationId, hash);
     });
   }
 
