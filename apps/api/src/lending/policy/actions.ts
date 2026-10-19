@@ -209,6 +209,17 @@ export const ACTIONS: ActionDefinition[] = [
     permission: 'loan.repayment.reverse',
     makerChecker: true,
   }),
+  // Cooling-off cancellation (D-125): the customer's request is recorded by
+  // one person and approved by another; the repayment then closes the loan.
+  A('loan.cooling_off.request', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+    workflowStates: ['ACTIVE'],
+  }),
+  A('loan.cooling_off.approve', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    workflowStates: ['ACTIVE'],
+    makerChecker: true,
+  }),
   A('loan.advance_refund.propose', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',
   }),
@@ -298,6 +309,24 @@ export const ACTIONS: ActionDefinition[] = [
   A('loan.agreement.book', 'APPLICATION', 'ORIGINATION', {
     workflowStates: ['APPROVED'],
     requiresActiveProduct: true,
+  }),
+  // Pre-contract key facts statement (D-123): issued after approval, accepted
+  // by the customer (signed form recorded by staff, or in the portal) before
+  // booking. Reading it is reading the application.
+  A('key_facts.read', 'APPLICATION', 'READ', {
+    permission: 'loan_application.read',
+  }),
+  A('key_facts.generate', 'APPLICATION', 'ORIGINATION', {
+    permission: 'key_facts.manage',
+    workflowStates: ['APPROVED'],
+  }),
+  A('key_facts.record_acceptance', 'APPLICATION', 'ORIGINATION', {
+    permission: 'key_facts.manage',
+    workflowStates: ['APPROVED'],
+  }),
+  A('key_facts.read_own', 'APPLICATION', 'READ'),
+  A('key_facts.accept_own', 'APPLICATION', 'ORIGINATION', {
+    workflowStates: ['APPROVED'],
   }),
   // Scoring (D-075…D-077): a score is read with the application; credit
   // staff may re-run it while the application is undecided.

@@ -43,6 +43,15 @@ type Json = Prisma.InputJsonValue;
 type Dec = InstanceType<typeof lending.D>;
 const ZERO = () => new lending.D(0);
 
+/** How a cooling-off cancellation is priced (D-125), from the lender's settings and the contract. */
+export interface CoolingOffTerms {
+  chargeAccruedInterest: boolean;
+  /** The lender's upfront fees given back (excluding tax). */
+  feeRefund: string;
+  /** Tax on those fees given back. */
+  feeRefundTax: string;
+}
+
 interface EventInput {
   type: string;
   amount: Dec;
@@ -207,11 +216,17 @@ export class ServicingService {
       const visible = tasks.filter((t) => loanById.has(t.subjectId));
       const [borrowers, makers] = await Promise.all([
         tx.borrower.findMany({
-          where: { tenantId, id: { in: [...new Set(loans.map((l) => l.borrowerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(loans.map((l) => l.borrowerId))] },
+          },
           select: { id: true, firstName: true, lastName: true },
         }),
         tx.user.findMany({
-          where: { tenantId, id: { in: [...new Set(visible.map((t) => t.makerId))] } },
+          where: {
+            tenantId,
+            id: { in: [...new Set(visible.map((t) => t.makerId))] },
+          },
           select: { id: true, email: true },
         }),
       ]);
@@ -226,7 +241,7 @@ export class ServicingService {
         const loan = loanById.get(t.subjectId)!;
         const payload = (t.payload ?? {}) as Record<string, unknown>;
         const text = (k: string) =>
-          typeof payload[k] === 'string' ? (payload[k] as string) : null;
+          typeof payload[k] === 'string' ? payload[k] : null;
         return {
           id: t.id,
           action: t.action,
@@ -293,7 +308,10 @@ export class ServicingService {
       ]);
       // Who made each open task, by email rather than a bare id.
       const makers = await tx.user.findMany({
-        where: { tenantId, id: { in: [...new Set(tasks.map((t) => t.makerId))] } },
+        where: {
+          tenantId,
+          id: { in: [...new Set(tasks.map((t) => t.makerId))] },
+        },
         select: { id: true, email: true },
       });
       const makerEmail = new Map(makers.map((m) => [m.id, m.email]));
@@ -1782,10 +1800,21 @@ export class ServicingService {
     });
   }
 
-  /** The payoff of an active loan as of a date, inside the caller's transaction. */
-  async quote(tx: Tx, state: LoanState, asOf: string) {
+  /**
+   * The payoff of an active loan as of a date, inside the caller's
+   * transaction. With `coolingOff` it is the cancellation amount instead
+   * (D-125): no settlement or lock-in charge, penalties waived, interest only
+   * when the lender's settings charge it, the lender's upfront fees refunded.
+   */
+  async quote(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+    coolingOff?: CoolingOffTerms,
+  ) {
     if (state.account.status !== 'ACTIVE')
       throw new ConflictException(`Loan is ${state.account.status}.`);
+    if (coolingOff) return this.coolingOffQuote(tx, state, asOf, coolingOff);
     if (!state.config.repayment.earlySettlement.allowed)
       throw new BadRequestException(
         'This product does not allow early settlement.',
@@ -1879,6 +1908,66 @@ export class ServicingService {
           }
         : undefined,
       murabaha: murabaha ?? undefined,
+      coolingOff: undefined,
+      advanceApplied: advance.toString(),
+      total: total.toString(),
+      payable: payable.toString(),
+      roundingDifference: payable.minus(total).toString(),
+    };
+  }
+
+  /** The cooling-off cancellation amount (D-125); shape of `quote`. */
+  private async coolingOffQuote(
+    tx: Tx,
+    state: LoanState,
+    asOf: string,
+    co: CoolingOffTerms,
+  ) {
+    const posted = await tx.accrualEvent.aggregate({
+      where: {
+        tenantId: state.account.tenantId,
+        loanAccountId: state.account.id,
+      },
+      _sum: { amount: true },
+    });
+    const pendingAccrual = lending.D.max(
+      0,
+      contractualAccrual(state, asOf).minus(D(posted._sum.amount ?? '0')),
+    );
+    const accrued = D(state.account.interestReceivable).plus(pendingAccrual);
+    const interest = co.chargeAccruedInterest ? accrued : ZERO();
+    const principal = D(state.account.principalOutstanding);
+    const refund = D(co.feeRefund).plus(D(co.feeRefundTax));
+    const advance = D(state.account.advanceBalance);
+    const total = principal
+      .plus(interest)
+      .plus(D(state.account.feesReceivable))
+      .minus(refund)
+      .minus(advance);
+    if (total.lte(0))
+      throw new ConflictException(
+        'Nothing is owed on cancellation; refund the customer instead.',
+      );
+    const payable = lending.roundMoney(total, state.config.pricing.rounding);
+    return {
+      asOf,
+      currency: state.account.currency,
+      principal: principal.toString(),
+      interest: interest.toString(),
+      fees: D(state.account.feesReceivable).toString(),
+      penalties: '0',
+      settlementFee: '0',
+      settlementFeeExplanation:
+        'Cooling-off cancellation: no settlement or lock-in charge.',
+      feeWaiverTaskId: null as string | null,
+      interestRebate: undefined,
+      murabaha: undefined,
+      coolingOff: {
+        penaltiesWaived: D(state.account.penaltyReceivable).toString(),
+        interestWaived: co.chargeAccruedInterest ? '0' : accrued.toString(),
+        feesRefunded: D(co.feeRefund).toString(),
+        feeTaxRefunded: D(co.feeRefundTax).toString(),
+      },
       advanceApplied: advance.toString(),
       total: total.toString(),
       payable: payable.toString(),
@@ -2098,7 +2187,12 @@ export class ServicingService {
     },
     idempotencyKey: string,
     hash: string,
-    opts: { fundingAccount?: string; authorizedByDisbursement?: boolean } = {},
+    opts: {
+      fundingAccount?: string;
+      authorizedByDisbursement?: boolean;
+      /** A cooling-off cancellation (D-125) rather than an early settlement. */
+      coolingOff?: CoolingOffTerms;
+    } = {},
   ) {
     const tenantId = requireTenant(actor);
     let state = await loadLoanState(tx, tenantId, id);
@@ -2122,7 +2216,7 @@ export class ServicingService {
       businessDate,
       state.config.repayment.maxBackdateDays,
     );
-    const q = await this.quote(tx, state, valueDate);
+    const q = await this.quote(tx, state, valueDate, opts.coolingOff);
     // UC-31: a payoff letter must be in date, unused, and still state the amount owed.
     const letter = body.payoffQuoteId
       ? await tx.payoffQuote.findFirst({
@@ -2273,6 +2367,24 @@ export class ServicingService {
           ),
           ...released.lines,
           ...allowanceRelease(state).lines,
+          // D-125: what a cooling-off cancellation gives back — penalties
+          // waived, the lender's upfront fees and their tax refunded.
+          ...(q.coolingOff
+            ? [
+                {
+                  accountCode: acc.penaltyIncome,
+                  debit: q.coolingOff.penaltiesWaived,
+                },
+                {
+                  accountCode: acc.feeIncome,
+                  debit: q.coolingOff.feesRefunded,
+                },
+                {
+                  accountCode: acc.taxPayable,
+                  debit: q.coolingOff.feeTaxRefunded,
+                },
+              ]
+            : []),
           rounding.gte(0)
             ? {
                 accountCode: acc.roundingDifferences,
@@ -4727,7 +4839,11 @@ export function delinquency(
 }
 
 /** Loan maker-checker tasks listed for checkers by `pendingApprovals`. */
-export const PENDING_APPROVAL_ACTIONS = ['FEE_WAIVER', 'ADVANCE_REFUND', 'SET_OFF'];
+export const PENDING_APPROVAL_ACTIONS = [
+  'FEE_WAIVER',
+  'ADVANCE_REFUND',
+  'SET_OFF',
+];
 
 function view<T extends Record<string, unknown>>(a: T) {
   const out: Record<string, unknown> = { ...a };

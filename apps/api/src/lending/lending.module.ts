@@ -14,6 +14,10 @@ import { ProductsService } from './products/products.service';
 import { WorkflowsService } from './products/workflows.service';
 import { LendingPoliciesService } from './products/lending-policies.service';
 import { ApplicationsService } from './origination/applications.service';
+import { KeyFactsService } from './origination/key-facts.service';
+import { KeyFactsPortalController } from './origination/key-facts.controller';
+import { BorrowerObligationsService } from './origination/obligations.service';
+import { CoolingOffService } from './servicing/cooling-off.service';
 import { GroupsService } from './origination/groups.service';
 import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
@@ -131,6 +135,7 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     LendingOverviewController,
     RestructuringController,
     RestructuringPortalController,
+    KeyFactsPortalController,
     LendingProductsController,
     LendingApplicationsController,
     LendingLoansController,
@@ -189,6 +194,9 @@ import { WorkspaceSearchService } from './workspace/workspace-search.service';
     WorkflowsService,
     LendingPoliciesService,
     ApplicationsService,
+    KeyFactsService,
+    BorrowerObligationsService,
+    CoolingOffService,
     GroupsService,
     ServicingService,
     SuspenseService,

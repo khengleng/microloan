@@ -138,6 +138,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'GroupMembership',
   'Application',
   'ApplicationDocument',
+  'KeyFactsStatement',
   'CreditDecision',
   'ApprovalTask',
   'ConditionPrecedent',
