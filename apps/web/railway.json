@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "pnpm turbo run build --filter=web..."
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter web exec next start -p $PORT",
+    "healthcheckPath": "/login",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

@@ -1,11 +1,13 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "pnpm turbo run build --filter=api..."
+  },
   "deploy": {
-    "preDeployCommand": [
-      "pnpm --filter @microloan/db exec prisma migrate deploy",
-      "pnpm --filter @microloan/db run db:seed || echo 'seed skipped'"
-    ],
-    "healthcheckPath": "/v1/health",
-    "healthcheckTimeout": 300
+    "startCommand": "sh -c 'DATABASE_URL=\"$MIGRATION_DATABASE_URL\" pnpm --filter @microloan/db exec prisma migrate deploy && NODE_ENV=production node apps/api/dist/main.js'",
+    "healthcheckPath": "/v1/health/ready",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
   }
 }
