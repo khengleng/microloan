@@ -152,6 +152,29 @@ If it is blocked:
 | Code **SETTLEMENT_LOCKED_IN** with an explanation | The loan is still in its lock-in period. |
 | "Loan is CLOSED." (or another status) | Only active loans can be settled. |
 
+## 4a. Cooling-off cancellation
+
+If your organisation offers a cooling-off period (by default **7 days** after the money is paid out; the key facts statement tells the customer), the customer may change their mind and cancel the loan inside it. They repay the cash they received, plus interest for the days they had it if your settings charge it. There is **no settlement fee, lock-in charge or penalty**, and your organisation's upfront fees are **refunded** (credit-insurance premiums collected for an insurer are not).
+
+It takes two people. On the loan screen, while the period is open, click **Cooling-off cancellation**:
+
+1. A loan operations maker (anyone who can post repayments) records the request: the **Customer's reason** and the **Customer's request reference** (the letter, form or call), then clicks **Record cancellation request**. The panel shows the amount to cancel today: principal, interest, fees, less the fees refunded.
+2. A different person (a loan operations checker) opens the same panel and clicks **Approve** (or **Reject**).
+3. When the customer pays, the maker enters the **Receipt reference** and clicks **Take repayment and cancel**, then confirms. The amount must be exactly the one shown for today.
+
+What happens next: "Loan cancelled". A **SETTLEMENT** event is posted in its cooling-off form (fees refunded, penalties waived), the loan becomes **CLOSED** and a closure letter is filed.
+
+The request must be recorded inside the period; once approved it can be completed later, but interest keeps running until the money comes in.
+
+If it is blocked:
+
+| Message | What to do |
+|---|---|
+| "The cooling-off period ended on …" (code **COOLING_OFF_EXPIRED**) | Too late; the loan can only be settled early on its own terms (section 4). |
+| "This lender offers no cooling-off period." | The period is switched off in **Lending settings** (`consumerProtection.coolingOffDays` = 0). |
+| "A cooling-off cancellation is already pending or approved for this loan." | Approve or reject the open request first. |
+| "The cancellation request is pending; it must be approved first." | Ask a checker to approve it. |
+
 ### Legacy loans
 
 Loans in the original module (**Origination › Loans (original)**) have their own **Early settlement** panel on the loan page: click **Get payoff quote**, check **Principal**, **Interest due**, **Penalties**, **Future interest waived** and **Payoff today**, then **Settle $X and close**. See [21-original-loan-module.md](21-original-loan-module.md).
