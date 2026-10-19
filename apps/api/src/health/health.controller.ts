@@ -1,9 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, MemoryHealthIndicator } from '@nestjs/terminus';
 import { PrismaHealthIndicator } from './prisma.health';
 import { Roles } from '../auth/roles.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/auth-scope.decorator';
+import { operationalConfig } from '../config/operational-config';
 @Controller('health')
 export class HealthController {
     constructor(
@@ -21,6 +22,34 @@ export class HealthController {
     @Get()
     publicCheck() {
         return { status: 'ok' };
+    }
+
+    /**
+     * Liveness: the process is up and serving. Never touches the database, so
+     * a database outage does not get healthy instances restarted.
+     */
+    @Public()
+    @SkipThrottle()
+    @Get('live')
+    live() {
+        return { status: 'ok' };
+    }
+
+    /**
+     * Readiness: this instance can serve traffic — it reaches the database
+     * within READINESS_DB_TIMEOUT_MS (default 2000). Answers 503 otherwise, so
+     * a load balancer takes the instance out of rotation. Reports no detail
+     * beyond up/down.
+     */
+    @Public()
+    @SkipThrottle()
+    @Get('ready')
+    async ready() {
+        const up = await this.db.ping(operationalConfig().readinessDbTimeoutMs);
+        if (!up) {
+            throw new ServiceUnavailableException({ status: 'unavailable', checks: { database: 'down' } });
+        }
+        return { status: 'ok', checks: { database: 'up' } };
     }
 
     /**

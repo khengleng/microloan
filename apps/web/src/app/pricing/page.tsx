@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { site } from "@/lib/site";
 
 const plans = [
   {
@@ -47,8 +48,8 @@ export default function PricingPage() {
 
         <p className="mt-8 text-sm text-muted-foreground">
           For sales and billing inquiries:{" "}
-          <a className="text-primary hover:underline" href="mailto:sales@dbankcambodia.com">
-            sales@dbankcambodia.com
+          <a className="text-primary hover:underline" href={`mailto:${site.contact.sales}`}>
+            {site.contact.sales}
           </a>
         </p>
 

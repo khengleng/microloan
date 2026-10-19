@@ -26,6 +26,7 @@ import { PolicyService } from '../policy/policy.service';
 import type { Resource } from '../policy/decision';
 import { PostingLine } from '../accounting/posting.service';
 import { ServicingService } from '../servicing/servicing.service';
+import { oncePerRun } from '../servicing/batch-scope';
 import {
   LoanState,
   contractualAccrual,
@@ -217,7 +218,7 @@ export class RestructuringService implements OnModuleInit {
     }
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
     if (!scope) return [];
-    return this.prisma.restructureCase.findMany({
+    const cases = await this.prisma.restructureCase.findMany({
       where: {
         tenantId,
         ...(scope as Prisma.RestructureCaseWhereInput),
@@ -226,6 +227,27 @@ export class RestructuringService implements OnModuleInit {
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
+    });
+    // The loan's reference, so the list can name the loan instead of an id.
+    const loans = await this.prisma.loanAccount.findMany({
+      where: { tenantId, id: { in: [...new Set(cases.map((c) => c.loanAccountId))] } },
+      select: { id: true, reference: true },
+    });
+    const refs = new Map(loans.map((l) => [l.id, l.reference]));
+    return cases.map((c) => ({
+      ...c,
+      loanReference: refs.get(c.loanAccountId) ?? null,
+    }));
+  }
+
+  /** A signed-in borrower's own active lending loans (reference, currency). */
+  async portalLoans(actor: LendingActor) {
+    const tenantId = requireTenant(actor);
+    if (actor.type !== 'CUSTOMER') return [];
+    return this.prisma.loanAccount.findMany({
+      where: { tenantId, borrowerId: actor.id, status: 'ACTIVE' },
+      select: { id: true, reference: true, currency: true, status: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -1244,12 +1266,19 @@ export class RestructuringService implements OnModuleInit {
     // 1. Close the live schedule without erasing it: unpaid lines keep their arrears and the interest they had earned.
     const closedLineIds: string[] = [];
     for (const l of state.lines.filter((x) => x.status === 'DUE')) {
-      const e = engineLine(l);
+      const e = {
+        ...engineLine(l),
+        capitalizedInterest: D(l.capitalizedInterest)
+          .plus(D(l.deferredAccrual))
+          .toString(),
+      };
       const earned =
         l.number === 0
           ? new lending.D(0)
           : lending.compareDates(e.dueDate, snapshot.asOf) <= 0
-            ? D(l.interestDue).plus(D(l.capitalizedInterest))
+            ? D(l.interestDue)
+                .plus(D(l.capitalizedInterest))
+                .plus(D(l.deferredAccrual))
             : lending.accruedOnLine(e, snapshot.asOf, state.contract);
       await tx.scheduleInstalment.update({
         where: { id: l.id },
@@ -1274,6 +1303,8 @@ export class RestructuringService implements OnModuleInit {
         version: newVersion,
         reason: 'RESTRUCTURE',
         productConfig: latest!.productConfig as Json,
+        // The contract's policies carry forward unchanged.
+        policies: (latest!.policies ?? undefined) as Json | undefined,
         configHash: latest!.configHash,
         terms: {
           restructure: options,
@@ -1326,6 +1357,7 @@ export class RestructuringService implements OnModuleInit {
       principalDue: l.principal,
       interestDue: l.interest,
       capitalizedInterest: l.capitalizedInterest,
+      deferredAccrual: l.deferredAccrual,
       deferredInterestDue: l.deferred.interest,
       feeDue: l.deferred.fees,
       penaltyDue: l.deferred.penalties,
@@ -1493,7 +1525,7 @@ export class RestructuringService implements OnModuleInit {
         c.id,
         tenantId,
         'BALLOON_MATURITY',
-        lending.addDays(calc.schedule.maturityDate, -30),
+        lending.addDays(calc.schedule.maturityDate, -cfg.balloonReminderDays),
         { balloon: options.balloonAmount },
         `balloon:${amendment.id}`,
       );
@@ -1618,6 +1650,8 @@ export class RestructuringService implements OnModuleInit {
           version: state.agreementVersion + 1,
           reason: 'RESTRUCTURE_REVERSAL',
           productConfig: prior!.productConfig as Json,
+          // The contract's policies carry forward unchanged.
+          policies: (prior!.policies ?? undefined) as Json | undefined,
           configHash: prior!.configHash,
           terms: prior!.terms as Json,
           scheduleInput: prior!.scheduleInput as Json,
@@ -1708,7 +1742,15 @@ export class RestructuringService implements OnModuleInit {
     actor: LendingActor,
   ): Promise<void> {
     const tenantId = state.account.tenantId;
-    const { settings } = await this.policySettings(tenantId, tx);
+    // Within an end-of-day run the tenant's policy is read once, outside any
+    // one loan's transaction (so a loan that fails cannot fail the read for
+    // the others); otherwise in this transaction as before.
+    const { settings } = await oncePerRun(
+      tenantId,
+      'restructure-policy',
+      () => this.policySettings(tenantId),
+      () => this.policySettings(tenantId, tx),
+    );
     // System referral on approved monitoring rules: opens a review, never changes terms.
     if (state.account.daysPastDue >= settings.referralDpd) {
       const open = await tx.restructureCase.findFirst({

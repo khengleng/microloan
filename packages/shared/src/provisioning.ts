@@ -46,10 +46,14 @@ export interface ClassificationResult {
  * A loan with no overdue installments is STANDARD (still carries a 1% general
  * provision per NBC).
  */
-export function classifyByDaysOverdue(daysOverdue: number): ClassificationResult {
+export function classifyByDaysOverdue(
+    daysOverdue: number,
+    /** The lender's tiers (its lending settings); the NBC tiers by default. */
+    tiers: ClassificationTier[] = NBC_CLASSIFICATION_TIERS,
+): ClassificationResult {
     const days = Math.max(0, Math.floor(daysOverdue || 0));
-    let tier = NBC_CLASSIFICATION_TIERS[0];
-    for (const candidate of NBC_CLASSIFICATION_TIERS) {
+    let tier = tiers[0];
+    for (const candidate of tiers) {
         if (days >= candidate.minDaysOverdue) {
             tier = candidate;
         }

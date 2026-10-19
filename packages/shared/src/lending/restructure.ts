@@ -53,6 +53,8 @@ export interface RestructureOptions {
   interestOnlyInstalments?: number;
   /** Full payment deferral: nothing is paid in these instalments. */
   paymentDeferralInstalments?: number;
+  /** Simple or compound capitalization of deferred interest when it is capitalized (default COMPOUND). */
+  capitalizationBasis?: 'COMPOUND' | 'SIMPLE';
   /** What happens to interest arising during a full payment deferral. */
   deferredInterestTreatment?: DeferredInterestTreatment;
   /** Capitalize these unpaid amounts into the new principal (only where permitted). */
@@ -104,6 +106,11 @@ export interface ProposedLine {
   annualRate: string;
   /** Pre-existing arrears repaid in this line (no interest accrues on them). */
   deferred: ExtraDue;
+  /**
+   * Interest earned over this line's period but payable on later lines (a
+   * deferral that does not capitalize): it accrues here, is collected there.
+   */
+  deferredAccrual: string;
   total: string;
 }
 
@@ -255,6 +262,7 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     firstDueDate: options.firstDueDate,
     principalGraceInstalments: deferral + interestOnly,
     interestGraceInstalments: deferral > 0 && treatment === 'CAPITALIZE' ? deferral : 0,
+    graceCapitalization: options.capitalizationBasis,
     balloonAmount: options.balloonAmount,
     explicitSchedule: options.explicitSchedule,
     interestMethod: 'REDUCING_BALANCE',
@@ -340,6 +348,7 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     capitalizedInterest: l.capitalizedInterest,
     annualRate: l.annualRate,
     deferred: zeroExtra(),
+    deferredAccrual: '0',
     total: l.total,
   }));
   let futureInterestWaived = ZERO;
@@ -349,7 +358,10 @@ export function calculateRestructure(contract: ScheduleInput, snapshot: BalanceS
     // carried interest-free into the repayment instalments. Never silently dropped.
     for (const l of lines.slice(0, deferral)) {
       if (treatment === 'WAIVE') futureInterestWaived = futureInterestWaived.plus(l.interest);
-      else movedDeferralInterest = movedDeferralInterest.plus(l.interest);
+      else {
+        movedDeferralInterest = movedDeferralInterest.plus(l.interest);
+        l.deferredAccrual = l.interest;
+      }
       l.interest = '0';
       l.total = l.principal;
     }

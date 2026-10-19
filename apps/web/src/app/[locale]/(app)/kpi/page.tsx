@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import { LegacyModuleNote } from '@/components/LegacyModuleNote';
 import {
     Loader2, Wallet, Users, TrendingUp, ShieldCheck, AlertTriangle,
     PiggyBank, Percent, Info,
@@ -12,13 +13,16 @@ type Kpi = {
     asOf: string;
     portfolio: { grossOutstanding: number; activeLoans: number; borrowers: number; totalDisbursed: number; totalCollected: number };
     par: { buckets: { current: number; d1_30: number; d31_60: number; d61_90: number; d90plus: number }; par30Pct: number; par90Pct: number };
-    income: { interest: number; penalty: number; fee: number; total: number };
-    expense: { provision: number; writeOff: number; total: number };
-    netOperatingIncome: number;
-    ratios: { interestYieldPct: number; provisionCoveragePct: number; collectionRatePct: number; onTimeRepaymentPct: number; writeOffRatePct: number };
+    // Null for branch-scoped users: ledger figures are not attributed to branches.
+    income: { interest: number; penalty: number; fee: number; total: number } | null;
+    expense: { provision: number; writeOff: number; total: number } | null;
+    netOperatingIncome: number | null;
+    ratios: { interestYieldPct: number | null; provisionCoveragePct: number | null; collectionRatePct: number; onTimeRepaymentPct: number; writeOffRatePct: number | null };
+    branchScoped?: boolean;
     notes: string[];
 };
 
+const ratio = (v: number | null) => (v === null ? '—' : `${v}%`);
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function Stat({ icon, label, value, sub, tone }: { icon: any; label: string; value: string; sub?: string; tone?: string }) {
@@ -62,6 +66,7 @@ export default function KpiPage() {
                 <h1 className="text-xl font-bold text-foreground">Portfolio Performance</h1>
                 <p className="text-sm text-muted-foreground mt-0.5">As of {new Date(k.asOf).toLocaleString()}</p>
             </div>
+            <LegacyModuleNote mixedCurrency />
 
             {/* Portfolio */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -97,11 +102,11 @@ export default function KpiPage() {
                 <div className="bg-white border border-border rounded-md p-5 space-y-3">
                     <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Percent size={15} className="text-primary" /> Key ratios</h3>
                     {[
-                        { l: 'Interest yield (to date)', v: `${k.ratios.interestYieldPct}%` },
-                        { l: 'Collection rate', v: `${k.ratios.collectionRatePct}%` },
-                        { l: 'On-time repayment', v: `${k.ratios.onTimeRepaymentPct}%` },
-                        { l: 'Provision coverage', v: `${k.ratios.provisionCoveragePct}%` },
-                        { l: 'Write-off rate', v: `${k.ratios.writeOffRatePct}%` },
+                        { l: 'Interest yield (to date)', v: ratio(k.ratios.interestYieldPct) },
+                        { l: 'Collection rate', v: ratio(k.ratios.collectionRatePct) },
+                        { l: 'On-time repayment', v: ratio(k.ratios.onTimeRepaymentPct) },
+                        { l: 'Provision coverage', v: ratio(k.ratios.provisionCoveragePct) },
+                        { l: 'Write-off rate', v: ratio(k.ratios.writeOffRatePct) },
                     ].map(r => (
                         <div key={r.l} className="flex justify-between items-center border-b border-border/60 last:border-0 py-1.5">
                             <span className="text-xs text-muted-foreground">{r.l}</span>
@@ -115,6 +120,9 @@ export default function KpiPage() {
             <div className="grid lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 bg-white border border-border rounded-md p-5">
                     <h3 className="text-sm font-bold text-foreground flex items-center gap-2 mb-4"><ShieldCheck size={15} className="text-emerald-500" /> Operating result (from GL)</h3>
+                    {!k.income || !k.expense || k.netOperatingIncome === null ? (
+                        <p className="text-sm text-muted-foreground">Ledger figures are organisation-wide and are not shown to branch users.</p>
+                    ) : (<>
                     <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
                         <div className="flex justify-between"><span className="text-muted-foreground">Interest income</span><span className="font-semibold">{money(k.income.interest)}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Provision expense</span><span className="font-semibold text-red-600">−{money(k.expense.provision)}</span></div>
@@ -129,6 +137,7 @@ export default function KpiPage() {
                         <span className="text-sm font-bold text-foreground">Net operating income</span>
                         <span className={`text-lg font-black ${k.netOperatingIncome >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(k.netOperatingIncome)}</span>
                     </div>
+                    </>)}
                 </div>
 
                 <div className="bg-amber-50 border border-amber-100 rounded-md p-4">

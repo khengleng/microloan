@@ -1,5 +1,8 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "globalDependencies": [
+        "docs/user-guide/**"
+    ],
     "pipeline": {
         "@microloan/db#build": {
             "dependsOn": [

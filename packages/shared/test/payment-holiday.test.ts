@@ -271,6 +271,21 @@ describe('the interest a holiday defers', () => {
     assert.equal(waived, calc.concessionValue.futureInterestWaived);
   });
 
+  test('a capitalizing holiday reports the interest it adds to the principal', () => {
+    // Regression: the capitalized interest sits in capitalizedInterest, not
+    // in interest, so summing interest reported every such holiday as free.
+    const calc = calcFor('CAPITALIZE');
+    const capitalized = L.holidayDeferredInterest(calc, 'CAPITALIZE', 3);
+    assert.ok(new L.D(capitalized).gt(0), `expected capitalized interest, got ${capitalized}`);
+    assert.equal(
+      capitalized,
+      calc.lines
+        .slice(0, 3)
+        .reduce((t, l) => t.plus(l.capitalizedInterest), new L.D(0))
+        .toString(),
+    );
+  });
+
   test('paying separately leaves the interest on the instalments', () => {
     const calc = calcFor('PAY_SEPARATELY');
     const paid = L.holidayDeferredInterest(calc, 'PAY_SEPARATELY', 3);

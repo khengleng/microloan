@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
@@ -34,14 +34,22 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
         date: new Date().toISOString().split('T')[0]
     });
     const [dirty, setDirty] = useState(false);
+    // One key per payment attempt: a double-click or a retry after a timeout
+    // re-sends the same key, and the API returns the original repayment
+    // instead of posting the money twice.
+    const idempotencyKey = useRef<string | null>(null);
+    useEffect(() => {
+        idempotencyKey.current = null;
+    }, [formData.loanId, formData.amount, formData.date]);
 
     useEffect(() => {
         if (open) {
             claritySetTag('journey_stage', 'repayment');
             clarityEvent('repayment_form_start');
-            api.get('/loans', { params: { status: 'DISBURSED', limit: 200 } }).then(res => {
+            // DEFAULTED loans are still owed and accept repayments.
+            api.get('/loans', { params: { status: 'DISBURSED,DEFAULTED', limit: 200 } }).then(res => {
                 const data = res.data.data || res.data;
-                setLoans(Array.isArray(data) ? data.filter((l: any) => l.status === 'DISBURSED') : []);
+                setLoans(Array.isArray(data) ? data.filter((l: any) => l.status === 'DISBURSED' || l.status === 'DEFAULTED') : []);
             });
             if (defaultLoanId) setFormData(prev => ({ ...prev, loanId: defaultLoanId }));
             setDirty(false);
@@ -77,7 +85,13 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
         clarityEvent('repayment_submit_attempt');
         setLoading(true);
         try {
-            await api.post('/repayments', { ...formData, amount: parseFloat(formData.amount) });
+            idempotencyKey.current ??= crypto.randomUUID();
+            await api.post('/repayments', {
+                ...formData,
+                amount: parseFloat(formData.amount),
+                idempotencyKey: idempotencyKey.current,
+            });
+            idempotencyKey.current = null;
             clarityEvent('repayment_submit_success');
             onSuccess();
             onOpenChange(false);

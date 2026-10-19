@@ -1,5 +1,6 @@
 import { BadRequestException, PipeTransform } from '@nestjs/common';
 import { z, ZodTypeAny } from 'zod';
+import { lending } from '@microloan/shared';
 
 /** Strict request-body validation: unknown keys are rejected, never silently dropped. */
 export class ZodPipe<T extends ZodTypeAny> implements PipeTransform<
@@ -47,11 +48,165 @@ export const termsSchema = z
       .max(60)
       .optional(),
     waivedFeeCodes: z.array(z.string().max(48)).max(20).optional(),
+    downPayment: money.optional(),
+    /** Income-contingent products: the income declared at origination. */
+    declaredAnnualIncome: money.optional(),
+    promotionCode: z.string().trim().min(1).max(40).optional(),
+    financials: z
+      .object({
+        annualNetOperatingIncome: money,
+        otherAnnualDebtService: money.optional(),
+      })
+      .strict()
+      .optional(),
     riskCategory: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+    policies: z
+      .record(
+        z.enum(['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL']),
+        z
+          .object({
+            code: z.string().max(48).optional(),
+            parameters: z
+              .record(z.string().max(40), z.number().finite())
+              .optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 
+const policyParameter = z
+  .object({
+    type: z.enum(['int', 'decimal']),
+    default: z.number().finite(),
+    min: z.number().finite(),
+    max: z.number().finite(),
+    label: z.string().max(120).optional(),
+  })
+  .strict();
+const policyParameters = z
+  .record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9]{0,39}$/), policyParameter)
+  .refine((r) => Object.keys(r).length <= 10, 'at most 10 parameters');
+/** A policy body is checked by the engine against the product schema. */
+const policyBody = z.record(z.string().max(40), z.unknown());
+
 export const S = {
+  suspenseReceive: z
+    .object({
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      valueDate: date.optional(),
+      channel: z.enum([
+        'BRANCH_CASH',
+        'BANK_TRANSFER',
+        'MOBILE',
+        'AGENT',
+        'PAYROLL',
+        'OTHER',
+      ]),
+      externalReference: z.string().min(2).max(120),
+      payerName: z.string().max(120).optional(),
+      narrative: z.string().max(500).optional(),
+    })
+    .strict(),
+  suspenseMatch: z
+    .object({
+      loanId: z.string().uuid(),
+      amount: money,
+      prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
+      applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+    })
+    .strict(),
+  feeWaiver: z
+    .object({
+      kind: z.enum(['EARLY_SETTLEMENT', 'PARTIAL_PREPAYMENT']),
+      reason: z.string().min(3).max(500),
+      expiresOn: date.optional(),
+    })
+    .strict(),
+  impairmentPolicy: z
+    .object({
+      settings: z
+        .object({
+          mode: z.enum(['REGULATORY', 'ECL']),
+          classes: z
+            .array(
+              z
+                .object({
+                  code: z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/),
+                  label: z.string().min(1).max(80),
+                  minDpd: z.number().int().min(0).max(3650),
+                  rate: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage: z
+                    .union([z.literal(1), z.literal(2), z.literal(3)])
+                    .optional(),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(12),
+          ecl: z
+            .object({
+              stage2FromDpd: z.number().int().min(1).max(3650),
+              stage3FromDpd: z.number().int().min(1).max(3650),
+              restructuredMinStage: z.union([
+                z.literal(1),
+                z.literal(2),
+                z.literal(3),
+              ]),
+              nonAccrualIsStage3: z.boolean(),
+              pd: z
+                .object({
+                  stage1: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage2: z.string().regex(/^\d+(\.\d+)?$/),
+                  stage3: z.string().regex(/^\d+(\.\d+)?$/),
+                })
+                .strict(),
+              lgd: z.string().regex(/^\d+(\.\d+)?$/),
+            })
+            .strict()
+            .optional(),
+        })
+        .strict(),
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
+  revaluation: z
+    .object({
+      marketValue: money,
+      valuationDate: date,
+      valuer: z.string().min(2).max(120),
+      method: z.string().min(2).max(40),
+    })
+    .strict(),
+  collateralRelease: z
+    .object({
+      reference: z.string().min(2).max(120),
+      note: z.string().max(500).optional(),
+    })
+    .strict(),
+  refundProposal: z
+    .object({ amount: money, reason: z.string().min(3).max(500) })
+    .strict(),
+  createPolicy: z
+    .object({
+      kind: z.enum(['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL']),
+      code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{1,47}$/),
+      name: z.string().min(2).max(120),
+      description: z.string().max(1000).optional(),
+      parameters: policyParameters.optional(),
+      body: policyBody,
+      changeSummary: z.string().max(500).optional(),
+    })
+    .strict(),
+  policyVersion: z
+    .object({
+      parameters: policyParameters.optional(),
+      body: policyBody,
+      changeSummary: z.string().max(500).optional(),
+    })
+    .strict(),
   createProduct: z
     .object({
       templateCode: z.string().max(48),
@@ -77,6 +232,60 @@ export const S = {
     .strict(),
   approve: z
     .object({ approve: z.boolean(), comment: z.string().max(500).optional() })
+    .strict(),
+  /** The settings themselves are checked by the shared schema in the service. */
+  tenantSettings: z
+    .object({
+      settings: z.record(z.unknown()),
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
+  regulatoryGenerate: z
+    .object({
+      year: z.number().int().min(2000).max(2200),
+      month: z.number().int().min(1).max(12),
+      comment: z.string().max(500).optional(),
+    })
+    .strict(),
+  regulatoryRequest: z
+    .object({ comment: z.string().max(500).optional() })
+    .strict(),
+  regulatoryDecision: z
+    .object({
+      approve: z.boolean(),
+      reference: z.string().trim().max(120).optional(),
+      comment: z.string().max(500).optional(),
+    })
+    .strict(),
+  webhookCreate: z
+    .object({
+      url: z.string().trim().min(8).max(500),
+      description: z.string().max(200).optional(),
+      topics: z.array(z.string().max(80)).min(1).max(30),
+    })
+    .strict(),
+  migrationUpload: z
+    .object({
+      fileName: z.string().trim().min(1).max(200),
+      content: z.string().min(1).max(5_000_000),
+      cutOverDate: date,
+      controlTotals: z
+        .array(
+          z
+            .object({
+              currency: z.string().regex(/^[A-Z]{3}$/),
+              loans: z.number().int().min(0),
+              principal: money,
+            })
+            .strict(),
+        )
+        .max(20)
+        .optional(),
+    })
+    .strict(),
+  periodComment: z.object({ comment: z.string().max(500).optional() }).strict(),
+  periodReopen: z
+    .object({ reason: z.string().trim().min(10).max(500) })
     .strict(),
   createApplication: z
     .object({
@@ -162,6 +371,9 @@ export const S = {
   groupStatus: z
     .object({ status: z.enum(['ACTIVE', 'DORMANT', 'DISBANDED']) })
     .strict(),
+  groupLeader: z
+    .object({ borrowerId: uuid, reason: z.string().max(500).optional() })
+    .strict(),
   updateTerms: z
     .object({ terms: termsSchema, purpose: z.string().max(500).optional() })
     .strict(),
@@ -181,6 +393,7 @@ export const S = {
       valuationDate: date,
       valuer: z.string().max(120),
       method: z.string().max(40),
+      priorLienAmount: money.optional(),
     })
     .strict(),
   guarantee: z
@@ -207,7 +420,111 @@ export const S = {
   book: z.object({ plannedDisbursementDate: date.optional() }).strict(),
   prepareDisbursement: z.object({ valueDate: date.optional() }).strict(),
   executeDisbursement: z
-    .object({ externalReference: z.string().min(2).max(120) })
+    .object({
+      externalReference: z.string().min(2).max(120),
+      /**
+       * Who receives the money (UC-05); an INTERNAL_LOAN payee settles that
+       * loan of the same borrower from the proceeds (UC-35).
+       */
+      payees: z
+        .array(
+          z
+            .object({
+              type: z.enum([
+                'BORROWER',
+                'SELLER',
+                'DEALER',
+                'SCHOOL',
+                'PREVIOUS_LENDER',
+                'INTERNAL_LOAN',
+                // BNPL (LT-11): paid net of the merchant discount.
+                'MERCHANT',
+                // Leases (LT-15): the lender buys the asset from the supplier.
+                'SUPPLIER',
+                'OTHER',
+              ]),
+              name: z.string().min(2).max(120),
+              reference: z.string().max(120).optional(),
+              account: z.string().max(60).optional(),
+              loanId: uuid.optional(),
+              amount: money,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(20)
+        .optional(),
+    })
+    .strict(),
+  guarantorDemand: z
+    .object({
+      guaranteeId: z.string().uuid(),
+      amount: money.optional(),
+      payWithinDays: z.number().int().min(1).max(90).optional(),
+    })
+    .strict(),
+  guarantorPayment: z
+    .object({
+      amount: money,
+      externalReference: z.string().max(120).optional(),
+    })
+    .strict(),
+  covenant: z
+    .object({
+      type: z.enum(lending.COVENANT_TYPES),
+      threshold: z
+        .string()
+        .regex(/^\d+(\.\d{1,6})?$/)
+        .optional(),
+      frequencyMonths: z.number().int().min(1).max(24),
+      firstTestOn: date.optional(),
+      description: z.string().max(500).optional(),
+    })
+    .strict(),
+  covenantTest: z
+    .object({
+      periodEnd: date,
+      annualNetOperatingIncome: money.optional(),
+      annualDebtService: money.optional(),
+      statementsReceived: z.boolean().optional(),
+      ebitda: money.optional(),
+      totalDebt: money.optional(),
+      cash: money.optional(),
+      interestExpense: money.optional(),
+      evidence: z.string().max(500).optional(),
+    })
+    .strict(),
+  covenantWaiver: z
+    .object({ reason: z.string().trim().min(3).max(500) })
+    .strict(),
+  setOff: z
+    .object({
+      amount: money,
+      sourceAccount: z.string().trim().min(2).max(60),
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  collectionTaskComplete: z
+    .object({
+      outcome: z.enum([
+        'CONTACTED',
+        'NO_ANSWER',
+        'PROMISE_TO_PAY',
+        'VISITED',
+        'NOT_FOUND',
+        'REFUSED',
+        'NOTICE_SENT',
+        'REFER_LEGAL',
+      ]),
+      note: z.string().max(1000).optional(),
+    })
+    .strict(),
+  downPayment: z
+    .object({
+      amount: money,
+      collectedBy: z.enum(['LENDER', 'SELLER']),
+      externalReference: z.string().min(2).max(120),
+    })
     .strict(),
   repayment: z
     .object({
@@ -215,6 +532,28 @@ export const S = {
       valueDate: date.optional(),
       externalReference: z.string().max(120).optional(),
       prepaymentStrategy: z.enum(['RECAST', 'SHORTEN']).optional(),
+      applyExcessAs: z.enum(['ADVANCE', 'PREPAY']).optional(),
+      payer: z
+        .object({
+          name: z.string().min(2).max(120),
+          relationship: z.enum([
+            'BORROWER',
+            'GUARANTOR',
+            'FAMILY',
+            'EMPLOYER',
+            'GROUP_MEMBER',
+            'OTHER',
+          ]),
+          reference: z.string().max(120).optional(),
+        })
+        .strict()
+        .optional(),
+      contributions: z
+        .array(
+          z.object({ borrowerId: z.string().uuid(), amount: money }).strict(),
+        )
+        .max(200)
+        .optional(),
     })
     .strict(),
   settlement: z
@@ -222,9 +561,31 @@ export const S = {
       amount: money,
       valueDate: date.optional(),
       externalReference: z.string().max(120).optional(),
+      /** Settle against an issued payoff letter (UC-31, UC-34). */
+      payoffQuoteId: z.string().uuid().optional(),
     })
     .strict(),
-  reversal: z.object({ reason: z.string().min(3).max(500) }).strict(),
+  payoffQuote: z
+    .object({
+      purpose: z.enum(['BORROWER', 'TAKEOVER']),
+      validDays: z.number().int().min(1).max(30).default(10),
+      recipientName: z.string().trim().max(200).optional(),
+      recipientReference: z.string().trim().max(120).optional(),
+    })
+    .strict()
+    .refine(
+      (b) => b.purpose !== 'TAKEOVER' || (b.recipientName ?? '').length >= 2,
+      {
+        message: 'A takeover quote names the acquiring lender.',
+        path: ['recipientName'],
+      },
+    ),
+  reversal: z
+    .object({
+      reason: z.string().min(3).max(500),
+      returned: z.boolean().optional(),
+    })
+    .strict(),
   writeOff: z.object({ reason: z.string().min(3).max(500) }).strict(),
   role: z
     .object({
@@ -307,6 +668,27 @@ export const S = {
       subjectType: z.enum(['BRANCH', 'USER', 'BORROWER']),
       subjectId: z.string().max(64),
       member: z.boolean(),
+      reason: z.string().max(300).optional(),
+    })
+    .strict(),
+  ledgerAccount: z
+    .object({
+      code: z.string().trim().min(2).max(16),
+      name: z.string().trim().min(2).max(120),
+      type: z.enum(['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']),
+    })
+    .strict(),
+  branchCreate: z
+    .object({
+      name: z.string().trim().min(2).max(80),
+      code: z.string().trim().max(12).optional(),
+    })
+    .strict(),
+  branchUpdate: z
+    .object({
+      name: z.string().trim().min(2).max(80).optional(),
+      code: z.string().trim().max(12).nullable().optional(),
+      isActive: z.boolean().optional(),
     })
     .strict(),
   serviceAccount: z
@@ -348,6 +730,91 @@ export const S = {
       observationDate: date,
       rate: z.string().regex(/^-?\d+(\.\d+)?$/),
       source: z.string().min(2).max(120),
+    })
+    .strict(),
+  // Institutional lending: counterparties and exposure limits.
+  counterpartyCreate: z
+    .object({
+      name: z.string().trim().min(2).max(160),
+      type: z.enum(lending.COUNTERPARTY_TYPES),
+      countryCode: z.string().regex(/^[A-Z]{2}$/),
+      /** The borrower record the counterparty's applications are made under. */
+      borrowerId: uuid,
+      legalIdentifier: z.string().trim().max(60).optional(),
+      rating: z.enum(lending.RATING_SCALE).optional(),
+      ratingAgency: z.string().trim().max(60).optional(),
+      ratedOn: date.optional(),
+    })
+    .strict(),
+  counterpartyRating: z
+    .object({
+      rating: z.enum(lending.RATING_SCALE).nullable(),
+      ratingAgency: z.string().trim().max(60).optional(),
+      ratedOn: date,
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  counterpartyStatus: z
+    .object({
+      status: z.enum(['ACTIVE', 'SUSPENDED']),
+      reason: z.string().trim().min(3).max(500),
+    })
+    .strict(),
+  exposureLimitPropose: z
+    .object({
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      reviewOn: date,
+      note: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  countryLimitPropose: z
+    .object({
+      countryCode: z.string().regex(/^[A-Z]{2}$/),
+      amount: money,
+      currency: z.string().regex(/^[A-Z]{3}$/),
+      reviewOn: date,
+      note: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  limitDecision: z
+    .object({
+      approve: z.boolean(),
+      comment: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  // Income-contingent repayment.
+  incomeAssessment: z
+    .object({
+      declaredAnnualIncome: money,
+      reason: z.enum(['ANNUAL', 'CHANGE_OF_CIRCUMSTANCES']),
+      incomePeriod: z.string().trim().max(40).optional(),
+      evidenceType: z.enum([
+        'PAYSLIP',
+        'TAX_RETURN',
+        'EMPLOYER_LETTER',
+        'BENEFITS_STATEMENT',
+        'NO_INCOME_DECLARATION',
+        'OTHER',
+      ]),
+      evidenceReference: z.string().trim().min(2).max(200),
+      documentId: uuid.optional(),
+    })
+    .strict(),
+  assessmentDecision: z
+    .object({
+      approve: z.boolean(),
+      comment: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+  // Murabaha: the asset the financier buys and resells.
+  murabahaAsset: z
+    .object({
+      assetType: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/),
+      description: z.string().trim().min(2).max(200),
+      serialNumber: z.string().trim().max(80).optional(),
+      supplierName: z.string().trim().min(2).max(120),
+      cost: money,
     })
     .strict(),
 };

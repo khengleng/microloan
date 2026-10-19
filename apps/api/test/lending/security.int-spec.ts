@@ -2,6 +2,7 @@
 /**
  * Mandatory security and lifecycle tests, over the real HTTP API and database.
  */
+import { lending } from '@microloan/shared';
 import {
   Fixture,
   TEST_DB,
@@ -11,6 +12,7 @@ import {
   expectOk,
   grant,
   key,
+  serviceAccount,
 } from './harness';
 import {
   activeProduct,
@@ -582,11 +584,12 @@ d('Lending security and lifecycle (integration)', () => {
       const tpl = expectOk(
         await f.as('maker').get('/lending/templates/PERSONAL_INSTALMENT'),
       );
-      // Murabaha needs islamic.murabaha, which is not implemented. (This
-      // used to be the floating-rate example; floating ships in Phase 2 and
-      // activates, so it no longer demonstrates a blocked capability.)
+      // Automated payout needs a real payment-rail adapter, which the
+      // platform does not ship (disbursement.payment_rail is
+      // REQUIRES_INTEGRATION). Earlier examples — floating rates, then
+      // Murabaha — shipped and now activate, so they no longer block.
       const cfg = structuredClone(tpl.defaultConfig);
-      cfg.attributes.structure = 'MURABAHA';
+      cfg.operations.integrations.payments = 'ADAPTER';
       const created = expectOk(
         await f.as('maker').post('/lending/products', {
           templateCode: 'PERSONAL_INSTALMENT',
@@ -610,13 +613,20 @@ d('Lending security and lifecycle (integration)', () => {
         .post(`/lending/product-versions/${created.version.id}/activate`);
       expect(act.status).toBe(400);
       expect(act.body.code).toBe('MISSING_CAPABILITIES');
-      const card = await f.as('maker').post('/lending/products', {
-        templateCode: 'CREDIT_CARD',
-        code: 'CC-1',
-        name: 'Card',
-      });
-      expect(card.status).toBe(400);
-      expect(card.body.code).toBe('TEMPLATE_UNAVAILABLE');
+      // Any template whose capabilities are still missing cannot be used.
+      const { lending } = require('@microloan/shared');
+      const blocked = lending.PRODUCT_TEMPLATES.find(
+        (t: any) => !lending.templateAvailability(t).available,
+      );
+      if (blocked) {
+        const res = await f.as('maker').post('/lending/products', {
+          templateCode: blocked.code,
+          code: 'BLOCKED-1',
+          name: 'Not yet available',
+        });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('TEMPLATE_UNAVAILABLE');
+      }
     });
 
     it('approved versions are immutable, and product edits do not alter existing agreements', async () => {
@@ -813,12 +823,10 @@ d('Lending security and lifecycle (integration)', () => {
     });
 
     it('integration service accounts are tenant-bound and narrowly scoped', async () => {
-      const sa = expectOk(
-        await f.as('admin2').post('/lending/access/service-accounts', {
-          name: 'Bank feed',
-          scopes: ['loan.repayment.post'],
-        }),
-      );
+      const sa = await serviceAccount(f, 'admin2', 'admin1', {
+        name: 'Bank feed',
+        scopes: ['loan.repayment.post'],
+      });
       const call = (k: string, id: string, amount = '7.00') =>
         f
           .http()
@@ -831,12 +839,10 @@ d('Lending security and lifecycle (integration)', () => {
         (await call('deadbeefdeadbeef.notarealsecretnotarealsecret00', loanId))
           .status,
       ).toBe(401);
-      const readOnly = expectOk(
-        await f.as('admin2').post('/lending/access/service-accounts', {
-          name: 'Reporting',
-          scopes: ['loan.read'],
-        }),
-      );
+      const readOnly = await serviceAccount(f, 'admin2', 'admin1', {
+        name: 'Reporting',
+        scopes: ['loan.read'],
+      });
       expect((await call(readOnly.key, loanId)).status).toBe(403);
       // A tenant-1 key cannot reach another tenant's loan.
       await grant(f, f.t2, 't2ops', 'LOAN_OPS_MAKER');

@@ -21,7 +21,10 @@ export class AgreementsController {
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get('loan/:loanId/key-facts')
   keyFacts(@CurrentUser() user: JwtPayload, @Param('loanId') loanId: string) {
-    return this.service.keyFacts(this.authz.scopeWhere(user as any, { id: loanId }));
+    // Branch-scoped staff see only their own branch's loans.
+    return this.service.keyFacts(
+      this.authz.scopeWhere(user as any, { id: loanId, ...this.authz.branchFilter(user as any) }),
+    );
   }
 
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX', 'TENANT_ADMIN', 'LOAN_OFFICER', 'BRANCH_MANAGER', 'CREDIT_OFFICER')
@@ -34,7 +37,7 @@ export class AgreementsController {
     @Ip() ip: string,
   ) {
     const agreement = await this.service.sign({
-      where: this.authz.scopeWhere(user as any, { id: loanId }),
+      where: this.authz.scopeWhere(user as any, { id: loanId, ...this.authz.branchFilter(user as any) }),
       tenantId: user.tenantId as string,
       signerRole: 'STAFF',
       signedByUserId: user.sub,

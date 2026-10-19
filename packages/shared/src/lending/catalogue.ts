@@ -164,6 +164,23 @@ const SECURED = (maxLtv: string, types: string[], haircuts: Record<string, strin
 const BUSINESS = { identity: { customerTypes: ['SOLE_PROPRIETOR', 'SME'] as ('SOLE_PROPRIETOR' | 'SME')[] }, eligibility: { minBusinessAgeMonths: 12, maxAgeAtMaturityYears: null } };
 const CORPORATE = { identity: { customerTypes: ['CORPORATE'] as 'CORPORATE'[] }, eligibility: { minAgeYears: null, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null } };
 const INSTITUTION = { identity: { customerTypes: ['INSTITUTION', 'PUBLIC_BODY'] as ('INSTITUTION' | 'PUBLIC_BODY')[] }, eligibility: { minAgeYears: null, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null }, pricing: { dayCount: 'ACT_360' as const } };
+/**
+ * A documentary trade loan is repaid from the trade's proceeds, not from
+ * income: a bullet after interest-only instalments, with no debt-service
+ * ratio on monthly income (the financing ratio and the trade cycle bound it).
+ */
+const DOCUMENTARY = {
+  eligibility: { ...BUSINESS.eligibility, maxDebtServiceRatio: null },
+  repayment: { method: 'INTEREST_ONLY' as const },
+  limits: { minAmount: '1000', maxAmount: '2000000', minInstalments: 1, maxInstalments: 6 },
+};
+/** A revolving programme limit drawn only by bought receivables, priced by fee or discount. */
+const RECEIVABLES = {
+  ...BUSINESS,
+  limits: { minAmount: '1000', maxAmount: '1000000', minInstalments: 1, maxInstalments: 12 },
+  pricing: { accrualBasis: 'DAILY' as const, fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' }, penalty: { type: 'NONE' as const, annualRate: null } },
+  facility: { type: 'REVOLVING' as const, availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
+};
 
 /**
  * Facility presets. Every facility prices a fluctuating drawn balance, so they
@@ -209,13 +226,33 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('EMERGENCY_LOAN', 'PERSONAL', 'Emergency loan', 'Small, fast-disbursed unsecured loan.', { limits: { maxAmount: '1500', maxInstalments: 12 } }),
   template('DEBT_CONSOLIDATION', 'PERSONAL', 'Debt consolidation', 'Refinances existing consumer debts into one instalment loan.', { limits: { maxInstalments: 60, maxAmount: '30000' } }),
   // A card line revolves and is repayable on demand against a minimum
-  // payment, so it carries no commitment fee and does not term out.
-  template('CREDIT_CARD', 'PERSONAL', 'Credit card', 'Revolving card credit.', {
-    pricing: { accrualBasis: 'DAILY' },
+  // payment, so it carries no commitment fee and does not term out. Its
+  // balance is split into purchases (with a grace period), cash advances
+  // (fee plus interest from day one) and instalment plans.
+  template('CREDIT_CARD', 'PERSONAL', 'Credit card', 'Revolving card credit with a purchase grace period, cash advances and instalment plans.', {
+    pricing: { accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0.15', minAnnualRate: '0.10', maxAnnualRate: '0.18' } },
     limits: { minAmount: '100', maxAmount: '20000', minInstalments: 1, maxInstalments: 12 },
     facility: { type: 'REVOLVING', availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
-  }, ['card.revolving_credit']),
-  template('BNPL', 'PERSONAL', 'Buy now, pay later', 'Purchase-linked short instalment plans.', { identity: { channels: ['API'] } }, ['bnpl.merchant_settlement']),
+    card: {
+      cashAdvanceAnnualRate: '0.18',
+      cashAdvanceFeeRate: '0.03',
+      cashAdvanceFeeMinimum: '5',
+      cashAdvanceLimitShare: '0.3',
+      minimumPaymentRate: '0.05',
+      minimumPaymentFloor: '10',
+      paymentDueDays: 21,
+      instalmentPlan: { annualRate: '0.12', minAmount: '200', allowedMonths: [3, 6, 12] },
+    },
+  }),
+  // Four interest-free fortnightly payments; the merchant pays for the credit
+  // through the discount it accepts at settlement.
+  template('BNPL', 'PERSONAL', 'Buy now, pay later', 'Purchase-linked interest-free instalments, settled to the merchant net of a discount.', {
+    identity: { channels: ['API', 'STAFF_PORTAL'] },
+    pricing: { fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' } },
+    repayment: { frequency: 'FORTNIGHTLY' },
+    limits: { minAmount: '20', maxAmount: '2000', minInstalments: 2, maxInstalments: 6 },
+    bnpl: { merchantDiscountRate: '0.04' },
+  }),
   // Property
   template('HOME_MORTGAGE', 'PROPERTY', 'Home mortgage', 'Long-tenor annuity secured on residential property.', {
     ...SECURED('0.8', ['RESIDENTIAL_PROPERTY'], { RESIDENTIAL_PROPERTY: '0.1' }),
@@ -261,7 +298,19 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   }),
   template('TUITION_LOAN', 'EDUCATION', 'Tuition loan', 'Short tuition instalment plan.', { limits: { maxInstalments: 12, maxAmount: '8000' } }),
   template('VOCATIONAL_TRAINING', 'EDUCATION', 'Vocational training loan', 'Training course finance.', { limits: { maxInstalments: 24, maxAmount: '3000' } }),
-  template('INCOME_CONTINGENT_EDUCATION', 'EDUCATION', 'Income-contingent education loan', 'Repayments scale with future income.', {}, ['education.income_contingent']),
+  // Repayments are a share of income above a threshold, reassessed every
+  // year under maker-checker; nothing is due (and nothing is late) below it.
+  // Uncovered interest is capitalised up to half the amount financed, and
+  // what is left when the term ends is forgiven (DECISIONS D-066).
+  template('INCOME_CONTINGENT_EDUCATION', 'EDUCATION', 'Income-contingent education loan', 'Repayments are a share of income above a threshold, reassessed every year; nothing is due below it, and what is left at the end of the term is forgiven.', {
+    eligibility: { employmentTypes: ['STUDENT'], minAgeYears: 17, maxAgeAtMaturityYears: null, maxDebtServiceRatio: null },
+    pricing: { fixed: { defaultAnnualRate: '0.03', minAnnualRate: '0', maxAnnualRate: '0.06' } },
+    repayment: { prepayment: { allowed: false }, allocation: { excessHandling: 'ADVANCE' } },
+    limits: { minAmount: '500', maxAmount: '30000', minInstalments: 60, maxInstalments: 360 },
+    operations: { restructureAllowed: false },
+    incomeContingent: { repaymentRate: '0.09', incomeThreshold: '3000', reassessmentMonths: 12, unpaidInterest: 'CAPITALISE', capitalisationCap: '0.5', evidenceRequired: true },
+    accounting: { principalForgivenessExpense: '5700' },
+  }, ['education.income_contingent']),
   // Microfinance
   template('MICRO_INDIVIDUAL', 'MICROFINANCE', 'Individual microenterprise loan', 'Weekly or monthly loan to a microenterprise owner.', {
     ...BUSINESS,
@@ -321,7 +370,22 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   template('WORKING_CAPITAL', 'SME_COMMERCIAL', 'Working capital loan', 'Short-term working capital, bullet or instalment.', { ...BUSINESS, repayment: { method: 'INTEREST_ONLY' }, limits: { minInstalments: 1, maxInstalments: 12 } }),
   template('OVERDRAFT', 'SME_COMMERCIAL', 'Overdraft', 'Business overdraft facility.', { ...BUSINESS, limits: { minAmount: '1000', maxAmount: '100000', minInstalments: 1, maxInstalments: 12 }, ...OVERDRAFT_FACILITY }),
   template('REVOLVING_CREDIT', 'SME_COMMERCIAL', 'Revolving credit facility', 'Revolving business credit line.', { ...BUSINESS, limits: { minAmount: '5000', maxAmount: '250000', minInstalments: 6, maxInstalments: 60 }, ...REVOLVING(36) }),
-  template('INVENTORY_BACKED', 'SME_COMMERCIAL', 'Inventory-backed loan', 'Borrowing base against inventory.', { ...BUSINESS, ...SECURED('0.6', ['INVENTORY']) }, ['collateral.borrowing_base']),
+  // A revolving line drawn up to the lower of its limit and the borrowing base
+  // certified by the borrower (LT-14, DECISIONS D-062).
+  template('INVENTORY_BACKED', 'SME_COMMERCIAL', 'Inventory-backed loan', 'Revolving line drawn against a certified borrowing base of inventory and receivables.', {
+    ...BUSINESS,
+    ...SECURED('0.6', ['INVENTORY']),
+    ...REVOLVING(12),
+    limits: { minAmount: '5000', maxAmount: '1000000', minInstalments: 6, maxInstalments: 36 },
+    borrowingBase: {
+      certificateMaxAgeDays: 31,
+      classes: [
+        { code: 'RAW_MATERIALS', label: 'Raw materials', kind: 'INVENTORY', advanceRate: '0.5', maxAgeDays: 180, concentrationLimit: null },
+        { code: 'FINISHED_GOODS', label: 'Finished goods', kind: 'INVENTORY', advanceRate: '0.6', maxAgeDays: 365, concentrationLimit: null },
+        { code: 'RECEIVABLES', label: 'Trade receivables', kind: 'RECEIVABLES', advanceRate: '0.8', maxAgeDays: 90, concentrationLimit: '0.25' },
+      ],
+    },
+  }),
   template('COMMERCIAL_PROPERTY', 'SME_COMMERCIAL', 'Commercial property loan', 'Term loan secured on commercial real estate.', { ...BUSINESS, ...SECURED('0.7', ['COMMERCIAL_PROPERTY']), limits: { minAmount: '20000', maxAmount: '2000000', maxInstalments: 180 } }),
   // Agriculture
   template('AGRI_CROP_SEASONAL', 'AGRICULTURE', 'Seasonal crop loan', 'Interest accrues daily; principal is repaid on harvest dates.', {
@@ -351,25 +415,217 @@ export const PRODUCT_TEMPLATES: ProductTemplateDefinition[] = [
   }),
   // Corporate / project
   template('CORPORATE_TERM', 'CORPORATE_PROJECT', 'Corporate term loan', 'Senior term loan to a corporate borrower.', { ...CORPORATE, repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' }, limits: { minAmount: '100000', maxAmount: '50000000', minInstalments: 4, maxInstalments: 40 } }),
-  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', CORPORATE, ['syndication.participations']),
-  template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', { ...CORPORATE, attributes: { recourse: 'NON_RECOURSE' } }, ['project_finance.waterfall', 'covenants.monitoring']),
-  template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', CORPORATE, ['project_finance.waterfall', 'covenants.monitoring']),
-  template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', CORPORATE, ['covenants.monitoring']),
+  // The tenant is agent and lead; participants share funding and every
+  // collection by share (LT-24). Pricing is typically benchmark + margin:
+  // switch `attributes.rateType` to FLOATING and set `pricing.floating`.
+  template('SYNDICATED', 'CORPORATE_PROJECT', 'Syndicated loan', 'Multi-lender facility with an agent.', {
+    ...CORPORATE,
+    repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' },
+    limits: { minAmount: '1000000', maxAmount: '500000000', minInstalments: 4, maxInstalments: 40 },
+    syndication: { minParticipants: 2, maxParticipants: 20 },
+  }, ['syndication.participations']),
+  // Project and infrastructure finance (LT-17, DECISIONS D-061): drawn in
+  // construction tranches with interest capitalized, termed out on a profile
+  // sculpted to the projected CFADS, serviced through a cash waterfall.
+  template('PROJECT_FINANCE', 'CORPORATE_PROJECT', 'Project finance', 'Non-recourse finance repaid from project cash flows.', {
+    ...CORPORATE,
+    attributes: { recourse: 'NON_RECOURSE' },
+    limits: { minAmount: '1000000', maxAmount: '100000000', minInstalments: 12, maxInstalments: 240 },
+    ...STAGED(24, [
+      { code: 'FINANCIAL_CLOSE', label: 'Financial close', shareOfLimit: '0.3', availableAfterMonths: 0, conditions: ['EQUITY_CONTRIBUTED'] },
+      { code: 'CONSTRUCTION', label: 'Construction milestone', shareOfLimit: '0.4', availableAfterMonths: 6, conditions: ['ENGINEER_CERTIFICATE'] },
+      { code: 'COMPLETION', label: 'Mechanical completion', shareOfLimit: '0.3', availableAfterMonths: 12, conditions: ['ENGINEER_CERTIFICATE'] },
+    ]),
+    projectFinance: { targetDscr: '1.30', lockUpDscr: '1.10', dsraMonths: 6, cashSweepRate: '0.25', capitalizeConstructionInterest: true },
+    covenants: [
+      { type: 'MIN_DSCR', threshold: '1.20', frequencyMonths: 6, description: 'Historic DSCR at least 1.20x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 6, description: 'Semi-annual project accounts and operating report' },
+    ],
+  }),
+  template('INFRASTRUCTURE', 'CORPORATE_PROJECT', 'Infrastructure finance', 'Long-tenor infrastructure finance.', {
+    ...CORPORATE,
+    attributes: { recourse: 'LIMITED' },
+    limits: { minAmount: '5000000', maxAmount: '500000000', minInstalments: 24, maxInstalments: 360 },
+    ...STAGED(36, [
+      { code: 'FINANCIAL_CLOSE', label: 'Financial close', shareOfLimit: '0.25', availableAfterMonths: 0, conditions: ['EQUITY_CONTRIBUTED'] },
+      { code: 'CIVIL_WORKS', label: 'Civil works milestone', shareOfLimit: '0.45', availableAfterMonths: 12, conditions: ['ENGINEER_CERTIFICATE'] },
+      { code: 'COMMISSIONING', label: 'Commissioning', shareOfLimit: '0.3', availableAfterMonths: 24, conditions: ['ENGINEER_CERTIFICATE'] },
+    ]),
+    projectFinance: { targetDscr: '1.25', lockUpDscr: '1.05', dsraMonths: 6, cashSweepRate: null, capitalizeConstructionInterest: true },
+    covenants: [
+      { type: 'MIN_DSCR', threshold: '1.15', frequencyMonths: 6, description: 'Historic DSCR at least 1.15x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 12, description: 'Audited annual accounts of the concession company' },
+    ],
+  }),
+  // Leveraged acquisition term loan with maintenance covenants set up at
+  // booking (LT-16, DECISIONS D-060).
+  template('ACQUISITION_FINANCE', 'CORPORATE_PROJECT', 'Acquisition finance', 'Leveraged acquisition finance with covenants.', {
+    ...CORPORATE,
+    repayment: { frequency: 'QUARTERLY', method: 'EQUAL_PRINCIPAL' },
+    limits: { minAmount: '500000', maxAmount: '50000000', minInstalments: 4, maxInstalments: 28 },
+    covenants: [
+      { type: 'MAX_LEVERAGE', threshold: '3.50', frequencyMonths: 3, description: 'Net debt / EBITDA at most 3.50x' },
+      { type: 'MIN_INTEREST_COVER', threshold: '3.00', frequencyMonths: 3, description: 'EBITDA / interest at least 3.00x' },
+      { type: 'MIN_DSCR', threshold: '1.20', frequencyMonths: 3, description: 'DSCR at least 1.20x' },
+      { type: 'FINANCIAL_STATEMENTS', threshold: null, frequencyMonths: 3, description: 'Quarterly management accounts and compliance certificate' },
+    ],
+  }),
   // Trade / receivables
-  template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents.', BUSINESS, ['trade.documentary']),
-  template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance.', BUSINESS, ['trade.documentary']),
-  template('INVOICE_BACKED', 'TRADE_RECEIVABLES', 'Invoice-backed loan', 'Advances against an invoice register.', BUSINESS, ['trade.invoice_finance', 'collateral.borrowing_base']),
-  template('FACTORING', 'TRADE_RECEIVABLES', 'Factoring', 'Purchase of receivables with debtor collection.', { ...BUSINESS, attributes: { recourse: 'FULL' } }, ['trade.factoring']),
-  template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance.', BUSINESS, ['trade.supply_chain']),
-  template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of trade receivables.', { ...BUSINESS, attributes: { recourse: 'NON_RECOURSE' } }, ['trade.forfaiting']),
+  // Documentary trade loans: one trade transaction per loan, its documents
+  // verified before payout, the amount within the financing ratio and the
+  // tenor ending by the expected proceeds (plus grace), which repay it. A
+  // bullet: interest-only instalments, principal at maturity.
+  template('IMPORT_LOAN', 'TRADE_RECEIVABLES', 'Import loan', 'Finance against import documents, repaid from the sale of the goods.', {
+    ...BUSINESS,
+    ...DOCUMENTARY,
+    trade: { documentary: { direction: 'IMPORT', requiredDocuments: ['COMMERCIAL_INVOICE', 'BILL_OF_LADING', 'PACKING_LIST', 'INSURANCE_CERTIFICATE'], maxTradeCycleDays: 180, proceedsGraceDays: 30, maxFinancingRatio: '0.9' } },
+  }),
+  template('EXPORT_WORKING_CAPITAL', 'TRADE_RECEIVABLES', 'Export working capital', 'Pre-shipment export finance, repaid from the export proceeds.', {
+    ...BUSINESS,
+    ...DOCUMENTARY,
+    trade: { documentary: { direction: 'EXPORT', requiredDocuments: ['EXPORT_CONTRACT', 'PROFORMA_INVOICE', 'EXPORT_LICENCE'], maxTradeCycleDays: 180, proceedsGraceDays: 30, maxFinancingRatio: '0.8' } },
+  }),
+  // A revolving limit drawn only by advances against approved invoices. The
+  // price is the invoice fee per period (TV-20), so the drawn balance itself
+  // carries no interest. The register's advance rate is this product's
+  // borrowing base, so the general borrowing-base capability is not needed
+  // (DECISIONS D-016).
+  template('INVOICE_BACKED', 'TRADE_RECEIVABLES', 'Invoice-backed loan', 'Advances against an invoice register.', {
+    ...BUSINESS,
+    attributes: { recourse: 'FULL' },
+    limits: { minAmount: '1000', maxAmount: '500000', minInstalments: 1, maxInstalments: 12 },
+    pricing: { accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0', minAnnualRate: '0', maxAnnualRate: '0' }, penalty: { type: 'NONE', annualRate: null } },
+    facility: { type: 'REVOLVING', availabilityMonths: 12, commitmentFeeRate: null, termOutOnExpiry: false },
+    trade: { invoice: { advanceRate: '0.8', feeRatePerPeriod: '0.02', feePeriodDays: 30, feeBasis: 'WHOLE_PERIODS', recourseGraceDays: 30, maxInvoiceTenorDays: 180 } },
+  }, ['trade.invoice_finance']),
+  // An import letter of credit (LT-19): a fee-earning contingent commitment
+  // that becomes a term loan only if the bank pays under it (UC-53). The loan
+  // it converts into is a separate, configured term product.
+  template('LETTER_OF_CREDIT', 'TRADE_RECEIVABLES', 'Import letter of credit', 'Documentary credit for an importer; converts to a loan when paid.', {
+    ...BUSINESS,
+    limits: { minAmount: '1000', maxAmount: '2000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { letterOfCredit: { feeRatePerPeriod: '0.005', feePeriodDays: 90, minimumFee: '50', maxTenorDays: 365, conversionProductCode: null } },
+  }, ['trade.letter_of_credit']),
+  // Bought receivables share the invoice register and a revolving programme
+  // limit with invoice finance; the price is a fee or discount, never
+  // interest on the drawn balance.
+  template('FACTORING', 'TRADE_RECEIVABLES', 'Factoring', 'Purchase of receivables with debtor notification and collection.', {
+    ...RECEIVABLES,
+    attributes: { recourse: 'FULL' },
+    trade: { factoring: { advanceRate: '0.85', feeRatePerPeriod: '0.015', feePeriodDays: 30, feeBasis: 'WHOLE_PERIODS', serviceFeeRate: '0.005', recourse: 'FULL', limitedRecourseRate: null, recourseGraceDays: 60, maxInvoiceTenorDays: 120, notificationRequired: true, maxDebtorConcentration: '0.5' } },
+  }),
+  template('SUPPLY_CHAIN_FINANCE', 'TRADE_RECEIVABLES', 'Supply-chain finance', 'Buyer-led payables finance: approved supplier invoices paid early at a discount.', {
+    ...RECEIVABLES,
+    identity: { customerTypes: ['SME', 'CORPORATE'] },
+    limits: { minAmount: '10000', maxAmount: '5000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { supplyChain: { discountRate: '0.08', dayCountBasis: 360, discountMethod: 'STRAIGHT', maxInvoiceTenorDays: 180, buyerGraceDays: 5, supplierApprovalRequired: true } },
+  }),
+  template('FORFAITING', 'TRADE_RECEIVABLES', 'Forfaiting', 'Without-recourse purchase of avalised bills and notes at a discount.', {
+    ...RECEIVABLES,
+    attributes: { recourse: 'NON_RECOURSE' },
+    limits: { minAmount: '10000', maxAmount: '5000000', minInstalments: 1, maxInstalments: 12 },
+    trade: { forfaiting: { discountRate: '0.07', dayCountBasis: 360, discountMethod: 'STRAIGHT', graceDays: 3, maxTenorDays: 720, instrumentTypes: ['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE'], avalRequired: true, collectionGraceDays: 10 } },
+  }),
   // Institutional / public
-  template('INTERBANK', 'INSTITUTIONAL_PUBLIC', 'Interbank loan', 'Short-term interbank placement.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('MUNICIPAL', 'INSTITUTIONAL_PUBLIC', 'Municipal loan', 'Lending to local government.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('SOVEREIGN', 'INSTITUTIONAL_PUBLIC', 'Sovereign loan', 'Lending to a national government.', INSTITUTION, ['institutional.counterparty_limits']),
-  template('DEVELOPMENT_CONCESSIONAL', 'INSTITUTIONAL_PUBLIC', 'Development / concessional loan', 'Concessional development lending.', INSTITUTION, ['institutional.counterparty_limits']),
+  // Every institutional loan is made to a registered counterparty and checked
+  // against its approved counterparty and country limits at approval and at
+  // disbursement (DECISIONS D-065).
+  //
+  // A money-market placement: one bullet of principal and interest on the
+  // agreed maturity (any date up to a year, as an irregular first period),
+  // interest by actual days over 360.
+  template('INTERBANK', 'INSTITUTIONAL_PUBLIC', 'Interbank loan', 'Short-term interbank placement: principal and interest in one bullet at maturity, ACT/360, within approved counterparty and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['INSTITUTION'] },
+    pricing: { dayCount: 'ACT_360', accrualBasis: 'DAILY', fixed: { defaultAnnualRate: '0.05', minAnnualRate: '0.005', maxAnnualRate: '0.12' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'INTEREST_ONLY', allowIrregularFirstPeriod: true, maxFirstPeriodDays: 366, prepayment: { allowed: false } },
+    limits: { minAmount: '100000', maxAmount: '50000000', minInstalments: 1, maxInstalments: 12 },
+    operations: {
+      requiredDocuments: [{ code: 'INSTITUTION_LICENCE', label: 'Banking licence or registration of the counterparty', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'MASTER_AGREEMENT', label: 'Master placement agreement in force with the counterparty' }],
+      writeOffMinDpd: 360,
+    },
+    institutional: { counterpartyTypes: ['BANK'], minRating: null, requireCountryLimit: true, maxTenorDays: 366 },
+  }),
+  template('MUNICIPAL', 'INSTITUTIONAL_PUBLIC', 'Municipal loan', 'Lending to local government: semi-annual instalments within approved counterparty and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['PUBLIC_BODY'] },
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.06', minAnnualRate: '0.03', maxAnnualRate: '0.10' }, regulatoryCapAnnualRate: null },
+    repayment: { frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 2 },
+    limits: { minAmount: '50000', maxAmount: '20000000', minInstalments: 2, maxInstalments: 40 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Council resolution authorising the borrowing', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'AGREEMENT_SIGNED', label: 'Loan agreement signed by the authorised officer' }],
+      writeOffMinDpd: 360,
+    },
+    institutional: { counterpartyTypes: ['MUNICIPALITY'], minRating: null, requireCountryLimit: true },
+  }),
+  template('SOVEREIGN', 'INSTITUTIONAL_PUBLIC', 'Sovereign loan', 'Lending to a national government: semi-annual equal principal after an optional grace, within approved sovereign and country limits.', {
+    ...INSTITUTION,
+    identity: { customerTypes: ['PUBLIC_BODY'] },
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.045', minAnnualRate: '0.02', maxAnnualRate: '0.08' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'EQUAL_PRINCIPAL', frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 6 },
+    limits: { minAmount: '1000000', maxAmount: '500000000', minInstalments: 4, maxInstalments: 40 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Ministry of finance authorisation of the borrowing', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [
+        { code: 'AGREEMENT_SIGNED', label: 'Loan agreement signed by the authorised representative' },
+        { code: 'LEGAL_OPINION', label: 'Legal opinion on the borrower\u2019s capacity and authority' },
+      ],
+      writeOffMinDpd: 720,
+    },
+    institutional: { counterpartyTypes: ['SOVEREIGN'], minRating: null, requireCountryLimit: true },
+  }),
+  // Concessional terms: a low rate and a long grace, accepted only when the
+  // grant element (IMF/World Bank, 5% discount rate) is at least 35%.
+  template('DEVELOPMENT_CONCESSIONAL', 'INSTITUTIONAL_PUBLIC', 'Development / concessional loan', 'Concessional development lending: a low rate and a long principal grace, accepted only at a grant element of 35% or more.', {
+    ...INSTITUTION,
+    pricing: { dayCount: 'ACT_360', fixed: { defaultAnnualRate: '0.0075', minAnnualRate: '0', maxAnnualRate: '0.03' }, regulatoryCapAnnualRate: null },
+    repayment: { method: 'EQUAL_PRINCIPAL', frequency: 'SEMI_ANNUAL', maxPrincipalGraceInstalments: 20 },
+    limits: { minAmount: '100000', maxAmount: '200000000', minInstalments: 10, maxInstalments: 80 },
+    operations: {
+      requiredDocuments: [{ code: 'BORROWING_AUTHORISATION', label: 'Authorisation of the borrowing by the competent authority', stage: 'APPLICATION', mandatory: true }],
+      disbursementConditions: [{ code: 'AGREEMENT_SIGNED', label: 'Financing agreement signed' }],
+      writeOffMinDpd: 720,
+    },
+    institutional: { counterpartyTypes: ['SOVEREIGN', 'MUNICIPALITY', 'DEVELOPMENT_INSTITUTION', 'BANK'], minRating: null, requireCountryLimit: true, minGrantElement: '0.35' },
+  }),
   // Islamic structures — separate contract behaviour, not a conventional loan with a relabelled rate.
-  template('MURABAHA', 'PERSONAL', 'Murabaha financing', 'Asset purchase and resale at a disclosed profit.', { attributes: { structure: 'MURABAHA' } }, ['islamic.murabaha']),
-  template('IJARAH', 'VEHICLE_ASSET', 'Ijarah financing', 'Lease with rentals; the financier owns the asset.', { attributes: { structure: 'IJARAH', secured: true }, security: { collateralRequired: true, acceptedCollateralTypes: ['VEHICLE', 'EQUIPMENT'], maxLtv: '1' } }, ['islamic.ijarah']),
+  // The financier buys the asset (paid to its supplier, never the customer)
+  // and sells it at cost plus a fixed profit disclosed in the contract. The
+  // profit is deferred and recognised over the term on its own accounts
+  // (1350/1355/4700, memo 1360/2510); late charges go to charity (2800);
+  // unearned profit is rebated (ibra') on early settlement (DECISIONS D-067).
+  template('MURABAHA', 'PERSONAL', 'Murabaha financing', 'The financier buys the asset and sells it to the customer at cost plus a disclosed, fixed profit, paid in instalments; no interest.', {
+    attributes: { structure: 'MURABAHA' },
+    pricing: {
+      interestMethod: 'FLAT',
+      fixed: { defaultAnnualRate: '0.08', minAnnualRate: '0.04', maxAnnualRate: '0.15' },
+      penalty: { type: 'FLAT_PER_INSTALMENT', flatAmount: '5', annualRate: null, graceDays: 3 },
+    },
+    repayment: { prepayment: { allowed: false }, allocation: { excessHandling: 'ADVANCE' } },
+    limits: { maxAmount: '50000', maxInstalments: 60 },
+    operations: {
+      restructureAllowed: false,
+      disbursementConditions: [
+        { code: 'PROMISE_TO_PURCHASE', label: 'Customer\u2019s promise to purchase (wa\u2019d) signed' },
+        { code: 'AGREEMENT_SIGNED', label: 'Murabaha sale agreement signed after the financier owns the asset' },
+      ],
+    },
+    murabaha: { assetTypes: ['VEHICLE', 'EQUIPMENT', 'CONSUMER_GOODS', 'HOUSEHOLD_GOODS'], ibraShare: '1' },
+    accounting: { loansReceivable: '1350', interestReceivable: '1355', interestIncome: '4700', penaltyIncome: '2800' },
+  }, ['islamic.murabaha']),
+  // A true lease: the financier buys and keeps title to the asset; rentals
+  // are rental income, not interest, and late charges go to charity. The
+  // residual is the purchase-option price, carried as the final balloon.
+  template('IJARAH', 'VEHICLE_ASSET', 'Ijarah financing', 'Lease with rentals; the financier owns the asset until the lessee buys it for the residual or returns it.', {
+    attributes: { structure: 'IJARAH', secured: true },
+    security: { collateralRequired: true, acceptedCollateralTypes: ['VEHICLE', 'EQUIPMENT'], maxLtv: '1', valuationMaxAgeDays: 365 },
+    repayment: { method: 'BALLOON', maxBalloonFraction: '0.3', prepayment: { allowedStrategies: ['RECAST'] } },
+    limits: { maxAmount: '100000', maxInstalments: 60 },
+    lease: { assetTypes: ['VEHICLE', 'EQUIPMENT'], allowReturn: true },
+    accounting: { loansReceivable: '1250', interestReceivable: '1255', interestIncome: '4510', penaltyIncome: '2800' },
+  }),
 ];
 
 export const TEMPLATE_BY_CODE: Record<string, ProductTemplateDefinition> = Object.fromEntries(PRODUCT_TEMPLATES.map((t) => [t.code, t]));

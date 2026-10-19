@@ -3,6 +3,8 @@ import { lending } from '@microloan/shared';
 import { LedgerService } from '../../ledger/ledger.service';
 import type { Tx } from '../common/lending-prisma';
 import { D } from '../common/util';
+import { assertPeriodOpen } from './period-lock';
+import { currentBatch } from '../servicing/batch-scope';
 
 export interface PostingLine {
   accountCode: string;
@@ -20,18 +22,56 @@ export interface PostingLine {
  */
 @Injectable()
 export class PostingService {
+  /**
+   * Committed ledger account ids by tenant and code. Accounts are never
+   * renamed or deleted once posted to (the journal's foreign key restricts
+   * it), so an id read once stays right; a code not seen yet is provisioned
+   * and read as before. An account this very transaction created is not
+   * remembered until it is seen committed, so a rolled-back first posting
+   * cannot leave an id behind that does not exist.
+   */
+  private readonly accountIds = new Map<string, Map<string, string>>();
+
   constructor(private readonly ledger: LedgerService) {}
+
+  private async resolveAccounts(
+    tx: Tx,
+    tenantId: string,
+    codes: string[],
+  ): Promise<Map<string, string>> {
+    const known = this.accountIds.get(tenantId);
+    if (known && codes.every((c) => known.has(c))) return known;
+    await this.ledger.ensureChartOfAccounts(tenantId, tx);
+    // Raw SQL to see which rows this transaction wrote (xmin); scoped by
+    // tenant explicitly, and row-level security applies inside the
+    // tenant transaction.
+    const rows = await tx.$queryRaw<
+      { id: string; code: string; mine: boolean }[]
+    >`SELECT id, code, (xmin::text::bigint = txid_current() % 4294967296) AS mine
+      FROM "LedgerAccount" WHERE "tenantId" = ${tenantId} AND code = ANY(${codes}::text[])`;
+    const committed = new Map(known ?? []);
+    const all = new Map(known ?? []);
+    for (const r of rows) {
+      all.set(r.code, r.id);
+      if (!r.mine) committed.set(r.code, r.id);
+    }
+    this.accountIds.set(tenantId, committed);
+    return all;
+  }
 
   async post(
     tx: Tx,
     input: {
       tenantId: string;
       financialEventId: string;
-      loanAccountId: string;
+      /** Null for tenant-level money (unidentified receipts and their refunds). */
+      loanAccountId: string | null;
       entryDate: Date;
       currency: string;
       description: string;
       lines: PostingLine[];
+      /** Only the year-end closing journal is dated in a closed period. */
+      allowClosedPeriod?: boolean;
     },
   ) {
     const lines = input.lines
@@ -69,14 +109,20 @@ export class PostingService {
       );
     }
 
-    await this.ledger.ensureChartOfAccounts(input.tenantId, tx);
-    const accounts = await tx.ledgerAccount.findMany({
-      where: {
-        tenantId: input.tenantId,
-        code: { in: [...new Set(lines.map((l) => l.accountCode))] },
-      },
-    });
-    const byCode = new Map(accounts.map((a) => [a.code, a.id]));
+    if (!input.allowClosedPeriod) {
+      // Within an end-of-day run a date found open is not re-read for every
+      // loan; a month closed meanwhile is still refused by the database
+      // trigger LendingJournalEntry_period_lock.
+      const batch = currentBatch(input.tenantId);
+      const day = input.entryDate.toISOString().slice(0, 10);
+      if (!batch?.openPeriods.has(day)) {
+        await assertPeriodOpen(tx, input.tenantId, input.entryDate);
+        batch?.openPeriods.add(day);
+      }
+    }
+    const byCode = await this.resolveAccounts(tx, input.tenantId, [
+      ...new Set(lines.map((l) => l.accountCode)),
+    ]);
     for (const l of lines) {
       if (!byCode.has(l.accountCode))
         throw new InternalServerErrorException(

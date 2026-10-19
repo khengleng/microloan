@@ -88,6 +88,7 @@ export default function BorrowerLoginPage() {
                         <button type="submit" disabled={loading || code.length !== 6} className="btn-primary w-full justify-center h-11">
                             {loading && <Loader2 size={15} className="animate-spin" />} {t('verify')}
                         </button>
+                        <p className="text-xs text-muted-foreground">{t('codeHelp')}</p>
                         <button type="button" onClick={() => { setStep('phone'); setCode(''); setError(''); }}
                             className="w-full text-sm text-muted-foreground hover:text-foreground">
                             {t('changePhone')}

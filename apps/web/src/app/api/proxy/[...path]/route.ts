@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-function apiUrl(): string {
-    const configured = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-    if (configured && configured.trim()) return configured.trim();
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('API_URL (or NEXT_PUBLIC_API_URL) is required in production.');
-    }
-    return 'http://localhost:3001/v1';
-}
+import { apiBaseUrl } from '@/lib/server-api-url';
+import { errorPage, isBrowserNavigation } from '@/lib/proxy-error-page';
 
 /**
  * Next.js API Proxy Route
@@ -42,7 +35,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ p
 async function proxy(req: NextRequest, params: { path: string[] }) {
     const path = params.path.join('/');
     const url = new URL(req.url);
-    const targetUrl = `${apiUrl()}/${path}${url.search}`;
+    const targetUrl = `${apiBaseUrl()}/${path}${url.search}`;
 
     // 1. Extract tokens from cookies. Staff access_token takes precedence; the
     //    borrower-portal token is forwarded when no staff session is present.
@@ -106,6 +99,11 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         // 3. Handle response
         const responseData = await res.arrayBuffer();
 
+        // A download link opened in the browser: show a readable page, not raw JSON.
+        if (res.status >= 400 && req.method === 'GET' && isBrowserNavigation(req.headers)) {
+            return errorPage({ status: res.status, body: responseData, contentType: res.headers.get('content-type'), headers: req.headers, cookieLocale: req.cookies.get('NEXT_LOCALE')?.value });
+        }
+
         // Special case: if NestJS returns 401, it means the token is expired.
         // The interceptor on the client will handle the redirect.
 
@@ -122,6 +120,9 @@ async function proxy(req: NextRequest, params: { path: string[] }) {
         });
     } catch (error) {
         console.error(`[Proxy Error] ${req.method} ${targetUrl}:`, error);
+        if (req.method === 'GET' && isBrowserNavigation(req.headers)) {
+            return errorPage({ status: 502, body: null, contentType: null, headers: req.headers, cookieLocale: req.cookies.get('NEXT_LOCALE')?.value });
+        }
         return NextResponse.json({ message: 'Gateway error' }, { status: 502 });
     }
 }

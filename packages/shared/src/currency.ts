@@ -89,15 +89,19 @@ export function convertCurrency(
 // The National Bank of Cambodia caps the interest rate that MFIs and licensed
 // lenders may charge on new loans at 18% per annum (Prakas since 2017). We treat
 // this as the platform default ceiling; a tenant may configure a *lower* cap but
-// never a higher one.
+// never a higher one. The API passes the deployment's ceiling
+// (REGULATORY_MAX_ANNUAL_RATE_PCT, defaulting to this value) as `ceilingPct`.
 export const NBC_ANNUAL_INTEREST_CAP_PCT = 18;
 
-export function resolveInterestCap(tenantMaxAnnualPct?: number | null): number {
+export function resolveInterestCap(
+    tenantMaxAnnualPct?: number | null,
+    ceilingPct: number = NBC_ANNUAL_INTEREST_CAP_PCT,
+): number {
     if (tenantMaxAnnualPct == null || !(tenantMaxAnnualPct > 0)) {
-        return NBC_ANNUAL_INTEREST_CAP_PCT;
+        return ceilingPct;
     }
     // A tenant cannot lift the regulatory ceiling, only tighten it.
-    return Math.min(tenantMaxAnnualPct, NBC_ANNUAL_INTEREST_CAP_PCT);
+    return Math.min(tenantMaxAnnualPct, ceilingPct);
 }
 
 export interface RateCapCheck {
@@ -114,8 +118,9 @@ export interface RateCapCheck {
 export function checkInterestRateCap(
     annualRatePct: number,
     tenantMaxAnnualPct?: number | null,
+    ceilingPct: number = NBC_ANNUAL_INTEREST_CAP_PCT,
 ): RateCapCheck {
-    const cap = resolveInterestCap(tenantMaxAnnualPct);
+    const cap = resolveInterestCap(tenantMaxAnnualPct, ceilingPct);
     if (!(annualRatePct >= 0)) {
         return { ok: false, cap, rate: annualRatePct, message: 'Interest rate must be zero or positive.' };
     }

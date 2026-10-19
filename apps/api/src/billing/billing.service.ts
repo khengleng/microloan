@@ -4,20 +4,27 @@ import { AuditService } from '../audit/audit.service';
 import Stripe from 'stripe';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
 import { SystemContext } from '../prisma/tenant-context';
+import { webOrigin } from '../config/operational-config';
 
 @Injectable()
 export class BillingService {
-    private stripe: Stripe;
     private readonly logger = new Logger(BillingService.name);
 
     constructor(
         private prisma: PrismaService,
         private audit: AuditService,
         private planTiers: PlanTierService,
-    ) {
-        this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_key', {
-            apiVersion: '2024-12-18.acacia' as any,
-        });
+    ) { }
+
+    /**
+     * The Stripe client for the configured key. Every caller has already
+     * refused the request when STRIPE_SECRET_KEY is unset, so no placeholder
+     * key is ever used.
+     */
+    private get stripe(): Stripe {
+        const key = process.env.STRIPE_SECRET_KEY?.trim();
+        if (!key) throw new ServiceUnavailableException('Online billing is not configured.');
+        return new Stripe(key, { apiVersion: '2024-12-18.acacia' as any });
     }
 
     async createSubscriptionCheckout(tenantId: string, actorId: string, plan: string) {
@@ -72,8 +79,8 @@ export class BillingService {
             payment_method_types: ['card'],
             line_items: [{ price: priceId, quantity: 1 }],
             mode: 'subscription',
-            success_url: `${process.env.WEB_URL || 'http://localhost:3000'}/settings?billing_status=success`,
-            cancel_url: `${process.env.WEB_URL || 'http://localhost:3000'}/settings?billing_status=cancelled`,
+            success_url: `${webOrigin()}/settings?billing_status=success`,
+            cancel_url: `${webOrigin()}/settings?billing_status=cancelled`,
             metadata: { tenantId, plan, actorId },
         });
 
@@ -96,7 +103,7 @@ export class BillingService {
 
         const session = await this.stripe.billingPortal.sessions.create({
             customer: tenant.stripeCustomerId,
-            return_url: `${process.env.WEB_URL || 'http://localhost:3000'}/settings`,
+            return_url: `${webOrigin()}/settings`,
         });
 
         await this.audit.logAction(tenantId, actorId, 'READ', 'Tenant', tenantId, { event: 'BILLING_PORTAL_ACCESSED' });

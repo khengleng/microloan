@@ -24,6 +24,12 @@ export interface LoanState {
   productVersionStatus: string;
   /** Interest earned on lines closed by a restructure, frozen at the effective date. */
   closedAccrual: InstanceType<typeof lending.D>;
+  /**
+   * Days past due established outside the schedule — a facility's unpaid
+   * minimum payment (UC-38). Set by a batch hook; the larger of this and the
+   * schedule's figure applies.
+   */
+  externalDpd?: number;
 }
 
 export const LIVE_STATUSES = ['DUE', 'PAID'];
@@ -45,37 +51,37 @@ export async function loadLoanState(
     where: { id: accountId, tenantId },
   });
   if (!account) throw new NotFoundException('Loan account not found');
-  const [agreement, latest, lines, product, version, closed] =
-    await Promise.all([
-      tx.lendingAgreement.findFirst({
-        where: { id: account.agreementId, tenantId },
-      }),
-      tx.agreementVersion.findFirst({
-        where: { tenantId, agreementId: account.agreementId },
-        orderBy: { version: 'desc' },
-      }),
-      tx.scheduleInstalment.findMany({
-        where: {
-          tenantId,
-          loanAccountId: account.id,
-          status: { in: LIVE_STATUSES },
-        },
-        orderBy: { number: 'asc' },
-      }),
-      tx.lendingProduct.findFirst({
-        where: { id: account.productId, tenantId },
-        select: { code: true },
-      }),
-      tx.productVersion.findFirst({
-        where: { id: account.productVersionId, tenantId },
-        select: { status: true },
-      }),
-      tx.scheduleInstalment.aggregate({
-        where: { tenantId, loanAccountId: account.id, status: 'RESTRUCTURED' },
-        _sum: { accruedAtClose: true },
-      }),
-    ]);
-  if (!agreement || !latest) throw new NotFoundException('Agreement not found');
+  // The agreement itself is not read: the account's foreign key guarantees it
+  // exists, and only its latest version is used. The live lines and the lines
+  // closed by a restructure come back in one query.
+  const [latest, scheduled, product, version] = await Promise.all([
+    tx.agreementVersion.findFirst({
+      where: { tenantId, agreementId: account.agreementId },
+      orderBy: { version: 'desc' },
+    }),
+    tx.scheduleInstalment.findMany({
+      where: {
+        tenantId,
+        loanAccountId: account.id,
+        status: { in: [...LIVE_STATUSES, 'RESTRUCTURED'] },
+      },
+      orderBy: { number: 'asc' },
+    }),
+    tx.lendingProduct.findFirst({
+      where: { id: account.productId, tenantId },
+      select: { code: true },
+    }),
+    tx.productVersion.findFirst({
+      where: { id: account.productVersionId, tenantId },
+      select: { status: true },
+    }),
+  ]);
+  if (!latest) throw new NotFoundException('Agreement not found');
+  const lines = scheduled.filter((l) => LIVE_STATUSES.includes(l.status));
+  // Interest earned on lines a restructure closed, frozen at the effective date.
+  const closedAccrual = scheduled
+    .filter((l) => l.status === 'RESTRUCTURED')
+    .reduce((t, l) => t.plus(D(l.accruedAtClose ?? '0')), D('0'));
   const parsed = lending.validateProductConfig(latest.productConfig);
   return {
     account,
@@ -88,7 +94,7 @@ export async function loadLoanState(
     lines,
     productCode: product?.code ?? '',
     productVersionStatus: version?.status ?? 'UNKNOWN',
-    closedAccrual: D(closed._sum.accruedAtClose ?? '0'),
+    closedAccrual,
   };
 }
 
@@ -149,10 +155,18 @@ export function contractualAccrual(state: LoanState, asOf: string) {
   let total = state.closedAccrual;
   for (const l of state.lines) {
     if (l.number === 0) continue;
-    const e = engineLine(l);
+    // Interest deferred to later instalments is still earned over this period.
+    const e = {
+      ...engineLine(l),
+      capitalizedInterest: D(l.capitalizedInterest)
+        .plus(D(l.deferredAccrual))
+        .toString(),
+    };
     total = total.plus(
       lending.compareDates(e.dueDate, asOf) <= 0
-        ? D(l.interestDue).plus(D(l.capitalizedInterest))
+        ? D(l.interestDue)
+            .plus(D(l.capitalizedInterest))
+            .plus(D(l.deferredAccrual))
         : lending.accruedOnLine(e, asOf, state.contract),
     );
   }

@@ -4,10 +4,11 @@ Restructuring is a dedicated capability across all products, with its own
 assessment, approval workflow, calculations and access controls. **A request
 opens a review; it never changes terms by itself.** Restructuring, refinancing,
 payment holidays and settlement are distinct operations: this module implements
-restructuring (with payment deferral as one of its options); refinancing into a
-new loan, stand-alone payment holidays and negotiated settlement are listed as
-**not implemented** in the capability matrix, and early settlement remains the
-servicing operation.
+restructuring (with payment deferral as one of its options). Refinancing into a
+new loan, stand-alone payment holidays (programmes under Lending › Relief
+programmes) and negotiated settlement are separate, implemented operations —
+see the [capability matrix](CAPABILITY_MATRIX.md) — and early settlement remains
+the servicing operation.
 
 ## Workflow
 

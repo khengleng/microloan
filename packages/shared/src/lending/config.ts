@@ -2,8 +2,10 @@ import { z } from 'zod';
 import { CURRENCY_DEFINITIONS, validateRoundingRule } from './money.js';
 import { SUPPORTED_DAY_COUNTS } from './dates.js';
 import { EngineError, dec } from './decimal.js';
-import type { ScheduleInput } from './schedule.js';
+import { buildPeriods, type ScheduleInput } from './schedule.js';
 import type { FeeDefinition } from './fees.js';
+import { COUNTERPARTY_TYPES, RATING_SCALE } from './institutional.js';
+import { productScoringSchema, validateProductScoring } from './scoring-strategy.js';
 
 /**
  * Product configuration schema.
@@ -50,6 +52,10 @@ export const RESTRUCTURE_OPTIONS = [
 ] as const;
 export type RestructureOption = (typeof RESTRUCTURE_OPTIONS)[number];
 
+/** Financial covenants a loan can carry (LT-16). */
+export const COVENANT_TYPES = ['MIN_DSCR', 'MAX_LTV', 'FINANCIAL_STATEMENTS', 'MAX_LEVERAGE', 'MIN_INTEREST_COVER'] as const;
+export type CovenantType = (typeof COVENANT_TYPES)[number];
+
 export const CHANNELS = ['BRANCH', 'STAFF_PORTAL', 'BORROWER_PORTAL', 'AGENT', 'API'] as const;
 
 const feeSchema = z
@@ -64,6 +70,8 @@ const feeSchema = z
     treatment: z.enum(['DEDUCTED', 'FINANCED', 'SEPARATE']),
     taxRate: rateFraction.optional(),
     waivable: z.boolean(),
+    /** INSURER: a credit-insurance premium collected for the insurer — booked to the insurer payable, not fee income (UC-06). */
+    payee: z.enum(['LENDER', 'INSURER']).default('LENDER'),
   })
   .strict()
   .superRefine((f, ctx) => {
@@ -74,6 +82,21 @@ const feeSchema = z
 const bucketSchema = z.object({ code, label: text(60), minDpd: z.number().int().min(0), maxDpd: z.number().int().min(0).nullable() }).strict();
 
 const componentEnum = z.enum(['PENALTY', 'FEE', 'TAX', 'INTEREST', 'PRINCIPAL']);
+
+/** Policy kinds a contract can be composed from (docs/servicing/POLICY_MODEL.md). */
+export const POLICY_KINDS = ['PREPAYMENT', 'LATE_CHARGES', 'ALLOCATION', 'NON_ACCRUAL'] as const;
+export type PolicyKind = (typeof POLICY_KINDS)[number];
+
+const policyChoiceSchema = z
+  .object({
+    /** Policy code used when the contract makes no choice. */
+    defaultCode: code,
+    /** Policies a contract on this product may choose. Must include the default. */
+    menu: z.array(code).min(1).max(20),
+    /** Narrower bounds for policy parameters on this product. */
+    parameterBounds: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9]{0,39}$/), z.object({ min: z.number(), max: z.number() }).strict()).default({}),
+  })
+  .strict();
 
 export const productConfigSchema = z
   .object({
@@ -120,6 +143,10 @@ export const productConfigSchema = z
         employmentTypes: z.array(z.enum(['SALARIED', 'SELF_EMPLOYED', 'BUSINESS_OWNER', 'FARMER', 'STUDENT', 'OTHER'])).default([]),
         minBusinessAgeMonths: z.number().int().min(0).nullable().default(null),
         maxDebtServiceRatio: rateFraction.nullable().default(null),
+        /** Lowest origination credit score approved (OPS-2), on the 300–850 scale; null: not gated. */
+        minCreditScore: z.number().int().min(300).max(850).nullable().default(null),
+        /** Lowest debt-service coverage (NOI ÷ annual debt service) approved (LT-16); null: not gated. */
+        minDscr: decimalString.nullable().default(null),
       })
       .strict(),
     pricing: z
@@ -148,14 +175,40 @@ export const productConfigSchema = z
         fees: z.array(feeSchema).default([]),
         penalty: z
           .object({
-            type: z.enum(['NONE', 'FLAT_PER_INSTALMENT', 'RATE_ON_OVERDUE']),
+            /**
+             * FLAT_PER_INSTALMENT: a fixed late fee once per overdue instalment;
+             * PERCENT_PER_INSTALMENT: a percentage of the overdue amount, once;
+             * RATE_ON_OVERDUE: daily penalty interest on the overdue amount (UC-55, UC-56).
+             */
+            type: z.enum(['NONE', 'FLAT_PER_INSTALMENT', 'PERCENT_PER_INSTALMENT', 'RATE_ON_OVERDUE']),
             flatAmount: decimalString.nullable().default(null),
+            percentOfOverdue: rateFraction.nullable().default(null),
             annualRate: rateFraction.nullable().default(null),
             graceDays: z.number().int().min(0).max(365).default(0),
             capPerInstalment: decimalString.nullable().default(null),
+            /** Most that late charges may ever total on one loan. */
+            capPerLoan: decimalString.nullable().default(null),
           })
           .strict(),
-        capitalization: z.object({ allowInterestGraceCapitalization: z.boolean() }).strict(),
+        /** Charged when a repayment is reversed because it bounced or was returned (UC-23). */
+        returnedPaymentFee: decimalString.nullable().default(null),
+        /**
+         * A promotional rate for the first instalments of contracts that quote
+         * the campaign code (UC-46); the contract rate applies after it and the
+         * instalment is re-solved when it does.
+         */
+        promotion: z
+          .object({ code, annualRate: rateFraction, instalments: z.number().int().min(1).max(120), label: z.string().max(120).default('') })
+          .strict()
+          .nullable()
+          .default(null),
+        capitalization: z
+          .object({
+            allowInterestGraceCapitalization: z.boolean(),
+            /** SIMPLE: grace interest on the original principal only, never on interest (TV-16). */
+            basis: z.enum(['COMPOUND', 'SIMPLE']).default('COMPOUND'),
+          })
+          .strict(),
       })
       .strict(),
     repayment: z
@@ -166,6 +219,12 @@ export const productConfigSchema = z
         maxPrincipalGraceInstalments: z.number().int().min(0).default(0),
         maxInterestGraceInstalments: z.number().int().min(0).default(0),
         maxBalloonFraction: rateFraction.nullable().default(null),
+        /** Stepped (graduated or step-down) instalments (UC-15); null for level instalments. */
+        instalmentSteps: z
+          .array(z.object({ instalments: z.number().int().min(1).max(600), multiplier: decimalString }).strict())
+          .max(12)
+          .nullable()
+          .default(null),
         allowIrregularFirstPeriod: z.boolean().default(false),
         maxFirstPeriodDays: z.number().int().min(1).max(730).nullable().default(null),
         businessDayConvention: z.enum(['NONE', 'FOLLOWING', 'MODIFIED_FOLLOWING', 'PRECEDING']),
@@ -180,12 +239,55 @@ export const productConfigSchema = z
             defaultStrategy: z.enum(['RECAST', 'SHORTEN']).default('RECAST'),
           })
           .strict(),
-        earlySettlement: z.object({ allowed: z.boolean(), feeRate: rateFraction.nullable().default(null), feeFixed: decimalString.nullable().default(null) }).strict(),
+        earlySettlement: z
+          .object({
+            allowed: z.boolean(),
+            feeRate: rateFraction.nullable().default(null),
+            feeFixed: decimalString.nullable().default(null),
+            /**
+             * Interest owed on early payoff (UC-33). ACCRUED: interest accrued to
+             * the payoff date by day count. RULE_OF_78 / ACTUARIAL (flat-rate
+             * loans): the precomputed interest less the method's rebate for the
+             * instalments not yet due.
+             */
+            rebateMethod: z.enum(['ACCRUED', 'RULE_OF_78', 'ACTUARIAL']).default('ACCRUED'),
+          })
+          .strict(),
+        /**
+         * Lock-in tiers for repaying early (DECISIONS D-004). Tiers are checked in
+         * order by whole months since disbursement; the first tier whose
+         * `untilMonth` has not passed applies and replaces the base fee.
+         */
+        earlyRepaymentCharges: z
+          .object({
+            appliesTo: z.array(z.enum(['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT'])).min(1).default(['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT']),
+            basis: z.enum(['AMOUNT_REPAID', 'OUTSTANDING_PRINCIPAL']).default('AMOUNT_REPAID'),
+            tiers: z
+              .array(
+                z
+                  .object({
+                    untilMonth: z.number().int().min(1).max(600),
+                    action: z.enum(['CHARGE', 'REFUSE']),
+                    rate: rateFraction.nullable().default(null),
+                    fixed: decimalString.nullable().default(null),
+                  })
+                  .strict(),
+              )
+              .max(12)
+              .default([]),
+          })
+          .strict()
+          .default({ appliesTo: ['PARTIAL_PREPAYMENT', 'EARLY_SETTLEMENT'], basis: 'AMOUNT_REPAID', tiers: [] }),
         allocation: z
           .object({
             order: z.array(componentEnum).length(5),
             strategy: z.enum(['OLDEST_DUE_FIRST', 'COMPONENT_FIRST']),
-            excessHandling: z.enum(['PREPAY', 'REJECT']),
+            /**
+             * What a payment above the amount currently due does. ADVANCE holds it
+             * as a customer advance applied to instalments on their due dates
+             * (DECISIONS D-001); PREPAY reduces principal now; REJECT refuses it.
+             */
+            excessHandling: z.enum(['ADVANCE', 'PREPAY', 'REJECT']),
           })
           .strict(),
         maxBackdateDays: z.number().int().min(0).max(31).default(0),
@@ -200,6 +302,8 @@ export const productConfigSchema = z
         valuationMaxAgeDays: z.number().int().min(1).nullable().default(null),
         guaranteeRequired: z.boolean().default(false),
         minGuarantors: z.number().int().min(0).default(0),
+        /** Days a borrower has to cure a margin call after a revaluation breaches max LTV (UC-51). */
+        marginCallCureDays: z.number().int().min(1).max(90).default(7),
       })
       .strict(),
     /**
@@ -242,11 +346,17 @@ export const productConfigSchema = z
         /** OVERDRAFT: the minimum payment formula. */
         minimumPaymentRate: rateFraction.nullable().default(null),
         minimumPaymentFloor: decimalString.nullable().default(null),
+        /** OVERDRAFT: days from the statement period end to the minimum payment's due date. */
+        minimumPaymentDueDays: z.number().int().min(1).max(60).default(21),
         /**
          * Annual rate on any balance above the limit. Null refuses over-limit
          * balances outright rather than pricing them.
          */
         overlimitRate: rateFraction.nullable().default(null),
+        /** How far over the limit a drawdown may go, as a fraction of the limit (UC-41); needs an over-limit rate. */
+        overlimitTolerance: rateFraction.nullable().default(null),
+        /** Flat fee for each statement period in which the balance went over the limit (UC-41). */
+        overlimitFee: decimalString.nullable().default(null),
         /** Whether the drawn balance amortizes when availability ends. */
         termOutOnExpiry: z.boolean().default(false),
         /** STAGED_DRAWDOWN: the tranche plan a facility inherits. */
@@ -267,15 +377,175 @@ export const productConfigSchema = z
           .default([]),
       })
       .strict(),
+    /**
+     * Credit-card terms (LT-07). Only on a REVOLVING facility: the card splits
+     * the drawn balance into purchases, cash advances and instalment plans,
+     * which price differently (UC-39, UC-40, UC-44). The purchase rate is the
+     * facility's negotiated annual rate.
+     */
+    card: z
+      .object({
+        cashAdvanceAnnualRate: rateFraction,
+        /** Fee on each cash advance: the greater of rate × amount and the minimum (UC-40). */
+        cashAdvanceFeeRate: rateFraction.nullable().default(null),
+        cashAdvanceFeeMinimum: decimalString.nullable().default(null),
+        /** Share of the limit that may be outstanding as cash advances. */
+        cashAdvanceLimitShare: rateFraction.default('0.3'),
+        minimumPaymentRate: rateFraction.default('0.05'),
+        minimumPaymentFloor: decimalString.default('10'),
+        /** Days from the statement date to the payment due date. */
+        paymentDueDays: z.number().int().min(14).max(25).default(21),
+        /** Converting a purchase into fixed instalments (UC-44). Null: not offered. */
+        instalmentPlan: z
+          .object({
+            annualRate: rateFraction,
+            minAmount: decimalString,
+            allowedMonths: z.array(z.number().int().min(2).max(60)).min(1),
+          })
+          .strict()
+          .nullable()
+          .default(null),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Buy now, pay later (LT-11): the merchant is paid the purchase price less
+     * this discount at disbursement, and refunds come back through it (UC-52).
+     */
+    bnpl: z
+      .object({ merchantDiscountRate: rateFraction })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * A true lease (LT-15; Ijarah when the structure says so): the lender buys
+     * and owns the asset, the customer pays rentals, and at the end either
+     * buys it for the residual or hands it back.
+     */
+    lease: z
+      .object({
+        assetTypes: z.array(code).min(1),
+        /** Whether the lessee may return the asset instead of paying the residual. */
+        allowReturn: z.boolean().default(true),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Institutional lending (interbank, municipal, sovereign, development):
+     * the borrower must be a registered counterparty of an accepted type, and
+     * every origination and disbursement is checked against the
+     * counterparty's and its country's approved exposure limits.
+     */
+    institutional: z
+      .object({
+        counterpartyTypes: z.array(z.enum(COUNTERPARTY_TYPES)).min(1),
+        /** Lowest long-term rating accepted; null: unrated counterparties are accepted. */
+        minRating: z.enum(RATING_SCALE).nullable().default(null),
+        /** Whether the counterparty's country must also have an approved limit. */
+        requireCountryLimit: z.boolean().default(true),
+        /** Longest tenor (disbursement to maturity) accepted, e.g. 366 for money-market placements. */
+        maxTenorDays: z.number().int().min(1).max(36600).nullable().default(null),
+        /** Concessional lending: the lowest grant element accepted (e.g. '0.35'); null: not gated. */
+        minGrantElement: rateFraction.nullable().default(null),
+        /** Discount rate for the grant element (IMF/World Bank convention: 5%). */
+        grantElementDiscountRate: rateFraction.default('0.05'),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Income-contingent repayment (education): the instalment is a share of
+     * the declared income above a threshold, reassessed under maker-checker;
+     * what is left at the end of the term is forgiven.
+     */
+    incomeContingent: z
+      .object({
+        /** Share of annual income above the threshold repaid each year, e.g. '0.09'. */
+        repaymentRate: rateFraction,
+        /** Annual income below which nothing is payable. */
+        incomeThreshold: decimalString,
+        /** Months between reassessments; a change of circumstances may be assessed at any time. */
+        reassessmentMonths: z.number().int().min(1).max(36).default(12),
+        /** Interest the payment does not cover: added to the balance, or not charged (subsidised). */
+        unpaidInterest: z.enum(['CAPITALISE', 'SUBSIDISE']).default('CAPITALISE'),
+        /** Most interest that may ever be capitalised, as a fraction of the amount financed; beyond it, uncovered interest is not charged. */
+        capitalisationCap: rateFraction.nullable().default(null),
+        /** Whether a reassessment must cite documentary evidence (payslip, tax return …). */
+        evidenceRequired: z.boolean().default(true),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    /**
+     * Murabaha: the lender buys the asset from its supplier and sells it to
+     * the customer at cost plus a disclosed, fixed profit payable in
+     * instalments. The profit is deferred and recognised over the term.
+     */
+    murabaha: z
+      .object({
+        assetTypes: z.array(code).min(1),
+        /**
+         * Ibra' on early settlement: the share of the profit not yet earned
+         * that is rebated ('1' = all of it). Null: no rebate is promised and
+         * the full sale price is payable.
+         */
+        ibraShare: rateFraction.nullable().default('1'),
+      })
+      .strict()
+      .nullable()
+      .default(null),
     operations: z
       .object({
         workflowCode: code,
         requiredDocuments: z.array(z.object({ code, label: text(80), stage: z.enum(['APPLICATION', 'APPROVAL', 'DISBURSEMENT']), mandatory: z.boolean() }).strict()).default([]),
         disbursementConditions: z.array(z.object({ code, label: text(160) }).strict()).default([]),
         delinquencyBuckets: z.array(bucketSchema).min(1),
-        collectionStages: z.array(z.object({ code, label: text(60), fromDpd: z.number().int().min(0) }).strict()).default([]),
+        /**
+         * The collections ladder (UC-58): at each stage end of day raises one
+         * task — an SMS or notice is sent at once; a call, visit or legal
+         * review waits in the stage's work queue.
+         */
+        collectionStages: z
+          .array(
+            z
+              .object({
+                code,
+                label: text(60),
+                fromDpd: z.number().int().min(0),
+                action: z.enum(['SMS', 'CALL', 'VISIT', 'NOTICE', 'LEGAL_REVIEW', 'NONE']).default('CALL'),
+                queue: z.string().trim().max(40).default(''),
+              })
+              .strict(),
+          )
+          .default([]),
         writeOffMinDpd: z.number().int().min(0).nullable().default(null),
         restructureAllowed: z.boolean().default(true),
+        /**
+         * Minimum down payment as a fraction of the purchase price (principal +
+         * down payment), collected before disbursement (UC-02). Null: none required.
+         */
+        downPayment: z
+          .object({ minFraction: rateFraction.nullable().default(null) })
+          .strict()
+          .default({ minFraction: null }),
+        /** Stop recognising interest as income past a days-past-due threshold (DECISIONS D-002). */
+        nonAccrual: z
+          .object({
+            enabled: z.boolean().default(false),
+            fromDpd: z.number().int().min(1).max(3650).nullable().default(null),
+            /** The loan returns to accrual when days past due falls to this or below. */
+            cureAtDpd: z.number().int().min(0).max(3650).default(0),
+            /**
+             * On entry, move interest already recognised but still unpaid out of
+             * income into suspense (DECISIONS D-006). Off keeps it as income and
+             * suspends only what accrues from then on.
+             */
+            reverseAccruedOnEntry: z.boolean().default(true),
+          })
+          .strict()
+          .default({ enabled: false, fromDpd: null, cureAtDpd: 0, reverseAccruedOnEntry: true }),
         integrations: z
           .object({
             creditBureau: z.enum(['NONE', 'OPTIONAL', 'REQUIRED']),
@@ -301,6 +571,8 @@ export const productConfigSchema = z
         escalateAfterRestructures: z.number().int().min(0).max(10).default(1),
         /** Consecutive on-time revised instalments before the delinquency floor lifts. */
         probationInstalments: z.number().int().min(0).max(60).default(6),
+        /** Days before a restructured loan's balloon falls due that the follow-up task is raised. */
+        balloonReminderDays: z.number().int().min(0).max(365).default(30),
         /** Balance change between proposal and execution tolerated without re-approval. */
         materialityTolerance: decimalString.default('0'),
         proposalValidityDays: z.number().int().min(1).max(180).default(30),
@@ -341,6 +613,273 @@ export const productConfigSchema = z
       })
       .strict()
       .default({}),
+    /** Recovery workflows: repossession, pawn forfeiture, debt sale (DECISIONS D-011…D-014). */
+    recovery: z
+      .object({
+        /** Days past due before collateral may be repossessed. */
+        repossessionMinDpd: z.number().int().min(0).max(3650).default(90),
+        /** Order net sale proceeds clear the balances in, after costs (UC-65). */
+        proceedsOrder: z
+          .array(z.enum(['PENALTY', 'FEE', 'INTEREST', 'PRINCIPAL']))
+          .length(4)
+          .default(['INTEREST', 'PRINCIPAL', 'FEE', 'PENALTY']),
+        /** Days after the redemption deadline before a pawn may be forfeited (UC-66). */
+        pawnForfeitureGraceDays: z.number().int().min(0).max(365).default(0),
+        /** Days past due before a performing loan may be sold to a collection agency (UC-71). */
+        debtSaleMinDpd: z.number().int().min(0).max(3650).default(90),
+      })
+      .strict()
+      .default({}),
+    /**
+     * Origination scoring (DECISIONS D-075…D-079): the champion scorecard,
+     * an optional silent challenger, the thin-file switch and the decision
+     * strategy. Defaults reproduce the score before scorecards were
+     * configurable, with every grade referred to a credit officer.
+     */
+    scoring: productScoringSchema.default({}),
+    /**
+     * Policy kinds this product composes from the policy library. A kind not
+     * listed uses this configuration's own section for every contract.
+     */
+    policies: z
+      .object({
+        PREPAYMENT: policyChoiceSchema.optional(),
+        LATE_CHARGES: policyChoiceSchema.optional(),
+        ALLOCATION: policyChoiceSchema.optional(),
+        NON_ACCRUAL: policyChoiceSchema.optional(),
+      })
+      .strict()
+      .default({}),
+    /**
+     * Trade finance (LT-18, LT-19). Absent on every other product: the
+     * section is optional, so configurations written before it existed parse
+     * exactly as they did.
+     */
+    trade: z
+      .object({
+        /** Invoice financing on a revolving facility (LT-18, UC-67). */
+        invoice: z
+          .object({
+            /** Fraction of an approved invoice advanced, e.g. '0.8'. */
+            advanceRate: rateFraction,
+            /** Fee as a fraction of the invoice per fee period (TV-20: '0.02' per 30 days). */
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365),
+            feeBasis: z.enum(['WHOLE_PERIODS', 'PRO_RATA']).default('WHOLE_PERIODS'),
+            /** Days after the invoice due date before the borrower owes the advance (UC-67). */
+            recourseGraceDays: z.number().int().min(0).max(365).default(30),
+            /** Longest invoice (issue → due) the product finances. */
+            maxInvoiceTenorDays: z.number().int().min(1).max(730).default(180),
+          })
+          .strict()
+          .optional(),
+        /** Letters of credit (LT-19, UC-53). */
+        letterOfCredit: z
+          .object({
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365).default(90),
+            minimumFee: decimalString.default('0'),
+            maxTenorDays: z.number().int().min(1).max(1825).default(365),
+            /** Product code of the term loan a paid credit converts into (UC-53). */
+            conversionProductCode: code.nullable().default(null),
+          })
+          .strict()
+          .optional(),
+        /**
+         * Factoring: the lender buys the seller's invoices, notifies the
+         * debtor and collects. Serviced on a revolving limit, like invoices.
+         */
+        factoring: z
+          .object({
+            advanceRate: rateFraction,
+            /** Discount charge as a fraction of the invoice per fee period, raised on collection. */
+            feeRatePerPeriod: rateFraction,
+            feePeriodDays: z.number().int().min(1).max(365).default(30),
+            feeBasis: z.enum(['WHOLE_PERIODS', 'PRO_RATA']).default('WHOLE_PERIODS'),
+            /** Service fee (commission) as a fraction of the invoice, deducted from the advance. */
+            serviceFeeRate: rateFraction.default('0'),
+            /** What the seller still answers for once the debtor defaults. */
+            recourse: z.enum(['FULL', 'LIMITED', 'NONE']),
+            /** LIMITED: the seller's liability as a fraction of the invoice. */
+            limitedRecourseRate: rateFraction.nullable().default(null),
+            /** Days after the due date before the debtor is in default. */
+            recourseGraceDays: z.number().int().min(0).max(365).default(60),
+            maxInvoiceTenorDays: z.number().int().min(1).max(730).default(120),
+            /** Disclosed factoring: the debtor must be notified before the advance. */
+            notificationRequired: z.boolean().default(true),
+            /** Largest share of the limit outstanding on one debtor; null = no limit. */
+            maxDebtorConcentration: rateFraction.nullable().default(null),
+          })
+          .strict()
+          .optional(),
+        /**
+         * Supply-chain (payables) finance: the facility is the anchor buyer's
+         * programme limit; suppliers' invoices the buyer has approved are
+         * paid early at a discount and the buyer pays the face at maturity.
+         */
+        supplyChain: z
+          .object({
+            discountRate: rateFraction,
+            dayCountBasis: z.union([z.literal(360), z.literal(365)]).default(360),
+            discountMethod: z.enum(['STRAIGHT', 'YIELD']).default('STRAIGHT'),
+            maxInvoiceTenorDays: z.number().int().min(1).max(365).default(180),
+            /** Days after maturity before the buyer's unpaid invoice ages as arrears. */
+            buyerGraceDays: z.number().int().min(0).max(90).default(5),
+            /** Suppliers must be onboarded and approved before their invoices are paid. */
+            supplierApprovalRequired: z.boolean().default(true),
+          })
+          .strict()
+          .optional(),
+        /** Forfaiting: bills or notes bought without recourse at a discount. */
+        forfaiting: z
+          .object({
+            discountRate: rateFraction,
+            dayCountBasis: z.union([z.literal(360), z.literal(365)]).default(360),
+            discountMethod: z.enum(['STRAIGHT', 'YIELD']).default('STRAIGHT'),
+            /** Days of grace added to the discount period for collection (market practice). */
+            graceDays: z.number().int().min(0).max(30).default(3),
+            maxTenorDays: z.number().int().min(1).max(1825).default(720),
+            instrumentTypes: z.array(z.enum(['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE'])).min(1).default(['BILL_OF_EXCHANGE', 'PROMISSORY_NOTE']),
+            /** Each instrument must carry a bank's aval (guarantee) before it is bought. */
+            avalRequired: z.boolean().default(true),
+            /** Days after maturity before an unpaid instrument is in default. */
+            collectionGraceDays: z.number().int().min(0).max(90).default(10),
+          })
+          .strict()
+          .optional(),
+        /** Import / export loans against trade documents. */
+        documentary: z
+          .object({
+            direction: z.enum(['IMPORT', 'EXPORT']),
+            /** Documents that must be verified before the loan is paid out. */
+            requiredDocuments: z.array(code).min(1),
+            maxTradeCycleDays: z.number().int().min(1).max(720).default(180),
+            proceedsGraceDays: z.number().int().min(0).max(180).default(30),
+            maxFinancingRatio: rateFraction.default('0.9'),
+          })
+          .strict()
+          .optional(),
+        /** Ledger accounts specific to trade finance. */
+        accounts: z
+          .object({
+            /** Invoice balance owed to the borrower once the advance and fee are repaid. */
+            reservePayable: code.default('2310'),
+            /** Off-balance-sheet memo pair for issued letters of credit. */
+            lcContingentAsset: code.default('9100'),
+            lcContingentLiability: code.default('9200'),
+            /** Discount withheld on bought receivables, not yet earned (liability). */
+            unearnedDiscount: code.default('2340'),
+            /** Discount earned on bought receivables (forfaiting, supply-chain finance). */
+            discountIncome: code.default('4530'),
+            /** Factoring service fees (commission). */
+            serviceFeeIncome: code.default('4540'),
+            /** Bought receivables lost without recourse to the seller. */
+            creditLoss: code.default('5500'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
+    /**
+     * Financial covenants set up on every loan booked under the product
+     * (LT-16). Optional, like `trade`: a configuration without the section
+     * parses exactly as before. Covenants can still be added per loan.
+     */
+    covenants: z
+      .array(
+        z
+          .object({
+            type: z.enum(COVENANT_TYPES),
+            /** Null only for FINANCIAL_STATEMENTS, which has no figure to test. */
+            threshold: decimalString.nullable().default(null),
+            frequencyMonths: z.number().int().min(1).max(24),
+            description: text(500).default(''),
+          })
+          .strict(),
+      )
+      .max(12)
+      .optional(),
+    /**
+     * Project finance (LT-17): a staged construction facility whose interest
+     * is capitalized while the project is built, termed out on a repayment
+     * profile sculpted to the projected cash flow, then serviced through a
+     * cash waterfall with a debt service reserve and a distribution lock-up.
+     */
+    projectFinance: z
+      .object({
+        /** Debt service is sized so CFADS ÷ debt service is at least this in every period. */
+        targetDscr: decimalString,
+        /** Below this period DSCR, cash that would be distributed is held in lock-up. Null: no lock-up test. */
+        lockUpDscr: decimalString.nullable().default(null),
+        /** The reserve holds the scheduled debt service of this many months ahead. 0: no reserve. */
+        dsraMonths: z.number().int().min(0).max(24).default(6),
+        /** Share of the cash left after the reserve that prepays principal (latest instalments first). */
+        cashSweepRate: rateFraction.nullable().default(null),
+        /** Construction-period interest is added to principal when each statement is raised. */
+        capitalizeConstructionInterest: z.boolean().default(true),
+        accounts: z
+          .object({
+            /** Debt service reserve held for the project (liability). */
+            dsra: code.default('2410'),
+            /** Cash held back from distribution while the project is in lock-up (liability). */
+            lockUp: code.default('2420'),
+            /** Project receipts in transit through the waterfall; nets to zero after each run. */
+            proceeds: code.default('2430'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
+    /**
+     * Asset-based lending (LT-14): a revolving line drawn against a borrowing
+     * base certified periodically by the borrower — inventory and receivables
+     * by class, less ineligibles, at an advance rate per class.
+     */
+    borrowingBase: z
+      .object({
+        /** A certificate older than this cannot support a drawdown. */
+        certificateMaxAgeDays: z.number().int().min(1).max(120).default(31),
+        classes: z
+          .array(
+            z
+              .object({
+                code,
+                label: text(80),
+                kind: z.enum(['INVENTORY', 'RECEIVABLES']),
+                advanceRate: rateFraction,
+                /** Lines older than this (days since invoice or receipt into stock) are ineligible. */
+                maxAgeDays: z.number().int().min(1).max(3650).nullable().default(null),
+                /** Largest share of the class's eligible value one counterparty may make up; the excess is ineligible. */
+                concentrationLimit: rateFraction.nullable().default(null),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(20),
+      })
+      .strict()
+      .optional(),
+    /** Syndicated lending (LT-24). Optional, like `trade`. */
+    syndication: z
+      .object({
+        minParticipants: z.number().int().min(2).max(50).default(2),
+        maxParticipants: z.number().int().min(2).max(50).default(20),
+        accounts: z
+          .object({
+            /** Participants' money collected by the agent and not yet passed on. */
+            participantsPayable: code.default('2320'),
+            /** Participants' funding of the loan, reduced as principal is returned to them. */
+            participantFunding: code.default('2330'),
+            /** Participants' share of interest, penalties and fees collected. */
+            participantShareExpense: code.default('5310'),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .optional(),
     accounting: z
       .object({
         cash: code,
@@ -358,6 +897,38 @@ export const productConfigSchema = z
         /** Income from money recovered on loans already written off. */
         recoveryIncome: code.default('4300'),
         principalForgivenessExpense: code.default('5110'),
+        /** Money received ahead of its due date, held for the borrower (liability). */
+        customerAdvances: code.default('2300'),
+        /** Interest accrued on non-accrual loans, not yet recognised as income. */
+        interestSuspense: code.default('2400'),
+        /** Loss allowance (contra-asset) and the expense that builds it (OPS-5). */
+        loanLossAllowance: code.default('1300'),
+        provisionExpense: code.default('5000'),
+        /** Down payments the lender collected, held until paid to the seller (UC-02). */
+        downPaymentsHeld: code.default('2600'),
+        /** Customer deposits applied to a loan under the right of set-off (UC-61). */
+        setOffClearing: code.default('2700'),
+        /** Recovery workflows (UC-06, UC-65, UC-66, UC-68, UC-71). */
+        insurerPayable: code.default('2610'),
+        insuranceClaimsReceivable: code.default('1410'),
+        borrowerRefundsPayable: code.default('2710'),
+        recoveryCostsExpense: code.default('5300'),
+        debtSaleGain: code.default('4400'),
+        debtSaleLoss: code.default('5400'),
+        /** BNPL (LT-11, UC-52): merchant discount earned, and refunds owed back by merchants. */
+        merchantDiscountIncome: code.default('4500'),
+        merchantClawbackReceivable: code.default('1240'),
+        /** Cards (UC-40): the fee charged on a cash advance. */
+        cardCashAdvanceFeeIncome: code.default('4520'),
+        /** Leases (LT-15): assets handed back at lease end, held for sale. */
+        returnedLeaseAssets: code.default('1260'),
+        /**
+         * Murabaha: the profit not yet earned, carried as a memo pair — the
+         * unearned part of the sale price receivable against deferred profit —
+         * and released as the profit is recognised.
+         */
+        unearnedProfitReceivable: code.default('1360'),
+        deferredProfit: code.default('2510'),
       })
       .strict(),
   })
@@ -385,6 +956,9 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   const add = (path: string, message: string) => issues.push({ path, message });
 
   if (dec(c.limits.minAmount).gt(dec(c.limits.maxAmount))) add('limits', 'minAmount exceeds maxAmount');
+  for (const i of validateProductScoring(c.scoring)) add(i.path, i.message);
+  for (const r of c.scoring.strategy.gradeRules)
+    if (r.maxAmount !== null && dec(r.maxAmount).gt(dec(c.limits.maxAmount))) add('scoring.strategy.gradeRules', `grade ${r.grade}: maxAmount exceeds the product's maximum amount`);
   if (c.limits.minInstalments > c.limits.maxInstalments) add('limits', 'minInstalments exceeds maxInstalments');
   try {
     validateRoundingRule(c.identity.currency, c.pricing.rounding);
@@ -410,6 +984,8 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
     if (fl?.floor && fl.cap && dec(fl.floor).gt(dec(fl.cap))) add('pricing.floating', 'floor exceeds cap');
   }
 
+  if (c.repayment.earlySettlement.rebateMethod !== 'ACCRUED' && c.pricing.interestMethod !== 'FLAT')
+    add('repayment.earlySettlement.rebateMethod', 'a Rule of 78 or actuarial rebate applies to flat-rate (precomputed) interest only');
   if (c.pricing.interestMethod === 'FLAT') {
     if (c.repayment.method !== 'EQUAL_INSTALMENT') add('pricing.interestMethod', 'flat interest supports EQUAL_INSTALMENT only');
     if (c.pricing.accrualBasis !== 'PERIODIC') add('pricing.accrualBasis', 'flat interest requires PERIODIC accrual');
@@ -424,6 +1000,18 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (c.repayment.method !== 'EXPLICIT' && c.repayment.frequency === null) add('repayment.frequency', 'a frequency is required');
   if (c.repayment.frequency === 'CUSTOM' && !c.repayment.customFrequency) add('repayment.customFrequency', 'required for CUSTOM frequency');
   if (c.repayment.method === 'BALLOON' && !c.repayment.maxBalloonFraction) add('repayment.maxBalloonFraction', 'required for BALLOON');
+  if (c.repayment.instalmentSteps?.length) {
+    if (c.repayment.method !== 'EQUAL_INSTALMENT' || c.pricing.interestMethod !== 'REDUCING_BALANCE') {
+      add('repayment.instalmentSteps', 'stepped instalments need level instalments on a reducing balance');
+    }
+    if (c.repayment.instalmentSteps.some((st) => dec(st.multiplier).lte(0))) add('repayment.instalmentSteps', 'multipliers must be positive');
+    const stepped = c.repayment.instalmentSteps.reduce((n, st) => n + st.instalments, 0);
+    if (stepped > c.limits.minInstalments) add('repayment.instalmentSteps', `the steps cover ${stepped} instalments, more than the shortest allowed term (${c.limits.minInstalments})`);
+  }
+  if (c.pricing.promotion) {
+    if (!c.pricing.fixed) add('pricing.promotion', 'a promotional rate needs fixed pricing');
+    if (c.pricing.promotion.instalments >= c.limits.minInstalments) add('pricing.promotion.instalments', `must be shorter than the shortest allowed term (${c.limits.minInstalments})`);
+  }
   if (c.repayment.maxInterestGraceInstalments > c.repayment.maxPrincipalGraceInstalments) add('repayment', 'interest grace cannot exceed principal grace');
   if (c.repayment.maxInterestGraceInstalments > 0 && !c.pricing.capitalization.allowInterestGraceCapitalization) {
     add('pricing.capitalization', 'interest grace requires capitalization to be allowed');
@@ -434,6 +1022,7 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
 
   if (c.pricing.penalty.type === 'FLAT_PER_INSTALMENT' && !c.pricing.penalty.flatAmount) add('pricing.penalty.flatAmount', 'required');
   if (c.pricing.penalty.type === 'RATE_ON_OVERDUE' && !c.pricing.penalty.annualRate) add('pricing.penalty.annualRate', 'required');
+  if (c.pricing.penalty.type === 'PERCENT_PER_INSTALMENT' && !c.pricing.penalty.percentOfOverdue) add('pricing.penalty.percentOfOverdue', 'required');
 
   if (c.attributes.secured !== c.security.collateralRequired) add('security.collateralRequired', 'must match attributes.secured');
   if (c.security.collateralRequired && !c.security.maxLtv) add('security.maxLtv', 'secured products need an LTV threshold');
@@ -461,8 +1050,14 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
   if (new Set(c.restructuring.settlementAllocationOrder).size !== 5) {
     add('restructuring.settlementAllocationOrder', 'must list each component exactly once');
   }
+  if (new Set(c.recovery.proceedsOrder).size !== 4) {
+    add('recovery.proceedsOrder', 'must list each component exactly once');
+  }
   validateGroupBlock(c, add);
   validateFacilityBlock(c, add);
+  validateTradeBlock(c, add);
+  validateSpecialisedBlocks(c, add);
+  validateCommercialBlocks(c, add);
 
   const buckets = [...c.operations.delinquencyBuckets].sort((a, b) => a.minDpd - b.minDpd);
   if (buckets[0].minDpd !== 0) add('operations.delinquencyBuckets', 'buckets must start at 0 DPD');
@@ -470,6 +1065,27 @@ export function validateProductConfig(raw: unknown): { ok: true; config: Product
     if (buckets[i - 1].maxDpd === null || buckets[i - 1].maxDpd! + 1 !== buckets[i].minDpd) add('operations.delinquencyBuckets', 'buckets must be contiguous');
   }
   if (buckets[buckets.length - 1].maxDpd !== null) add('operations.delinquencyBuckets', 'the last bucket must be open-ended');
+
+  // Lock-in tiers: ascending, and a CHARGE tier must charge something.
+  const erc = c.repayment.earlyRepaymentCharges;
+  erc.tiers.forEach((t, i) => {
+    if (i > 0 && t.untilMonth <= erc.tiers[i - 1].untilMonth)
+      add(`repayment.earlyRepaymentCharges.tiers.${i}.untilMonth`, 'tiers must be in ascending untilMonth order');
+    if (t.action === 'CHARGE' && !t.rate && !t.fixed)
+      add(`repayment.earlyRepaymentCharges.tiers.${i}`, 'a CHARGE tier needs a rate or a fixed amount');
+    if (t.action === 'REFUSE' && (t.rate || t.fixed))
+      add(`repayment.earlyRepaymentCharges.tiers.${i}`, 'a REFUSE tier cannot also charge');
+  });
+  if (c.operations.nonAccrual.enabled) {
+    if (c.operations.nonAccrual.fromDpd == null) add('operations.nonAccrual.fromDpd', 'required when non-accrual is enabled');
+    else if (c.operations.nonAccrual.cureAtDpd >= c.operations.nonAccrual.fromDpd)
+      add('operations.nonAccrual.cureAtDpd', 'must be below fromDpd');
+  }
+  for (const [kind, choice] of Object.entries(c.policies)) {
+    if (choice && !choice.menu.includes(choice.defaultCode)) add(`policies.${kind}.menu`, 'must include the default policy');
+    for (const [name, b] of Object.entries(choice?.parameterBounds ?? {}))
+      if (b.min > b.max) add(`policies.${kind}.parameterBounds.${name}`, 'min exceeds max');
+  }
 
   return issues.length ? { ok: false, issues } : { ok: true, config: c };
 }
@@ -518,7 +1134,7 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
     if (f.minimumDrawdown !== null || f.maximumDrawdown !== null) set.push('drawdown bounds');
     if (f.commitmentFeeRate !== null) set.push('commitmentFeeRate');
     if (f.minimumPaymentRate !== null || f.minimumPaymentFloor !== null) set.push('minimum payment');
-    if (f.overlimitRate !== null) set.push('overlimitRate');
+    if (f.overlimitRate !== null || f.overlimitTolerance !== null || f.overlimitFee !== null) set.push('over-limit terms');
     if (f.termOutOnExpiry) set.push('termOutOnExpiry');
     if (f.tranches.length) set.push('tranches');
     if (set.length) add('facility', `a TERM product draws no limit; remove ${set.join(', ')}`);
@@ -526,6 +1142,9 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
   }
 
   if (f.availabilityMonths === null) add('facility.availabilityMonths', 'a facility needs an availability period');
+  if (f.overlimitTolerance !== null && dec(f.overlimitTolerance).gt(0) && f.overlimitRate === null) {
+    add('facility.overlimitTolerance', 'an over-limit allowance needs an over-limit rate');
+  }
   if (f.minLimit !== null && f.maxLimit !== null && dec(f.minLimit).gt(dec(f.maxLimit))) {
     add('facility', 'minLimit exceeds maxLimit');
   }
@@ -570,6 +1189,166 @@ function validateFacilityBlock(c: ProductConfig, add: (path: string, message: st
   }
 }
 
+/**
+ * Trade-finance and syndication cross-field rules.
+ *
+ * Each specialised behaviour is tied to the one product shape it is serviced
+ * on, so a product cannot claim it while the servicing path ignores it:
+ * invoices are advanced against a revolving limit, a letter of credit is not
+ * itself a loan, and a syndicate shares one term loan.
+ */
+function validateTradeBlock(c: ProductConfig, add: (path: string, message: string) => void): void {
+  const inv = c.trade?.invoice;
+  const lc = c.trade?.letterOfCredit;
+  const fac = c.trade?.factoring;
+  const scf = c.trade?.supplyChain;
+  const forf = c.trade?.forfaiting;
+  const docs = c.trade?.documentary;
+  const receivables = [inv, fac, scf, forf].filter(Boolean).length;
+  if (receivables > 1) add('trade', 'a product finances one kind of receivable: invoices, factoring, supply-chain finance or forfaiting');
+  if ((fac || scf || forf) && c.facility.type !== 'REVOLVING')
+    add('facility.type', 'bought receivables are funded against a revolving programme limit; set facility.type to REVOLVING');
+  if (fac) {
+    const expected = { FULL: 'FULL', LIMITED: 'LIMITED', NONE: 'NON_RECOURSE' }[fac.recourse];
+    if (c.attributes.recourse !== expected) add('attributes.recourse', `factoring with ${fac.recourse} recourse is described as ${expected}`);
+    if (fac.recourse === 'LIMITED') {
+      if (fac.limitedRecourseRate === null || dec(fac.limitedRecourseRate).lte(0))
+        add('trade.factoring.limitedRecourseRate', 'limited recourse needs the seller’s liability as a fraction of the invoice, above 0');
+    } else if (fac.limitedRecourseRate !== null) add('trade.factoring.limitedRecourseRate', 'applies only to LIMITED recourse');
+    if (dec(fac.advanceRate).lte(0)) add('trade.factoring.advanceRate', 'must be above 0');
+    if (dec(fac.serviceFeeRate).gte(dec(fac.advanceRate))) add('trade.factoring.serviceFeeRate', 'the service fee must be less than the advance');
+  }
+  if (forf && c.attributes.recourse !== 'NON_RECOURSE') add('attributes.recourse', 'forfaiting is without recourse to the seller: NON_RECOURSE');
+  if (docs) {
+    if (c.facility.type !== 'TERM') add('trade.documentary', 'a documentary trade loan is a term loan; facility.type must be TERM');
+    if (receivables || lc) add('trade', 'a documentary trade loan cannot also buy receivables or issue letters of credit');
+    if (!c.repayment.earlySettlement.allowed) add('repayment.earlySettlement.allowed', 'trade proceeds settle the loan when they arrive; allow early settlement');
+    if (dec(docs.maxFinancingRatio).lte(0)) add('trade.documentary.maxFinancingRatio', 'must be above 0');
+    if (new Set(docs.requiredDocuments).size !== docs.requiredDocuments.length) add('trade.documentary.requiredDocuments', 'list each document once');
+  }
+  if (inv) {
+    if (c.facility.type !== 'REVOLVING') add('trade.invoice', 'invoices are advanced against a revolving limit; set facility.type to REVOLVING');
+    if (c.attributes.recourse !== 'FULL')
+      add('attributes.recourse', 'invoice financing here is with full recourse to the borrower (UC-67); limited or non-recourse purchase is configured as factoring or forfaiting');
+    if (dec(inv.advanceRate).lte(0)) add('trade.invoice.advanceRate', 'must be above 0');
+  }
+  if (lc) {
+    if (c.facility.type !== 'TERM') add('trade.letterOfCredit', 'a letter of credit is issued, not drawn; facility.type must be TERM');
+    if (receivables) add('trade', 'a product finances receivables or issues letters of credit, not both');
+    if (c.syndication) add('trade.letterOfCredit', 'a letter of credit product cannot also be syndicated');
+  }
+  if (c.syndication) {
+    if (c.facility.type !== 'TERM') add('syndication', 'syndication shares one term loan; facility.type must be TERM');
+    if (c.identity.liability !== 'INDIVIDUAL') add('syndication', 'a syndicated loan has one borrower; group liability is not supported');
+    if (c.syndication.minParticipants > c.syndication.maxParticipants) add('syndication', 'minParticipants exceeds maxParticipants');
+  }
+}
+
+/**
+ * Cards, BNPL and leases each ride on one existing shape: a card is a
+ * revolving line, BNPL and leases are term loans. A block on the wrong shape
+ * would be configuration nothing in the servicing path reads.
+ */
+function validateSpecialisedBlocks(c: ProductConfig, add: (path: string, message: string) => void): void {
+  if (c.card) {
+    if (c.facility.type !== 'REVOLVING') add('card', 'card terms apply to a REVOLVING facility');
+    if (c.facility.termOutOnExpiry) add('facility.termOutOnExpiry', 'a card is repayable against a minimum payment; it does not term out');
+    if (c.card.cashAdvanceFeeRate === null && c.card.cashAdvanceFeeMinimum === null) add('card.cashAdvanceFeeRate', 'a cash advance needs a fee rate or a minimum fee');
+    if (c.card.instalmentPlan && new Set(c.card.instalmentPlan.allowedMonths).size !== c.card.instalmentPlan.allowedMonths.length)
+      add('card.instalmentPlan.allowedMonths', 'list each term once');
+  }
+  if (c.bnpl) {
+    if (c.facility.type !== 'TERM') add('bnpl', 'BNPL is a purchase-linked instalment plan, not a facility');
+    if (dec(c.bnpl.merchantDiscountRate).gte(dec('0.5'))) add('bnpl.merchantDiscountRate', 'a merchant discount of half the price or more is not a discount');
+  }
+  if (c.lease) {
+    if (c.facility.type !== 'TERM') add('lease', 'a lease is a rental schedule, not a facility');
+    if (c.repayment.method !== 'BALLOON') add('repayment.method', 'a lease carries its residual (purchase-option price) as the final balloon: use BALLOON');
+    if (!c.security.collateralRequired) add('security.collateralRequired', 'the leased asset is the security: a lease must be secured');
+  }
+  if (c.attributes.structure === 'IJARAH' && !c.lease) add('lease', 'an Ijarah product is a lease and needs lease terms');
+
+  // Institutional lending: limits are checked against the counterparty, so a
+  // product in the family must say which counterparties it lends to.
+  if (c.identity.familyCode === 'INSTITUTIONAL_PUBLIC' && !c.institutional) add('institutional', 'an institutional product needs institutional terms (counterparty types and limits)');
+  if (c.institutional) {
+    if (c.facility.type !== 'TERM') add('institutional', 'institutional lending is booked as term loans');
+    if (c.identity.liability !== 'INDIVIDUAL') add('institutional', 'an institutional loan has one counterparty as borrower');
+    if (new Set(c.institutional.counterpartyTypes).size !== c.institutional.counterpartyTypes.length) add('institutional.counterpartyTypes', 'list each type once');
+  }
+
+  // Income-contingent: the schedule is rebuilt from each assessment on the
+  // contract's monthly grid, so anything else that rebuilds it is excluded.
+  if (c.incomeContingent) {
+    const ic = 'incomeContingent';
+    if (c.facility.type !== 'TERM') add(ic, 'an income-contingent loan is a term loan');
+    if (c.attributes.rateType !== 'FIXED') add('attributes.rateType', 'an income-contingent loan carries a fixed (possibly zero or subsidised) rate');
+    if (c.repayment.method !== 'EQUAL_INSTALMENT') add('repayment.method', 'use EQUAL_INSTALMENT: the instalment is set by the income assessment');
+    if (c.repayment.frequency !== 'MONTHLY') add('repayment.frequency', 'income-contingent repayments are monthly');
+    if (c.pricing.accrualBasis !== 'PERIODIC') add('pricing.accrualBasis', 'income-contingent schedules use PERIODIC accrual');
+    if (c.pricing.interestMethod !== 'REDUCING_BALANCE') add('pricing.interestMethod', 'interest accrues on the outstanding balance');
+    if (c.repayment.businessDayConvention !== 'NONE') add('repayment.businessDayConvention', 'payments stay on the contract grid');
+    if (c.repayment.prepayment.allowed) add('repayment.prepayment', 'extra payments are held as an advance or settle the loan; there is no partial prepayment');
+    if (c.repayment.allocation.excessHandling === 'PREPAY') add('repayment.allocation.excessHandling', 'use ADVANCE or REJECT');
+    if (c.repayment.maxPrincipalGraceInstalments > 0 || c.repayment.maxInterestGraceInstalments > 0) add('repayment', 'no grace periods: an income below the threshold already pays nothing');
+    if (c.repayment.instalmentSteps?.length || c.pricing.promotion) add('repayment', 'stepped instalments and promotions do not apply');
+    if (c.operations.restructureAllowed) add('operations.restructureAllowed', 'an income-contingent loan is varied by income reassessment, not restructuring');
+    if (c.restructuring.allowRefinance) add('restructuring.allowRefinance', 'not available on an income-contingent loan');
+  }
+
+  // Murabaha: a sale at a fixed, disclosed price. Nothing may change the
+  // profit after the contract except settlement (with any ibra').
+  if (c.attributes.structure === 'MURABAHA' && !c.murabaha) add('murabaha', 'a Murabaha product needs Murabaha terms (asset types, ibra’)');
+  if (c.murabaha) {
+    if (c.attributes.structure !== 'MURABAHA') add('attributes.structure', 'Murabaha terms need structure MURABAHA');
+    if (c.facility.type !== 'TERM') add('murabaha', 'a Murabaha is a deferred-payment sale, not a facility');
+    if (c.attributes.rateType !== 'FIXED') add('attributes.rateType', 'the Murabaha profit is fixed when the contract is signed');
+    if (c.repayment.prepayment.allowed) add('repayment.prepayment', 'the sale price is fixed: partial prepayment does not change it (settle the whole contract instead)');
+    if (c.repayment.allocation.excessHandling === 'PREPAY') add('repayment.allocation.excessHandling', 'use ADVANCE or REJECT');
+    if (c.repayment.earlySettlement.rebateMethod !== 'ACCRUED') add('repayment.earlySettlement.rebateMethod', 'a Murabaha rebate is the ibra’ share (murabaha.ibraShare)');
+    if (c.repayment.earlySettlement.feeRate || c.repayment.earlySettlement.feeFixed) add('repayment.earlySettlement', 'no settlement fee on a Murabaha');
+    if (c.pricing.fees.some((f) => f.treatment !== 'SEPARATE')) add('pricing.fees', 'the sale price is cost plus profit only: charge any fee separately');
+    if (c.pricing.promotion) add('pricing.promotion', 'not available on a Murabaha');
+    if (c.operations.restructureAllowed) add('operations.restructureAllowed', 'rescheduling a Murabaha may not add profit; restructuring is not available');
+    if (c.restructuring.allowRefinance) add('restructuring.allowRefinance', 'not available on a Murabaha');
+    if (c.pricing.penalty.type !== 'NONE' && [c.accounting.interestIncome, c.accounting.feeIncome].includes(c.accounting.penaltyIncome))
+      add('accounting.penaltyIncome', 'late-payment charges on a Murabaha go to charity, not income');
+    if (c.accounting.interestIncome === '4000') add('accounting.interestIncome', 'Murabaha profit is not interest: map it to its own income account');
+  }
+}
+
+/**
+ * Covenants, project finance and borrowing bases each ride on one shape: a
+ * project is built on a staged facility that terms out, and a borrowing base
+ * limits drawings on a revolving line.
+ */
+function validateCommercialBlocks(c: ProductConfig, add: (path: string, message: string) => void): void {
+  (c.covenants ?? []).forEach((cv, i) => {
+    if ((cv.type === 'FINANCIAL_STATEMENTS') !== (cv.threshold === null))
+      add(`covenants.${i}.threshold`, cv.type === 'FINANCIAL_STATEMENTS' ? 'a financial-statements covenant has no threshold' : 'give the covenant threshold');
+    if (cv.threshold !== null && dec(cv.threshold).lte(0)) add(`covenants.${i}.threshold`, 'must be above 0');
+  });
+  const pf = c.projectFinance;
+  if (pf) {
+    if (c.facility.type !== 'STAGED_DRAWDOWN') add('projectFinance', 'a project is financed on a staged construction facility; set facility.type to STAGED_DRAWDOWN');
+    if (dec(pf.targetDscr).lt(1)) add('projectFinance.targetDscr', 'a target DSCR below 1 sizes debt service above the cash available to pay it');
+    if (pf.lockUpDscr !== null && dec(pf.lockUpDscr).gt(dec(pf.targetDscr))) add('projectFinance.lockUpDscr', 'the lock-up DSCR cannot exceed the target DSCR the repayments are sculpted to');
+    if (c.syndication || c.trade || c.card || c.borrowingBase) add('projectFinance', 'project finance cannot be combined with syndication, trade, card or borrowing-base terms');
+  }
+  const bb = c.borrowingBase;
+  if (bb) {
+    if (c.facility.type !== 'REVOLVING') add('borrowingBase', 'a borrowing base limits drawings on a revolving line; set facility.type to REVOLVING');
+    if (c.card || c.trade?.invoice) add('borrowingBase', 'a card or invoice-finance line has its own drawing rules; it cannot also carry a borrowing base');
+    const codes = new Set<string>();
+    bb.classes.forEach((cl, i) => {
+      if (codes.has(cl.code)) add(`borrowingBase.classes.${i}.code`, `duplicate class code ${cl.code}`);
+      codes.add(cl.code);
+      if (dec(cl.advanceRate).lte(0)) add(`borrowingBase.classes.${i}.advanceRate`, 'must be above 0');
+      if (cl.concentrationLimit !== null && dec(cl.concentrationLimit).lte(0)) add(`borrowingBase.classes.${i}.concentrationLimit`, 'must be above 0');
+    });
+  }
+}
+
 /** Capabilities a configuration depends on. Activation requires all to be IMPLEMENTED. */
 export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   const req = new Set<string>(['accounting.double_entry', 'servicing.repayment', 'servicing.accrual', 'servicing.closure', 'servicing.delinquency', 'credit.decision', 'origination.individual']);
@@ -606,8 +1385,24 @@ export function requiredCapabilitiesFor(c: ProductConfig): string[] {
   if (c.operations.integrations.kyc === 'EXTERNAL_REQUIRED') req.add('integration.kyc');
   const facilityCap: Record<string, string | null> = { TERM: null, REVOLVING: 'facility.revolving', OVERDRAFT: 'facility.overdraft', STAGED_DRAWDOWN: 'facility.staged_drawdown' };
   if (facilityCap[c.facility.type]) req.add(facilityCap[c.facility.type]!);
+  if (c.trade?.invoice) req.add('trade.invoice_finance');
+  if (c.trade?.letterOfCredit) req.add('trade.letter_of_credit');
+  if (c.trade?.factoring) req.add('trade.factoring');
+  if (c.trade?.supplyChain) req.add('trade.supply_chain');
+  if (c.trade?.forfaiting) req.add('trade.forfaiting');
+  if (c.trade?.documentary) req.add('trade.documentary');
+  if (c.syndication) req.add('syndication.participations');
   if (c.attributes.structure === 'MURABAHA') req.add('islamic.murabaha');
   if (c.attributes.structure === 'IJARAH') req.add('islamic.ijarah');
+  if (c.card) req.add('card.revolving_credit');
+  if (c.bnpl) req.add('bnpl.merchant_settlement');
+  if (c.lease) req.add('lease.true_lease');
+  if (c.covenants?.length) req.add('covenants.monitoring');
+  if (c.projectFinance) req.add('project_finance.waterfall');
+  if (c.borrowingBase) req.add('collateral.borrowing_base');
+  if (c.institutional) req.add('institutional.counterparty_limits');
+  if (c.incomeContingent) req.add('education.income_contingent');
+  if (c.murabaha) req.add('islamic.murabaha');
   return [...req].sort();
 }
 
@@ -624,6 +1419,19 @@ export interface NegotiatedTerms {
   balloonAmount?: string;
   explicitSchedule?: { dueDate: string; principal: string }[];
   waivedFeeCodes?: string[];
+  /** Paid by the borrower towards the purchase, not financed (UC-02). */
+  downPayment?: string;
+  /** The campaign code of the product's promotional rate (UC-46). */
+  promotionCode?: string;
+  /** Business financials for debt-service coverage (LT-16), annual amounts. */
+  financials?: { annualNetOperatingIncome: string; otherAnnualDebtService?: string };
+  /** Income-contingent loans: the borrower's declared annual income at origination (default 0, e.g. while studying). */
+  declaredAnnualIncome?: string;
+  /**
+   * The contract's choice from the product's policy menus (POLICY_MODEL.md).
+   * A kind left out uses the product's default policy.
+   */
+  policies?: Partial<Record<PolicyKind, { code?: string; parameters?: Record<string, number> }>>;
 }
 
 export interface TermsCheck {
@@ -645,6 +1453,13 @@ export function checkTerms(c: ProductConfig, t: NegotiatedTerms): TermsCheck {
   if (principal.lt(dec(c.limits.minAmount)) || principal.gt(dec(c.limits.maxAmount))) {
     add('principal', `must be between ${c.limits.minAmount} and ${c.limits.maxAmount} ${c.identity.currency}`);
   }
+  const minDown = c.operations.downPayment.minFraction;
+  if (minDown) {
+    const down = t.downPayment ? dec(t.downPayment, 'downPayment') : dec(0);
+    const required = principal.plus(down).times(minDown);
+    if (down.lt(required))
+      add('downPayment', `at least ${dec(minDown).times(100)}% of the purchase price (${principal.plus(down)}) is required: ${required.toDecimalPlaces(2)}`);
+  }
   const n = c.repayment.method === 'EXPLICIT' ? t.explicitSchedule?.length ?? 0 : t.numberOfInstalments ?? 0;
   if (n < c.limits.minInstalments || n > c.limits.maxInstalments) add('numberOfInstalments', `must be between ${c.limits.minInstalments} and ${c.limits.maxInstalments}`);
   if (c.repayment.method === 'EXPLICIT' && !t.explicitSchedule?.length) add('explicitSchedule', 'required for this product');
@@ -662,6 +1477,11 @@ export function checkTerms(c: ProductConfig, t: NegotiatedTerms): TermsCheck {
     if (c.repayment.method !== 'BALLOON') add('balloonAmount', 'not allowed for this product');
     else if (dec(t.balloonAmount).gt(principal.times(dec(c.repayment.maxBalloonFraction ?? '0')))) add('balloonAmount', `at most ${c.repayment.maxBalloonFraction} of principal`);
   } else if (c.repayment.method === 'BALLOON') add('balloonAmount', 'required for this product');
+  if (t.promotionCode && t.promotionCode !== c.pricing.promotion?.code) add('promotionCode', 'no such promotion on this product');
+  if (t.declaredAnnualIncome !== undefined) {
+    if (!c.incomeContingent) add('declaredAnnualIncome', 'only an income-contingent product takes a declared income');
+    else if (!/^\d+(\.\d+)?$/.test(t.declaredAnnualIncome)) add('declaredAnnualIncome', 'must be a non-negative decimal amount');
+  }
   for (const code of t.waivedFeeCodes ?? []) {
     const fee = c.pricing.fees.find((f) => f.code === code);
     if (!fee) add('waivedFeeCodes', `unknown fee ${code}`);
@@ -688,7 +1508,7 @@ export function toScheduleInput(
   if (c.repayment.businessDayConvention !== 'NONE' && !calendar) {
     throw new EngineError('MISSING_CALENDAR', `Holiday calendar ${c.repayment.holidayCalendarCode} is not available.`);
   }
-  return {
+  const input: ScheduleInput = {
     principal: bookedPrincipal,
     currency: c.identity.currency,
     rounding: c.pricing.rounding,
@@ -707,12 +1527,40 @@ export function toScheduleInput(
     firstDueDate: t.firstDueDate,
     principalGraceInstalments: t.principalGraceInstalments ?? 0,
     interestGraceInstalments: t.interestGraceInstalments ?? 0,
+    graceCapitalization: c.pricing.capitalization.basis,
     balloonAmount: t.balloonAmount,
     explicitSchedule: t.explicitSchedule,
     businessDayConvention: c.repayment.businessDayConvention,
     calendar,
     accrualDateBasis: c.repayment.accrualDateBasis,
+    instalmentSteps: c.repayment.instalmentSteps ?? undefined,
   };
+  if (c.incomeContingent) {
+    // The instalment follows the declared income; the contract term is the
+    // grid every reassessment keeps to, and its end is when the rest is forgiven.
+    input.incomeContingent = {
+      repaymentRate: c.incomeContingent.repaymentRate,
+      incomeThreshold: c.incomeContingent.incomeThreshold,
+      unpaidInterest: c.incomeContingent.unpaidInterest,
+      capitalisationCap: c.incomeContingent.capitalisationCap,
+      declaredAnnualIncome: t.declaredAnnualIncome ?? '0',
+      gridStart: t.disbursementDate,
+      gridPeriods: t.numberOfInstalments ?? 0,
+      originalPrincipal: bookedPrincipal,
+    };
+  }
+  const promo = c.pricing.promotion;
+  if (!rates && promo && t.promotionCode === promo.code) {
+    // UC-46: the promotional rate from disbursement, the contract rate from the start of the period after the promotion.
+    const periods = buildPeriods(input).periods;
+    if (promo.instalments >= periods.length) throw new EngineError('INVALID_PROMOTION', 'The promotion must end before the last instalment.');
+    input.rates = [
+      { effectiveFrom: t.disbursementDate, annualRate: promo.annualRate, source: `PROMOTION:${promo.code}` },
+      { effectiveFrom: periods[promo.instalments].start, annualRate: input.annualRate!, source: 'CONTRACT_FIXED' },
+    ];
+    input.annualRate = undefined;
+  }
+  return input;
 }
 
 export function feesOf(c: ProductConfig): FeeDefinition[] {

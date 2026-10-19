@@ -291,6 +291,22 @@ describe('staged drawdown tranches', () => {
     assert.equal(p.outstanding, '0');
     assert.equal(p.available, '40000'); // only the FRAME tranche remains, not the repaid 30,000
   });
+
+  test('capitalized construction interest above a fully drawn staged limit is interest, not an over-limit drawing', () => {
+    const history: L.FacilityMovement[] = [
+      { date: '2024-01-01', type: 'DRAWDOWN', amount: '30000', trancheCode: 'FOUNDATION' },
+      { date: '2024-03-01', type: 'DRAWDOWN', amount: '40000', trancheCode: 'FRAME' },
+      { date: '2024-04-01', type: 'CAPITALIZATION', amount: '1000' },
+    ];
+    const p = L.facilityPosition(staged, history, '2024-04-02');
+    assert.equal(p.outstanding, '71000');
+    assert.equal(p.overlimit, '0');
+    assert.equal(p.available, '0');
+    const i = L.accrueFacilityInterest(staged, history, '2024-04-01', '2024-05-01');
+    assert.equal(i.overlimitInterest, '0');
+    // 71,000 × 12% × 30/365
+    assert.equal(i.interest, '700.27');
+  });
 });
 
 describe('overdraft minimum payment', () => {

@@ -245,7 +245,7 @@ describe('lending decision engine', () => {
     ).toBe(true);
   });
 
-  it('cross-currency approval needs an approved, fresh FX rate — otherwise deny', () => {
+  it('cross-currency approval needs a recorded, fresh FX rate — otherwise deny', () => {
     const khr = application({ amount: '40000000', currency: 'KHR' });
     expect(
       decide(input('credit_decision.approve', { resource: khr })).allowed,
@@ -270,6 +270,20 @@ describe('lending decision engine', () => {
     );
     expect(failed(d)).toEqual(['APPROVAL_AUTHORITY']);
     expect(d.denial?.detail).toMatch(/stale/);
+    // The denial names the stale rate, not a generic "exceeds" message.
+    expect(d.denial?.message).toMatch(/older than 3 days/);
+    expect(d.denial?.message).toMatch(/KHR→USD \(2026-09-01\)/);
+    expect(d.denial?.message).not.toMatch(/exceeds/);
+    const none = decide(input('credit_decision.approve', { resource: khr }));
+    expect(none.denial?.message).toMatch(
+      /no exchange rate is recorded for KHR→USD/,
+    );
+    // When a fresh rate converts the amount above the limit, it still says "exceeds".
+    const big = application({ amount: '400000000', currency: 'KHR' });
+    expect(
+      decide(input('credit_decision.approve', { resource: big, fx: fresh }))
+        .denial?.message,
+    ).toBe('The amount exceeds your approval authority');
   });
 
   it('family-restricted authority does not cover other families', () => {
@@ -411,6 +425,70 @@ describe('lending decision engine', () => {
         ),
       ),
     ).toEqual(['FLAG:lending.repayment.balloon']);
+  });
+
+  describe('drawdowns and card postings are flag-gated', () => {
+    const facility = (over: Partial<Resource> = {}): Resource => ({
+      ...loanAccount(),
+      type: 'FACILITY',
+      id: 'fac-1',
+      familyCode: 'PERSONAL',
+      workflowState: 'ACTIVE',
+      requiredFlags: ['lending.revolving.drawdown'],
+      ...over,
+    });
+    const holder = subject({
+      grants: [
+        grant('facility.drawdown.request'),
+        grant('loan.repayment.post'),
+      ],
+    });
+    // The facility type flag is off by default: switch it on for the baseline.
+    const on = snapshot([
+      { flagKey: 'lending.revolving.drawdown', enabled: true },
+    ]);
+    const without = (key: string) =>
+      snapshot([
+        { flagKey: 'lending.revolving.drawdown', enabled: true },
+        { flagKey: key, enabled: false },
+      ]);
+
+    it('allowed only when the family, facility type, posting and servicing flags are on', () => {
+      for (const action of [
+        'facility.drawdown.request',
+        'card.purchase.post',
+        'card.cash_advance.post',
+      ]) {
+        const at = (flags: FlagSnapshot) =>
+          decide(
+            input(action, { subject: holder, resource: facility(), flags }),
+          );
+        expect(at(on).allowed).toBe(true);
+        expect(failed(at(snapshot()))).toEqual([
+          'FLAG:lending.revolving.drawdown',
+        ]);
+        for (const key of [
+          'lending.family.personal.enabled',
+          'lending.accounting.posting',
+          'lending.servicing',
+        ])
+          expect(failed(at(without(key)))).toEqual([`FLAG:${key}`]);
+        // Closing new business does not freeze committed limits.
+        expect(at(without('lending.origination')).allowed).toBe(true);
+      }
+    });
+
+    it('a pending drawdown can still be cancelled when the facility type is off', () => {
+      expect(
+        decide(
+          input('facility.drawdown.cancel', {
+            subject: holder,
+            resource: facility({ workflowState: 'REQUESTED' }),
+            flags: snapshot(),
+          }),
+        ).allowed,
+      ).toBe(true);
+    });
   });
 
   describe('tenant ABAC policies', () => {

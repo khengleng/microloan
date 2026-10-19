@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto';
+import { operationalConfig } from '../config/operational-config';
 
 /**
  * Borrower-portal tokens are cryptographically separated from staff tokens:
@@ -12,7 +13,10 @@ export function borrowerJwtSecret(): string {
   return createHmac('sha256', base).update('borrower-portal-v1').digest('hex');
 }
 
-export const BORROWER_TOKEN_TTL = '2h';
+/** Borrower session lifetime: BORROWER_TOKEN_TTL (default 2h). */
+export function borrowerTokenTtl(): string {
+  return operationalConfig().borrowerPortal.tokenTtl;
+}
 
 export type BorrowerJwtPayload = {
   sub: string; // borrowerId

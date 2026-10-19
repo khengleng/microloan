@@ -6,6 +6,8 @@ import * as bcrypt from 'bcrypt';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
+import { operationalConfig } from '../config/operational-config';
+import { PlanTierService } from '../plan-tiers/plan-tier.service';
 
 @Injectable()
 export class TenantsService {
@@ -13,7 +15,22 @@ export class TenantsService {
         private readonly prisma: PrismaService,
         private readonly audit: AuditService,
         private readonly authz: AuthzService,
+        private readonly planTiers: PlanTierService,
     ) { }
+
+    /**
+     * An organisation waiting for its plan payment is activated only by
+     * confirming that payment (Plan payments), never by Reactivate or an edit:
+     * otherwise it would get paid quota without paying.
+     */
+    private assertActivatable(current: { status: string } | null, next?: string) {
+        if (next !== 'ACTIVE' || !current) return;
+        if (current.status === 'PENDING_PAYMENT') {
+            throw new BadRequestException(
+                'This organisation is waiting for its plan payment. Confirm the payment under Plan payments to activate it.',
+            );
+        }
+    }
 
     async findAll(actor: JwtPayload, includeArchived = false) {
         this.authz.assertPlatformOnly(actor);
@@ -70,9 +87,14 @@ export class TenantsService {
         });
     }
 
-    async create(actor: JwtPayload, data: { name: string; adminEmail?: string; adminPassword?: string }) {
+    async create(actor: JwtPayload, data: { name: string; plan?: string; adminEmail?: string; adminPassword?: string }) {
         this.authz.assertPlatformOnly(actor);
         this.authz.assertPermission(actor, Permission.TENANT_CREATE);
+        // The plan chosen on Register New Org must be a tier on offer; without
+        // one the organisation gets the catalogue's default tier.
+        const tier = data.plan
+            ? await this.planTiers.requireSelectable(data.plan)
+            : await this.planTiers.defaultTier();
         if (data.adminEmail) {
             const existing = await this.prisma.user.findUnique({
                 where: { email: data.adminEmail }
@@ -83,7 +105,7 @@ export class TenantsService {
         }
 
         const tenant = await this.prisma.$transaction(async (tx) => {
-            const t = await tx.tenant.create({ data: { name: data.name } });
+            const t = await tx.tenant.create({ data: { name: data.name, ...(tier ? { plan: tier.name } : {}) } });
 
             if (data.adminEmail && data.adminPassword) {
                 const salt = await bcrypt.genSalt();
@@ -108,7 +130,7 @@ export class TenantsService {
             targetType: 'Tenant',
             targetId: tenant.id,
             action: 'TENANT_CREATE',
-            newValue: { name: tenant.name },
+            newValue: { name: tenant.name, plan: tenant.plan },
             result: 'SUCCESS',
         });
 
@@ -119,6 +141,15 @@ export class TenantsService {
         this.authz.assertPlatformOnly(actor);
         this.authz.assertPermission(actor, Permission.TENANT_UPDATE);
         const before = await this.prisma.tenant.findUnique({ where: { id } });
+        if (data.status !== undefined && !['ACTIVE', 'SUSPENDED'].includes(data.status)) {
+            throw new BadRequestException('Status may be set to ACTIVE or SUSPENDED only.');
+        }
+        this.assertActivatable(before, data.status);
+        // A plan change must name a tier on offer; keeping the current
+        // (possibly retired) tier is always allowed.
+        if (data.plan !== undefined && data.plan !== before?.plan) {
+            await this.planTiers.requireSelectable(data.plan);
+        }
         const tenant = await this.prisma.tenant.update({ where: { id }, data });
         await this.audit.logSecurityEvent({
             actorUserId: actor.sub,
@@ -137,6 +168,10 @@ export class TenantsService {
     async setStatus(actor: JwtPayload, id: string, status: 'ACTIVE' | 'SUSPENDED') {
         this.authz.assertPlatformOnly(actor);
         this.authz.assertPermission(actor, Permission.TENANT_SUSPEND);
+        this.assertActivatable(
+            await this.prisma.tenant.findUnique({ where: { id }, select: { status: true } }),
+            status,
+        );
         const tenant = await (this.prisma.tenant.update as any)({
             where: { id },
             data: {
@@ -295,7 +330,8 @@ export class TenantsService {
             targetType: 'Tenant',
             targetId: id,
             action: 'TENANT_ERASURE_REQUEST',
-            newValue: { scheduledPurgeAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+            // TENANT_ERASURE_GRACE_DAYS (default 30): the notice recorded with the request.
+            newValue: { scheduledPurgeAfter: new Date(Date.now() + operationalConfig().tenantErasureGraceDays * 86_400_000).toISOString() },
             result: 'SUCCESS',
         });
         return result;

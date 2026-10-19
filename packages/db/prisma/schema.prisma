@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  /// Pool and query counters for the /metrics endpoint (docs/lending/OPERATIONS.md).
+  previewFeatures = ["metrics"]
 }
 
 datasource db {
@@ -11,6 +13,8 @@ model Tenant {
   id                            String    @id @default(uuid())
   name                          String
   telegramBotToken              String?   @unique // Per-tenant bot token
+  /// Keyed hash of the bot token: one bot can serve only one organisation (the token itself is stored encrypted, so it cannot be compared).
+  telegramBotTokenHash          String?   @unique
   plan                          String    @default("FREE") // Basic subscription visibility
   // ACTIVE, SUSPENDED, PENDING_PAYMENT.
   // PENDING_PAYMENT is the self-serve signup gate: the organization exists but
@@ -67,6 +71,10 @@ model Tenant {
   serviceAccounts   ServiceAccount[]
   workflowVersions  WorkflowVersion[]
   lendingProducts   LendingProduct[]
+  lendingPolicies   LendingPolicy[]
+  scorecards        Scorecard[]
+  unidentifiedPayments UnidentifiedPayment[]
+  impairmentPolicies ImpairmentPolicy[]
   borrowerGroups    BorrowerGroup[]
   applications      Application[]
   approvalTasks     ApprovalTask[]
@@ -251,6 +259,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   identities          FederatedIdentity[]
   roleAssignments     RoleAssignment[]
+  learningProgress    LearningProgress[]
 
   @@unique([tenantId, id])
   @@index([tenantId])
@@ -346,6 +355,10 @@ model Borrower {
   applications     Application[]
   collateralAssets CollateralAsset[]
   groupMemberships GroupMembership[]
+  customerDocuments CustomerDocument[]
+  documentRequests  DocumentRequest[]
+  altDataConsents   AltDataConsent[]
+  altDataRecords    AltDataRecord[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
@@ -638,8 +651,8 @@ model Repayment {
 
 model AuditLog {
   id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId  String? // Null for platform events (SUPERADMIN actions, unknown-account logins)
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId    String? // Nullable  — allows anonymous security events (e.g. unknown email login)
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String // CREATE, UPDATE, DELETE, LOGIN
@@ -1032,6 +1045,9 @@ model TenantBusinessDate {
   businessDate DateTime @db.Date
   updatedBy    String?
   updatedAt    DateTime @updatedAt
+  /// The last business date end of day processed for the whole book, and how many accounts failed.
+  lastBatchDate     DateTime? @db.Date
+  lastBatchFailures Int       @default(0)
 }
 
 model HolidayCalendar {
@@ -1526,11 +1542,13 @@ model Application {
   conditions ConditionPrecedent[]
   guarantees Guarantee[]
   pledges    CollateralPledge[]
+  scoreEvaluations ScoreEvaluation[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
   @@index([tenantId, status])
   @@index([tenantId, branchId])
+  @@index([tenantId, groupId])
 }
 
 model ApplicationDocument {
@@ -1619,6 +1637,8 @@ model CollateralAsset {
   type        String
   description String
   currency    String
+  /// Balances of other loans ranking ahead on this asset (a first mortgage behind a HELOC).
+  priorLienAmount Decimal          @default(0) @db.Decimal(24, 4)
   createdBy   String
   createdAt   DateTime           @default(now())
   valuations  Valuation[]
@@ -1651,6 +1671,10 @@ model CollateralPledge {
   application   Application     @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
   /// ACTIVE, RELEASED
   status        String          @default("ACTIVE")
+  /// Release on closure (UC-73): who signed it off and the returned-document reference.
+  releasedAt       DateTime?
+  releasedBy       String?
+  releaseReference String?
   createdAt     DateTime        @default(now())
 
   @@unique([collateralId, applicationId])
@@ -1726,6 +1750,10 @@ model Facility {
   conditions  FacilityCondition[]
   statements  FacilityStatement[]
   limitEvents FacilityLimitChange[]
+  tradeInvoices TradeInvoice[]
+  tradeSuppliers TradeSupplier[]
+  card        CardAccount?
+  borrowingBaseCertificates BorrowingBaseCertificate[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -1841,8 +1869,10 @@ model FacilityLimitChange {
   facility       Facility @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
   previousLimit  Decimal  @db.Decimal(24, 4)
   newLimit       Decimal  @db.Decimal(24, 4)
-  /// INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT
+  /// INCREASE, DECREASE, EXTENSION, SUSPENSION, REINSTATEMENT, RENEWAL
   changeType     String
+  /// RENEWAL (UC-42): months availability and maturity are extended by.
+  renewalMonths  Int?
   reason         String
   effectiveDate  DateTime @db.Date
   /// REQUESTED, APPROVED, REJECTED
@@ -1895,6 +1925,8 @@ model AgreementVersion {
   configHash    String
   terms         Json
   scheduleInput Json
+  /// Policies the contract is composed of, resolved at booking: [{kind, code, version, policyVersionId, parameters}]
+  policies      Json?
   calculation   Json
   engineVersion String
   effectiveDate DateTime         @db.Date
@@ -1926,6 +1958,35 @@ model LoanAccount {
   interestReceivable     Decimal          @default(0) @db.Decimal(24, 4)
   feesReceivable         Decimal          @default(0) @db.Decimal(24, 4)
   penaltyReceivable      Decimal          @default(0) @db.Decimal(24, 4)
+  /// Money received ahead of its due date, applied to instalments as they fall due (DECISIONS D-001).
+  advanceBalance         Decimal          @default(0) @db.Decimal(24, 4)
+  /// Interest stops being recognised as income while true (DECISIONS D-002).
+  nonAccrual             Boolean          @default(false)
+  nonAccrualSince        DateTime?        @db.Date
+  /// Interest accrued while on non-accrual, held in suspense until cure.
+  interestInSuspense     Decimal          @default(0) @db.Decimal(24, 4)
+  /// Loss allowance held against this loan (OPS-5); posted as the change from the previous day.
+  allowance              Decimal          @default(0) @db.Decimal(24, 4)
+  /// Classification class and IFRS 9 stage from the tenant's impairment policy.
+  classification         String?
+  impairmentStage        Int?
+  /// Down payment recorded before disbursement (UC-02), and the part the lender holds for the seller.
+  downPaymentReceived    Decimal          @default(0) @db.Decimal(24, 4)
+  downPaymentHeld        Decimal          @default(0) @db.Decimal(24, 4)
+  marginCalls            MarginCall[]
+  payoffQuotes           PayoffQuote[]
+  collectionTasks        CollectionTask[]
+  guarantorDemands       GuarantorDemand[]
+  repossessions          Repossession[]
+  pawnItems              PawnItem[]
+  insurancePolicies      InsurancePolicy[]
+  debtSales              DebtSale[]
+  recoveryRefunds        RecoveryRefund[]
+  directDebitMandates    DirectDebitMandate[]
+  covenants              LoanCovenant[]
+  projectFinance         ProjectFinance?
+  bnplPlan               BnplPlan?
+  leaseAsset             LeaseAsset?
   instalmentAmount       Decimal?         @db.Decimal(24, 4)
   daysPastDue            Int              @default(0)
   delinquencyBucket      String           @default("CURRENT")
@@ -1958,6 +2019,10 @@ model LoanAccount {
   instalments      ScheduleInstalment[]
   events           FinancialEvent[]
   restructureCases RestructureCase[]
+  murabahaContract       MurabahaContract?
+  incomeAssessments      IncomeAssessment[]
+  tradeTransaction       TradeTransaction?
+  syndicate        Syndicate?
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -2129,6 +2194,8 @@ model ScheduleInstalment {
   penaltyPaid            Decimal     @default(0) @db.Decimal(24, 4)
   /// Pre-existing arrears carried into this line by a restructure: repaid as INTEREST, never accrued again.
   deferredInterestDue    Decimal     @default(0) @db.Decimal(24, 4)
+  /// Interest earned over this period but payable on later instalments (deferral without capitalization).
+  deferredAccrual        Decimal     @default(0) @db.Decimal(24, 4)
   /// Interest earned on this line up to the restructure that closed it (status RESTRUCTURED).
   accruedAtClose         Decimal?    @db.Decimal(24, 4)
   annualRate             Decimal     @db.Decimal(18, 10)
@@ -2158,8 +2225,9 @@ model AccrualEvent {
 model FinancialEvent {
   id                String      @id @default(uuid())
   tenantId          String
-  loanAccountId     String
-  loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// Null for tenant-level money not yet tied to a loan (unidentified receipts, UC-28).
+  loanAccountId     String?
+  loanAccount       LoanAccount? @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
   /// DISBURSEMENT, REPAYMENT, ACCRUAL, PENALTY, SETTLEMENT, WRITE_OFF, RECOVERY, REVERSAL
   type              String
   /// POSTED, REVERSED
@@ -2172,8 +2240,8 @@ model FinancialEvent {
   idempotencyKey    String
   requestHash       String
   reversalOfId      String?     @unique
-  productVersionId  String
-  agreementVersion  Int
+  productVersionId  String?
+  agreementVersion  Int?
   engineVersion     String
   actorId           String
   actorType         String
@@ -2208,7 +2276,7 @@ model LendingJournalEntry {
   tenantId         String
   financialEventId String               @unique
   event            FinancialEvent       @relation(fields: [tenantId, financialEventId], references: [tenantId, id], onDelete: Cascade)
-  loanAccountId    String
+  loanAccountId    String?
   entryDate        DateTime             @db.Date
   currency         String
   description      String
@@ -2228,12 +2296,14 @@ model LendingJournalLine {
   accountId     String
   account       LedgerAccount       @relation(fields: [tenantId, accountId], references: [tenantId, id])
   accountCode   String
-  loanAccountId String
+  loanAccountId String?
   debit         Decimal             @default(0) @db.Decimal(24, 4)
   credit        Decimal             @default(0) @db.Decimal(24, 4)
 
   @@index([tenantId, accountCode])
   @@index([tenantId, loanAccountId])
+  /// The balanced-journal constraint trigger sums an entry's lines by entryId at commit.
+  @@index([entryId])
 }
 
 // ── Restructuring and hardship ─────────────────────────────────────────────
@@ -2484,8 +2554,11 @@ model OutboxMessage {
   sentAt      DateTime?
   lastError   String?
   createdAt   DateTime  @default(now())
+  /// When the message was fanned out to the tenant's webhook endpoints.
+  webhooksQueuedAt DateTime?
 
   @@index([status, availableAt])
+  @@index([webhooksQueuedAt, createdAt])
 }
 
 /// Immutable lending audit trail, including authorization decisions.
@@ -2507,4 +2580,2107 @@ model AuditEvent {
 
   @@index([tenantId, eventTime])
   @@index([tenantId, resourceType, resourceId])
+}
+
+/// Reusable loan policy (docs/servicing/POLICY_MODEL.md). A contract is
+/// composed from policy versions chosen from its product's menu.
+model LendingPolicy {
+  id          String                 @id @default(uuid())
+  tenantId    String
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// PREPAYMENT, LATE_CHARGES, ALLOCATION, NON_ACCRUAL
+  kind        String
+  code        String
+  name        String
+  description String                 @default("")
+  createdBy   String
+  createdAt   DateTime               @default(now())
+  versions    LendingPolicyVersion[]
+
+  @@unique([tenantId, kind, code])
+  @@unique([tenantId, id])
+}
+
+model LendingPolicyVersion {
+  id              String        @id @default(uuid())
+  tenantId        String
+  policyId        String
+  policy          LendingPolicy @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// DRAFT, SUBMITTED, APPROVED, REJECTED, RETIRED
+  status          String        @default("DRAFT")
+  parameters      Json          @default("{}")
+  body            Json
+  bodyHash        String
+  changeSummary   String        @default("")
+  makerId         String
+  submittedAt     DateTime?
+  checkerId       String?
+  approvedAt      DateTime?
+  retiredAt       DateTime?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+
+  @@unique([policyId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// Money received that cannot yet be tied to a loan (UC-28). Held in the
+/// unidentified-payments suspense account until matched to loans or refunded.
+model UnidentifiedPayment {
+  id                String                     @id @default(uuid())
+  tenantId          String
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reference         String
+  amount            Decimal                    @db.Decimal(24, 4)
+  /// What has not yet been matched or refunded.
+  remaining         Decimal                    @db.Decimal(24, 4)
+  currency          String
+  valueDate         DateTime                   @db.Date
+  /// BRANCH_CASH, BANK_TRANSFER, MOBILE, AGENT, PAYROLL, OTHER
+  channel           String
+  externalReference String
+  payerName         String?
+  narrative         String                     @default("")
+  /// OPEN, MATCHED, REFUNDED
+  status            String                     @default("OPEN")
+  receiptEventId    String                     @unique
+  receivedBy        String
+  createdAt         DateTime                   @default(now())
+  matches           UnidentifiedPaymentMatch[]
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, valueDate])
+}
+
+model UnidentifiedPaymentMatch {
+  id               String              @id @default(uuid())
+  tenantId         String
+  paymentId        String
+  payment          UnidentifiedPayment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Cascade)
+  /// MATCH (applied to a loan) or REFUND (returned to the payer)
+  kind             String
+  loanAccountId    String?
+  financialEventId String              @unique
+  amount           Decimal             @db.Decimal(24, 4)
+  actorId          String
+  reason           String              @default("")
+  createdAt        DateTime            @default(now())
+
+  @@index([tenantId, paymentId])
+}
+
+/// Tenant impairment policy (OPS-5): classification classes and either a
+/// regulatory rate per class or expected credit loss (PD × LGD × EAD) by
+/// stage. Versioned; a different user approves; one ACTIVE at a time.
+model ImpairmentPolicy {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  version   Int
+  settings  Json
+  /// PENDING, ACTIVE, REJECTED, RETIRED
+  status    String    @default("PENDING")
+  makerId   String
+  checkerId String?
+  decidedAt DateTime?
+  reason    String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// A loan above its maximum loan-to-value after its collateral was revalued
+/// (UC-51): the borrower repays or adds collateral by the deadline.
+model MarginCall {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  valuationId          String
+  ltv                  Decimal     @db.Decimal(12, 6)
+  maxLtv               Decimal     @db.Decimal(12, 6)
+  outstanding          Decimal     @db.Decimal(24, 4)
+  lendingValue         Decimal     @db.Decimal(24, 4)
+  requiredRepayment    Decimal     @db.Decimal(24, 4)
+  requiredCollateral   Decimal     @db.Decimal(24, 4)
+  deadline             DateTime    @db.Date
+  /// OPEN, CURED, EXPIRED
+  status               String      @default("OPEN")
+  resolvedAt           DateTime?
+  resolution           String      @default("")
+  createdBy            String
+  createdAt            DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// A payoff quote issued as a letter, valid to a date (UC-31), for the
+/// borrower or for a lender taking the loan over (UC-34).
+model PayoffQuote {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  loanAccountId      String
+  loanAccount        LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  reference          String
+  /// BORROWER or TAKEOVER
+  purpose            String
+  recipientName      String      @default("")
+  recipientReference String      @default("")
+  issuedOn           DateTime    @db.Date
+  expiresOn          DateTime    @db.Date
+  currency           String
+  /// [{ date, payable }] for each day the quote is good through.
+  goodThrough        Json
+  perDiem            Decimal     @db.Decimal(24, 4)
+  /// ISSUED, USED, CANCELLED
+  status             String      @default("ISSUED")
+  settlementEventId  String?
+  createdBy          String
+  createdAt          DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, loanAccountId])
+}
+
+/// One step of the collections ladder for a loan in arrears (UC-58): raised
+/// by end of day when the loan reaches a stage, worked from the stage's queue.
+model CollectionTask {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  stage         String
+  /// SMS, CALL, VISIT, NOTICE, LEGAL_REVIEW
+  action        String
+  queue         String
+  /// First day of the arrears episode; one task per stage per episode.
+  episodeFrom   DateTime    @db.Date
+  daysPastDue   Int
+  amountOverdue Decimal     @db.Decimal(24, 4)
+  dueOn         DateTime    @db.Date
+  /// OPEN, DONE, CANCELLED
+  status        String      @default("OPEN")
+  assignedTo    String?
+  outcome       String      @default("")
+  note          String      @default("")
+  completedBy   String?
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([loanAccountId, stage, episodeFrom])
+  @@index([tenantId, status, queue])
+}
+
+/// A demand on a guarantor to pay what the borrower has not (UC-60).
+model GuarantorDemand {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  guaranteeId   String
+  guarantorName String
+  reference     String
+  amount        Decimal     @db.Decimal(24, 4)
+  paid          Decimal     @default(0) @db.Decimal(24, 4)
+  currency      String
+  issuedOn      DateTime    @db.Date
+  payBy         DateTime    @db.Date
+  /// OPEN, PAID, WITHDRAWN
+  status        String      @default("OPEN")
+  letter        String
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, loanAccountId])
+}
+// ── Recovery workflows (UC-65, UC-66, UC-68, UC-71, LT-09, UC-06) ─────────────
+
+/// Repossession of pledged collateral on a defaulted loan (UC-65): seizure is
+/// approved by a second user, the asset is valued, then sold; the proceeds pay
+/// the costs, then the loan. A surplus is owed to the borrower; a deficiency
+/// stays on the loan.
+model Repossession {
+  id              String      @id @default(uuid())
+  tenantId        String
+  loanAccountId   String
+  loanAccount     LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  collateralId    String
+  /// PROPOSED, SEIZED, VALUED, SOLD, REJECTED
+  status          String      @default("PROPOSED")
+  location        String
+  seizedOn        DateTime    @db.Date
+  reason          String      @default("")
+  taskId          String?
+  valuationAmount Decimal?    @db.Decimal(24, 4)
+  valuer          String?
+  valuedOn        DateTime?   @db.Date
+  salePrice       Decimal?    @db.Decimal(24, 4)
+  saleCosts       Decimal?    @db.Decimal(24, 4)
+  buyer           String?
+  soldOn          DateTime?   @db.Date
+  saleEventId     String?     @unique
+  surplus         Decimal?    @db.Decimal(24, 4)
+  deficiency      Decimal?    @db.Decimal(24, 4)
+  proposedBy      String
+  approvedBy      String?
+  createdAt       DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+/// An item held in custody against a pawn or gold loan (LT-09, UC-66): what it
+/// is, its weight and purity, where it is kept, its value, the redemption
+/// deadline, and whether it was returned, forfeited or sold at auction.
+model PawnItem {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  loanAccountId      String
+  loanAccount        LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  description        String
+  /// GOLD, JEWELLERY, OTHER
+  itemType           String
+  weightGrams        Decimal     @db.Decimal(14, 4)
+  karat              Int?
+  /// Fineness as a fraction (0.75 = 18k).
+  purity             Decimal     @db.Decimal(8, 6)
+  pricePerGram       Decimal     @db.Decimal(24, 4)
+  appraisedValue     Decimal     @db.Decimal(24, 4)
+  custodyLocation    String
+  sealNumber         String?
+  receivedOn         DateTime    @db.Date
+  redemptionDeadline DateTime    @db.Date
+  /// IN_CUSTODY, FORFEITED, SOLD, RETURNED
+  status             String      @default("IN_CUSTODY")
+  forfeitedAt        DateTime?
+  returnedOn         DateTime?   @db.Date
+  returnReference    String?
+  salePrice          Decimal?    @db.Decimal(24, 4)
+  saleCosts          Decimal?    @db.Decimal(24, 4)
+  buyer              String?
+  soldOn             DateTime?   @db.Date
+  saleEventId        String?     @unique
+  surplus            Decimal?    @db.Decimal(24, 4)
+  deficiency         Decimal?    @db.Decimal(24, 4)
+  createdBy          String
+  createdAt          DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// Credit insurance on a loan (UC-68, UC-06). A financed premium was booked in
+/// the principal at disbursement and credited to the insurer payable; a paid
+/// premium is received in cash. Either way it is remitted to the insurer.
+model InsurancePolicy {
+  id               String           @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  loanAccount      LoanAccount      @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  insurer          String
+  policyNumber     String
+  /// DEATH, DISABILITY, DEATH_AND_DISABILITY
+  coverType        String
+  premium          Decimal          @db.Decimal(24, 4)
+  /// FINANCED, PAID
+  premiumTreatment String
+  premiumRemitted  Decimal          @default(0) @db.Decimal(24, 4)
+  currency         String
+  startDate        DateTime         @db.Date
+  /// ACTIVE, CLAIMED
+  status           String           @default("ACTIVE")
+  premiumEventId   String?          @unique
+  createdBy        String
+  createdAt        DateTime         @default(now())
+  claims           InsuranceClaim[]
+
+  @@unique([tenantId, insurer, policyNumber])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A claim on a credit-insurance policy (UC-68). Approved by a second user, it
+/// settles the loan against a receivable from the insurer; any excess is owed
+/// to the estate.
+model InsuranceClaim {
+  id                String          @id @default(uuid())
+  tenantId          String
+  policyId          String
+  policy            InsurancePolicy @relation(fields: [tenantId, policyId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId     String
+  /// DEATH, DISABILITY
+  eventType         String
+  eventDate         DateTime        @db.Date
+  evidenceReference String
+  note              String          @default("")
+  amountClaimed     Decimal         @db.Decimal(24, 4)
+  /// PENDING, SETTLED, REJECTED
+  status            String          @default("PENDING")
+  taskId            String?
+  settlementEventId String?         @unique
+  surplus           Decimal?        @db.Decimal(24, 4)
+  deficiency        Decimal?        @db.Decimal(24, 4)
+  /// What the insurer has actually paid against the claim so far.
+  received          Decimal         @default(0) @db.Decimal(24, 4)
+  createdBy         String
+  createdAt         DateTime        @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// Sale of a delinquent or written-off loan to a collection agency (UC-71),
+/// approved by a second user. The loan leaves the book (SOLD).
+model DebtSale {
+  id                String      @id @default(uuid())
+  tenantId          String
+  loanAccountId     String
+  loanAccount       LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  buyer             String
+  price             Decimal     @db.Decimal(24, 4)
+  saleDate          DateTime    @db.Date
+  reason            String
+  externalReference String?
+  /// PENDING, EXECUTED, REJECTED
+  status            String      @default("PENDING")
+  taskId            String?
+  grossReceivable   Decimal?    @db.Decimal(24, 4)
+  carryingAmount    Decimal?    @db.Decimal(24, 4)
+  gainLoss          Decimal?    @db.Decimal(24, 4)
+  eventId           String?     @unique
+  proposedBy        String
+  approvedBy        String?
+  createdAt         DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+/// Money a recovery left over for the borrower or the estate (UC-65, UC-66,
+/// UC-68): held as a payable until a second user approves the payout.
+model RecoveryRefund {
+  id            String      @id @default(uuid())
+  tenantId      String
+  loanAccountId String
+  loanAccount   LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// REPOSSESSION, PAWN_AUCTION, INSURANCE_CLAIM
+  source        String
+  sourceId      String
+  payee         String
+  amount        Decimal     @db.Decimal(24, 4)
+  currency      String
+  /// PAYABLE, PAID
+  status        String      @default("PAYABLE")
+  sourceEventId String
+  paidEventId   String?     @unique
+  taskId        String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, loanAccountId])
+}
+
+/// Payment-channel settings of a tenant (UC-16, UC-21): the spread on the
+/// bank's FX rate, how old a rate may be, and the auto-debit retry policy.
+/// Without a row the defaults below apply.
+model PaymentChannelSettings {
+  id                   String   @id @default(uuid())
+  tenantId             String   @unique
+  fxSpreadBps          Int      @default(0)
+  fxMaxRateAgeDays     Int      @default(0)
+  autoDebitMaxAttempts Int      @default(3)
+  autoDebitRetryDays   Int      @default(1)
+  updatedBy            String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([tenantId, id])
+}
+
+/// A borrower's authority for the bank to collect instalments from their
+/// account on the due date (UC-16). One ACTIVE mandate per loan.
+model DirectDebitMandate {
+  id               String             @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  loanAccount      LoanAccount        @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  mandateReference String
+  bankCode         String
+  accountNumber    String
+  accountName      String
+  consentDate      DateTime           @db.Date
+  /// ACTIVE, REVOKED
+  status           String             @default("ACTIVE")
+  revokedAt        DateTime?
+  revokedBy        String?
+  revokeReason     String             @default("")
+  createdBy        String
+  createdAt        DateTime           @default(now())
+  attempts         AutoDebitAttempt[]
+
+  @@unique([tenantId, mandateReference])
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// One collection attempt under a mandate for one due date (UC-16).
+model AutoDebitAttempt {
+  id                    String             @id @default(uuid())
+  tenantId              String
+  mandateId             String
+  mandate               DirectDebitMandate @relation(fields: [tenantId, mandateId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId         String
+  dueDate               DateTime           @db.Date
+  attemptNo             Int
+  businessDate          DateTime           @db.Date
+  amount                Decimal            @db.Decimal(24, 4)
+  currency              String
+  adapter               String
+  /// PENDING, SUCCEEDED, FAILED, SUSPENSE (collected but could not be applied)
+  status                String             @default("PENDING")
+  failureCode           String?
+  bankReference         String?
+  financialEventId      String?
+  unidentifiedPaymentId String?
+  nextRetryDate         DateTime?          @db.Date
+  detail                String             @default("")
+  createdAt             DateTime           @default(now())
+  completedAt           DateTime?
+
+  @@unique([tenantId, mandateId, dueDate, attemptNo])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, nextRetryDate])
+  @@index([tenantId, loanAccountId])
+}
+
+/// An imported settlement (mobile, QR, wallet, agent) or payroll remittance
+/// file (UC-18, UC-19). Imported once per content hash.
+model ChannelFile {
+  id             String            @id @default(uuid())
+  tenantId       String
+  /// SETTLEMENT, PAYROLL
+  kind           String
+  /// MOBILE, QR, WALLET, AGENT, PAYROLL
+  channel        String
+  fileName       String
+  fileHash       String
+  employer       String?
+  period         String?
+  lineCount      Int
+  postedCount    Int
+  suspenseCount  Int
+  duplicateCount Int
+  /// Per currency: what the file reported, excluding repeated lines.
+  totals         Json
+  businessDate   DateTime          @db.Date
+  importedBy     String
+  createdAt      DateTime          @default(now())
+  lines          ChannelFileLine[]
+
+  @@unique([tenantId, kind, fileHash])
+  @@unique([tenantId, id])
+  @@index([tenantId, channel, businessDate])
+}
+
+/// One payment line of an imported channel file and what became of it.
+model ChannelFileLine {
+  id                    String      @id @default(uuid())
+  tenantId              String
+  fileId                String
+  file                  ChannelFile @relation(fields: [tenantId, fileId], references: [tenantId, id], onDelete: Cascade)
+  lineNo                Int
+  channel               String
+  channelTxnId          String
+  /// channel:txnId on the first occurrence; null on a repeat, so a payment is applied once.
+  dedupeKey             String?
+  reference             String      @default("")
+  loanRef               String?
+  employeeRef           String?
+  /// Blind index and last digits of the national id; the id itself is not stored.
+  nationalIdHash        String?
+  nationalIdHint        String?
+  payerName             String?
+  amount                Decimal     @db.Decimal(24, 4)
+  currency              String
+  valueDate             DateTime    @db.Date
+  /// POSTED, SUSPENSE, DUPLICATE
+  outcome               String
+  reason                String      @default("")
+  loanAccountId         String?
+  financialEventId      String?
+  unidentifiedPaymentId String?
+  duplicateOfLineId     String?
+  conflicting           Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+
+  @@unique([tenantId, dedupeKey])
+  @@unique([tenantId, id])
+  @@index([tenantId, fileId])
+  @@index([tenantId, channel, valueDate])
+}
+
+// ── Customer document library (DOC-1..10) ───────────────────────────────────
+
+/// One customer's document (DOC-1): KYC, application, loan, collateral,
+/// agreement and generated documents in one library per borrower. The file
+/// itself lives in object storage; each replacement is a new version (DOC-5).
+/// Never hard-deleted: deletion after retention is a soft delete plus removal
+/// of the stored objects (DOC-7).
+model CustomerDocument {
+  id              String                    @id @default(uuid())
+  tenantId        String
+  borrowerId      String
+  borrower        Borrower                  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// KYC, APPLICATION, LOAN, COLLATERAL, AGREEMENT, GENERATED, OTHER
+  category        String
+  /// Document type, e.g. NATIONAL_ID, ID_DOCUMENT, TITLE_DEED, KEY_FACTS
+  typeCode        String
+  title           String
+  applicationId   String?
+  loanAccountId   String?
+  /// A loan of the legacy loan book.
+  legacyLoanId    String?
+  collateralId    String?
+  requestId       String?
+  /// STAFF, PORTAL, GENERATED, LEGACY
+  origin          String
+  /// Shown to the borrower in the portal (their own uploads and letters sent to them).
+  customerVisible Boolean                   @default(false)
+  /// Review of the current version: PENDING_REVIEW, ACCEPTED, REJECTED, NOT_REQUIRED
+  reviewStatus    String                    @default("PENDING_REVIEW")
+  currentVersion  Int                       @default(1)
+  issuedOn        DateTime?                 @db.Date
+  expiresOn       DateTime?                 @db.Date
+  /// NONE, REMINDED, EXPIRED
+  expiryState     String                    @default("NONE")
+  reminderSentOn  DateTime?                 @db.Date
+  legalHold       Boolean                   @default(false)
+  legalHoldReason String?
+  legalHoldBy     String?
+  legalHoldAt     DateTime?
+  /// ACTIVE, DELETED
+  status          String                    @default("ACTIVE")
+  deletedAt       DateTime?
+  deletedBy       String?
+  deletionReason  String?
+  /// KYC_DOCUMENT, LOAN_DOCUMENT, APPLICATION_DOCUMENT — the older store this row stands for.
+  legacySource    String?
+  legacyId        String?
+  createdBy       String
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  versions        CustomerDocumentVersion[]
+  altDataRecords  AltDataRecord[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, legacySource, legacyId])
+  @@index([tenantId, borrowerId, status])
+  @@index([tenantId, reviewStatus])
+  @@index([tenantId, expiresOn])
+  @@index([tenantId, applicationId])
+}
+
+/// One stored file of a customer document. Content fields are immutable;
+/// only the review outcome and the purge marker change.
+model CustomerDocumentVersion {
+  id              String           @id @default(uuid())
+  tenantId        String
+  documentId      String
+  document        CustomerDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// Display name only (sanitised); never part of the storage key.
+  fileName        String
+  mimeType        String
+  sizeBytes       Int
+  sha256          String
+  /// S3, LOCAL_DISK, or for linked older records LEGACY_KYC, LEGACY_VAULT, LEGACY_APPLICATION
+  storageProvider String
+  storageKey      String
+  uploadedBy      String
+  /// USER, CUSTOMER, SYSTEM
+  uploaderType    String
+  note            String           @default("")
+  /// PENDING_REVIEW, ACCEPTED, REJECTED, NOT_REQUIRED
+  reviewStatus    String           @default("PENDING_REVIEW")
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  /// Set when the stored object was removed after retention.
+  purgedAt        DateTime?
+  createdAt       DateTime         @default(now())
+
+  @@unique([documentId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, documentId])
+}
+
+/// A document the bank has asked the customer for (DOC-10).
+model DocumentRequest {
+  id            String    @id @default(uuid())
+  tenantId      String
+  borrowerId    String
+  borrower      Borrower  @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  category      String
+  typeCode      String
+  label         String
+  message       String    @default("")
+  applicationId String?
+  loanAccountId String?
+  dueOn         DateTime? @db.Date
+  /// OPEN, SUBMITTED, ACCEPTED, CANCELLED
+  status        String    @default("OPEN")
+  documentId    String?
+  /// Why the last upload against this request was rejected, shown to the customer.
+  lastRejection String?
+  requestedBy   String
+  fulfilledAt   DateTime?
+  cancelledBy   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, status])
+}
+
+/// Retention period for a document category or type (DOC-7). Built-in
+/// defaults apply where a tenant has no rule (docs/servicing/DECISIONS.md).
+model DocumentRetentionRule {
+  id             String   @id @default(uuid())
+  tenantId       String
+  /// CATEGORY or TYPE
+  scope          String
+  code           String
+  retentionYears Int
+  updatedBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, scope, code])
+  @@unique([tenantId, id])
+}
+
+/// A covenant the borrower must keep (LT-16): a minimum debt-service
+/// coverage, a maximum loan-to-value, or delivery of financial statements,
+/// tested on a schedule.
+model LoanCovenant {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// MIN_DSCR, MAX_LTV, FINANCIAL_STATEMENTS
+  type           String
+  threshold      Decimal?    @db.Decimal(12, 6)
+  frequencyMonths Int
+  nextTestOn     DateTime    @db.Date
+  /// ACTIVE, BREACHED, WAIVED, RELEASED
+  status         String      @default("ACTIVE")
+  description    String      @default("")
+  createdBy      String
+  createdAt      DateTime    @default(now())
+  tests          CovenantTest[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, nextTestOn])
+  @@index([tenantId, loanAccountId])
+}
+
+/// One test of a covenant: the figures given, the value worked out, the result.
+model CovenantTest {
+  id            String       @id @default(uuid())
+  tenantId      String
+  covenantId    String
+  covenant      LoanCovenant @relation(fields: [tenantId, covenantId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId String
+  testedOn      DateTime     @db.Date
+  periodEnd     DateTime     @db.Date
+  value         Decimal?     @db.Decimal(14, 6)
+  passed        Boolean
+  inputs        Json
+  evidence      String       @default("")
+  /// TEST, WAIVER
+  kind          String       @default("TEST")
+  createdBy     String
+  createdAt     DateTime     @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, covenantId])
+}
+
+// ── Trade finance and syndication (LT-18, LT-19, LT-24) ───────────────────
+
+/// An invoice in a borrower's invoice-finance register (LT-18, UC-67).
+///
+/// SUBMITTED → APPROVED → ADVANCE_REQUESTED → ADVANCE_APPROVED → FUNDED →
+/// SETTLED, or RECOURSE (debtor unpaid after due date + grace) → SETTLED;
+/// REJECTED / CANCELLED. The advance posts as a DISBURSEMENT on the
+/// facility's loan account; the terms it was advanced on are frozen here.
+model TradeInvoice {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  facilityId            String
+  facility              Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId         String
+  borrowerId            String
+  branchId              String
+  reference             String
+  debtorName            String
+  /// Upper-cased, whitespace-collapsed debtor name: the duplicate check key.
+  debtorKey             String
+  debtorReference       String?
+  invoiceNumber         String
+  currency              String
+  amount                Decimal   @db.Decimal(24, 4)
+  issueDate             DateTime  @db.Date
+  dueDate               DateTime  @db.Date
+  /// SUBMITTED, APPROVED, REJECTED, ADVANCE_REQUESTED, ADVANCE_APPROVED, FUNDED, RECOURSE, SETTLED, CANCELLED
+  status                String    @default("SUBMITTED")
+  advanceRate           Decimal   @db.Decimal(12, 8)
+  feeRatePerPeriod      Decimal   @db.Decimal(12, 8)
+  feePeriodDays         Int
+  feeBasis              String
+  recourseGraceDays     Int
+  advanceAmount         Decimal   @default(0) @db.Decimal(24, 4)
+  advanceDate           DateTime? @db.Date
+  advanceEventId        String?   @unique
+  /// Advance still owed (by the debtor, or by the borrower under recourse).
+  advanceOutstanding    Decimal   @default(0) @db.Decimal(24, 4)
+  feeRaised             Decimal   @default(0) @db.Decimal(24, 4)
+  feePaid               Decimal   @default(0) @db.Decimal(24, 4)
+  collectedFromDebtor   Decimal   @default(0) @db.Decimal(24, 4)
+  collectedFromBorrower Decimal   @default(0) @db.Decimal(24, 4)
+  /// Owed to the borrower once advance and fee are repaid; paid out under maker-checker.
+  reserveHeld           Decimal   @default(0) @db.Decimal(24, 4)
+  reservePaid           Decimal   @default(0) @db.Decimal(24, 4)
+  /// Due date + grace: the borrower owes the advance from the day after (UC-67).
+  recourseDate          DateTime? @db.Date
+  recourseAt            DateTime?
+  settledAt             DateTime?
+  registeredBy          String
+  approvedBy            String?
+  approvedAt            DateTime?
+  advanceRequestedBy    String?
+  advanceApprovedBy     String?
+  advanceReleasedBy     String?
+  rejectionReason       String?
+  version               Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  collections TradeInvoiceCollection[]
+  receivable  TradeReceivable?
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  // The same invoice cannot be financed twice for one borrower.
+  @@unique([tenantId, borrowerId, debtorKey, invoiceNumber])
+  @@index([tenantId, facilityId, status])
+  @@index([tenantId, status, dueDate])
+}
+
+/// One payment applied to a financed invoice: by the debtor, or by the
+/// borrower under recourse. Split fee → advance → borrower reserve.
+model TradeInvoiceCollection {
+  id        String       @id @default(uuid())
+  tenantId  String
+  invoiceId String
+  invoice   TradeInvoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
+  eventId   String       @unique
+  /// DEBTOR, BORROWER
+  source    String
+  amount    Decimal      @db.Decimal(24, 4)
+  feeRaised Decimal      @default(0) @db.Decimal(24, 4)
+  toFee     Decimal      @default(0) @db.Decimal(24, 4)
+  toAdvance Decimal      @default(0) @db.Decimal(24, 4)
+  toReserve Decimal      @default(0) @db.Decimal(24, 4)
+  valueDate DateTime     @db.Date
+  createdBy String
+  createdAt DateTime     @default(now())
+
+  @@index([tenantId, invoiceId])
+}
+
+/// An import letter of credit (LT-19): a fee-earning contingent commitment,
+/// recorded off balance sheet. A payment by the bank under it converts into
+/// a term loan for the importer (UC-53).
+model LetterOfCredit {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  reference          String
+  borrowerId         String
+  branchId           String
+  portfolioId        String?
+  legalEntityId      String?
+  productId          String
+  productVersionId   String
+  familyCode         String
+  currency           String
+  amount             Decimal   @db.Decimal(24, 4)
+  beneficiaryName    String
+  beneficiaryBank    String?
+  beneficiaryAccount String?
+  issueDate          DateTime  @db.Date
+  expiryDate         DateTime  @db.Date
+  /// The configuration the credit was issued under (fee terms, conversion product and terms).
+  terms              Json
+  feeAmount          Decimal   @default(0) @db.Decimal(24, 4)
+  feeEventId         String?   @unique
+  memoEventId        String?   @unique
+  /// REQUESTED, ISSUED, PARTIALLY_DRAWN, FULLY_DRAWN, EXPIRED, CANCELLED, REJECTED
+  status             String    @default("REQUESTED")
+  drawnAmount        Decimal   @default(0) @db.Decimal(24, 4)
+  /// Undrawn commitment released from the memo on expiry or cancellation.
+  releasedAmount     Decimal   @default(0) @db.Decimal(24, 4)
+  requestedBy        String
+  issuedBy           String?
+  issuedAt           DateTime?
+  rejectedBy         String?
+  rejectionReason    String?
+  closedBy           String?
+  closedAt           DateTime?
+  closeReason        String?
+  version            Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  drawings LcDrawing[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+  @@index([tenantId, borrowerId])
+  @@index([tenantId, branchId])
+}
+
+/// A presentation paid (or to be paid) under a letter of credit, under
+/// maker-checker. Paying it books the importer's loan (UC-53).
+model LcDrawing {
+  id                  String         @id @default(uuid())
+  tenantId            String
+  letterOfCreditId    String
+  letterOfCredit      LetterOfCredit @relation(fields: [tenantId, letterOfCreditId], references: [tenantId, id], onDelete: Cascade)
+  sequence            Int
+  amount              Decimal        @db.Decimal(24, 4)
+  documentsReference  String
+  numberOfInstalments Int
+  /// REQUESTED, APPROVED, PAID, REJECTED
+  status              String         @default("REQUESTED")
+  loanAccountId       String?        @unique
+  eventId             String?        @unique
+  requestedBy         String
+  approvedBy          String?
+  approvedAt          DateTime?
+  paidBy              String?
+  paidAt              DateTime?
+  rejectedBy          String?
+  rejectionReason     String?
+  version             Int            @default(0)
+  createdAt           DateTime       @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([letterOfCreditId, sequence])
+  @@index([tenantId, letterOfCreditId, status])
+}
+
+/// The lenders sharing a syndicated loan (LT-24), with this tenant as agent.
+/// DRAFT → APPROVED (maker-checker) → FUNDED (participants paid their share).
+model Syndicate {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String      @unique
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  branchId       String
+  currency       String
+  principal      Decimal     @db.Decimal(24, 4)
+  /// DRAFT, APPROVED, FUNDED
+  status         String      @default("DRAFT")
+  makerId        String
+  checkerId      String?
+  approvedAt     DateTime?
+  fundingEventId String?     @unique
+  fundedAt       DateTime?
+  version        Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  participants SyndicateParticipant[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// One lender's participation. The running totals are the participant
+/// sub-ledger's balances; ParticipationEntry holds every movement.
+model SyndicateParticipant {
+  id                String    @id @default(uuid())
+  tenantId          String
+  syndicateId       String
+  syndicate         Syndicate @relation(fields: [tenantId, syndicateId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId     String
+  lenderName        String
+  isAgent           Boolean   @default(false)
+  share             Decimal   @db.Decimal(14, 12)
+  feeShare          Decimal   @db.Decimal(14, 12)
+  commitment        Decimal   @db.Decimal(24, 4)
+  funded            Decimal   @default(0) @db.Decimal(24, 4)
+  principalReturned Decimal   @default(0) @db.Decimal(24, 4)
+  interestEarned    Decimal   @default(0) @db.Decimal(24, 4)
+  penaltyEarned     Decimal   @default(0) @db.Decimal(24, 4)
+  feesEarned        Decimal   @default(0) @db.Decimal(24, 4)
+  paidOut           Decimal   @default(0) @db.Decimal(24, 4)
+  createdAt         DateTime  @default(now())
+
+  entries ParticipationEntry[]
+
+  @@unique([tenantId, id])
+  @@unique([syndicateId, lenderName])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A participant sub-ledger line: funding, a share of a collection, or a payout.
+model ParticipationEntry {
+  id               String               @id @default(uuid())
+  tenantId         String
+  participantId    String
+  participant      SyndicateParticipant @relation(fields: [tenantId, participantId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId    String
+  /// The posting that carries this line.
+  financialEventId String
+  /// The loan event being shared (a repayment, its reversal…); the funding or payout event otherwise.
+  sourceEventId    String
+  /// FUNDING, PRINCIPAL, INTEREST, PENALTY, FEE, PAYOUT
+  kind             String
+  amount           Decimal              @db.Decimal(24, 4)
+  createdAt        DateTime             @default(now())
+
+  @@unique([participantId, sourceEventId, kind])
+  @@index([tenantId, loanAccountId])
+}
+
+// ── Specialised products: cards, BNPL and leases ───────────────────────────
+
+/// A credit card (LT-07): the card-specific side of a REVOLVING facility.
+///
+/// The facility keeps the limit and its governance; the facility's loan
+/// account keeps the receivables the GL reconciles. The card splits the drawn
+/// principal into the balances that price differently — purchases, cash
+/// advances and unbilled instalment-plan principal — and their sum is always
+/// the loan account's principal.
+model CardAccount {
+  id              String    @id @default(uuid())
+  tenantId        String
+  facilityId      String    @unique
+  facility        Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId   String
+  reference       String
+  /// Last four digits only; the card number itself is the processor's.
+  maskedNumber    String
+  /// ACTIVE, BLOCKED, CLOSED
+  status          String    @default("ACTIVE")
+  purchaseBalance Decimal   @default(0) @db.Decimal(24, 4)
+  cashBalance     Decimal   @default(0) @db.Decimal(24, 4)
+  planBalance     Decimal   @default(0) @db.Decimal(24, 4)
+  /// Exclusive end of the last statement period.
+  lastStatementTo DateTime? @db.Date
+  closedAt        DateTime?
+  version         Int       @default(0)
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  transactions CardTransaction[]
+  statements   CardStatement[]
+  plans        CardInstalmentPlan[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, facilityId])
+  @@index([tenantId, status])
+}
+
+/// One movement of a card's balances. Append-only: the deltas are what the
+/// engine prices from, so a card's balances are always the sum of its rows.
+model CardTransaction {
+  id              String      @id @default(uuid())
+  tenantId        String
+  cardId          String
+  card            CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  /// PURCHASE, CASH_ADVANCE, PAYMENT, PLAN_CONVERSION, PLAN_BILLING
+  type            String
+  transactionDate DateTime    @db.Date
+  amount          Decimal     @db.Decimal(24, 4)
+  /// Cash-advance fee charged with this transaction (UC-40).
+  fee             Decimal     @default(0) @db.Decimal(24, 4)
+  purchaseDelta   Decimal     @default(0) @db.Decimal(24, 4)
+  cashDelta       Decimal     @default(0) @db.Decimal(24, 4)
+  planDelta       Decimal     @default(0) @db.Decimal(24, 4)
+  merchantName    String      @default("")
+  description     String      @default("")
+  /// The posted financial event, for money movements.
+  eventId         String?
+  planId          String?
+  createdBy       String
+  createdAt       DateTime    @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, transactionDate])
+}
+
+/// A card statement (UC-39): the card's view of one facility statement.
+model CardStatement {
+  id                     String      @id @default(uuid())
+  tenantId               String
+  cardId                 String
+  card                   CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  facilityStatementId    String      @unique
+  sequence               Int
+  periodStart            DateTime    @db.Date
+  /// Exclusive; also the statement date.
+  periodEnd              DateTime    @db.Date
+  dueDate                DateTime    @db.Date
+  purchaseBalance        Decimal     @db.Decimal(24, 4)
+  cashBalance            Decimal     @db.Decimal(24, 4)
+  planBalance            Decimal     @db.Decimal(24, 4)
+  /// What paying "in full" means: purchases + cash + charges owed at the statement date.
+  statementBalance       Decimal     @db.Decimal(24, 4)
+  purchaseInterest       Decimal     @db.Decimal(24, 4)
+  purchaseInterestWaived Decimal     @db.Decimal(24, 4)
+  cashInterest           Decimal     @db.Decimal(24, 4)
+  planInterest           Decimal     @db.Decimal(24, 4)
+  planPrincipalBilled    Decimal     @db.Decimal(24, 4)
+  cashAdvanceFees        Decimal     @db.Decimal(24, 4)
+  minimumPayment         Decimal     @db.Decimal(24, 4)
+  graceApplied           Boolean
+  createdBy              String
+  createdAt              DateTime    @default(now())
+
+  @@unique([cardId, sequence])
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, periodEnd])
+}
+
+/// A purchase converted into fixed monthly instalments (UC-44).
+model CardInstalmentPlan {
+  id                  String      @id @default(uuid())
+  tenantId            String
+  cardId              String
+  card                CardAccount @relation(fields: [tenantId, cardId], references: [tenantId, id], onDelete: Cascade)
+  /// A purchase converts at most once.
+  sourceTransactionId String      @unique
+  principal           Decimal     @db.Decimal(24, 4)
+  annualRate          Decimal     @db.Decimal(12, 8)
+  months              Int
+  instalmentAmount    Decimal     @db.Decimal(24, 4)
+  /// The engine's lines: [{ number, principal, interest, total }].
+  lines               Json
+  billedCount         Int         @default(0)
+  principalRemaining  Decimal     @db.Decimal(24, 4)
+  /// ACTIVE, COMPLETED
+  status              String      @default("ACTIVE")
+  version             Int         @default(0)
+  createdBy           String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, cardId, status])
+}
+
+/// The merchant side of a BNPL loan (LT-11): who was paid, and net of what.
+model BnplPlan {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String      @unique
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  merchantName         String
+  merchantReference    String      @default("")
+  purchaseAmount       Decimal     @db.Decimal(24, 4)
+  merchantDiscountRate Decimal     @db.Decimal(12, 8)
+  merchantDiscount     Decimal     @db.Decimal(24, 4)
+  merchantNet          Decimal     @db.Decimal(24, 4)
+  refundedAmount       Decimal     @default(0) @db.Decimal(24, 4)
+  discountReversed     Decimal     @default(0) @db.Decimal(24, 4)
+  disbursementEventId  String
+  version              Int         @default(0)
+  createdAt            DateTime    @default(now())
+
+  refunds BnplRefund[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+}
+
+/// A merchant refund or return on a BNPL purchase (UC-52).
+model BnplRefund {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  planId             String
+  plan               BnplPlan  @relation(fields: [tenantId, planId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId      String
+  amount             Decimal   @db.Decimal(24, 4)
+  merchantReference  String    @default("")
+  reason             String    @default("")
+  appliedToPrincipal Decimal   @db.Decimal(24, 4)
+  customerRefund     Decimal   @db.Decimal(24, 4)
+  discountReversed   Decimal   @db.Decimal(24, 4)
+  merchantClawback   Decimal   @db.Decimal(24, 4)
+  /// [{ number, principal }] taken off each instalment, latest first.
+  reductions         Json
+  eventId            String
+  /// CLAWBACK_DUE, COLLECTED
+  status             String    @default("CLAWBACK_DUE")
+  collectedEventId   String?
+  collectedAt        DateTime?
+  version            Int       @default(0)
+  createdBy          String
+  createdAt          DateTime  @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, loanAccountId])
+}
+
+/// The asset under a lease (LT-15, Ijarah): bought by the lender from the
+/// supplier and owned by it until the lessee buys it for the residual.
+model LeaseAsset {
+  id              String      @id @default(uuid())
+  tenantId        String
+  loanAccountId   String      @unique
+  loanAccount     LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  assetType       String
+  description     String
+  serialNumber    String      @default("")
+  supplierName    String
+  cost            Decimal     @db.Decimal(24, 4)
+  /// The purchase-option price at lease end, carried as the final balloon.
+  residualValue   Decimal     @db.Decimal(24, 4)
+  /// LESSOR, TRANSFERRED, RETURNED
+  ownership       String      @default("LESSOR")
+  /// PURCHASE, RETURN — how the lease ended.
+  endOption       String?
+  endDate         DateTime?   @db.Date
+  endEventId      String?
+  returnCondition String      @default("")
+  version         Int         @default(0)
+  registeredBy    String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, ownership])
+}
+
+/// An accounting month (month 1–12) or financial year (month 0) and its close
+/// (OPS-6): prepared with checks and a snapshot, locked by a second person.
+/// Nothing is posted into a closed month.
+model AccountingPeriod {
+  id             String    @id @default(uuid())
+  tenantId       String
+  year           Int
+  /// 1–12 for a month; 0 for the financial year.
+  month          Int
+  startDate      DateTime  @db.Date
+  endDate        DateTime  @db.Date
+  /// OPEN, PENDING, CLOSED, REOPEN_PENDING
+  status         String    @default("OPEN")
+  checks         Json      @default("[]")
+  snapshot       Json      @default("{}")
+  preparedBy     String?
+  preparedAt     DateTime?
+  approvedBy     String?
+  closedAt       DateTime?
+  /// Year end: the closing journal's event ids, one per currency.
+  closingEventIds String[] @default([])
+  reopenCount    Int       @default(0)
+  reopenReason   String    @default("")
+  reopenRequestedBy String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  log            PeriodCloseLog[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, year, month])
+  @@index([tenantId, status])
+}
+
+/// Who did what to a period: prepared, approved, rejected, reopen requested, reopened.
+model PeriodCloseLog {
+  id        String           @id @default(uuid())
+  tenantId  String
+  periodId  String
+  period    AccountingPeriod @relation(fields: [tenantId, periodId], references: [tenantId, id], onDelete: Cascade)
+  action    String
+  actorId   String
+  comment   String           @default("")
+  createdAt DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, periodId])
+}
+
+/// A loan book taken over from another system: a validated file of
+/// running loans, approved by a second person, then posted loan by loan with
+/// opening balances against migration clearing.
+model MigrationBatch {
+  id            String         @id @default(uuid())
+  tenantId      String
+  reference     String
+  fileName      String
+  cutOverDate   DateTime       @db.Date
+  /// VALIDATED, POSTING, POSTED, PARTIALLY_POSTED, REJECTED, CANCELLED
+  status        String         @default("VALIDATED")
+  rowCount      Int
+  validCount    Int
+  errorCount    Int
+  warningCount  Int            @default(0)
+  postedCount   Int            @default(0)
+  failedCount   Int            @default(0)
+  totals        Json
+  controlTotals Json           @default("[]")
+  fileIssues    Json           @default("[]")
+  createdBy     String
+  approvedBy    String?
+  decidedAt     DateTime?
+  comment       String         @default("")
+  postedAt      DateTime?
+  createdAt     DateTime       @default(now())
+  rows          MigrationRow[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+}
+
+/// One loan of a migration file: what was given, what was found, and the loan it became.
+model MigrationRow {
+  id             String         @id @default(uuid())
+  tenantId       String
+  batchId        String
+  batch          MigrationBatch @relation(fields: [tenantId, batchId], references: [tenantId, id], onDelete: Cascade)
+  lineNo         Int
+  externalLoanId String
+  customerId     String
+  values         Json
+  /// VALID, WARNING, ERROR, POSTED, FAILED
+  status         String
+  issues         Json           @default("[]")
+  warnings       Json           @default("[]")
+  preview        Json           @default("{}")
+  borrowerId     String?
+  loanAccountId  String?
+  postedAt       DateTime?
+
+  @@unique([tenantId, id])
+  @@index([tenantId, batchId, status])
+  @@index([tenantId, externalLoanId])
+}
+
+/// A monthly regulatory return (OPS-7): loan classification and provisioning,
+/// portfolio breakdowns, PAR, restructured loans, write-offs and recoveries,
+/// large exposures and interest rates, for the lending platform and the legacy
+/// loans together, with the reconciliation of principal to the ledger.
+///
+/// Generated only for a closed month, from its frozen close snapshot. The
+/// content is never edited (enforced by trigger): a correction is a new
+/// version that supersedes the draft or amends a submitted return.
+/// Submission is maker-checker: one person asks, another submits.
+model RegulatoryReturn {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  year                  Int
+  month                 Int
+  /// 1, 2, … within the month; a later version supersedes or amends the earlier.
+  version               Int
+  /// DRAFT, PENDING_SUBMISSION, SUBMITTED, SUPERSEDED
+  status                String    @default("DRAFT")
+  /// CLOSED_PERIOD (built on the month's close snapshot)
+  basis                 String
+  periodId              String?
+  content               Json
+  /// SHA-256 of the canonical content; it never changes.
+  contentHash           String
+  generatedBy           String
+  generatedAt           DateTime  @default(now())
+  submissionRequestedBy String?
+  submissionRequestedAt DateTime?
+  submittedBy           String?
+  submittedAt           DateTime?
+  /// The regulator's acknowledgement or filing reference, entered at submission.
+  submissionReference   String    @default("")
+  /// The later version that superseded or amended this one.
+  supersededById        String?
+  comment               String    @default("")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, year, month, version])
+  @@index([tenantId, year, month])
+}
+
+/// An HTTPS endpoint of the tenant's own systems that receives its lending
+/// events, signed with a secret only the tenant holds. Activated by a second
+/// administrator.
+model WebhookEndpoint {
+  id                  String            @id @default(uuid())
+  tenantId            String
+  url                 String
+  description         String            @default("")
+  /// Event topics delivered; ["*"] for all.
+  topics              String[]
+  /// The signing secret, encrypted at rest.
+  secret              String
+  secretPrefix        String
+  /// PENDING_APPROVAL, ACTIVE, DISABLED
+  status              String            @default("PENDING_APPROVAL")
+  createdBy           String
+  approvedBy          String?
+  consecutiveFailures Int               @default(0)
+  lastDeliveryAt      DateTime?
+  lastSuccessAt       DateTime?
+  disabledReason      String            @default("")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deliveries          WebhookDelivery[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// One event sent (or to be sent) to one endpoint, with its attempts.
+model WebhookDelivery {
+  id              String          @id @default(uuid())
+  tenantId        String
+  endpointId      String
+  endpoint        WebhookEndpoint @relation(fields: [tenantId, endpointId], references: [tenantId, id], onDelete: Cascade)
+  outboxMessageId String?
+  topic           String
+  payload         Json
+  /// PENDING, SENT, FAILED
+  status          String          @default("PENDING")
+  attempts        Int             @default(0)
+  nextAttemptAt   DateTime        @default(now())
+  responseStatus  Int?
+  lastError       String          @default("")
+  durationMs      Int?
+  deliveredAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([endpointId, outboxMessageId])
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, endpointId, createdAt])
+}
+
+/// Project finance (LT-17): the project behind a project or infrastructure
+/// loan — its reserve, lock-up and the sculpted profile it termed out on.
+/// One per loan, created at booking.
+model ProjectFinance {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  facilityId     String?
+  /// CONSTRUCTION, OPERATIONS, CLOSED
+  status         String      @default("CONSTRUCTION")
+  targetDscr     Decimal     @db.Decimal(12, 6)
+  lockUpDscr     Decimal?    @db.Decimal(12, 6)
+  dsraMonths     Int
+  cashSweepRate  Decimal?    @db.Decimal(12, 6)
+  /// Debt service reserve held (ledger: projectFinance.accounts.dsra).
+  dsraBalance    Decimal     @default(0) @db.Decimal(24, 4)
+  /// Cash held back from distribution (ledger: projectFinance.accounts.lockUp).
+  lockUpBalance  Decimal     @default(0) @db.Decimal(24, 4)
+  lockedUp       Boolean     @default(false)
+  /// The CFADS projection and sculpted profile the loan termed out on.
+  sculpting      Json?
+  termedOutOn    DateTime?   @db.Date
+  version        Int         @default(0)
+  createdBy      String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  runs           ProjectWaterfallRun[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+}
+
+/// One application of project receipts through the cash waterfall. Append-only.
+model ProjectWaterfallRun {
+  id                 String         @id @default(uuid())
+  tenantId           String
+  projectId          String
+  project            ProjectFinance @relation(fields: [tenantId, projectId], references: [tenantId, id], onDelete: Cascade)
+  loanAccountId      String
+  sequence           Int
+  receivedOn         DateTime       @db.Date
+  revenue            Decimal        @db.Decimal(24, 4)
+  operatingCosts     Decimal        @db.Decimal(24, 4)
+  taxes              Decimal        @db.Decimal(24, 4)
+  /// Revenue − operating costs − taxes; negative when the project needed support.
+  cfads              Decimal        @db.Decimal(24, 4)
+  periodDebtService  Decimal        @db.Decimal(24, 4)
+  dscr               Decimal?       @db.Decimal(14, 6)
+  lockedUp           Boolean
+  seniorDebtService  Decimal        @db.Decimal(24, 4)
+  dsraDraw           Decimal        @db.Decimal(24, 4)
+  dsraTopUp          Decimal        @db.Decimal(24, 4)
+  cashSweep          Decimal        @db.Decimal(24, 4)
+  lockUpRetained     Decimal        @db.Decimal(24, 4)
+  lockUpReleased     Decimal        @db.Decimal(24, 4)
+  distribution       Decimal        @db.Decimal(24, 4)
+  dsraTarget         Decimal        @db.Decimal(24, 4)
+  dsraBalanceAfter   Decimal        @db.Decimal(24, 4)
+  lockUpBalanceAfter Decimal        @db.Decimal(24, 4)
+  steps              Json
+  /// The PROJECT_WATERFALL financial event carrying the reserve, lock-up and distribution postings.
+  eventId            String
+  externalReference  String?
+  idempotencyKey     String
+  createdBy          String
+  createdAt          DateTime       @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, projectId, sequence])
+  @@index([tenantId, loanAccountId])
+}
+
+/// A borrowing-base certificate (LT-14): the borrower's inventory and
+/// receivables by class at a date, and the base they support. Submitted by
+/// one person, accepted or rejected by another; the accepted certificate
+/// governs drawdowns until it goes stale or is superseded.
+model BorrowingBaseCertificate {
+  id              String    @id @default(uuid())
+  tenantId        String
+  facilityId      String
+  facility        Facility  @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  sequence        Int
+  asOfDate        DateTime  @db.Date
+  /// SUBMITTED, ACCEPTED, REJECTED, SUPERSEDED
+  status          String    @default("SUBMITTED")
+  currency        String
+  grossValue      Decimal   @db.Decimal(24, 4)
+  ineligibleValue Decimal   @db.Decimal(24, 4)
+  eligibleValue   Decimal   @db.Decimal(24, 4)
+  borrowingBase   Decimal   @db.Decimal(24, 4)
+  lines           Json
+  calculation     Json
+  notes           String    @default("")
+  engineVersion   String
+  submittedBy     String
+  submittedAt     DateTime  @default(now())
+  decidedBy       String?
+  decidedAt       DateTime?
+  decisionReason  String?
+  version         Int       @default(0)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, facilityId, sequence])
+  @@index([tenantId, facilityId, status])
+}
+
+/// What a bought receivable carries beyond the invoice register — factoring,
+/// supply-chain finance and forfaiting: its recourse, fee or discount, the
+/// acknowledgement that must precede the purchase, and any loss written off.
+/// One per TradeInvoice; the invoice row keeps the advance and collections.
+model TradeReceivable {
+  id                       String         @id @default(uuid())
+  tenantId                 String
+  invoiceId                String
+  invoice                  TradeInvoice   @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
+  facilityId               String
+  /// FACTORING, SUPPLY_CHAIN, FORFAITING
+  kind                     String
+  /// FULL, LIMITED, NONE — what the facility holder answers for once the obligor defaults.
+  recourse                 String
+  /// LIMITED: the most the seller answers for on this receivable.
+  recourseCap              Decimal?       @db.Decimal(24, 4)
+  serviceFeeRate           Decimal        @default(0) @db.Decimal(12, 8)
+  serviceFee               Decimal        @default(0) @db.Decimal(24, 4)
+  /// Discounting (supply chain, forfaiting): the annual rate and how it is applied.
+  discountRate             Decimal        @default(0) @db.Decimal(12, 8)
+  dayCountBasis            Int            @default(360)
+  discountMethod           String         @default("STRAIGHT")
+  discountGraceDays        Int            @default(0)
+  discountDays             Int            @default(0)
+  discountAmount           Decimal        @default(0) @db.Decimal(24, 4)
+  discountEarned           Decimal        @default(0) @db.Decimal(24, 4)
+  /// What the seller or supplier was paid at purchase.
+  purchasePrice            Decimal        @default(0) @db.Decimal(24, 4)
+  supplierId               String?
+  supplier                 TradeSupplier? @relation(fields: [tenantId, supplierId], references: [tenantId, id], onDelete: NoAction)
+  /// Forfaiting: BILL_OF_EXCHANGE or PROMISSORY_NOTE, and the bank whose aval guarantees it.
+  instrumentType           String?
+  guarantorName            String?
+  /// DEBTOR_NOTICE (factoring), BUYER_APPROVAL (supply chain), AVAL (forfaiting)
+  acknowledgementType      String
+  acknowledgementMethod    String?
+  acknowledgementReference String?
+  acknowledgedBy           String?
+  acknowledgedAt           DateTime?
+  /// Set when the obligor is past maturity + grace and the lender bears the rest.
+  defaultedAt              DateTime?
+  writtenOff               Decimal        @default(0) @db.Decimal(24, 4)
+  writeOffEventId          String?        @unique
+  version                  Int            @default(0)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, invoiceId])
+  @@index([tenantId, facilityId, kind])
+  @@index([tenantId, supplierId])
+}
+
+/// A supplier onboarded to an anchor buyer's supply-chain finance
+/// programme (the buyer's facility). Approved by a second person before any
+/// of its invoices can be paid.
+model TradeSupplier {
+  id            String            @id @default(uuid())
+  tenantId      String
+  facilityId    String
+  facility      Facility          @relation(fields: [tenantId, facilityId], references: [tenantId, id], onDelete: Cascade)
+  reference     String
+  name          String
+  /// Upper-cased, whitespace-collapsed name: one supplier per programme.
+  nameKey       String
+  taxId         String?
+  bankName      String?
+  accountNumber String?
+  /// Optional cap on what may be outstanding on this supplier's invoices.
+  sublimit      Decimal?          @db.Decimal(24, 4)
+  /// PENDING, ACTIVE, REJECTED, SUSPENDED
+  status        String            @default("PENDING")
+  createdBy     String
+  approvedBy    String?
+  approvedAt    DateTime?
+  statusReason  String?
+  version       Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  receivables   TradeReceivable[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, facilityId, nameKey])
+  @@index([tenantId, facilityId, status])
+}
+
+/// The trade a documentary (import / export) loan finances: one per loan.
+/// Its documents gate the disbursement; its proceeds repay the loan.
+model TradeTransaction {
+  id                   String          @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount     @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId           String
+  branchId             String
+  reference            String
+  /// IMPORT, EXPORT
+  direction            String
+  counterpartyName     String
+  counterpartyCountry  String?
+  goodsDescription     String
+  currency             String
+  transactionValue     Decimal         @db.Decimal(24, 4)
+  /// Shipment date (import) or contract date (export): the trade cycle starts here.
+  cycleStartDate       DateTime        @db.Date
+  expectedProceedsDate DateTime        @db.Date
+  /// OPEN, FINANCED, SETTLED, CANCELLED
+  status               String          @default("OPEN")
+  proceedsReceived     Decimal         @default(0) @db.Decimal(24, 4)
+  proceedsApplied      Decimal         @default(0) @db.Decimal(24, 4)
+  proceedsRemitted     Decimal         @default(0) @db.Decimal(24, 4)
+  createdBy            String
+  version              Int             @default(0)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  documents            TradeDocument[]
+  proceeds             TradeProceeds[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@unique([tenantId, reference])
+  @@index([tenantId, status])
+}
+
+/// One document on a trade transaction's checklist: received by one person,
+/// verified (or rejected) by another.
+model TradeDocument {
+  id              String           @id @default(uuid())
+  tenantId        String
+  transactionId   String
+  transaction     TradeTransaction @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Cascade)
+  code            String
+  /// PENDING, RECEIVED, VERIFIED, REJECTED
+  status          String           @default("PENDING")
+  reference       String?
+  description     String?
+  receivedBy      String?
+  receivedAt      DateTime?
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  version         Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, transactionId, code])
+}
+
+/// Trade proceeds received for a documentary loan: the part applied to the
+/// loan (a repayment or its settlement) and the part passed to the customer.
+model TradeProceeds {
+  id                String           @id @default(uuid())
+  tenantId          String
+  transactionId     String
+  transaction       TradeTransaction @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Cascade)
+  eventId           String           @unique
+  amount            Decimal          @db.Decimal(24, 4)
+  applied           Decimal          @db.Decimal(24, 4)
+  remitted          Decimal          @db.Decimal(24, 4)
+  settled           Boolean          @default(false)
+  payerName         String
+  externalReference String?
+  remitReference    String?
+  valueDate         DateTime         @db.Date
+  createdBy         String
+  createdAt         DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, transactionId])
+}
+
+// ── Institutional lending: counterparties and exposure limits ───────────────
+
+/// An institution the tenant lends to — a bank, a municipality, a sovereign
+/// or a development institution — linked to the borrower record that applies
+/// for its loans. Ratings are recorded here; limits are approved separately.
+model Counterparty {
+  id              String          @id @default(uuid())
+  tenantId        String
+  reference       String
+  name            String
+  /// BANK, MUNICIPALITY, SOVEREIGN, DEVELOPMENT_INSTITUTION
+  type            String
+  /// ISO 3166-1 alpha-2 country of the counterparty (its risk country).
+  countryCode     String
+  /// The borrower record its applications are made under (one per counterparty).
+  borrowerId      String?
+  /// LEI, SWIFT/BIC or registration number.
+  legalIdentifier String          @default("")
+  /// Long-term rating on the S&P/Fitch scale; null when unrated.
+  rating          String?
+  ratingAgency    String          @default("")
+  ratedOn         DateTime?       @db.Date
+  /// ACTIVE, SUSPENDED
+  status          String          @default("ACTIVE")
+  version         Int             @default(0)
+  createdBy       String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  limits          ExposureLimit[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@unique([tenantId, borrowerId])
+  @@index([tenantId, countryCode])
+}
+
+/// An exposure limit on one counterparty or one country, proposed by a maker
+/// and approved by a different checker within their approval authority. A
+/// newly approved limit supersedes the one it replaces.
+model ExposureLimit {
+  id             String        @id @default(uuid())
+  tenantId       String
+  /// COUNTERPARTY, COUNTRY
+  scope          String
+  counterpartyId String?
+  counterparty   Counterparty? @relation(fields: [tenantId, counterpartyId], references: [tenantId, id], onDelete: Cascade)
+  countryCode    String?
+  currency       String
+  amount         Decimal       @db.Decimal(24, 4)
+  /// The limit lapses after this date until it is reviewed and approved again.
+  reviewOn       DateTime      @db.Date
+  /// PENDING, ACTIVE, REJECTED, SUPERSEDED
+  status         String        @default("PENDING")
+  note           String        @default("")
+  proposedBy     String
+  decidedBy      String?
+  decidedAt      DateTime?
+  comment        String        @default("")
+  version        Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, scope, status])
+  @@index([tenantId, counterpartyId])
+  @@index([tenantId, countryCode])
+}
+
+// ── Income-contingent repayment ─────────────────────────────────────────────
+
+/// A declared income and the instalment it sets, proposed with evidence and
+/// approved by a different person; approval rebuilds the rest of the
+/// schedule from the next period. Sequence 0 is the income declared at
+/// origination.
+model IncomeAssessment {
+  id                   String      @id @default(uuid())
+  tenantId             String
+  loanAccountId        String
+  loanAccount          LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  sequence             Int
+  /// ORIGINATION, ANNUAL, CHANGE_OF_CIRCUMSTANCES
+  reason               String
+  declaredAnnualIncome Decimal     @db.Decimal(24, 4)
+  /// The income year or period the evidence covers, e.g. "2026".
+  incomePeriod         String      @default("")
+  /// PAYSLIP, TAX_RETURN, EMPLOYER_LETTER, BENEFITS_STATEMENT, NO_INCOME_DECLARATION, OTHER
+  evidenceType         String
+  evidenceReference    String
+  /// A document in the customer's library, when the evidence was uploaded.
+  documentId           String?
+  annualRepayment      Decimal     @db.Decimal(24, 4)
+  periodicPayment      Decimal     @db.Decimal(24, 4)
+  /// PENDING, APPROVED, REJECTED, CANCELLED
+  status               String      @default("PENDING")
+  /// First period the instalment applies to (set on approval).
+  effectiveDate        DateTime?   @db.Date
+  /// When the next annual reassessment is due.
+  nextReviewDate       DateTime?   @db.Date
+  agreementVersion     Int?
+  proposedBy           String
+  decidedBy            String?
+  decidedAt            DateTime?
+  comment              String      @default("")
+  version              Int         @default(0)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId, sequence])
+  @@index([tenantId, status])
+}
+
+// ── Murabaha ────────────────────────────────────────────────────────────────
+
+/// The asset the financier buys and resells under a Murabaha, and the sale
+/// it makes: cost, the disclosed profit and the sale price, with the deferred
+/// profit still carried in the ledger memo.
+model MurabahaContract {
+  id                    String      @id @default(uuid())
+  tenantId              String
+  loanAccountId         String      @unique
+  loanAccount           LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  assetType             String
+  description           String
+  serialNumber          String      @default("")
+  supplierName          String
+  /// What the financier pays the supplier: the cost disclosed to the customer.
+  cost                  Decimal     @db.Decimal(24, 4)
+  downPayment           Decimal     @default(0) @db.Decimal(24, 4)
+  /// Fixed at the sale (disbursement) from the contract schedule.
+  profit                Decimal?    @db.Decimal(24, 4)
+  salePrice             Decimal?    @db.Decimal(24, 4)
+  /// Share of unearned profit rebated on early settlement; null: none promised.
+  ibraShare             Decimal?    @db.Decimal(12, 8)
+  /// Deferred profit carried in the ledger memo (unearned profit receivable / deferred profit).
+  deferredProfitBalance Decimal     @default(0) @db.Decimal(24, 4)
+  /// Profit waived on early settlement.
+  ibraGranted           Decimal     @default(0) @db.Decimal(24, 4)
+  /// REGISTERED (asset identified), SOLD (bought and sold to the customer), ENDED
+  status                String      @default("REGISTERED")
+  saleEventId           String?
+  soldOn                DateTime?   @db.Date
+  version               Int         @default(0)
+  registeredBy          String
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, loanAccountId])
+  @@index([tenantId, status])
+}
+
+/// A lender's own operating parameters that used to be constants in code:
+/// regulatory-return bands and classes, the ledger accounts tenant-level
+/// postings use, payment-file limits, the longest delegation, and the
+/// legacy servicing jobs' thresholds. Versioned and maker-checker governed
+/// like the impairment policy: one version in force; with none, the
+/// documented defaults (the previous constants) apply.
+model TenantLendingSettings {
+  id        String    @id @default(uuid())
+  tenantId  String
+  version   Int
+  settings  Json
+  /// PENDING, ACTIVE, REJECTED, RETIRED
+  status    String    @default("PENDING")
+  makerId   String
+  checkerId String?
+  decidedAt DateTime?
+  reason    String    @default("")
+  createdAt DateTime  @default(now())
+
+  @@unique([tenantId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// Durable claims for scheduled work across API instances: a run claimed
+/// once per tenant and run key (a reminder batch for a day), or a lease an
+/// instance renews while it holds a long-lived role (polling a chat bot).
+/// Replaces in-process guards that only held within one instance.
+model ScheduledJobClaim {
+  id         String    @id @default(uuid())
+  tenantId   String
+  job        String
+  runKey     String
+  holder     String
+  claimedAt  DateTime  @default(now())
+  /// Null: claimed for good (run once). Otherwise free again after this.
+  leaseUntil DateTime?
+
+  @@unique([tenantId, job, runKey])
+  @@unique([tenantId, id])
+}
+
+// ── Scorecards and score evaluations (DECISIONS D-075…D-077) ───────────────
+
+/// A tenant's scorecard: a code products name as champion or challenger.
+/// The definition lives in its versions. Installed from a template or
+/// written from scratch.
+model Scorecard {
+  id           String             @id @default(uuid())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  description  String             @default("")
+  /// The template it was installed from, if any.
+  templateCode String?
+  createdBy    String
+  createdAt    DateTime           @default(now())
+  versions     ScorecardVersion[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+}
+
+/// One version of a scorecard. DRAFT → SUBMITTED → APPROVED → ACTIVE →
+/// RETIRED under maker-checker (REJECTED goes back to the maker). The
+/// definition is frozen once it leaves DRAFT; at most one version of a
+/// scorecard is ACTIVE.
+model ScorecardVersion {
+  id              String            @id @default(uuid())
+  tenantId        String
+  scorecardId     String
+  scorecard       Scorecard         @relation(fields: [tenantId, scorecardId], references: [tenantId, id], onDelete: Cascade)
+  version         Int
+  /// DRAFT, SUBMITTED, APPROVED, REJECTED, ACTIVE, RETIRED
+  status          String            @default("DRAFT")
+  definition      Json
+  definitionHash  String
+  changeSummary   String            @default("")
+  makerId         String
+  submittedAt     DateTime?
+  checkerId       String?
+  approvedAt      DateTime?
+  activatedBy     String?
+  activatedAt     DateTime?
+  retiredAt       DateTime?
+  rejectionReason String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  evaluations     ScoreEvaluation[]
+
+  @@unique([scorecardId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// One scoring of an application, append-only: the scorecard version (or
+/// template) used, the full input snapshot with each feature's source and
+/// consent, the result and the strategy outcome. A CHALLENGER row is a
+/// silent evaluation that never drives the decision.
+model ScoreEvaluation {
+  id                 String            @id @default(uuid())
+  tenantId           String
+  applicationId      String
+  application        Application       @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId         String
+  productId          String
+  productVersionId   String
+  /// CHAMPION (drives the decision) or CHALLENGER (shadow)
+  role               String
+  /// APPLICATION, APPROVAL or RESCORE
+  stage              String
+  scorecardCode      String
+  /// Null when the template scored (the tenant has no ACTIVE version).
+  scorecardVersionId String?
+  scorecardVersion   ScorecardVersion? @relation(fields: [tenantId, scorecardVersionId], references: [tenantId, id], onDelete: Restrict)
+  /// The version number; 0 for the template.
+  version            Int
+  /// TENANT or TEMPLATE
+  source             String
+  definitionHash     String
+  thinFile           Boolean           @default(false)
+  inputs             Json
+  result             Json
+  score              Int
+  grade              String
+  /// AUTO_APPROVE, REFER, DECLINE (what the strategy says; a challenger's never applies)
+  outcome            String
+  strategy           Json
+  drivesDecision     Boolean
+  currency           String
+  requestedAmount    Decimal           @db.Decimal(24, 4)
+  engineVersion      String
+  evaluatedBy        String
+  createdAt          DateTime          @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, applicationId, createdAt])
+  @@index([tenantId, scorecardCode, createdAt])
+}
+
+// ── Alternative data for thin-file borrowers (DECISIONS D-078, D-079) ───────
+
+/// A borrower's consent to one alternative data source, append-only: a
+/// GRANT, and later perhaps the REVOKE that ends it (a new row naming the
+/// grant). Nothing from a source is fetched or used without a grant in force.
+model AltDataConsent {
+  id          String          @id @default(uuid())
+  tenantId    String
+  borrowerId  String
+  borrower    Borrower        @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// GRANT or REVOKE
+  action      String
+  /// INTERNAL_BEHAVIOUR, UTILITY_BILLS, TELCO_STATEMENT, RENT_HISTORY,
+  /// BUSINESS_CASH_FLOW, SMARTPHONE_DATA, TELCO_DATA, EWALLET_DATA
+  source      String
+  /// On a REVOKE: the grant it ends.
+  grantId     String?
+  /// Why the data is used, as told to the borrower.
+  purpose     String          @default("")
+  /// What the borrower agreed may be used.
+  scope       String          @default("")
+  /// SIGNED_FORM, RECORDED_VERBAL, BORROWER_PORTAL
+  method      String
+  /// The customer document holding the signed form, when there is one.
+  documentId  String?
+  /// When the borrower gave (GRANT) or withdrew (REVOKE) it.
+  effectiveAt DateTime
+  /// GRANT: when it lapses.
+  expiresAt   DateTime?
+  reason      String          @default("")
+  /// The staff member who recorded it (the borrower grants it).
+  recordedBy  String
+  createdAt   DateTime        @default(now())
+  records     AltDataRecord[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, source])
+}
+
+/// Alternative data a loan officer captured from a customer document
+/// (utility bills, telco statement, rent, observed business cash flow). It
+/// counts towards a score only once a second person has verified it.
+model AltDataRecord {
+  id              String           @id @default(uuid())
+  tenantId        String
+  borrowerId      String
+  borrower        Borrower         @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  /// UTILITY_BILLS, TELCO_STATEMENT, RENT_HISTORY, BUSINESS_CASH_FLOW
+  kind            String
+  data            Json
+  periodFrom      DateTime         @db.Date
+  periodTo        DateTime         @db.Date
+  documentId      String
+  document        CustomerDocument @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict)
+  /// The consent in force when it was captured.
+  consentId       String
+  consent         AltDataConsent   @relation(fields: [tenantId, consentId], references: [tenantId, id], onDelete: Restrict)
+  /// PENDING, VERIFIED, REJECTED
+  status          String           @default("PENDING")
+  note            String           @default("")
+  recordedBy      String
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime         @default(now())
+
+  @@unique([tenantId, id])
+  @@index([tenantId, borrowerId, kind, status])
+}
+
+/// A tenant's connection to an external alternative-data provider
+/// (smartphone, telco or e-wallet data). Credentials are field-encrypted
+/// and never returned. Activated by a second administrator; usable only when
+/// this build ships an adapter for the provider.
+model AltDataProviderConfig {
+  id           String    @id @default(uuid())
+  tenantId     String
+  /// SMARTPHONE_DATA, TELCO_DATA, EWALLET_DATA
+  source       String
+  providerCode String
+  endpointUrl  String
+  credentials  String
+  /// PENDING, ACTIVE, REJECTED, DISABLED
+  status       String    @default("PENDING")
+  makerId      String
+  checkerId    String?
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, source, status])
+}
+
+/// One person's progress on one Learning centre lesson (D-094). Lessons are
+/// content (packages/shared/src/learning), identified by id; the API grades
+/// quizzes, so a pass is never the browser's word. The orientation lesson's
+/// row also remembers that the first-login tour prompt was dismissed.
+/// Only the person writes their own rows; a team report reads them with
+/// learning.report.read.
+model LearningProgress {
+  id                String    @id @default(uuid())
+  tenantId          String
+  userId            String
+  user              User      @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  lessonId          String
+  startedAt         DateTime  @default(now())
+  tourCompletedAt   DateTime?
+  quizAttempts      Int       @default(0)
+  /// Best score so far and the question count it was out of.
+  quizBestScore     Int?
+  quizTotal         Int?
+  quizPassedAt      DateTime?
+  /// The lesson is complete once its quiz is passed.
+  completedAt       DateTime?
+  promptDismissedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([tenantId, userId, lessonId])
+  @@unique([tenantId, id])
+  @@index([tenantId, lessonId])
 }

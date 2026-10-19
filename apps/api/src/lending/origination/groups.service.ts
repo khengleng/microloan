@@ -94,9 +94,60 @@ export class GroupsService {
         where: { tenantId, groupId: id },
         orderBy: { createdAt: 'desc' },
       });
+      // The group's loans and applications, so a screen can name them
+      // (reference, status, balance) rather than show bare ids.
+      const accountIds = [...new Set(loans.map((l) => l.loanAccountId))];
+      const [accounts, applications] = await Promise.all([
+        accountIds.length
+          ? tx.loanAccount.findMany({
+              where: { tenantId, id: { in: accountIds } },
+              select: {
+                id: true,
+                reference: true,
+                status: true,
+                currency: true,
+                principalOutstanding: true,
+                borrowerId: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            })
+          : Promise.resolve([]),
+        tx.application.findMany({
+          where: { tenantId, groupId: id },
+          select: {
+            id: true,
+            reference: true,
+            status: true,
+            currency: true,
+            requestedAmount: true,
+            borrowerId: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+      ]);
       return {
         ...groupView(group, members),
         loanBindings: loans.map(bindingView),
+        loans: accounts.map((a) => ({
+          id: a.id,
+          reference: a.reference,
+          status: a.status,
+          currency: a.currency,
+          principalOutstanding: decStr(a.principalOutstanding),
+          borrowerId: a.borrowerId,
+        })),
+        applications: applications.map((a) => ({
+          id: a.id,
+          reference: a.reference,
+          status: a.status,
+          currency: a.currency,
+          requestedAmount: decStr(a.requestedAmount),
+          borrowerId: a.borrowerId,
+          createdAt: a.createdAt,
+        })),
       };
     });
   }
@@ -116,6 +167,9 @@ export class GroupsService {
           'A group belongs to a branch; name one or sign in as a branch user.',
         );
       }
+      // A branch named in the request must be one of this tenant's.
+      if (!(await tx.branch.findFirst({ where: { id: branchId, tenantId } })))
+        throw new NotFoundException('Branch not found');
       // The group does not exist yet, so authorization runs against the group
       // it is about to become: the branch decides scope, and FORMING is the
       // state it starts in.
@@ -262,7 +316,7 @@ export class GroupsService {
         tx,
       );
       const businessDate = await this.businessDate.get(tenantId, tx);
-      const { outstanding, liveLoans, fraction, terms } =
+      const { outstanding, liveLoans, fraction, terms, currency, rounding } =
         await this.outstandingFor(tx, tenantId, id, borrowerId);
       const check = engineCall(() =>
         lending.checkMemberExit(
@@ -271,8 +325,8 @@ export class GroupsService {
           borrowerId,
           { outstanding, liveLoans },
           fraction,
-          'USD',
-          { increment: '0.01', mode: 'HALF_UP' },
+          currency,
+          rounding,
           businessDate,
         ),
       );
@@ -307,6 +361,57 @@ export class GroupsService {
         leftOn: businessDate,
         settlementAmount: check.settlementAmount,
       };
+    });
+  }
+
+  /**
+   * Hand the group's leadership to another active member. The previous leader
+   * stays in the group as a member. Loans already booked keep the roles frozen
+   * on them; the new leader signs for the group's next application.
+   */
+  async changeLeader(
+    actor: LendingActor,
+    id: string,
+    body: { borrowerId: string; reason?: string },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const { group, members } = await this.load(tx, tenantId, id);
+      await this.policy.enforce(
+        actor,
+        'borrower_group.manage',
+        this.resource(group),
+        tx,
+      );
+      if (group.status === 'DISBANDED')
+        throw new ConflictException('This group has been disbanded.');
+      const next = members.find(
+        (m) => m.borrowerId === body.borrowerId && !m.leftOn,
+      );
+      if (!next)
+        throw new BadRequestException(
+          'The new leader must be an active member of the group.',
+        );
+      if (next.role === 'LEADER')
+        throw new ConflictException('This member already leads the group.');
+      const current = members.filter((m) => m.role === 'LEADER' && !m.leftOn);
+      if (current.length)
+        await tx.groupMembership.updateMany({
+          where: { tenantId, id: { in: current.map((m) => m.id) } },
+          data: { role: 'MEMBER' },
+        });
+      await tx.groupMembership.update({
+        where: { id: next.id },
+        data: { role: 'LEADER' },
+      });
+      await this.cas(tx, group, {});
+      await this.writeAudit(actor, tx, group, 'borrower_group.manage', {
+        action: 'CHANGE_LEADER',
+        from: current.map((m) => m.borrowerId),
+        to: body.borrowerId,
+        reason: body.reason?.slice(0, 500),
+      });
+      return { id, leaderBorrowerId: body.borrowerId };
     });
   }
 
@@ -451,8 +556,24 @@ export class GroupsService {
       ]);
       if (!bindings.length)
         return { group: false, members: [], contributions: [] };
+      // Contributions are append-only; those of a reversed repayment no
+      // longer count towards what a member has paid.
+      const reversed = new Set(
+        (
+          await tx.financialEvent.findMany({
+            where: {
+              tenantId,
+              loanAccountId,
+              status: 'REVERSED',
+              id: { in: contributions.map((c) => c.financialEventId) },
+            },
+            select: { id: true },
+          })
+        ).map((e) => e.id),
+      );
       const paid = new Map<string, InstanceType<typeof lending.D>>();
       for (const c of contributions) {
+        if (reversed.has(c.financialEventId)) continue;
         paid.set(
           c.borrowerId,
           (paid.get(c.borrowerId) ?? D('0')).plus(D(c.amount)),
@@ -483,6 +604,7 @@ export class GroupsService {
           borrowerId: c.borrowerId,
           amount: decStr(c.amount),
           financialEventId: c.financialEventId,
+          reversed: reversed.has(c.financialEventId),
         })),
       };
     });
@@ -546,22 +668,28 @@ export class GroupsService {
     const bindings = await tx.loanGroupMember.findMany({
       where: { tenantId, groupId },
     });
-    if (!bindings.length) {
-      return {
-        outstanding: '0',
-        liveLoans: 0,
-        fraction: '0',
-        terms: DEFAULT_EXIT_TERMS,
-      };
-    }
+    if (!bindings.length) return this.noLiveLoans(tx, tenantId);
     const accounts = await tx.loanAccount.findMany({
       where: {
         tenantId,
         id: { in: [...new Set(bindings.map((b) => b.loanAccountId))] },
         status: { in: ['BOOKED', 'ACTIVE'] },
       },
-      select: { id: true, principalOutstanding: true, productVersionId: true },
+      select: {
+        id: true,
+        principalOutstanding: true,
+        productVersionId: true,
+        currency: true,
+      },
     });
+    if (!accounts.length) return this.noLiveLoans(tx, tenantId);
+    // The balance is summed across the group's live loans, so they must be
+    // in one currency; the settlement is then stated in that currency.
+    const currencies = [...new Set(accounts.map((a) => a.currency))];
+    if (currencies.length > 1)
+      throw new ConflictException(
+        `This group has live loans in ${currencies.join(' and ')}; a member's exit settlement cannot be worked out across currencies. Settle the exit with the loans' servicing team.`,
+      );
     const outstanding = accounts.reduce(
       (t, a) => t.plus(D(a.principalOutstanding)),
       D('0'),
@@ -576,18 +704,48 @@ export class GroupsService {
     // so exit is governed by how many live loans name them, not the balance.
     const liveLoans = mine.length;
 
-    // Exit policy comes from the product the live loan was booked under.
+    // Exit policy and rounding come from the product the live loan was
+    // booked under.
     let terms = DEFAULT_EXIT_TERMS;
-    if (accounts.length) {
-      const version = await tx.agreementVersion.findFirst({
-        where: { tenantId, agreement: { account: { id: accounts[0].id } } },
-        orderBy: { version: 'desc' },
-        select: { productConfig: true },
-      });
-      const parsed = lending.validateProductConfig(version?.productConfig);
-      if (parsed.ok && parsed.config.group) terms = groupTermsOf(parsed.config);
+    let rounding: lending.RoundingRule = EXIT_ROUNDING;
+    const version = await tx.agreementVersion.findFirst({
+      where: { tenantId, agreement: { account: { id: accounts[0].id } } },
+      orderBy: { version: 'desc' },
+      select: { productConfig: true },
+    });
+    const parsed = lending.validateProductConfig(version?.productConfig);
+    if (parsed.ok) {
+      if (parsed.config.group) terms = groupTermsOf(parsed.config);
+      rounding = parsed.config.pricing.rounding;
     }
-    return { outstanding: outstanding.toString(), liveLoans, fraction, terms };
+    return {
+      outstanding: outstanding.toString(),
+      liveLoans,
+      fraction,
+      terms,
+      currency: currencies[0],
+      rounding,
+    };
+  }
+
+  /**
+   * No live loan: nothing is owed, so exit is unconstrained and no settlement
+   * is due. The zero balance is stated in the tenant's base currency.
+   */
+  private async noLiveLoans(tx: Tx, tenantId: string) {
+    const tenant = await tx.tenant.findFirst({
+      where: { id: tenantId },
+      select: { baseCurrency: true },
+    });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return {
+      outstanding: '0',
+      liveLoans: 0,
+      fraction: '0',
+      terms: DEFAULT_EXIT_TERMS,
+      currency: String(tenant.baseCurrency),
+      rounding: EXIT_ROUNDING,
+    };
   }
 
   private resource(group: GroupRow) {
@@ -636,6 +794,9 @@ export class GroupsService {
     );
   }
 }
+
+/** Rounding when no live loan's product says otherwise (the amount is zero). */
+const EXIT_ROUNDING: lending.RoundingRule = { increment: '0.01', mode: 'HALF_UP' };
 
 /** Used only when a group has no live loan, where exit is unconstrained. */
 const DEFAULT_EXIT_TERMS: lending.GroupTerms = {
@@ -698,6 +859,7 @@ function membershipView(m: MembershipRow) {
 }
 
 function bindingView(b: {
+  loanAccountId: string;
   borrowerId: string;
   role: string;
   liability: string;
@@ -706,6 +868,7 @@ function bindingView(b: {
   liableFor: unknown;
 }) {
   return {
+    loanAccountId: b.loanAccountId,
     borrowerId: b.borrowerId,
     role: b.role,
     liability: b.liability,

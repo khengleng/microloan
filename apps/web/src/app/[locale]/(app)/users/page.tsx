@@ -8,12 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound } from 'lucide-react';
+import { Plus, Trash2, ShieldCheck, Users, Mail, Loader2, ChevronDown, UserX, UserPlus, Fingerprint, Shield, Activity, Calendar, KeyRound, ShieldOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useWorkspace } from '@/lib/workspace';
 
 const TENANT_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
-// Platform team can hold any tenant-equivalent role; they operate against platform data
-const PLATFORM_ROLES = ['ADMIN', 'FINANCE', 'SALES', 'CX', 'OPERATOR'];
+// Platform operators have no organisation (tenantId null); the API accepts
+// only SUPERADMIN for such users, so that is the one platform role.
+const PLATFORM_ROLES = ['SUPERADMIN'];
 const ROLE_COLORS: Record<string, string> = {
     ADMIN: 'bg-indigo-100 text-indigo-700 shadow-sm',
     FINANCE: 'bg-purple-100 text-purple-700 shadow-sm',
@@ -33,6 +35,8 @@ interface TeamMember {
 
 export default function UsersPage() {
     const t = useTranslations('Users');
+    const ta = useTranslations('Account.team');
+    const { legacyCan } = useWorkspace();
     const { showToast } = useToast();
     const { user, loading: authLoading } = useAuth();
     const [users, setUsers] = useState<TeamMember[]>([]);
@@ -41,9 +45,16 @@ export default function UsersPage() {
     const [submitting, setSubmitting] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [resettingId, setResettingId] = useState<string | null>(null);
+    const [mfaResettingId, setMfaResettingId] = useState<string | null>(null);
+    const [reactivatingId, setReactivatingId] = useState<string | null>(null);
     const [form, setForm] = useState({ email: '', password: '', role: 'SALES' });
 
     const isSuperAdmin = user?.role === 'SUPERADMIN';
+    // Mirrors the API: only the platform operator manages an administrator.
+    const isAdminRole = (role: string) => ['ADMIN', 'TENANT_ADMIN', 'SUPERADMIN'].includes(role);
+    const canManage = (m: TeamMember) => m.id !== user?.sub && (isSuperAdmin || !isAdminRole(m.role));
+    // Resetting someone's authenticator needs the actor's own code-verified sign-in.
+    const stepUpDone = (user as { amr?: string } | null)?.amr === 'mfa';
     const ROLES = isSuperAdmin ? PLATFORM_ROLES : TENANT_ROLES;
 
     const fetchUsers = useCallback(async () => {
@@ -64,8 +75,8 @@ export default function UsersPage() {
         e.preventDefault();
         setSubmitting(true);
         try {
-            await api.post('/users', form);
-            showToast(t('invited', { email: form.email, role: form.role }), 'success');
+            await api.post('/users', { ...form, role: isSuperAdmin ? 'SUPERADMIN' : form.role });
+            showToast(t('invited', { email: form.email, role: isSuperAdmin ? 'SUPERADMIN' : form.role }), 'success');
             setIsModalOpen(false);
             setForm({ email: '', password: '', role: 'SALES' });
             fetchUsers();
@@ -105,6 +116,35 @@ export default function UsersPage() {
         }
     };
 
+    const handleResetMfa = async (id: string, email: string) => {
+        if (!confirm(ta('resetMfaConfirm', { email }))) return;
+        setMfaResettingId(id);
+        try {
+            await api.post(`/users/${id}/mfa/reset`);
+            showToast(ta('resetMfaDone', { email }), 'success');
+            fetchUsers();
+        } catch (err: any) {
+            // 4xx answers already raise the API's own message as a toast.
+            if (!err?.response) showToast(ta('resetMfaFailed'), 'error');
+        } finally {
+            setMfaResettingId(null);
+        }
+    };
+
+    const handleReactivate = async (id: string, email: string) => {
+        if (!confirm(ta('reactivateConfirm', { email }))) return;
+        setReactivatingId(id);
+        try {
+            await api.post(`/users/${id}/reactivate`);
+            showToast(ta('reactivated', { email }), 'success');
+            fetchUsers();
+        } catch (err: any) {
+            if (!err?.response) showToast(ta('reactivateFailed'), 'error');
+        } finally {
+            setReactivatingId(null);
+        }
+    };
+
     const handleRoleChange = async (id: string, newRole: string) => {
         try {
             await api.put(`/users/${id}/role`, { role: newRole });
@@ -137,6 +177,7 @@ export default function UsersPage() {
                     </p>
                 </div>
                 <Button
+                    data-tour="users-onboard"
                     onClick={() => setIsModalOpen(true)}
                     className="rounded-2xl font-black px-8 h-12 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
@@ -146,7 +187,7 @@ export default function UsersPage() {
             </div>
 
             {/* Team Summary KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div data-tour="users-kpis" className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="glass p-6 rounded-[2rem] premium-shadow border-indigo-100/10">
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{t('activeSeats')}</div>
                     <div className="text-3xl font-black text-slate-900 tracking-tight">{users.filter(u => u.isActive).length}</div>
@@ -195,7 +236,7 @@ export default function UsersPage() {
                                 </tr>
                             ) : (
                                 users.map(user => (
-                                    <tr key={user.id} className="group hover:bg-slate-50/50 transition-all duration-300">
+                                    <tr data-tour="users-row" key={user.id} className="group hover:bg-slate-50/50 transition-all duration-300">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black shadow-sm transition-all group-hover:scale-110 ${user.isActive ? 'bg-indigo-600 text-white' : 'bg-rose-100 text-rose-500'}`}>
@@ -211,6 +252,7 @@ export default function UsersPage() {
                                         <td className="py-5">
                                             <div className="relative inline-block group/role">
                                                 <select
+                                                    data-tour="users-role-select"
                                                     value={user.role}
                                                     onChange={e => handleRoleChange(user.id, e.target.value)}
                                                     className={`appearance-none pl-4 pr-10 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] rounded-full border-0 cursor-pointer focus:outline-none focus:ring-4 focus:ring-white/50 transition-all ${ROLE_COLORS[user.role] || 'bg-slate-100 text-slate-400'}`}
@@ -234,7 +276,7 @@ export default function UsersPage() {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div data-tour="users-governance" className="flex items-center justify-end gap-2">
                                                 {user.isActive && (
                                                     <button
                                                         onClick={() => handleResetPassword(user.id, user.email)}
@@ -243,6 +285,28 @@ export default function UsersPage() {
                                                         title={t('resetPasswordTitle')}
                                                     >
                                                         {resettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                                                    </button>
+                                                )}
+                                                {user.isActive && user.twoFactorEnabled && legacyCan('USER_UPDATE') && canManage(user) && (
+                                                    <button
+                                                        onClick={() => handleResetMfa(user.id, user.email)}
+                                                        disabled={mfaResettingId === user.id || !stepUpDone}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-amber-600 hover:bg-amber-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={stepUpDone ? ta('resetMfaTitle') : ta('resetMfaNeedsStepUp')}
+                                                        aria-label={ta('resetMfaTitle')}
+                                                    >
+                                                        {mfaResettingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <ShieldOff size={16} />}
+                                                    </button>
+                                                )}
+                                                {!user.isActive && legacyCan('USER_DISABLE') && canManage(user) && (
+                                                    <button
+                                                        onClick={() => handleReactivate(user.id, user.email)}
+                                                        disabled={reactivatingId === user.id}
+                                                        className="w-10 h-10 rounded-xl bg-white text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-sm border border-slate-100 flex items-center justify-center"
+                                                        title={ta('reactivateTitle')}
+                                                        aria-label={ta('reactivateTitle')}
+                                                    >
+                                                        {reactivatingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
                                                     </button>
                                                 )}
                                                 {user.role !== 'ADMIN' && user.role !== 'SUPERADMIN' && user.isActive && (
@@ -267,7 +331,7 @@ export default function UsersPage() {
 
             {/* Invite Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="rounded-[2.5rem] border-none shadow-2xl glass p-8">
+                <DialogContent data-tour="users-onboard-dialog" className="rounded-[2.5rem] border-none shadow-2xl glass p-8">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">{t('onboardTitle')}</DialogTitle>
                         <DialogDescription className="text-slate-500 font-medium">{t('onboardDesc')}</DialogDescription>
@@ -278,6 +342,7 @@ export default function UsersPage() {
                             <div className="relative group">
                                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
                                 <Input
+                                    data-tour="users-onboard-email"
                                     id="inv-email"
                                     type="email"
                                     autoComplete="email"
@@ -292,11 +357,12 @@ export default function UsersPage() {
                         <div className="space-y-3">
                             <Label htmlFor="inv-pass" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('credentialLabel')}</Label>
                             <Input
+                                data-tour="users-onboard-password"
                                 id="inv-pass"
                                 type="password"
                                 autoComplete="new-password"
                                 required
-                                minLength={6}
+                                minLength={12}
                                 className="h-14 rounded-2xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-5"
                                 placeholder={t('credentialPlaceholder')}
                                 value={form.password}
@@ -307,8 +373,9 @@ export default function UsersPage() {
                             <Label htmlFor="inv-role" className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">{t('roleLabel')}</Label>
                             <div className="relative">
                                 <select
+                                    data-tour="users-onboard-role"
                                     id="inv-role"
-                                    value={form.role}
+                                    value={isSuperAdmin ? 'SUPERADMIN' : form.role}
                                     onChange={e => setForm({ ...form, role: e.target.value })}
                                     className="w-full h-14 pl-5 pr-10 appearance-none text-sm font-black border border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
                                 >
@@ -321,7 +388,7 @@ export default function UsersPage() {
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 pt-4">
-                            <Button type="submit" disabled={submitting} className="h-14 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-950/20">
+                            <Button data-tour="users-onboard-submit" type="submit" disabled={submitting} className="h-14 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-950/20">
                                 {submitting && <Loader2 size={16} className="animate-spin mr-3" />}
                                 {submitting ? t('registering') : t('registerDispatch')}
                             </Button>

@@ -6,13 +6,16 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Plus, Search, CreditCard, Loader2, Download, ChevronLeft, ChevronRight, Wallet, Activity, CheckCircle2 } from 'lucide-react';
 import { RepaymentModal } from '@/components/RepaymentModal';
+import { HelpLink } from '@/components/help/HelpLink';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
+import { money } from '@/lib/currency';
 
 interface Repayment {
     id: string;
     loanId: string;
     loan: { borrower: { firstName: string; lastName: string; }; };
     amount: number;
+    currency?: string;
     date: string;
     principalPaid: number;
     interestPaid: number;
@@ -30,6 +33,7 @@ export default function RepaymentsPage() {
     const [repayments, setRepayments] = useState<Repayment[]>([]);
     const [meta, setMeta] = useState<PageMeta | null>(null);
     const [totalCollected, setTotalCollected] = useState(0);
+    const [totalCurrency, setTotalCurrency] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -62,10 +66,13 @@ export default function RepaymentsPage() {
     // Also fetch unfiltered total for the KPI card
     const fetchTotal = useCallback(async () => {
         try {
-            const res = await api.get('/repayments', { params: { page: 1, limit: 1 } });
-            // Use the summary from reports endpoint instead
-            const rptRes = await api.get('/reports/dashboard');
-            setTotalCollected(rptRes.data.repaymentsThisMonth || 0);
+            // Collected since the first of this month, converted by the API into
+            // the reporting currency (reversed repayments excluded).
+            const d = new Date();
+            const monthStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+            const rptRes = await api.get('/reports/overview', { params: { from: monthStart, limit: 1 } });
+            setTotalCollected(Number(rptRes.data?.kpis?.monthlyCollection) || 0);
+            setTotalCurrency(rptRes.data?.currency);
         } catch { }
     }, []);
 
@@ -96,6 +103,7 @@ export default function RepaymentsPage() {
         : repayments;
 
     const pageTotal = repayments.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const pageCurrencies = new Set(repayments.map((r) => r.currency || 'USD'));
 
     const exportToExcel = async () => {
         clarityEvent('repayment_export_attempt');
@@ -130,6 +138,7 @@ export default function RepaymentsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <HelpLink chapter="07-repayments-and-payments" anchor="2-posting-a-repayment" />
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
@@ -145,8 +154,9 @@ export default function RepaymentsPage() {
             {/* KPI Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
-                    { label: t('thisMonth'), value: `$${totalCollected.toLocaleString()}`, icon: Wallet, cls: 'text-primary' },
-                    { label: t('averagePayment'), value: meta && meta.total > 0 ? `$${(pageTotal / repayments.length || 0).toFixed(0)}` : '—', icon: Activity, cls: 'text-foreground' },
+                    { label: t('thisMonth'), value: money(totalCollected, totalCurrency), icon: Wallet, cls: 'text-primary' },
+                    // An average across currencies means nothing: shown only when the page holds one currency.
+                    { label: t('averagePayment'), value: meta && meta.total > 0 && pageCurrencies.size === 1 ? money(pageTotal / repayments.length || 0, [...pageCurrencies][0]) : '—', icon: Activity, cls: 'text-foreground' },
                     { label: t('verifiedLedger'), value: t('audited'), icon: CheckCircle2, cls: 'text-[#006644]' },
                 ].map((m, i) => (
                     <div key={i} className="bg-white border border-border rounded-md px-4 py-3 flex items-center gap-3">
@@ -254,13 +264,13 @@ export default function RepaymentsPage() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <span className="text-sm font-bold text-[#006644]">${Number(rp.amount).toLocaleString()}</span>
+                                            <span className="text-sm font-bold text-[#006644]">{money(rp.amount, rp.currency)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right hidden md:table-cell">
-                                            <span className="text-sm text-muted-foreground">${Number(rp.interestPaid).toLocaleString()}</span>
+                                            <span className="text-sm text-muted-foreground">{money(rp.interestPaid, rp.currency)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right hidden md:table-cell">
-                                            <span className="text-sm text-muted-foreground">${Number(rp.principalPaid).toLocaleString()}</span>
+                                            <span className="text-sm text-muted-foreground">{money(rp.principalPaid, rp.currency)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className="badge-neutral text-[11px]">

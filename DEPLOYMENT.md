@@ -127,6 +127,74 @@ made it useless as a gate for the api. In order:
 - **Plan prices** are rows in `PlanTier`, edited under Platform ops →
   Subscription Plans. The `PLAN_PRICE_*` environment variables were removed and
   are no longer read; the api logs a warning at boot if any are still set.
+- **Every environment variable** the code reads is documented in `.env.example`
+  with its default (CI fails otherwise — `pnpm security:config-audit`).
+  Operational limits (retries, batch sizes, lockout and OTP windows, cron
+  schedules, the regulator's rate ceiling, `PLATFORM_NAME`) are validated at
+  boot: a malformed value stops the api. Production also refuses to start with
+  `AWS_S3_BUCKET_NAME` but no `AWS_REGION`, or `RESEND_API_KEY` but no
+  `EMAIL_FROM`. Links in e-mails and payment redirects use `WEB_URL`, else the
+  first `CORS_ORIGINS` entry.
+- **Lender rules** (regulatory return bands and classes, tenant-level ledger
+  accounts, payment-file and delegation limits) are per tenant under
+  Lending › Operations › Lending settings, maker-checker. See
+  `docs/security/HARDCODING_AUDIT.md`.
+- **Several api instances** are supported: outbox and webhook deliveries,
+  legacy reminders and penalties, and Telegram polling are claimed in
+  PostgreSQL; rate limits share Redis. Customer documents need S3 (or one
+  volume every instance mounts).
+
+## Monitoring
+
+Details and the metric list: `docs/lending/OPERATIONS.md` → Monitoring.
+
+- **Probes.** Point the platform's liveness check at `GET /v1/health/live`
+  (no database) and its readiness/deploy healthcheck at
+  `GET /v1/health/ready` (`SELECT 1`, 503 when the database is unreachable).
+  `GET /v1/health` is unchanged.
+- **Scraping.** Set `METRICS_BEARER_TOKEN` (≥ 16 random characters, kept in
+  the platform's secret store) on the **api** service and configure the
+  scraper:
+
+  ```yaml
+  scrape_configs:
+    - job_name: microloan-api
+      metrics_path: /v1/metrics
+      scheme: https
+      authorization:
+        type: Bearer
+        credentials_file: /etc/prometheus/microloan-metrics-token
+      static_configs:
+        - targets: ['<api host>']
+  ```
+
+  With a scraper on the same private network instead, set
+  `METRICS_ALLOW_PRIVATE_NETWORK=true` and scrape the instance directly (not
+  through the public proxy: a request carrying `X-Forwarded-For` is always
+  refused). With neither set, `/v1/metrics` answers 404.
+- **Rules and dashboard.** Load `ops/monitoring/prometheus-alerts.yml` in
+  Prometheus (`rule_files`) and import
+  `ops/monitoring/grafana-lending-dashboard.json` into Grafana. The rules
+  expect the job name `microloan-api`.
+- **Optional settings.** `LENDING_METRICS_REFRESH_SECONDS` (60),
+  `LENDING_RECONCILIATION_CRON` (`40 */6 * * *`),
+  `LENDING_RECONCILIATION_JOB_DISABLED`, `LENDING_METRICS_REFRESH_DISABLED`,
+  `READINESS_DB_TIMEOUT_MS` (2000).
+
+## End of day and the connection pool
+
+- `LENDING_EOD_CONCURRENCY` (default 4) loans are processed at once, each
+  holding one connection for its transaction; it is capped at the pool size
+  (`connection_limit` in `DATABASE_URL`, else Prisma's default of CPUs × 2 + 1)
+  minus two. Measured throughput and sizing: `docs/lending/PERFORMANCE.md`.
+- Migration `20261019001600_lending_eod_scale` adds an index on
+  `LendingJournalLine("entryId")`; building it blocks writes to the journal
+  for its duration (seconds per few million lines). Deploy outside end of day.
+- Set `connection_limit` explicitly in `DATABASE_URL` and keep
+  `instances × connection_limit` comfortably under PostgreSQL's
+  `max_connections` (plus anything else connecting). The API now opens **one**
+  pool per instance; before this change three modules each opened their own,
+  so an instance could hold up to four times `connection_limit`.
 
 ## Guardrails in place
 

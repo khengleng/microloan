@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -14,11 +15,23 @@ import { BorrowerPortalService } from './borrower-portal.service';
 import { BorrowerJwtGuard } from './borrower-jwt.guard';
 import { CurrentBorrower } from './current-borrower.decorator';
 import type { BorrowerSession } from './borrower-jwt';
-import { RequestOtpDto, VerifyOtpDto, UploadKycDto } from './dto/borrower-auth.dto';
+import {
+  RequestOtpDto,
+  VerifyOtpDto,
+  UploadKycDto,
+} from './dto/borrower-auth.dto';
 import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
-import { BorrowerRoute, Public } from '../auth/auth-scope.decorator';
+import {
+  AnyAuthenticated,
+  BorrowerRoute,
+  Public,
+} from '../auth/auth-scope.decorator';
 
+// The borrower's own routes authenticate with BorrowerJwtGuard (per handler);
+// AnyAuthenticated tells the staff role/permission guards that no staff role
+// applies here, which they otherwise refused with 403 for every borrower.
 @BorrowerRoute()
+@AnyAuthenticated()
 @Controller('borrower')
 export class BorrowerPortalController {
   constructor(
@@ -28,12 +41,14 @@ export class BorrowerPortalController {
 
   // ── Public OTP auth (rate-limited by the global throttler) ────────────────
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @Post('otp/request')
   requestOtp(@Body() dto: RequestOtpDto) {
     return this.auth.requestOtp(dto.phone);
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   @Post('otp/verify')
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.auth.verifyOtp(dto.phone, dto.code);

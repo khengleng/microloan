@@ -12,6 +12,7 @@ import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { MetricsModule } from './observability/metrics/metrics.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -44,6 +45,8 @@ import { KpiModule } from './kpi/kpi.module';
 import { LendingModule } from './lending/lending.module';
 import { LendingActionGuard } from './lending/policy/lending-action.guard';
 import { loadRuntimeConfig } from './config/runtime-config';
+import { operationalConfig } from './config/operational-config';
+import { TenantSettingsModule } from './tenant-settings/tenant-settings.service';
 
 @Module({
   imports: [
@@ -51,15 +54,23 @@ import { loadRuntimeConfig } from './config/runtime-config';
     ThrottlerModule.forRootAsync({
       useFactory: async () => {
         const runtime = loadRuntimeConfig();
-        const base = { name: 'default', ttl: 1_000, limit: 120 };
+        const base = {
+          name: 'default',
+          ttl: 1_000,
+          limit: operationalConfig().rateLimitPerSecond,
+        };
 
-        if (!runtime.isProduction) {
+        // Counters live in Redis whenever it is configured (required in
+        // production), so every API instance draws from the same budget. Only
+        // a single development process without REDIS_URL counts in memory.
+        if (!runtime.redisUrl) {
           return [base];
         }
         // Runtime import avoids TS export-map issues with legacy redis storage package.
-        const { ThrottlerStorageRedisService } = require('nestjs-throttler-storage-redis') as {
-          ThrottlerStorageRedisService: new (url?: string) => any;
-        };
+        const { ThrottlerStorageRedisService } =
+          require('nestjs-throttler-storage-redis') as {
+            ThrottlerStorageRedisService: new (url?: string) => any;
+          };
 
         return [
           {
@@ -70,6 +81,8 @@ import { loadRuntimeConfig } from './config/runtime-config';
       },
     }),
     PrismaModule,
+    TenantSettingsModule,
+    MetricsModule,
     // Global, like PrismaModule: QuotaGuard is applied across feature modules
     // and resolves plan ceilings from it. Listed early so it is available to
     // everything that follows.

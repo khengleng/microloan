@@ -1,8 +1,10 @@
+import { computePayoff } from './payoff';
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
   Inject,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,8 +24,10 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { LedgerService } from '../ledger/ledger.service';
-import { ACCOUNT_CODES } from '../ledger/chart-of-accounts';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 import { isCbcConfigured } from '../credit-bureau/cbc.provider';
+import { LegacyLoanGate } from './legacy-loan-gate';
+import { operationalConfig } from '../config/operational-config';
 
 @Injectable()
 export class LoansService {
@@ -34,7 +38,18 @@ export class LoansService {
     private ledger: LedgerService,
     @Inject(forwardRef(() => BotService))
     private bot: BotService,
+    /** The lender's settings: which ledger accounts this book posts to. */
+    private settings: TenantSettingsService,
+    /** Consolidation: closes the legacy book to new business when the tenant's flag is on. */
+    @Optional() private legacyGate?: LegacyLoanGate,
   ) {}
+
+  /** Whether the tenant's legacy loan book is read-only (lending.legacy_loans.readonly). */
+  legacyStatus(actor: JwtPayload) {
+    if (!this.legacyGate)
+      return { readonly: false, source: 'NOT_CONFIGURED', message: '' };
+    return this.legacyGate.status(actor.tenantId);
+  }
 
   async create(actor: JwtPayload, dto: CreateLoanDto) {
     this.authz.assertPermission(actor, Permission.LOAN_APPLICATION_CREATE);
@@ -45,11 +60,13 @@ export class LoansService {
     });
     if (!borrower) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, borrower.branchId);
+    await this.legacyGate?.assertOpen(borrower.tenantId, 'create');
 
     // Feature #1: enforce the NBC interest-rate cap (tenant may set a lower cap).
     const cap = checkInterestRateCap(
       dto.annualInterestRate,
       Number(borrower.tenant?.maxAnnualInterestRatePct),
+      operationalConfig().regulatoryMaxAnnualRatePct,
     );
     if (!cap.ok) {
       throw new BadRequestException(cap.message);
@@ -112,22 +129,27 @@ export class LoansService {
                 })),
               }
             : undefined,
+          // Written nested under the loan, not as a separate createMany: the
+          // tenant guard checks a child's parent outside this transaction, so
+          // it cannot see a loan created inside it and refused every new
+          // loan's schedule as cross-tenant.
+          schedules:
+            scheduleItems.length > 0
+              ? {
+                  createMany: {
+                    data: scheduleItems.map((item) => ({
+                      installmentNumber: item.installmentNumber,
+                      dueDate: item.dueDate,
+                      principalAmount: item.principalAmount,
+                      interestAmount: item.interestAmount,
+                      totalAmount: item.totalAmount,
+                      outstandingPrincipal: item.outstandingPrincipal,
+                    })),
+                  },
+                }
+              : undefined,
         },
       });
-
-      if (scheduleItems.length > 0) {
-        await tx.repaymentSchedule.createMany({
-          data: scheduleItems.map((item) => ({
-            loanId: createdLoan.id,
-            installmentNumber: item.installmentNumber,
-            dueDate: item.dueDate,
-            principalAmount: item.principalAmount,
-            interestAmount: item.interestAmount,
-            totalAmount: item.totalAmount,
-            outstandingPrincipal: item.outstandingPrincipal,
-          })),
-        });
-      }
 
       return createdLoan;
     });
@@ -145,10 +167,29 @@ export class LoansService {
     return loan;
   }
 
-  async findAll(actor: JwtPayload, search?: string, status?: string, page = 1, limit = 50) {
+  async findAll(
+    actor: JwtPayload,
+    search?: string,
+    status?: string,
+    page = 1,
+    limit = 50,
+  ) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     const where: any = this.authz.scopeWhere(actor, {});
-    if (status && status !== 'ALL') where.status = status;
+    if (status && status !== 'ALL') {
+      // Accepts one status or a comma-separated list (e.g. "DISBURSED,DEFAULTED").
+      const statuses = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const valid = Object.values(LoanStatus) as string[];
+      const invalid = statuses.filter((s) => !valid.includes(s));
+      if (invalid.length)
+        throw new BadRequestException(
+          `Unknown loan status: ${invalid.join(', ')}`,
+        );
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
+    }
     if (search) {
       where.borrower = {
         OR: [
@@ -195,7 +236,9 @@ export class LoansService {
   }
 
   async changeStatus(actor: JwtPayload, id: string, dto: ChangeLoanStatusDto) {
-    const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id }) });
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+    });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
 
@@ -208,10 +251,29 @@ export class LoansService {
     }
     if (currentStatus === targetStatus) return loan;
 
+    // Approval and rejection decide a loan that has not been paid out yet. Allowing
+    // them from later states let a DISBURSED / WRITTEN_OFF loan be sent back to
+    // APPROVED and disbursed a second time (a second GL disbursement).
+    if (
+      (targetStatus === LoanStatus.APPROVED &&
+        currentStatus !== LoanStatus.PENDING) ||
+      (targetStatus === LoanStatus.REJECTED &&
+        currentStatus !== LoanStatus.PENDING &&
+        currentStatus !== LoanStatus.APPROVED)
+    ) {
+      throw new BadRequestException(
+        `Cannot move a ${currentStatus} loan to ${targetStatus}.`,
+      );
+    }
+
     const data: any = { status: targetStatus };
     if (targetStatus === LoanStatus.APPROVED) {
       this.authz.assertPermission(actor, Permission.LOAN_APPROVE);
-      this.authz.assertMakerChecker(actor, loan.createdByUserId, Permission.LOAN_APPROVE);
+      this.authz.assertMakerChecker(
+        actor,
+        loan.createdByUserId,
+        Permission.LOAN_APPROVE,
+      );
       if (loan.reviewedByUserId && loan.reviewedByUserId === actorId) {
         throw new BadRequestException('Reviewer cannot approve the same loan.');
       }
@@ -222,7 +284,11 @@ export class LoansService {
       data.reviewedByUserId = data.reviewedByUserId || actorId;
     } else if (targetStatus === LoanStatus.REJECTED) {
       this.authz.assertPermission(actor, Permission.LOAN_REJECT);
-      this.authz.assertMakerChecker(actor, loan.createdByUserId, Permission.LOAN_REJECT);
+      this.authz.assertMakerChecker(
+        actor,
+        loan.createdByUserId,
+        Permission.LOAN_REJECT,
+      );
       data.rejectedBy = actorId;
       data.rejectedAt = new Date();
       data.rejectionReason = dto.reason;
@@ -232,12 +298,21 @@ export class LoansService {
       // Control: a loan must be APPROVED before it can be disbursed (no PENDING/
       // REJECTED → DISBURSED bypass of the approval gate).
       if (currentStatus !== LoanStatus.APPROVED) {
-        throw new BadRequestException('Loan must be approved before disbursement.');
+        throw new BadRequestException(
+          'Loan must be approved before disbursement.',
+        );
       }
+      await this.legacyGate?.assertOpen(loan.tenantId, 'disburse');
       if (loan.approvedBy && loan.approvedBy === actorId) {
-        throw new BadRequestException('Approver cannot disburse the same loan.');
+        throw new BadRequestException(
+          'Approver cannot disburse the same loan.',
+        );
       }
-      this.authz.assertMakerChecker(actor, loan.createdByUserId, Permission.LOAN_DISBURSE);
+      this.authz.assertMakerChecker(
+        actor,
+        loan.createdByUserId,
+        Permission.LOAN_DISBURSE,
+      );
       data.disbursedByUserId = actorId;
     } else {
       throw new BadRequestException('Unsupported status transition');
@@ -246,7 +321,10 @@ export class LoansService {
     let updated;
     if (targetStatus === LoanStatus.DISBURSED) {
       // Feature #1: snapshot FX rate to base currency for stable portfolio value.
-      data.fxRateToBase = await this.resolveFxRateToBase(loan.tenantId, loan.currency);
+      data.fxRateToBase = await this.resolveFxRateToBase(
+        loan.tenantId,
+        loan.currency,
+      );
 
       // Feature #3: post the disbursement to the general ledger atomically.
       const principal = Number(loan.principal);
@@ -262,12 +340,16 @@ export class LoansService {
         if (product) {
           const pct = Number(product.processingFeePct || 0);
           const flat = Number(product.adminFee || 0);
-          feeAmount = Math.min(principal, Math.round((principal * pct / 100 + flat) * 100) / 100);
+          feeAmount = Math.min(
+            principal,
+            Math.round(((principal * pct) / 100 + flat) * 100) / 100,
+          );
         }
       }
       data.feeCharged = feeAmount;
       const cashOut = Math.round((principal - feeAmount) * 100) / 100;
 
+      const acc = (await this.settings.get(loan.tenantId)).accounting;
       updated = await this.prisma.$transaction(async (tx) => {
         const u = await tx.loan.update({
           where: { id: loan.id },
@@ -275,11 +357,11 @@ export class LoansService {
           include: { borrower: true },
         });
         const lines: any[] = [
-          { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, debit: principal },
-          { accountCode: ACCOUNT_CODES.CASH, credit: cashOut },
+          { accountCode: acc.legacy.loansReceivable, debit: principal },
+          { accountCode: acc.cash, credit: cashOut },
         ];
         if (feeAmount > 0) {
-          lines.push({ accountCode: ACCOUNT_CODES.FEE_INCOME, credit: feeAmount });
+          lines.push({ accountCode: acc.legacy.feeIncome, credit: feeAmount });
         }
         await this.ledger.postEntry(
           {
@@ -303,11 +385,22 @@ export class LoansService {
       });
     }
 
-    if (updated.status === LoanStatus.DISBURSED && loan.status !== LoanStatus.DISBURSED && updated.borrower.telegramChatId) {
+    if (
+      updated.status === LoanStatus.DISBURSED &&
+      loan.status !== LoanStatus.DISBURSED &&
+      updated.borrower.telegramChatId
+    ) {
       try {
-        const amount = formatCurrency(Number(updated.principal), updated.currency as unknown as SharedCurrency);
-        const msg = `🎉 Your loan of **${amount}** has been DISBURSED. Check your schedule at the Magic Money portal.`;
-        await this.bot.sendDisbursementAlert(updated.tenantId, updated.borrower.telegramChatId, msg);
+        const amount = formatCurrency(
+          Number(updated.principal),
+          updated.currency as unknown as SharedCurrency,
+        );
+        const msg = `🎉 Your loan of **${amount}** has been DISBURSED. Check your schedule at the ${operationalConfig().platformName} portal.`;
+        await this.bot.sendDisbursementAlert(
+          updated.tenantId,
+          updated.borrower.telegramChatId,
+          msg,
+        );
       } catch {}
     }
 
@@ -329,7 +422,8 @@ export class LoansService {
     this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
     const today = new Date();
     const where: any = this.authz.scopeWhere(actor, {
-      status: LoanStatus.DISBURSED,
+      // DEFAULTED loans are the most overdue of all; they belong in the queue.
+      status: { in: [LoanStatus.DISBURSED, LoanStatus.DEFAULTED] },
       schedules: {
         some: {
           dueDate: { lt: today },
@@ -351,9 +445,17 @@ export class LoansService {
     });
   }
 
-  async addInteraction(actor: JwtPayload, loanId: string, notes: string, title?: string, type?: string) {
+  async addInteraction(
+    actor: JwtPayload,
+    loanId: string,
+    notes: string,
+    title?: string,
+    type?: string,
+  ) {
     this.authz.assertPermission(actor, Permission.CUSTOMER_UPDATE);
-    const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id: loanId }) });
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id: loanId }),
+    });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
 
@@ -383,30 +485,19 @@ export class LoansService {
     this.authz.assertBranchAccess(actor, loan.branchId);
 
     const now = new Date();
-    let outstandingPrincipal = 0;
-    let accruedInterestDue = 0;
-    let futureInterestWaived = 0;
-    let outstandingPenalty = 0;
-    for (const s of loan.schedules) {
-      if (s.isPaid) continue;
-      outstandingPrincipal += Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal));
-      outstandingPenalty += Math.max(0, Number(s.penaltyAmount) - Number(s.paidPenalty));
-      const dueInterest = Math.max(0, Number(s.interestAmount) - Number(s.paidInterest));
-      if (new Date(s.dueDate) <= now) accruedInterestDue += dueInterest;
-      else futureInterestWaived += dueInterest;
-    }
-    const round = (x: number) => Math.round(x * 100) / 100;
-    const payoffAmount = round(outstandingPrincipal + accruedInterestDue + outstandingPenalty);
-
+    const q = computePayoff(loan.schedules, now);
     return {
       loanId: loan.id,
       currency: loan.currency,
       asOf: now,
-      outstandingPrincipal: round(outstandingPrincipal),
-      accruedInterestDue: round(accruedInterestDue),
-      outstandingPenalty: round(outstandingPenalty),
-      futureInterestWaived: round(futureInterestWaived),
-      payoffAmount,
+      outstandingPrincipal: q.outstandingPrincipal,
+      accruedInterestDue: q.accruedInterestDue,
+      outstandingPenalty: q.outstandingPenalty,
+      futureInterestWaived: q.futureInterestWaived,
+      payoffAmount: q.payoffAmount,
+      // Pay this amount with POST /repayments/settlements to close the loan; an
+      // ordinary repayment would allocate part of it to future interest.
+      settleWith: 'POST /repayments/settlements',
     };
   }
 
@@ -424,20 +515,31 @@ export class LoansService {
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
 
-    if (loan.status !== LoanStatus.DISBURSED && loan.status !== LoanStatus.DEFAULTED) {
-      throw new BadRequestException('Only disbursed or defaulted loans can be written off.');
+    if (
+      loan.status !== LoanStatus.DISBURSED &&
+      loan.status !== LoanStatus.DEFAULTED
+    ) {
+      throw new BadRequestException(
+        'Only disbursed or defaulted loans can be written off.',
+      );
     }
     if (!reason || !reason.trim()) {
       throw new BadRequestException('A write-off reason is required.');
     }
 
     const outstandingPrincipal = loan.schedules.reduce(
-      (sum, s) => sum + (s.isPaid ? 0 : Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal))),
+      (sum, s) =>
+        sum +
+        (s.isPaid
+          ? 0
+          : Math.max(0, Number(s.principalAmount) - Number(s.paidPrincipal))),
       0,
     );
     const amount = Math.round(outstandingPrincipal * 100) / 100;
     const actorId = this.authz.actorId(actor);
 
+    const legacyAcc = (await this.settings.get(loan.tenantId)).accounting
+      .legacy;
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.loan.update({
         where: { id: loan.id },
@@ -458,8 +560,8 @@ export class LoansService {
             loanId: loan.id,
             createdByUserId: actorId,
             lines: [
-              { accountCode: ACCOUNT_CODES.ALLOWANCE_FOR_LOAN_LOSSES, debit: amount },
-              { accountCode: ACCOUNT_CODES.LOANS_RECEIVABLE, credit: amount },
+              { accountCode: legacyAcc.loanLossAllowance, debit: amount },
+              { accountCode: legacyAcc.loansReceivable, credit: amount },
             ],
           },
           tx,
@@ -483,7 +585,9 @@ export class LoansService {
 
   async remove(actor: JwtPayload, id: string) {
     this.authz.assertPermission(actor, Permission.USER_DELETE);
-    const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id }) });
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id }),
+    });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
     if (loan.status !== LoanStatus.PENDING) {
@@ -509,7 +613,9 @@ export class LoansService {
     dto: { name: string; content: string; type: string },
   ) {
     this.authz.assertPermission(actor, Permission.DOCUMENT_UPLOAD);
-    const loan = await this.prisma.loan.findFirst({ where: this.authz.scopeWhere(actor, { id: loanId }) });
+    const loan = await this.prisma.loan.findFirst({
+      where: this.authz.scopeWhere(actor, { id: loanId }),
+    });
     if (!loan) throw new NotFoundException('Loan not found');
     this.authz.assertBranchAccess(actor, loan.branchId);
 
@@ -566,14 +672,20 @@ export class LoansService {
    * check within the tenant's validity window before their loan is approved.
    * No-op when the tenant has disabled the requirement.
    */
-  private async assertCreditCheckForApproval(tenantId: string, borrowerId: string) {
+  private async assertCreditCheckForApproval(
+    tenantId: string,
+    borrowerId: string,
+  ) {
     // CBC isn't provisioned yet — don't block approvals on a check that can't be
     // produced. The requirement re-activates automatically once credentials are set.
     if (!isCbcConfigured()) return;
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { requireCreditCheckForApproval: true, creditCheckValidityDays: true },
+      select: {
+        requireCreditCheckForApproval: true,
+        creditCheckValidityDays: true,
+      },
     });
     if (!tenant || !tenant.requireCreditCheckForApproval) return;
 
@@ -624,4 +736,3 @@ export class LoansService {
     return rate ? Number(rate.rate) : null;
   }
 }
-

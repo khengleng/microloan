@@ -44,6 +44,13 @@ export class FxService {
                 effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : new Date(),
             },
         });
+        // Lending decisions read the tenant's rates through the authorization
+        // context, cached per authzVersion: bump it so every API instance
+        // sees the new rate on its next request.
+        await this.prisma.tenant.update({
+            where: { id: tenantId },
+            data: { authzVersion: { increment: 1 } },
+        });
         await this.audit.logAction(tenantId, this.authz.actorId(actor), 'CREATE', 'ExchangeRate', rate.id, {
             fromCurrency: from,
             toCurrency: to,

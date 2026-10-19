@@ -1,3 +1,5 @@
+import { useTranslations } from 'next-intl';
+
 const GREEN = 'bg-emerald-50 text-emerald-700 border-emerald-200';
 const BLUE = 'bg-[#F0F5FF] text-[#4B45C6] border-[#C9D7FF]';
 const AMBER = 'bg-amber-50 text-amber-800 border-amber-200';
@@ -12,19 +14,29 @@ const MAP: Record<string, string> = {
     BALANCED: GREEN, UNBALANCED: RED, WAIVED: GREY, PERSONAL: GREY, CORPORATE: GREY,
     DRAFT: GREY, RETIRED: GREY, SUPERSEDED: GREY, WITHDRAWN: GREY, EXPIRED: GREY, REVOKED: GREY, DISABLED: GREY,
     NOT_IMPLEMENTED: GREY, CANCELLED: GREY, INACTIVE: GREY, SELF_DECLARED: GREY,
-    SUBMITTED: BLUE, PENDING: AMBER, PENDING_APPROVAL: AMBER, IN_REVIEW: BLUE, UNDER_REVIEW: BLUE, RECOMMENDED: BLUE,
+    CONSTRUCTION: BLUE, OPERATIONS: GREEN, LOCKED_UP: AMBER, STALE: AMBER,
+    SUBMITTED: BLUE, PENDING: AMBER, PENDING_SUBMISSION: AMBER, REOPEN_PENDING: AMBER, PENDING_APPROVAL: AMBER, IN_REVIEW: BLUE, UNDER_REVIEW: BLUE, RECOMMENDED: BLUE,
     REQUESTED: BLUE, OPTIONS_PROPOSED: BLUE, PROPOSED: BLUE, AFFORDABILITY_ASSESSED: BLUE, MONITORING: BLUE, OPEN: BLUE,
     SIMULATION_ONLY: BLUE, DUE: BLUE, PENDING_DISBURSEMENT: AMBER, APPROVED_PENDING: AMBER, PARTIALLY_VERIFIED: AMBER,
     REQUIRES_INTEGRATION: AMBER, MORE_INFO_REQUIRED: AMBER, SPECIALIST_REVIEW: AMBER, RESTRUCTURED: AMBER, OVERDUE: AMBER,
+    // customer documents
+    PENDING_REVIEW: AMBER, NOT_REQUIRED: GREY, MISSING: RED, LEGAL_HOLD: AMBER, REMINDED: AMBER, DELETED: GREY,
+    // trade finance
+    FUNDED: GREEN, FINANCED: GREEN, RECEIVED: BLUE, ADVANCE_REQUESTED: BLUE, ADVANCE_APPROVED: BLUE, RECOURSE: AMBER, SUSPENDED: AMBER,
+    // exposure limits and specialised contracts
+    WITHIN_LIMIT: GREEN, NEAR_LIMIT: AMBER, BREACHED: RED, LAPSED: AMBER, SOLD: GREEN, ENDED: GREY, REGISTERED: BLUE,
     DELINQUENT: RED, REJECTED: RED, DENY: RED, FAILURE: RED, FAILED: RED, REVERSED: RED, WRITTEN_OFF: RED, NO: RED, DEFAULTED: RED,
 };
 
 export function StatusBadge({ status, className = '' }: { status: string | null | undefined; className?: string }) {
+    const t = useTranslations('Status');
     if (!status) return <span className="text-[#AAB7C4]">—</span>;
     const cls = MAP[status] ?? GREY;
+    // Translated label when the status is known; otherwise the code made readable.
+    const label = t.has(status) ? t(status) : status.replace(/_/g, ' ');
     return (
         <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[11px] font-bold tracking-wide whitespace-nowrap ${cls} ${className}`}>
-            {status.replace(/_/g, ' ')}
+            {label}
         </span>
     );
 }

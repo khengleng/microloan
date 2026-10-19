@@ -6,6 +6,6 @@ import { AuthzModule } from '../authz/authz.module';
 @Module({
   imports: [AuthzModule],
   providers: [DocumentVaultService],
-  controllers: [DocumentVaultController]
+  controllers: [DocumentVaultController],
 })
 export class DocumentVaultModule {}

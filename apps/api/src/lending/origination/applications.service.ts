@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -27,17 +28,13 @@ import { applicationResource, parseConfig } from '../policy/resources';
 import { ProductsService } from '../products/products.service';
 import { WorkflowsService } from '../products/workflows.service';
 import { AdapterRegistry } from '../integrations/adapters';
+import { LendingPoliciesService } from '../products/lending-policies.service';
 import { GroupsService } from './groups.service';
+import { CustomerDocumentsService } from '../documents/customer-documents.service';
+import { createConfiguredCovenants } from '../covenants/covenant-setup';
+import { ScoringService, type ScoreStage } from '../scoring/scoring.service';
 
 type Json = Prisma.InputJsonValue;
-const ALLOWED_MIME = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
-// Uploads arrive base64-encoded in a JSON body capped at 5 MB, so the file itself must stay under ~3.5 MB.
-const MAX_DOCUMENT_BYTES = 3.5 * 1024 * 1024;
 
 export interface CreateApplicationBody {
   /** For a group loan, the group's leader; they sign for the group. */
@@ -53,6 +50,28 @@ export interface CreateApplicationBody {
   purpose?: string;
   segmentCode?: string;
 }
+
+/** An application as an assessment check sees it. */
+export interface AssessedApplication {
+  id: string;
+  tenantId: string;
+  borrowerId: string;
+  groupId?: string | null;
+  requestedAmount: unknown;
+  currency: string;
+  terms: unknown;
+}
+
+export type AssessmentCheck = (
+  tx: Tx,
+  app: AssessedApplication,
+  config: lending.ProductConfig,
+  stage: 'APPLICATION' | 'APPROVAL',
+  indicative: lending.ScheduleResult,
+) => Promise<{
+  blocking: { code: string; message: string }[];
+  metrics?: Record<string, string | number | null>;
+}>;
 
 /**
  * Origination: applications, documents, security, assessment, credit
@@ -73,7 +92,21 @@ export class ApplicationsService {
     private readonly workflows: WorkflowsService,
     private readonly adapters: AdapterRegistry,
     private readonly groups: GroupsService,
+    private readonly policies: LendingPoliciesService,
+    private readonly library: CustomerDocumentsService,
+    private readonly scoring: ScoringService,
   ) {}
+
+  private assessmentChecks: AssessmentCheck[] = [];
+  /**
+   * Lets another module add blocking issues and metrics to the assessment
+   * that gates submission and approval, without a circular dependency
+   * (institutional counterparty and country limits). A check runs inside the
+   * caller's transaction on committed state.
+   */
+  registerAssessmentCheck(check: AssessmentCheck) {
+    this.assessmentChecks.push(check);
+  }
 
   // ── Reads (scope-filtered) ────────────────────────────────────────────────
 
@@ -187,6 +220,13 @@ export class ApplicationsService {
           'This product has no active version for new business.',
         );
       const config = this.products.validOrThrow(version.config, null);
+      // A letter of credit is issued, not originated as a loan (LT-19).
+      if (config.trade?.letterOfCredit)
+        throw new BadRequestException({
+          message:
+            'This is a letter-of-credit product; request the credit from Trade finance, not as a loan application.',
+          code: 'LETTER_OF_CREDIT_PRODUCT',
+        });
       if (config.identity.eligibleBranchCodes) {
         const branch = await tx.branch.findFirst({
           where: { id: borrower.branchId, tenantId },
@@ -223,6 +263,13 @@ export class ApplicationsService {
           code: 'TERMS_OUT_OF_RANGE',
           issues: check.issues,
         });
+      // A policy choice off the product's menu is refused now, not at booking.
+      await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config,
+        terms.policies,
+      );
 
       // Group liability is decided by the product, not the request: a group
       // product must name a group, and an individual product must not.
@@ -378,6 +425,12 @@ export class ApplicationsService {
           code: 'TERMS_OUT_OF_RANGE',
           issues: check.issues,
         });
+      await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config!,
+        terms.policies,
+      );
       const res = await tx.application.updateMany({
         where: { id, tenantId, status: 'DRAFT', version: app.version },
         data: {
@@ -425,6 +478,7 @@ export class ApplicationsService {
         config!,
         'APPLICATION',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       if (assessment.blocking.length) {
         throw new BadRequestException({
@@ -471,55 +525,47 @@ export class ApplicationsService {
       'loan_application.update',
       applicationResource(app, version, product, []),
     );
-    if (!ALLOWED_MIME.has(body.mimeType))
-      throw new BadRequestException(
-        'Accepted document types: PDF, JPEG, PNG, WebP.',
-      );
-    const bytes = Buffer.from(body.contentBase64 ?? '', 'base64');
-    if (!bytes.length || bytes.length > MAX_DOCUMENT_BYTES)
-      throw new BadRequestException(
-        'Documents must be between 1 byte and 3.5 MB.',
-      );
     if (!/^[A-Z0-9_]{2,40}$/.test(body.code ?? ''))
       throw new BadRequestException('Invalid document code.');
-    const fileName = String(body.fileName ?? 'document')
-      .replace(/[^\w.\- ]/g, '_')
-      .slice(0, 120);
-    const digest = sha256(bytes.toString('binary'));
-    const storage = this.adapters.documents();
-    const stored = await storage.put({
-      tenantId,
-      key: `applications/${id}/${Date.now()}-${digest.slice(0, 12)}`,
-      body: bytes,
-      contentType: body.mimeType,
+    // DOC-1/DOC-2: the file goes to the customer's document library (object
+    // storage, tenant-prefixed key, checksum, type check); the application
+    // keeps its ApplicationDocument row pointing at the same stored object.
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const filed = await this.library.fileForApplication(
+        tx,
+        actor,
+        app,
+        body.code,
+        body,
+      );
+      const row = await tx.applicationDocument.create({
+        data: {
+          tenantId,
+          applicationId: id,
+          code: body.code,
+          ...filed.file,
+          uploadedBy: actor.id,
+        },
+      });
+      await filed.bind(row.id);
+      await this.audit.write(
+        {
+          actor,
+          action: 'loan_application.document_upload',
+          resourceType: 'Application',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            code: body.code,
+            sizeBytes: filed.file.sizeBytes,
+            storage: filed.file.storageProvider,
+            documentId: filed.document.id,
+          },
+        },
+        tx,
+      );
+      return { ...row, documentId: filed.document.id };
     });
-    const doc = await this.prisma.applicationDocument.create({
-      data: {
-        tenantId,
-        applicationId: id,
-        code: body.code,
-        fileName,
-        mimeType: body.mimeType,
-        sizeBytes: bytes.length,
-        sha256: digest,
-        storageProvider: stored.provider,
-        storageKey: stored.key,
-        uploadedBy: actor.id,
-      },
-    });
-    await this.audit.write({
-      actor,
-      action: 'loan_application.document_upload',
-      resourceType: 'Application',
-      resourceId: id,
-      outcome: 'SUCCESS',
-      details: {
-        code: body.code,
-        sizeBytes: bytes.length,
-        storage: stored.provider,
-      },
-    });
-    return doc;
   }
 
   async addCollateral(
@@ -532,6 +578,8 @@ export class ApplicationsService {
       valuationDate: string;
       valuer: string;
       method: string;
+      /** Balances of other loans ranking ahead on this asset (LT-04). */
+      priorLienAmount?: string;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -567,6 +615,15 @@ export class ApplicationsService {
           type: body.type,
           description: String(body.description ?? '').slice(0, 300),
           currency: app.currency,
+          priorLienAmount: body.priorLienAmount
+            ? lending
+                .parseMoney(
+                  body.priorLienAmount,
+                  app.currency,
+                  'priorLienAmount',
+                )
+                .toString()
+            : '0',
           createdBy: actor.id,
         },
       });
@@ -728,6 +785,96 @@ export class ApplicationsService {
     );
   }
 
+  // ── Scores (D-075…D-077) ──────────────────────────────────────────────────
+
+  /** Every stored scoring of the application, newest first, with the customer-facing explanation of the latest. */
+  async scores(actor: LendingActor, id: string) {
+    const tenantId = requireTenant(actor);
+    const app = await this.load(this.prisma, tenantId, id);
+    const { version, product } = await this.versionOf(this.prisma, app);
+    await this.policy.enforce(
+      actor,
+      'credit_score.read',
+      applicationResource(app, version, product, []),
+    );
+    const evaluations = await this.lp.tenantTx(tenantId, (tx) =>
+      tx.scoreEvaluation.findMany({
+        where: { tenantId, applicationId: id },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    const latest = evaluations.find((e) => e.role === 'CHAMPION') ?? null;
+    return {
+      evaluations,
+      latest,
+      challenger:
+        evaluations.find(
+          (e) =>
+            e.role === 'CHALLENGER' &&
+            latest &&
+            e.createdAt.getTime() === latest.createdAt.getTime(),
+        ) ??
+        evaluations.find((e) => e.role === 'CHALLENGER') ??
+        null,
+      customerExplanation: latest
+        ? ((latest.strategy as { explanation?: unknown }).explanation ?? null)
+        : null,
+    };
+  }
+
+  /**
+   * Re-run the score on the application as it stands (credit staff, before
+   * a decision). Stored like any other evaluation; the full assessment comes
+   * back for information — nothing is decided here.
+   */
+  async rescore(actor: LendingActor, id: string) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const app = await this.load(tx, tenantId, id);
+      const { version, product, config } = await this.versionOf(tx, app);
+      await this.policy.enforce(
+        actor,
+        'credit_score.run',
+        applicationResource(app, version, product, []),
+        tx,
+      );
+      const workflow = await this.workflows.effective(
+        tenantId,
+        config!.operations.workflowCode,
+        tx,
+      );
+      const assessment = await this.assess(
+        tx,
+        app,
+        config!,
+        'APPROVAL',
+        workflow.definition.steps,
+        { actorId: actor.id, scoreStage: 'RESCORE' },
+      );
+      await this.audit.write(
+        {
+          actor,
+          action: 'credit_score.run',
+          resourceType: 'Application',
+          resourceId: id,
+          outcome: 'SUCCESS',
+          details: {
+            evaluationId: assessment.metrics.scoreEvaluationId,
+            score: assessment.metrics.creditScore,
+          },
+        },
+        tx,
+      );
+      const evaluation = await tx.scoreEvaluation.findFirst({
+        where: {
+          tenantId,
+          id: String(assessment.metrics.scoreEvaluationId),
+        },
+      });
+      return { evaluation, assessment };
+    });
+  }
+
   // ── Credit decisions ──────────────────────────────────────────────────────
 
   async recommend(
@@ -758,6 +905,7 @@ export class ApplicationsService {
         config!,
         'APPROVAL',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       await tx.creditDecision.create({
         data: {
@@ -834,6 +982,7 @@ export class ApplicationsService {
         config!,
         'APPROVAL',
         workflow.definition.steps,
+        { actorId: actor.id },
       );
       if (assessment.blocking.length) {
         throw new BadRequestException({
@@ -979,13 +1128,25 @@ export class ApplicationsService {
         ...(approved!.terms as unknown as lending.NegotiatedTerms),
         disbursementDate: planned,
       };
+      // The contract is composed from the policies chosen in the approved
+      // terms, resolved now and frozen in the agreement (POLICY_MODEL.md).
+      const contract = await this.policies.composeForContract(
+        tx,
+        tenantId,
+        config!,
+        terms.policies,
+      );
+      const contractConfig = contract.config;
+      const contractHash = contract.policies.length
+        ? sha256(lending.canonicalJson(contractConfig))
+        : version!.configHash;
       // A facility books a limit, not a schedule: there is no principal to
       // amortize until it terms out, so the booking calculation (which
       // generates a schedule) does not apply to it.
       if (config!.facility.type !== 'TERM') {
         return this.bookFacility(tx, actor, {
           app,
-          config: config!,
+          config: contractConfig,
           version: version!,
           product: product!,
           terms,
@@ -996,7 +1157,7 @@ export class ApplicationsService {
       const booking = await this.bookingCalculation(
         tx,
         tenantId,
-        config!,
+        contractConfig,
         terms,
         { productVersionId: version!.id, productVersion: version!.version },
       );
@@ -1019,9 +1180,10 @@ export class ApplicationsService {
           agreementId: agreement.id,
           version: 1,
           reason: 'BOOKING',
-          productConfig: config as unknown as Json,
-          configHash: version!.configHash,
+          productConfig: contractConfig as unknown as Json,
+          configHash: contractHash,
           terms: terms as unknown as Json,
+          policies: contract.policies as unknown as Json,
           scheduleInput: booking.input as unknown as Json,
           calculation: {
             schedule: booking.schedule,
@@ -1084,6 +1246,14 @@ export class ApplicationsService {
           roles,
         );
       }
+      // LT-16: the product's covenants are part of the contract from booking.
+      await createConfiguredCovenants(tx, {
+        tenantId,
+        loanAccountId: account.id,
+        covenants: contractConfig.covenants,
+        startDate: planned,
+        actorId: actor.id,
+      });
       await this.cas(tx, app, 'APPROVED', 'BOOKED');
       await this.audit.write(
         {
@@ -1280,6 +1450,43 @@ export class ApplicationsService {
     if (conditions.length) {
       await tx.facilityCondition.createMany({ data: conditions });
     }
+    // LT-07: a card product issues the card with the line. Only the last
+    // four digits are held; the number itself belongs to the card processor.
+    const card = config.card
+      ? await tx.cardAccount.create({
+          data: {
+            tenantId,
+            facilityId: facility.id,
+            loanAccountId: account.id,
+            reference: newReference('CARD'),
+            maskedNumber: `•••• ${String(randomInt(0, 10_000)).padStart(4, '0')}`,
+            createdBy: actor.id,
+          },
+        })
+      : null;
+    await createConfiguredCovenants(tx, {
+      tenantId,
+      loanAccountId: account.id,
+      covenants: config.covenants,
+      startDate: effectiveDate,
+      actorId: actor.id,
+    });
+    // LT-17: a project loan carries its reserve, lock-up and sculpting terms.
+    const pf = config.projectFinance;
+    if (pf) {
+      await tx.projectFinance.create({
+        data: {
+          tenantId,
+          loanAccountId: account.id,
+          facilityId: facility.id,
+          targetDscr: pf.targetDscr,
+          lockUpDscr: pf.lockUpDscr,
+          dsraMonths: pf.dsraMonths,
+          cashSweepRate: pf.cashSweepRate,
+          createdBy: actor.id,
+        },
+      });
+    }
     await this.cas(tx, app as never, 'APPROVED', 'BOOKED');
     await this.audit.write(
       {
@@ -1308,6 +1515,7 @@ export class ApplicationsService {
       agreement,
       account,
       facility,
+      card,
       preview: { facilityTerms: engineTerms },
     };
   }
@@ -1430,6 +1638,8 @@ export class ApplicationsService {
       borrowerId: string;
       /** Set on a group application; null for individual lending. */
       groupId?: string | null;
+      productId: string;
+      productVersionId: string;
       requestedAmount: unknown;
       currency: string;
       terms: unknown;
@@ -1437,6 +1647,7 @@ export class ApplicationsService {
     config: lending.ProductConfig,
     stage: 'APPLICATION' | 'APPROVAL',
     steps: readonly string[],
+    opts: { actorId: string; scoreStage?: ScoreStage },
   ) {
     const blocking: { code: string; message: string }[] = [];
     const metrics: Record<string, string | number | null> = {};
@@ -1459,19 +1670,22 @@ export class ApplicationsService {
     if (steps.includes('DOCUMENT_CHECK')) {
       const stages =
         stage === 'APPLICATION' ? ['APPLICATION'] : ['APPLICATION', 'APPROVAL'];
-      const docs = await tx.applicationDocument.findMany({
-        where: { tenantId: app.tenantId, applicationId: app.id },
-        select: { code: true },
-      });
-      const have = new Set(docs.map((d) => d.code));
-      for (const req of config.operations.requiredDocuments.filter(
-        (d) => d.mandatory && stages.includes(d.stage),
-      )) {
-        if (!have.has(req.code))
-          blocking.push({
-            code: 'DOCUMENT',
-            message: `Missing document: ${req.label}`,
-          });
+      // DOC-3: the checklist reads the customer's library; a document that
+      // was rejected or has expired does not count.
+      const items = await this.library.applicationChecklist(
+        tx,
+        app,
+        stages,
+        config,
+      );
+      for (const item of items.filter((d) => d.mandatory && !d.present)) {
+        blocking.push({
+          code: 'DOCUMENT',
+          message:
+            item.status === 'MISSING'
+              ? `Missing document: ${item.label}`
+              : `Document ${item.label} is ${item.status.toLowerCase().replace('_', ' ')}`,
+        });
       }
     }
 
@@ -1615,6 +1829,8 @@ export class ApplicationsService {
           },
         });
         let lendable = new lending.D(0);
+        // LT-04: loans ranking ahead on the same assets count against the limit.
+        let priorLiens = new lending.D(0);
         for (const p of pledges) {
           const v = p.collateral.valuations[0];
           if (!v) continue;
@@ -1636,6 +1852,7 @@ export class ApplicationsService {
           lendable = lendable.plus(
             D(v.marketValue).times(new lending.D(1).minus(haircut)),
           );
+          priorLiens = priorLiens.plus(D(p.collateral.priorLienAmount));
         }
         metrics.collateralLendingValue = lendable.toDecimalPlaces(4).toString();
         if (lendable.isZero())
@@ -1644,13 +1861,23 @@ export class ApplicationsService {
             message: 'Secured products need a pledged, valued collateral.',
           });
         else {
-          const ltv = amount.div(lendable);
+          // Combined LTV: this loan plus everything ranking ahead of it.
+          const ltv = amount.plus(priorLiens).div(lendable);
           metrics.loanToValue = ltv.toDecimalPlaces(4).toString();
-          if (config.security.maxLtv && ltv.gt(config.security.maxLtv))
+          if (priorLiens.gt(0))
+            metrics.priorLiens = priorLiens.toDecimalPlaces(4).toString();
+          if (config.security.maxLtv && ltv.gt(config.security.maxLtv)) {
+            const limit = lending.securedLineLimit(
+              lendable.toString(),
+              config.security.maxLtv,
+              [priorLiens.toString()],
+              config.pricing.rounding,
+            ).limit;
             blocking.push({
               code: 'LTV',
-              message: `Loan-to-value ${ltv.toDecimalPlaces(3)} exceeds ${config.security.maxLtv}.`,
+              message: `${priorLiens.gt(0) ? 'Combined loan-to-value' : 'Loan-to-value'} ${ltv.toDecimalPlaces(3)} exceeds ${config.security.maxLtv}; the most that can be lent is ${limit}.`,
             });
+          }
         }
       }
       if (config.security.guaranteeRequired) {
@@ -1665,6 +1892,74 @@ export class ApplicationsService {
           });
       }
     }
+
+    // LT-16: debt-service coverage from the business's annual financials.
+    const fin = terms.financials;
+    if (fin?.annualNetOperatingIncome) {
+      const annualDebtService = monthlyPayment
+        .times(12)
+        .plus(D(fin.otherAnnualDebtService ?? '0'));
+      const dscr = lending.debtServiceCoverage(
+        fin.annualNetOperatingIncome,
+        annualDebtService.toString(),
+      );
+      if (dscr) {
+        metrics.debtServiceCoverage = dscr.toDecimalPlaces(4).toString();
+        if (
+          stage === 'APPROVAL' &&
+          config.eligibility.minDscr &&
+          dscr.lt(config.eligibility.minDscr)
+        )
+          blocking.push({
+            code: 'DSCR',
+            message: `Debt-service coverage ${dscr.toDecimalPlaces(2)} is below the minimum ${config.eligibility.minDscr}.`,
+          });
+      }
+    } else if (stage === 'APPROVAL' && config.eligibility.minDscr) {
+      blocking.push({
+        code: 'DSCR',
+        message:
+          'Annual net operating income is needed to assess debt-service coverage.',
+      });
+    }
+
+    // OPS-2: an explainable origination score on the product's scorecard
+    // (D-075…D-077), stored with its inputs on every assessment.
+    const score = await this.scoring.score(tx, {
+      app,
+      config,
+      stage: opts.scoreStage ?? stage,
+      actorId: opts.actorId,
+      metrics,
+      monthlyPayment: monthlyPayment.toDecimalPlaces(4).toString(),
+    });
+    // Checks other modules own (institutional counterparty limits, …).
+    for (const check of this.assessmentChecks) {
+      const r = await check(tx, app, config, stage, sim);
+      blocking.push(...r.blocking);
+      Object.assign(metrics, r.metrics ?? {});
+    }
+    metrics.creditScore = score.result.score;
+    metrics.creditGrade = score.result.grade;
+    metrics.creditScoreFactors = score.result.factors
+      .map(
+        (f) =>
+          `${f.factor} ${f.points >= 0 ? '+' : ''}${f.points}: ${f.reason}`,
+      )
+      .join(' | ');
+    metrics.scorecard = `${score.scorecard.code}@${score.scorecard.source === 'TEMPLATE' ? 'template' : `v${score.scorecard.version}`}`;
+    metrics.scoreEvaluationId = score.evaluationId;
+    // AUTO_APPROVE is a recommendation only: approval still needs the
+    // workflow's approvers within their authority.
+    metrics.scoreOutcome = score.strategy.outcome;
+    metrics.scoreAdverseReasons = score.result.adverseReasons
+      .map((a) => a.code)
+      .join(', ');
+    if (score.thinFile) metrics.thinFile = 'yes';
+    if (score.strategy.rateAddOnBps)
+      metrics.riskRateAddOnBps = score.strategy.rateAddOnBps;
+    if (stage === 'APPROVAL')
+      blocking.push(...ScoringService.approvalBlocking(score, config, terms));
     return { stage, blocking, metrics };
   }
 
@@ -1687,6 +1982,11 @@ export class ApplicationsService {
       balloonAmount: t.balloonAmount,
       explicitSchedule: t.explicitSchedule,
       waivedFeeCodes: t.waivedFeeCodes,
+      downPayment: t.downPayment,
+      promotionCode: t.promotionCode,
+      financials: t.financials,
+      declaredAnnualIncome: t.declaredAnnualIncome,
+      policies: t.policies,
       riskCategory:
         t.riskCategory && ['LOW', 'MEDIUM', 'HIGH'].includes(t.riskCategory)
           ? t.riskCategory

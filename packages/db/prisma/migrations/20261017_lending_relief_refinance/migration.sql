@@ -126,17 +126,6 @@ ALTER TABLE "PaymentHolidayProgramme" ADD CONSTRAINT "PaymentHolidayProgramme_te
 -- AddForeignKey
 ALTER TABLE "PaymentHolidayEnrolment" ADD CONSTRAINT "PaymentHolidayEnrolment_tenantId_programmeId_fkey" FOREIGN KEY ("tenantId", "programmeId") REFERENCES "PaymentHolidayProgramme"("tenantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-┌─────────────────────────────────────────────────────────┐
-│  Update available 5.13.0 -> 8.0.0-rc.23                 │
-│                                                         │
-│  This is a major update - please follow the guide at    │
-│  https://pris.ly/d/major-version-upgrade                │
-│                                                         │
-│  Run the following to update                            │
-│    npm i --save-dev prisma@latest                       │
-│    npm i @prisma/client@latest                          │
-└─────────────────────────────────────────────────────────┘
-
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Database-level invariants for relief and refinancing.
 --

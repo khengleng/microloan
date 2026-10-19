@@ -78,6 +78,11 @@ export interface FacilityTerms {
    * over-limit balances outright; a rate prices them instead.
    */
   overlimitRate: string | null;
+  /**
+   * How far above the limit a drawdown may take the balance, as a fraction
+   * of the limit (UC-41). Needs an over-limit rate; null or 0: none.
+   */
+  overlimitTolerance?: string | null;
   /** STAGED_DRAWDOWN: the agreed tranches. Empty for the other types. */
   tranches: FacilityTranche[];
 }
@@ -281,7 +286,9 @@ export function facilityPosition(terms: FacilityTerms, movements: FacilityMoveme
 
   const consumed = limitReinstates(terms.type) ? outstanding : totalDrawn;
   const available = limit.minus(consumed);
-  const overlimit = outstanding.minus(limit);
+  // A staged limit caps what is advanced; capitalized interest on top of it
+  // (a project's construction interest) is not an over-limit drawing.
+  const overlimit = consumed.minus(limit);
 
   return {
     outstanding: outstanding.toString(),
@@ -343,8 +350,18 @@ export function checkDrawdown(terms: FacilityTerms, movements: FacilityMovement[
 
   const position = facilityPosition(terms, movements, req.date);
   const available = dec(position.available, 'available');
-  if (amount.gt(available)) {
-    add('amount', `Drawing ${amount.toString()} would exceed the available limit of ${position.available}.`);
+  // UC-41: a priced over-limit allowance lets a drawdown run past the limit, up to the tolerance.
+  const tolerance =
+    terms.overlimitRate !== null && terms.overlimitTolerance && terms.type !== 'STAGED_DRAWDOWN'
+      ? roundMoney(dec(terms.limitAmount, 'limitAmount').times(dec(terms.overlimitTolerance, 'overlimitTolerance')), terms.rounding)
+      : ZERO;
+  if (amount.gt(available.plus(tolerance))) {
+    add(
+      'amount',
+      tolerance.gt(0)
+        ? `Drawing ${amount.toString()} would exceed the available limit of ${position.available} plus the over-limit allowance of ${tolerance.toString()}.`
+        : `Drawing ${amount.toString()} would exceed the available limit of ${position.available}.`,
+    );
   }
   if (terms.minimumDrawdown !== null) {
     const min = dec(terms.minimumDrawdown, 'minimumDrawdown');
@@ -477,7 +494,9 @@ export function accrueFacilityInterest(terms: FacilityTerms, movements: Facility
   for (const seg of timeline) {
     const balance = dec(seg.balance, 'balance');
     const charged = balance.lt(0) ? ZERO : balance;
-    const overlimit = charged.gt(limit) ? charged.minus(limit) : ZERO;
+    // On a staged limit only advances count against it; a balance above it
+    // is capitalized interest and is priced as ordinary interest.
+    const overlimit = terms.type !== 'STAGED_DRAWDOWN' && charged.gt(limit) ? charged.minus(limit) : ZERO;
     const base = charged.minus(overlimit);
     within.push({ from: seg.from, to: seg.to, principal: base.toString(), annualRate: terms.annualRate });
     if (overlimit.gt(0)) {

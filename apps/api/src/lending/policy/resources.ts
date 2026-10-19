@@ -16,6 +16,23 @@ export function configFlags(config: ProductConfig | null): string[] {
     flags.push('lending.integration.credit_bureau');
   if (config.identity.liability !== 'INDIVIDUAL')
     flags.push('lending.group.joint_liability');
+  if (config.trade?.invoice) flags.push('lending.trade.invoice_finance');
+  if (config.trade?.letterOfCredit)
+    flags.push('lending.trade.letters_of_credit');
+  if (
+    config.trade?.factoring ||
+    config.trade?.supplyChain ||
+    config.trade?.forfaiting
+  )
+    flags.push('lending.trade.receivables_purchase');
+  if (config.trade?.documentary) flags.push('lending.trade.documentary');
+  if (config.syndication) flags.push('lending.syndication');
+  if (config.projectFinance) flags.push('lending.project_finance');
+  if (config.borrowingBase) flags.push('lending.collateral.borrowing_base');
+  if (config.institutional) flags.push('lending.institutional');
+  if (config.incomeContingent)
+    flags.push('lending.education.income_contingent');
+  if (config.murabaha) flags.push('lending.islamic.murabaha');
   return flags;
 }
 

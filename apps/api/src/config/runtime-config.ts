@@ -1,3 +1,5 @@
+import { operationalConfig } from './operational-config';
+
 type RuntimeConfig = {
   nodeEnv: string;
   isProduction: boolean;
@@ -70,11 +72,37 @@ export function loadRuntimeConfig(): RuntimeConfig {
   const redisUrl = process.env.REDIS_URL?.trim();
 
   if (isProduction && (!redisUrl || !redisUrl.length)) {
-    throw new Error('REDIS_URL is required in production for distributed rate limiting.');
+    throw new Error(
+      'REDIS_URL is required in production for distributed rate limiting.',
+    );
   }
 
   // S3 is optional at process startup to allow controlled rollout.
   // Document endpoints enforce availability and return 503 when unconfigured.
+  // When it is configured, the region must be stated rather than guessed.
+  if (
+    isProduction &&
+    process.env.AWS_S3_BUCKET_NAME?.trim() &&
+    !process.env.AWS_REGION?.trim()
+  ) {
+    throw new Error(
+      'AWS_REGION is required in production when AWS_S3_BUCKET_NAME is set.',
+    );
+  }
+  // Outgoing email needs a real sender address, not a development placeholder.
+  if (
+    isProduction &&
+    process.env.RESEND_API_KEY?.trim() &&
+    !process.env.EMAIL_FROM?.trim()
+  ) {
+    throw new Error(
+      'EMAIL_FROM is required in production when RESEND_API_KEY is set.',
+    );
+  }
+
+  // Every operational limit is parsed once here so a malformed value stops
+  // the boot instead of surfacing as NaN in the middle of a job.
+  operationalConfig();
 
   return {
     nodeEnv,

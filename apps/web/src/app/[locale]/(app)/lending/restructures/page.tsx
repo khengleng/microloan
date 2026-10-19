@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
@@ -12,11 +13,15 @@ import type { RestructureCaseSummary, RestructureTask } from '@/components/lendi
 import { ActionPanel, Btn, Card, Empty, ErrorBox, Field, SelectInput, Spinner, Table, TextInput, td, th } from '@/components/lending/ui';
 import { qs, useAction, useApi } from '@/components/lending/useAsync';
 import { RequestRestructureForm } from '@/components/lending/restructure/RequestRestructureForm';
-import { CASE_STATUSES, HARDSHIP_CATEGORIES, labelOf } from '@/components/lending/restructure/labels';
+import { LoanPicker } from '@/components/lending/LoanPicker';
+import { useWorkspace } from '@/lib/workspace';
+import { CASE_STATUSES, DIFFICULTY_TYPES, HARDSHIP_CATEGORIES, useRestructureLabels } from '@/components/lending/restructure/labels';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function TasksPanel() {
+    const t = useTranslations('LendingRestructure');
+    const L = useRestructureLabels();
     const href = useLendingHref();
     const { showToast } = useToast();
     const { data, error, loading, reload } = useApi<RestructureTask[]>('/lending/restructures/tasks?status=OPEN');
@@ -26,35 +31,39 @@ function TasksPanel() {
 
     const close = async (id: string) => {
         const res = await action.run(id, () => api.post(`/lending/restructures/tasks/${id}/close`, { note: note.trim() }));
-        if (res) { showToast('Task closed', 'success'); setClosing(null); setNote(''); reload(); }
+        if (res) { showToast(t('tasks.toastClosed'), 'success'); setClosing(null); setNote(''); reload(); }
     };
 
     return (
-        <Card title="Open monitoring tasks" subtitle="Follow-ups raised by the monitoring batch. Closing a task never changes the loan." bodyClass="p-0">
-            {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>No open tasks.</Empty> : (
+        <Card title={t('tasks.title')} subtitle={t('tasks.subtitle')} bodyClass="p-0">
+            {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>{t('tasks.empty')}</Empty> : (
                 <div className="divide-y divide-[#F0F2F5]">
-                    {data.map((t) => (
-                        <div key={t.id} className="px-5 py-3 space-y-2">
+                    {data.map((task) => (
+                        <div key={task.id} className="px-5 py-3 space-y-2">
                             <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                    <p className="text-[13px] font-semibold text-[#1A1F36]">{t.type.replace(/_/g, ' ')} <span className="text-[12px] font-normal text-[#697386]">due {t.dueDate}</span></p>
-                                    {t.case && (
+                                    <p className="text-[13px] font-semibold text-[#1A1F36]">{L.label('taskType', task.type)} <span className="text-[12px] font-normal text-[#697386]">{t('tasks.due', { date: task.dueDate })}</span></p>
+                                    {task.case && (
                                         <p className="text-[12px] text-[#697386]">
-                                            Case <span className="font-mono">{t.case.reference}</span> <StatusBadge status={t.case.status} /> ·{' '}
-                                            <Link className="text-[#635BFF] hover:underline" href={href(`/lending/loans/${t.case.loanAccountId}`)}>loan</Link>
+                                            {t.rich('tasks.caseLine', {
+                                                reference: task.case.reference,
+                                                ref: (c) => <span className="font-mono">{c}</span>,
+                                                badge: () => <StatusBadge status={task.case!.status} />,
+                                                loan: (c) => <Link className="text-[#635BFF] hover:underline" href={href(`/lending/loans/${task.case!.loanAccountId}`)}>{c}</Link>,
+                                            })}
                                         </p>
                                     )}
-                                    {t.detail !== null && t.detail !== undefined && typeof t.detail === 'object' && Object.keys(t.detail as object).length > 0 && (
-                                        <p className="text-[11px] font-mono text-[#8792A2] break-all">{JSON.stringify(t.detail)}</p>
+                                    {task.detail !== null && task.detail !== undefined && typeof task.detail === 'object' && Object.keys(task.detail as object).length > 0 && (
+                                        <p className="text-[11px] font-mono text-[#8792A2] break-all">{JSON.stringify(task.detail)}</p>
                                     )}
                                 </div>
-                                <Btn size="sm" onClick={() => { action.clearError(); setNote(''); setClosing(closing === t.id ? null : t.id); }}>Close…</Btn>
+                                <Btn size="sm" onClick={() => { action.clearError(); setNote(''); setClosing(closing === task.id ? null : task.id); }}>{t('tasks.closeOpen')}</Btn>
                             </div>
-                            {closing === t.id && (
-                                <ActionPanel title="Close task" onClose={() => setClosing(null)}>
-                                    <Field label="Outcome note" hint="At least 3 characters."><TextInput value={note} onChange={setNote} maxLength={500} /></Field>
+                            {closing === task.id && (
+                                <ActionPanel title={t('tasks.closeTitle')} onClose={() => setClosing(null)}>
+                                    <Field label={t('tasks.outcomeNote')} hint={t('common.atLeast3')}><TextInput value={note} onChange={setNote} maxLength={500} /></Field>
                                     <ErrorBox error={action.error} onDismiss={action.clearError} />
-                                    <Btn variant="primary" busy={action.busy === t.id} disabled={note.trim().length < 3} onClick={() => close(t.id)}>Close task</Btn>
+                                    <Btn variant="primary" busy={action.busy === task.id} disabled={note.trim().length < 3} onClick={() => close(task.id)}>{t('tasks.closeTask')}</Btn>
                                 </ActionPanel>
                             )}
                         </div>
@@ -66,11 +75,14 @@ function TasksPanel() {
 }
 
 export default function RestructuresPage() {
+    const t = useTranslations('LendingRestructure');
+    const L = useRestructureLabels();
     const href = useLendingHref();
     const router = useRouter();
     const [status, setStatus] = useState('');
     const [requesting, setRequesting] = useState(false);
     const [loanId, setLoanId] = useState('');
+    const { can } = useWorkspace();
     const { data, error, loading } = useApi<RestructureCaseSummary[]>(`/lending/restructures${qs({ status })}`);
     const loanOk = UUID_RE.test(loanId.trim());
 
@@ -78,13 +90,13 @@ export default function RestructuresPage() {
         <LendingShell
             title="Restructuring & hardship"
             subtitle="Hardship cases, affordability assessments, proposals and monitoring."
-            actions={<Btn variant="primary" onClick={() => setRequesting((r) => !r)}>Request restructure</Btn>}
+            actions={can('restructure.request') && <Btn variant="primary" onClick={() => setRequesting((r) => !r)}>{t('list.requestBtn')}</Btn>}
         >
             {requesting && (
-                <Card title="Request a restructure" actions={<Btn size="sm" variant="ghost" onClick={() => setRequesting(false)}>Close</Btn>}>
+                <Card title={t('list.requestTitle')} actions={<Btn size="sm" variant="ghost" onClick={() => setRequesting(false)}>{t('common.close')}</Btn>}>
                     <div className="space-y-4">
-                        <Field label="Loan account id" className="max-w-md" error={loanId && !loanOk ? 'Enter the loan account UUID' : undefined}>
-                            <TextInput value={loanId} onChange={setLoanId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        <Field label={t('common.loan')} className="max-w-md" hint={t('list.loanHint')}>
+                            <LoanPicker value={loanId} onChange={(id) => setLoanId(id)} status="ACTIVE" />
                         </Field>
                         {loanOk && (
                             <RequestRestructureForm
@@ -100,21 +112,21 @@ export default function RestructuresPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5 items-start">
                 <Card
-                    title="Cases"
+                    title={t('list.cases')}
                     actions={
                         <div className="w-56">
-                            <SelectInput value={status} onChange={setStatus} placeholder="All statuses" options={CASE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, ' ') }))} />
+                            <SelectInput value={status} onChange={setStatus} placeholder={t('list.allStatuses')} options={CASE_STATUSES.map((s) => ({ value: s, label: L.status(s) }))} />
                         </div>
                     }
                     bodyClass="p-0"
                 >
-                    {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>No restructure cases{status ? ` with status ${status.replace(/_/g, ' ')}` : ''}.</Empty> : (
+                    {loading && !data ? <Spinner /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data?.length ? <Empty>{status ? t('list.emptyWithStatus', { status: L.status(status) }) : t('list.empty')}</Empty> : (
                         <Table>
                             <thead>
                                 <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                    <th className={th}>Reference</th><th className={th}>Status</th><th className={th}>Trigger</th>
-                                    <th className={th}>Hardship</th><th className={th}>Difficulty</th><th className={th}>Loan</th>
-                                    <th className={th}>Prev.</th><th className={th}>Opened</th>
+                                    <th className={th}>{t('list.reference')}</th><th className={th}>{t('common.status')}</th><th className={th}>{t('common.trigger')}</th>
+                                    <th className={th}>{t('common.hardship')}</th><th className={th}>{t('common.difficulty')}</th><th className={th}>{t('common.loan')}</th>
+                                    <th className={th}>{t('list.previous')}</th><th className={th}>{t('common.opened')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#F0F2F5]">
@@ -122,10 +134,10 @@ export default function RestructuresPage() {
                                     <tr key={c.id} className="hover:bg-[#F7FAFC]">
                                         <td className={td}><Link href={href(`/lending/restructures/${c.id}`)} className="font-mono font-semibold text-[#635BFF] hover:underline">{c.reference}</Link></td>
                                         <td className={td}><StatusBadge status={c.status} /></td>
-                                        <td className={`${td} text-[12px]`}>{c.trigger.replace(/_/g, ' ')}</td>
-                                        <td className={`${td} text-[12px]`}>{labelOf(HARDSHIP_CATEGORIES, c.hardshipCategory)}</td>
-                                        <td className={`${td} text-[12px]`}>{c.difficultyType}</td>
-                                        <td className={td}><Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[11px] text-[#635BFF] hover:underline">{c.loanAccountId.slice(0, 8)}…</Link></td>
+                                        <td className={`${td} text-[12px]`}>{L.label('trigger', c.trigger)}</td>
+                                        <td className={`${td} text-[12px]`}>{L.label('hardship', c.hardshipCategory, HARDSHIP_CATEGORIES)}</td>
+                                        <td className={`${td} text-[12px]`}>{L.label('difficulty', c.difficultyType, DIFFICULTY_TYPES)}</td>
+                                        <td className={td}><Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[11px] text-[#635BFF] hover:underline">{c.loanReference ?? `${c.loanAccountId.slice(0, 8)}…`}</Link></td>
                                         <td className={td}>{c.previousRestructures > 0 ? <span className="font-bold text-amber-700">{c.previousRestructures}</span> : 0}</td>
                                         <td className={`${td} whitespace-nowrap text-[12px]`}>{fmtDateTime(c.createdAt)}</td>
                                     </tr>

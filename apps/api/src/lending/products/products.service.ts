@@ -21,6 +21,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { productVersionResource, tenantResource } from '../policy/resources';
 import { DEFAULT_CHART_OF_ACCOUNTS } from '../../ledger/chart-of-accounts';
+import { LendingPoliciesService } from './lending-policies.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -41,15 +42,18 @@ export class ProductsService {
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
+    private readonly policies: LendingPoliciesService,
   ) {}
 
   // ── Catalogue ─────────────────────────────────────────────────────────────
 
   async catalogue(actor: LendingActor) {
+    // The catalogue is the platform's, not tenant data: platform
+    // administrators read it as well as the lender's product staff.
     await this.policy.enforce(
       actor,
-      'loan_product.read',
-      tenantResource(actor.tenantId, 'PRODUCT', 'catalogue'),
+      'catalogue.read',
+      tenantResource(actor.tenantId, 'CATALOGUE', 'catalogue'),
     );
     const families = await this.prisma.loanFamily.findMany({
       orderBy: { sortOrder: 'asc' },
@@ -75,10 +79,12 @@ export class ProductsService {
   }
 
   async capabilityMatrix(actor: LendingActor) {
+    // The catalogue is the platform's, not tenant data: platform
+    // administrators read it as well as the lender's product staff.
     await this.policy.enforce(
       actor,
-      'loan_product.read',
-      tenantResource(actor.tenantId, 'PRODUCT', 'capabilities'),
+      'catalogue.read',
+      tenantResource(actor.tenantId, 'CATALOGUE', 'capabilities'),
     );
     return {
       engineVersion: lending.LENDING_ENGINE_VERSION,
@@ -450,6 +456,8 @@ export class ProductsService {
           });
         }
         await this.assertAccountingCodes(tx, tenantId, config);
+        // A menu naming a policy that cannot be booked would fail every application.
+        await this.policies.assertMenusApproved(tx, tenantId, config);
         data.activatedBy = actor.id;
         data.activatedAt = new Date();
         data.effectiveFrom = fromLocalDate(businessDate);
@@ -696,7 +704,10 @@ export class ProductsService {
     tenantId: string,
     config: lending.ProductConfig,
   ) {
-    const codes = Object.values(config.accounting);
+    const codes = [
+      ...Object.values(config.accounting),
+      ...Object.values(config.trade?.accounts ?? {}),
+    ];
     const LedgerAccounts = await tx.ledgerAccount.findMany({
       where: { tenantId, code: { in: codes } },
       select: { code: true },

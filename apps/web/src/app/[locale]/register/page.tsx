@@ -360,7 +360,7 @@ export default function RegisterTenantPage() {
                                 type="email"
                                 data-clarity-mask="true"
                                 autoComplete="email"
-                                placeholder="you@company.com"
+                                placeholder="you@example.com"
                                 className={inputClass}
                                 required
                                 value={formData.adminEmail}

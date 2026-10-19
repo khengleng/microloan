@@ -1,0 +1,170 @@
+[
+  {
+    "rule": "brand",
+    "file": "apps/api/src/config/operational-config.ts",
+    "match": "Magic Money",
+    "reason": "Default of PLATFORM_NAME, kept so an unset variable changes nothing; the only place the API names the platform.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "brand",
+    "file": "apps/web/src/lib/site.ts",
+    "match": "DBank Cambodia",
+    "reason": "Default of NEXT_PUBLIC_OPERATOR_NAME for the public legal pages; the only place the web app names the operator.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "brand",
+    "file": "apps/web/src/lib/site.ts",
+    "match": "dbankcambodia.com",
+    "reason": "Default of NEXT_PUBLIC_CONTACT_EMAIL_DOMAIN for the public legal pages' contact addresses.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "brand",
+    "file": "packages/db/prisma/demo-lending.ts",
+    "match": "Magic Money",
+    "reason": "Demo seed (refused in production): the authenticator label falls back to the API's PLATFORM_NAME default.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "rule-constant",
+    "file": "apps/api/src/billing/qr-image.ts",
+    "match": "MAX_PIXELS",
+    "reason": "Decompression-bomb guard on an uploaded QR image: a safety bound of the image decoder, not a lender or deployment choice.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/bot/bot.service.ts",
+    "match": "BotService.pollers",
+    "reason": "Live Telegram polling connections this process holds; which instance polls is leased in ScheduledJobClaim and the map is rebuilt from it.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/bot/bot.service.ts",
+    "match": "BotService.renewTimer",
+    "reason": "Handle of this process's own lease-renewal timer, cleared on shutdown.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "module-state",
+    "file": "apps/api/src/common/field-crypto.ts",
+    "match": "cachedKey",
+    "reason": "Memo of the key derived from FIELD_ENCRYPTION_KEY / JWT_ACCESS_SECRET (scrypt): a pure function of the environment, identical on every instance.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "module-state",
+    "file": "apps/api/src/common/field-crypto.ts",
+    "match": "cachedIndexKey",
+    "reason": "Memo of the blind-index key, derived from the same environment key: identical on every instance.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "module-state",
+    "file": "apps/api/src/common/field-crypto.ts",
+    "match": "warned",
+    "reason": "Logs the derived-key warning once per process; affects only log output.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "module-state",
+    "file": "apps/api/src/observability/sentry.ts",
+    "match": "enabled",
+    "reason": "Whether this process initialised the Sentry SDK at boot (SENTRY_DSN): a property of the process itself.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "module-state",
+    "file": "apps/api/src/prisma/tenant-guard.ts",
+    "match": "relationIndex",
+    "reason": "Index of the generated Prisma schema's relations, built once from the client's DMMF: code metadata, identical on every instance.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/accounting/posting.service.ts",
+    "match": "PostingService.accountIds",
+    "reason": "Memo of committed ledger account ids by (tenant, code). Ids are immutable and accounts are never deleted or renamed (no code path does; the journal's foreign key restricts it), so an entry cannot go stale on any instance.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/policy/policy.service.ts",
+    "match": "PolicyService.subjects",
+    "reason": "Read-through memo keyed by the tenant's authzVersion, which is read from the database on every request and bumped by every access, flag, FX and platform-rule change; bounded and TTL-limited (LENDING_AUTHZ_CACHE_*).",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/policy/policy.service.ts",
+    "match": "PolicyService.contexts",
+    "reason": "As PolicyService.subjects: validated against the database version per request; the platform context is never cached.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/documents/document-storage.ts",
+    "match": "DocumentStorageService.store",
+    "reason": "Lazily built storage client (S3 or a mounted directory) from the environment; holds no data.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/monitoring/lending-metrics.collector.ts",
+    "match": "LendingMetricsCollector.timer",
+    "reason": "Handle of this process's gauge-refresh timer; each instance exposes its own /metrics.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/monitoring/lending-metrics.collector.ts",
+    "match": "LendingMetricsCollector.refreshing",
+    "reason": "Stops this process's own gauge refreshes overlapping; the gauges are per process by design and the cross-instance job (reconciliation) holds an advisory lock.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/origination/applications.service.ts",
+    "match": "ApplicationsService.assessmentChecks",
+    "reason": "Registry of assessment-check functions other modules register at boot: code wiring, the same on every instance, never data.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "instance-state",
+    "file": "apps/api/src/lending/servicing/servicing.service.ts",
+    "match": "ServicingService.",
+    "reason": "Registries of disbursement/closure/batch hook functions other modules register at boot: code wiring, the same on every instance, never data.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "literal-phone",
+    "file": "apps/web/src/components/lending/channels/types.ts",
+    "match": "employee_ref,national_id,loan_ref,amount",
+    "reason": "Sample payroll file shown as the format to upload; the digits are a national-id example, not a contact.",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "literal-phone",
+    "file": "packages/shared/src/lending/migration.ts",
+    "match": "010203040",
+    "reason": "Sample row of the downloadable loan-migration template (format example).",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "literal-phone",
+    "file": "packages/shared/src/lending/migration.ts",
+    "match": "+85512345678",
+    "reason": "Sample row of the downloadable loan-migration template (format example).",
+    "expires": "2027-06-30"
+  },
+  {
+    "rule": "literal-phone",
+    "file": "packages/db/prisma/seed.ts",
+    "match": "012345678",
+    "reason": "Development seed borrower; the seed skips demo data outside development.",
+    "expires": "2027-06-30"
+  }
+]

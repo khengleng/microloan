@@ -12,9 +12,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { LoanPaymentQr } from '@/components/LoanPaymentQr';
+import { EarlySettlementPanel } from '@/components/EarlySettlementPanel';
 import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { RiskDecisionPanel } from '@/components/RiskDecisionPanel';
 import { clarityEvent, claritySetTag } from '@/lib/clarity';
+import { LegacyReadonlyBanner, useLegacyStatus } from '@/components/LegacyBanner';
+import { LegacyDocumentsCard, LegacyLoanDangerZone, LegacyRepaymentsCard, PromisesToPayCard } from '@/components/LegacyLoanTools';
+import { useWorkspace } from '@/lib/workspace';
+import { money } from '@/lib/currency';
 
 interface ScheduleItem {
     installmentNumber: number;
@@ -38,6 +43,7 @@ interface Loan {
         loans: { id: string; status: string; principal: number; createdAt: string; }[];
     };
     principal: number;
+    currency?: string;
     annualInterestRate: number;
     termMonths: number;
     startDate: string;
@@ -45,6 +51,7 @@ interface Loan {
     status: string;
     schedules: ScheduleItem[];
     repayments: any[];
+    documents?: { id: string; name: string; content: string; type: string; createdAt: string }[];
     collaterals: any[];
     guarantors: any[];
     interactions: any[];
@@ -63,6 +70,8 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function LoanDetailsPage() {
     const { id, locale } = useParams();
+    const legacy = useLegacyStatus();
+    const { legacyCan } = useWorkspace();
     const router = useRouter();
     const { showToast } = useToast();
     const confirm = useConfirm();
@@ -197,6 +206,7 @@ export default function LoanDetailsPage() {
 
     return (
         <div className="max-w-6xl space-y-5">
+            {loan.status === 'APPROVED' && <LegacyReadonlyBanner status={legacy} />}
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
@@ -208,6 +218,7 @@ export default function LoanDetailsPage() {
                     <div>
                         <div className="flex items-center gap-2.5">
                             <h1 className="text-xl font-bold text-foreground">Loan #{loan.id.slice(-6).toUpperCase()}</h1>
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Legacy</span>
                             <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>{loan.status}</span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
@@ -237,22 +248,24 @@ export default function LoanDetailsPage() {
                                     <button onClick={handleReject} className="btn-danger">Confirm</button>
                                     <button onClick={() => setShowRejectInput(false)} className="btn-ghost">Cancel</button>
                                 </div>
-                            ) : (
+                            ) : legacyCan('LOAN_REJECT') && (
                                 <button onClick={() => setShowRejectInput(true)} className="btn-ghost text-destructive border-destructive/30 hover:bg-destructive/10">
                                     Reject
                                 </button>
                             )}
+                            {legacyCan('LOAN_APPROVE') && (
                             <button onClick={handleApprove} className="btn-primary">
                                 <CheckCircle size={14} /> Approve
                             </button>
+                            )}
                         </>
                     )}
-                    {loan.status === 'APPROVED' && (
+                    {loan.status === 'APPROVED' && !legacy?.readonly && legacyCan('LOAN_DISBURSE') && (
                         <button onClick={handleDisburse} className="btn-primary bg-[#006644] hover:bg-[#004d33]">
                             <Wallet size={14} /> Disburse Funds
                         </button>
                     )}
-                    {loan.status === 'DISBURSED' && (
+                    {loan.status === 'DISBURSED' && legacyCan('LOAN_REPAYMENT_POST') && (
                         <button onClick={() => {
                             clarityEvent('repayment_modal_open_from_loan');
                             setIsModalOpen(true);
@@ -278,7 +291,7 @@ export default function LoanDetailsPage() {
                         <div className="px-4 py-4 space-y-3">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-muted-foreground">Principal</span>
-                                <span className="text-lg font-bold text-foreground">${Number(loan.principal).toLocaleString()}</span>
+                                <span className="text-lg font-bold text-foreground">{money(loan.principal, loan.currency)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-muted-foreground">Annual Rate</span>
@@ -301,11 +314,11 @@ export default function LoanDetailsPage() {
                                 <div className="pt-3 border-t border-border space-y-2">
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs text-muted-foreground">Total Paid</span>
-                                        <span className="text-sm font-bold text-[#006644]">${totalPaid.toLocaleString()}</span>
+                                        <span className="text-sm font-bold text-[#006644]">{money(totalPaid, loan.currency)}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs text-muted-foreground">Remaining Principal</span>
-                                        <span className="text-sm font-bold text-foreground">${Math.max(0, remaining).toLocaleString()}</span>
+                                        <span className="text-sm font-bold text-foreground">{money(Math.max(0, remaining), loan.currency)}</span>
                                     </div>
                                     <div className="pt-1">
                                         <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
@@ -327,6 +340,11 @@ export default function LoanDetailsPage() {
 
                     {/* Risk scorecard, recommended pricing & restructuring */}
                     <RiskDecisionPanel loanId={loan.id} loanStatus={loan.status} onRestructured={fetchLoan} />
+
+                    {/* Early settlement at the payoff quote (UC-31) */}
+                    {(loan.status === 'DISBURSED' || loan.status === 'DEFAULTED') && (
+                        <EarlySettlementPanel loanId={loan.id} onSettled={fetchLoan} />
+                    )}
 
                     {/* Static-QR collection panel (display-only) */}
                     <LoanPaymentQr loanId={loan.id} />
@@ -352,13 +370,19 @@ export default function LoanDetailsPage() {
                                         <div key={idx} className="p-3 bg-[#FFFAE6] rounded border border-[#FFECB0]">
                                             <p className="text-[11px] font-bold text-[#974F0C] uppercase tracking-wide mb-0.5">{c.type}</p>
                                             <p className="text-sm text-foreground font-medium">{c.description || '—'}</p>
-                                            <p className="text-sm font-bold text-[#974F0C] mt-0.5">${Number(c.value).toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-[#974F0C] mt-0.5">{money(c.value, loan.currency)}</p>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
                     </div>
+
+                    {/* Promises to pay (UC-59), repayment reversal, documents, write-off / delete */}
+                    <PromisesToPayCard loanId={loan.id} open={loan.status === 'DISBURSED' || loan.status === 'DEFAULTED'} />
+                    <LegacyRepaymentsCard repayments={loan.repayments} currency={loan.currency ?? 'USD'} onChanged={fetchLoan} />
+                    <LegacyDocumentsCard loanId={loan.id} documents={loan.documents ?? []} onChanged={fetchLoan} />
+                    <LegacyLoanDangerZone loanId={loan.id} status={loan.status} onChanged={fetchLoan} onDeleted={() => router.push(`/${locale}/loans`)} />
 
                     {/* Guarantors */}
                     {loan.guarantors?.length > 0 && (
@@ -407,9 +431,9 @@ export default function LoanDetailsPage() {
                                             <tr key={item.installmentNumber} className={`transition-colors ${item.isPaid ? 'bg-muted/10' : isOverdue ? 'bg-destructive/5' : 'hover:bg-muted/20'}`}>
                                                 <td className="px-4 py-2.5 text-xs text-muted-foreground font-semibold">{item.installmentNumber}</td>
                                                 <td className="px-4 py-2.5 text-sm text-foreground">{new Date(item.dueDate).toLocaleDateString()}</td>
-                                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">${Number(item.principalAmount).toLocaleString()}</td>
-                                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">${Number(item.interestAmount).toLocaleString()}</td>
-                                                <td className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">${Number(item.totalAmount).toLocaleString()}</td>
+                                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{money(item.principalAmount, loan.currency)}</td>
+                                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{money(item.interestAmount, loan.currency)}</td>
+                                                <td className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">{money(item.totalAmount, loan.currency)}</td>
                                                 <td className="px-4 py-2.5 text-right">
                                                     {item.isPaid
                                                         ? <span className="badge-success text-[11px]">Paid</span>

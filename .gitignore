@@ -6,3 +6,6 @@ node_modules
 .turbo
 dist
 .next
+
+# Lending load-test harness state (template manifest)
+.lending-load

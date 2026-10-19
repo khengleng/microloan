@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
+import { HelpLink } from '@/components/help/HelpLink';
 import { PlanChangeCard } from '@/components/billing/plan-change-card';
 import { useAuth } from '@/lib/auth-context';
+import { useWorkspace } from '@/lib/workspace';
 import { Input } from '@/components/ui/input';
 import {
     Building2, MessageSquare, Save, Loader2,
@@ -25,11 +27,14 @@ function PlatformSettings() {
     const t = useTranslations('Settings');
     return (
         <div className="max-w-4xl space-y-6">
-            <div>
-                <h1 className="text-xl font-bold text-foreground">{t('platformTitle')}</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                    {t('platformSubtitle')}
-                </p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-xl font-bold text-foreground">{t('platformTitle')}</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {t('platformSubtitle')}
+                    </p>
+                </div>
+                <HelpLink chapter="20-platform-administration" />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -159,9 +164,12 @@ function TenantSettings() {
 
     return (
         <div className="max-w-4xl space-y-6">
-            <div>
-                <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
-                <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                </div>
+                <HelpLink chapter="18-tenant-administration" anchor="4-settings-administration--settings" />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
@@ -251,6 +259,7 @@ function TenantSettings() {
 export default function SettingsPage() {
     const t = useTranslations('Settings');
     const { user, loading } = useAuth(); // single /auth/me from AuthProvider
+    const { legacyCan } = useWorkspace();
 
     if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm">
@@ -258,5 +267,25 @@ export default function SettingsPage() {
         </div>
     );
 
-    return user?.role === 'SUPERADMIN' ? <PlatformSettings /> : <TenantSettings />;
+    if (user?.role === 'SUPERADMIN') return <PlatformSettings />;
+    // GET /settings is admin-only; send everyone else to their own account page
+    // instead of a "Failed to load settings" error.
+    return legacyCan('CONFIG_UPDATE') ? <TenantSettings /> : <NotAnAdmin />;
+}
+
+/** ── Non-admins: organization settings are not theirs to change ────────── */
+function NotAnAdmin() {
+    const t = useTranslations('Account');
+    const { locale } = useParams();
+    return (
+        <div className="max-w-xl bg-white border border-border rounded-md px-6 py-6 space-y-3">
+            <h1 className="text-base font-bold text-foreground flex items-center gap-2">
+                <ShieldCheck size={16} className="text-primary" /> {t('settingsAdminOnly')}
+            </h1>
+            <p className="text-sm text-muted-foreground">{t('settingsAdminOnlyDesc')}</p>
+            <Link href={`/${locale}/account`} className="inline-flex items-center gap-2 h-9 px-4 rounded bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90">
+                {t('goToAccount')}
+            </Link>
+        </div>
+    );
 }

@@ -107,9 +107,17 @@ export async function originateAndDisburse(
     guarantee?: boolean;
     borrowerOver?: Record<string, unknown>;
     approvers?: string[];
+    /** Lend to an existing borrower instead of a new one. */
+    borrowerId?: string;
+    /** Payees for the payout (UC-05); default: the borrower. */
+    payees?: Record<string, unknown>[];
+    /** Called after booking, before disbursement (e.g. to record a down payment). */
+    beforeDisbursement?: (loanId: string) => Promise<void>;
   } = {},
 ) {
-  const b = await borrower(f, f.t1, f.b1, opts.borrowerOver);
+  const b = opts.borrowerId
+    ? { id: opts.borrowerId }
+    : await borrower(f, f.t1, f.b1, opts.borrowerOver);
   const app = expectOk(
     await f
       .as('ro')
@@ -161,6 +169,7 @@ export async function originateAndDisburse(
     );
   }
   const loanId = booked.account.id as string;
+  if (opts.beforeDisbursement) await opts.beforeDisbursement(loanId);
   const task = expectOk(
     await f.as('opsMaker').post(`/lending/loans/${loanId}/disbursements`, {}),
   );
@@ -172,13 +181,14 @@ export async function originateAndDisburse(
       }),
   );
   expectOk(
-    await f
-      .as('opsChecker')
-      .post(
-        `/lending/loans/${loanId}/disbursements/execute`,
-        { externalReference: `BANK-${loanId.slice(0, 8)}` },
-        `disb-${loanId}`,
-      ),
+    await f.as('opsChecker').post(
+      `/lending/loans/${loanId}/disbursements/execute`,
+      {
+        externalReference: `BANK-${loanId.slice(0, 8)}`,
+        ...(opts.payees ? { payees: opts.payees } : {}),
+      },
+      `disb-${loanId}`,
+    ),
   );
   return {
     loanId,

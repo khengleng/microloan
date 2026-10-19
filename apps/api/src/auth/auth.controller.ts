@@ -19,6 +19,7 @@ import type { JwtPayload } from './jwt.strategy';
 import { AnyAuthenticated, Public } from './auth-scope.decorator';
 import { GoogleLoginDto, GoogleRegisterTenantDto } from './dto/google-auth.dto';
 import { SignupPaymentService } from '../billing/signup-payment.service';
+import { webOrigin } from '../config/operational-config';
 
 /** Extract real client IP — works with Railway proxy (app.set('trust proxy', 1) in main.ts) */
 function getIp(req: any): string {
@@ -97,13 +98,43 @@ export class AuthController {
     return this.authService.login(loginDto, getIp(req));
   }
 
-  /** Refresh tokens — same login limit */
-  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  /**
+   * Refresh tokens. The web client now refreshes silently whenever the
+   * short-lived access token lapses, so every signed-in person refreshes about
+   * once per access-token lifetime; staff in one branch share one public IP.
+   * The login budget (10 / 15 min) would lock a busy branch out, and a
+   * refresh token is a signed JWT checked against a stored hash, not
+   * something a caller can guess the way it can guess a password.
+   */
+  @Throttle({ default: { limit: 120, ttl: 15 * 60_000 } })
   @HttpCode(HttpStatus.OK)
   @Public()
   @Post('refresh')
   refresh(@Body() refreshDto: RefreshDto) {
     return this.authService.refreshToken(refreshDto.refreshToken);
+  }
+
+  /**
+   * Sign-out: revoke the refresh token the browser held. Public because the
+   * access token may already have lapsed; the refresh token itself is the
+   * credential. Idempotent: always answers success.
+   */
+  @Throttle({ default: { limit: 120, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  @Post('logout')
+  logout(@Body() body: { refreshToken?: string }, @Req() req: any) {
+    const token = typeof body?.refreshToken === 'string' ? body.refreshToken : undefined;
+    return this.authService.logout(token, getIp(req));
+  }
+
+  /** Sign out of every device: revokes all of the caller's refresh tokens. */
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @AnyAuthenticated()
+  @Post('sessions/revoke-all')
+  revokeAllSessions(@CurrentUser() user: JwtPayload, @Req() req: any) {
+    return this.authService.revokeAllSessions(user.sub, getIp(req));
   }
 
   /** Self-service forgot-password — generic response, throttled. */
@@ -112,11 +143,7 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   forgotPassword(@Body() dto: { email: string }) {
-    const origin =
-      process.env.WEB_URL?.trim() ||
-      (process.env.CORS_ORIGINS || '').split(',')[0]?.trim() ||
-      '';
-    return this.authService.forgotPassword(dto?.email, `${origin}/en`);
+    return this.authService.forgotPassword(dto?.email, `${webOrigin()}/en`);
   }
 
   /** Complete a self-service reset with the emailed token. */
@@ -146,6 +173,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   verifyMfa(@Body() dto: { mfaToken: string; code: string }, @Req() req: any) {
     return this.authService.verifyMfa(dto.mfaToken, dto.code, getIp(req));
+  }
+
+  /** Whether the caller already has an authenticator enrolled. */
+  @SkipThrottle()
+  @AnyAuthenticated()
+  @Get('mfa/status')
+  mfaStatus(@CurrentUser() user: JwtPayload) {
+    return this.authService.mfaStatus(user.sub);
   }
 
   @SkipThrottle()

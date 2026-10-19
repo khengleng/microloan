@@ -2,12 +2,15 @@
 
 import { ChevronLeft, ChevronRight, ChevronsUpDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useContext } from 'react';
 import { ReportColumn } from './types';
+import { ReportCurrencyContext } from './KpiCard';
+import { money } from '@/lib/currency';
 
-function fmt(value: unknown, type: ReportColumn['type']) {
+function fmt(value: unknown, type: ReportColumn['type'], currency?: string) {
   if (value === null || value === undefined || value === '') return '-';
   if (type === 'currency' && typeof value === 'number') {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+    return money(value, currency);
   }
   if (type === 'percent' && typeof value === 'number') {
     return `${value.toFixed(2)}%`;
@@ -52,6 +55,7 @@ export function ReportDataTable({
   onPageChange: (page: number) => void;
 }) {
   const pages = Math.max(1, Math.ceil(total / limit));
+  const currency = useContext(ReportCurrencyContext);
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -104,7 +108,7 @@ export function ReportDataTable({
                 <tr key={`${idx}-${String(row[columns[0]?.key || 'id'] || idx)}`} className="hover:bg-slate-50/80">
                   {columns.map((c) => (
                     <td key={c.key} className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
-                      {fmt(row[c.key], c.type)}
+                      {fmt(row[c.key], c.type, currency)}
                     </td>
                   ))}
                 </tr>

@@ -5,6 +5,10 @@ Cambodian lenders (MFIs, digital lenders and banks). One deployment serves many
 lending organisations (tenants), each isolated from the others at the
 application, query and database level.
 
+**Staff using the web portal**: the end-user manual (sign-in, roles and
+approvals, origination to closure, collections, accounting, reports,
+administration, and a guided demo) is in [`docs/user-guide/`](docs/user-guide/README.md).
+
 The repository contains two lending stacks that run side by side:
 
 | | What it is | Where |
@@ -35,7 +39,7 @@ serviced in that stack.
 * **Loan products & loans** — flat and reducing-balance products with credit-rating pricing policies, NBC interest-rate cap (18%), approval with maker-checker, disbursement with origination fees, write-off, restructuring, collateral, guarantors, interactions, documents (S3).
 * **Repayments** — idempotent posting, reversals, penalties (daily cron), payoff quotes, KHQR static payment QR per tenant / branch.
 * **Agreements** — key facts statement with EIR / total cost of credit and e-signature (hash-anchored).
-* **Risk & credit** — internal scorecard, Credit Bureau Cambodia (CBC) checks (sandbox when not configured).
+* **Risk & credit** — internal scorecard; Credit Bureau Cambodia (CBC) checks only once CBC credentials (`CBC_API_URL` / `CBC_API_KEY`) are configured — until then the check answers "CBC integration is not ready." and there is no sandbox.
 * **Finance** — dual currency (USD / KHR) with FX rates, general ledger with trial balance, NBC loan-loss provisioning runs, KPIs, portfolio-at-risk dashboard and reports, CSV / Excel exports.
 * **Collections** — overdue queue and promise-to-pay tracking.
 * **Borrower portal** — phone + OTP sign-in, loan view, e-KYC uploads, agreement signing.
@@ -62,15 +66,13 @@ Built as a modular monolith inside the same API. Detailed design in
   and Ijarah as separate structures.
 * Secured / unsecured, fixed / floating rate, green purpose, digital channel and
   recourse type are separate attributes.
-* **35 of the 55 templates are available** today. A template that needs a
+* **46 of the 56 templates are available** today. A template that needs a
   capability the engine does not have is seeded **unavailable**, and a product
   cannot be activated while any required capability is missing — the guard is
   enforced at activation, not documented and hoped for.
-* Currently unavailable: credit cards, BNPL, income-contingent education,
-  inventory-backed lending, syndicated / project / infrastructure / acquisition
-  finance, import and export finance, invoice finance, factoring, supply-chain
-  finance, forfaiting, interbank / municipal / sovereign / concessional
-  lending, Murabaha and Ijarah. See the
+* Currently unavailable: income-contingent education, inventory-backed
+  lending, project / infrastructure / acquisition finance, interbank /
+  municipal / sovereign / concessional lending and Murabaha. See the
   [capability matrix](docs/lending/CAPABILITY_MATRIX.md) (generated from code).
 
 ### Products, versions and agreements
@@ -233,25 +235,126 @@ flags, access-policy simulator, applications, loan accounts, servicing and
 collections, accounting reconciliation, audit explorer, and restructuring cases.
 The borrower portal adds restructure requests and proposal acceptance.
 
-#### The Phase 2 capabilities have no web UI yet
+#### Servicing beyond the basics
 
-Facilities, floating-rate resets, group lending, negotiated settlement,
-post-write-off recovery, payment holidays and refinancing are **API-only**.
-They are fully exercised by the integration suite, but an operator working
-only in the web portal cannot reach them. Two places in the portal are
-currently wrong as a result:
+* **Advances and non-accrual** — money paid before it is due is held as an
+  advance and applied on the due date, so an early payer is never late;
+  loans past the product's non-accrual threshold hold interest in suspense
+  instead of income until they cure.
+* **Composable loan policies** — prepayment and lock-in charges, late
+  charges, allocation and non-accrual are versioned policies in a governed
+  library; products offer menus, contracts are composed and frozen at
+  booking ([POLICY_MODEL.md](docs/servicing/POLICY_MODEL.md)).
+* **Unidentified payments** — money with no loan goes to suspense, is
+  matched to loans or refunded under maker-checker; advances can be refunded.
+* **Impairment** — a tenant policy (regulatory class rates or ECL = PD × LGD
+  × EAD by stage) approved by risk; end of day posts each loan's change in
+  allowance, write-off uses it, closure releases it.
+* **Regulatory returns** — one monthly NBC-style return for the lending and
+  legacy loans together (classification and provisioning, PAR, breakdowns,
+  write-offs and recoveries, largest borrowers, rates against the cap),
+  generated from a closed month, reconciled to both ledgers, immutable and
+  versioned, submitted under maker-checker, CSV and Excel export; a combined
+  trial balance of both journals; and a flag that closes the legacy book to
+  new business ([OPERATIONS.md](docs/lending/OPERATIONS.md)). Gender, sector
+  and related-party data are not captured yet (DECISIONS D-045..D-049).
+* **Collateral on running loans** — revaluation and margin calls, more
+  collateral, release after closure; combined LTV behind prior liens.
+* **Late charges and payments** — flat, percentage or penalty-interest late
+  charges with caps per instalment and per loan; returned-payment fee;
+  third-party payers; group repayments split by member; fee waivers under
+  maker-checker; Rule of 78 and actuarial payoff rebates for flat loans.
+* **Facilities** term out into an amortizing schedule, and unpaid minimum
+  payments are aged like any arrears.
+* **Disbursement** — minimum down payments collected before payout, payout
+  split between seller, dealer, school, previous lender or the borrower, and
+  consolidation loans that settle the borrower's other loans from the proceeds.
+* **Pricing and schedules** — promotional campaign rates, stepped (graduated
+  or step-down) instalments, payoff letters good through a date and takeover
+  quotes for another lender; a rescheduling prepayment can be reversed.
+* **Collections** — an escalation ladder per product (SMS, call, visit,
+  notice, legal review) feeding collector work queues; guarantor demands and
+  payments; set-off of the borrower's deposit under maker-checker.
+* **Webhooks** — the organisation's lending events (disbursed, repaid,
+  closed, arrears notices, covenant breaches, month-end ready…) delivered to
+  its own systems, signed and retried, activated by a second administrator;
+  Lending › Webhooks.
+* **Loan-book migration** — take over running loans from another system:
+  a CSV checked row by row (products, branches, customers, schedules) and
+  against control totals, approved by a second person, posted with opening
+  balances that reconcile; Lending › Migration.
+* **Month-end and year-end close** — month end is a stage of end of day:
+  checks, a frozen snapshot of the books and the portfolio, a lock approved
+  by a second person (enforced in the posting service and the database),
+  reopening under maker-checker, and year-end close into retained earnings;
+  Lending › Period close.
+* **Customer outputs and reporting** — statements for any period, due-soon
+  and overdue notices, closure letters, the credit bureau file and a
+  general-ledger export.
+* **Underwriting and commercial loans** — configurable, versioned scorecards
+  under maker-checker (defaults shipped as templates), a per-product decision
+  strategy (grade outcomes, knock-outs, limits and risk pricing by grade), a
+  silent champion/challenger, every score stored with its inputs and
+  explained, scorecard monitoring (bad rate, Gini, KS, PSI) on the lender's
+  own data; DSCR gate, and DSCR / LTV / financial-statement covenants with
+  breach, cure and waiver.
+* **Alternative data for thin-file borrowers** — per-source consent with
+  revocation, the lender's own repayment / KHQR-wallet / group-contribution
+  history, officer-captured utility, telco, rent and cash-flow data verified
+  by a second person, and a thin-file scorecard. Smartphone, telco and
+  e-wallet providers are adapter interfaces only (requires integration).
+* **Recovery** — repossession, pawn custody and auction, credit insurance
+  claims and debt sale.
+* **Payment channels** — direct-debit mandates and auto-debit (mock bank),
+  settlement and payroll files with daily reconciliation, cross-currency
+  payments with FX gain/loss.
+* **Specialised products** — credit cards (grace period, cash advances,
+  instalment plans), BNPL with merchant settlement and refunds, Ijarah
+  leases, invoice finance with recourse, letters of credit and syndicated
+  loans; facility over-limit allowance and fee, and annual renewal.
+* **Customer documents** — one library with review, versions, expiry,
+  retention, legal hold and audited short-lived downloads.
 
-* `LoanDetailView` states that refinancing and negotiated settlement are
-  "not available", which is no longer true.
-* The product configuration editor exposes `facility.type` but none of the
-  terms a facility now requires (limit bounds, availability, commitment fee,
-  tranches, minimum payment), nor the new group, settlement, refinance and
-  holiday configuration blocks. A product maker can therefore select a
-  facility type on screen and then fail validation with no way to fix it
-  there.
+Every Phase 2 and servicing capability now has a web screen: facilities,
+groups, the policy library, unidentified payments, relief programmes,
+operations (business date and end of day, benchmark rates, holiday
+calendars, impairment policy, integrations), and on the loan screen
+advances, non-accrual, settlement and negotiated settlement, recoveries,
+refunds, fee waivers, payment holidays, rate resets, group repayments,
+collateral and refinancing. The product editor covers the new settings.
 
-Until those screens exist, configure and operate these features through the
-API; [OPERATIONS.md](docs/lending/OPERATIONS.md) gives the endpoints.
+### Web workspace: target design and current state
+
+The target UI is described in [docs/ui/WORKSPACE_DESIGN.md](docs/ui/WORKSPACE_DESIGN.md),
+with an interactive prototype in
+[docs/ui/workspace-prototype.html](docs/ui/workspace-prototype.html) (open it in
+a browser and pick a role). In short: one workspace whose menus, home queue and
+buttons are computed from the lending permission engine, so each of the 14
+access roles, the borrower and the platform operator sees exactly the work
+that is theirs, and every disabled action says why.
+
+Measured against that design, the web app today:
+
+| Area | Status | Gap |
+|---|---|---|
+| Navigation | ✅ | Menus are computed from `GET /v1/me/access` (lending permissions) plus the legacy screens' own permissions, so each access role sees its own work and the lending section is hidden from people with no lending permission; lending sub-tabs follow the same rules; queue badges come from `/me/work` |
+| Home | ✅ | `/home` shows the person's queues from `GET /v1/me/work` (counts, oldest items, deep links, "you approve" / "needs MFA" / "above your limit"); the KPI dashboard stays in the menu for those who had it, and people without lending permissions still land on it |
+| Search | ✅ | `GET /v1/search` and a search box in the top bar (`/` or Ctrl/⌘-K): borrowers by name, phone or national ID (blind index), loans, legacy loans, applications, facilities, cards and restructure cases by reference, within the caller's tenant and scope |
+| Explaining refusals | 🟡 | Lending applications, loans and product versions show the policy reason on disabled buttons; restructure cases, facilities and legacy pages do not; the browser treats unknown actions as allowed |
+| Scope, authority, MFA, delegation in the shell | ✅ | Top-bar chips for business date, scope, approval limit and sign-in strength; banners for "verify to approve" and delegated authority. No inline MFA step-up yet (the banner sends the person to sign in again) |
+| Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending); the legacy ones are now grouped and labelled "Legacy", and the legacy book can be closed to new business (`lending.legacy_loans.readonly`) |
+| Phase 2 screens | ✅ | Facilities, groups, policy library, unidentified payments, relief programmes, operations, and the servicing panels on the loan screen |
+| Role management | 🟡 | `/users` assigns only legacy roles; access roles are assigned separately under Lending › Access |
+| Khmer | 🟡 | Legacy screens, the portal page, the new menu, lending sub-tabs, home queues, shell chips and search are translated; the lending, accounting, FX, provisioning, KPI and audit screens themselves are English only |
+| Borrower portal | 🟡 | Sign-in, loans, KHQR, documents, signing and relief acceptance work; one-time codes need an SMS provider; payment-holiday programmes are not offered |
+| Platform console | ✅ | Organisations, plan payments, plans, team and audit; platform flag rules are API-only |
+
+The workspace runs on three endpoints: `GET /v1/me/access` (effective
+permissions, scope, authorities, delegations, MFA, flags, with platform and
+borrower-portal variants), `GET /v1/me/work` (queue counts and oldest items,
+scope-filtered and maker-checker aware) and `GET /v1/search`. Still to come:
+capabilities for restructure cases, facilities, groups and tenant actions, and
+a fail-closed browser capability check.
 
 ### What is implemented, and what is not
 
@@ -262,25 +365,79 @@ implemented, so the matrix is enforced, not aspirational. As it stands:
 
 | | Count |
 |---|---|
-| ✅ Fully implemented | 43 |
-| 🔌 Requires integration (adapter ships, no real provider) | 5 |
-| ⛔ Not implemented | 17 |
+| ✅ Fully implemented | 67 |
+| 🔌 Requires integration (adapter ships, no real provider) | 8 |
+| ⛔ Not implemented | 2 |
 
 **Needs a third-party provider** — payment rails, external KYC, credit bureau,
 notifications and external accounting have adapter interfaces with clearly
 labelled mocks that are refused in production. These stay at "requires
 integration" until a real provider is wired and tested; the matrix will not
-claim otherwise.
+claim otherwise. Alternative-data providers (smartphone, telco, e-wallet) have
+adapter interfaces and encrypted configuration but no mock at all: their
+inputs stay missing until a real adapter is added.
 
 **Still to build** — borrowing bases, connected-party exposure, break-glass
-access, and the specialised modules: credit cards, BNPL, trade and invoice
-finance, factoring, forfaiting, supply-chain finance, income-contingent
-education, syndication, project finance, institutional counterparty limits,
-Murabaha and Ijarah.
+access, and the remaining specialised modules: income-contingent education,
+project finance, institutional counterparty limits and Murabaha. Credit
+cards, BNPL, Ijarah leases, invoice financing with recourse, import letters
+of credit and syndicated loans are implemented; their assumed rules are in
+DECISIONS D-024..D-034. Factoring, supply-chain finance, forfaiting and
+import / export loans against trade documents are implemented too
+(DECISIONS D-055..D-059).
 
-Known limitations of what *is* implemented — including facility delinquency,
-group contributions and interest capitalization — are listed in
-[OPERATIONS.md](docs/lending/OPERATIONS.md).
+Known limitations of what *is* implemented are listed in
+[OPERATIONS.md](docs/lending/OPERATIONS.md) and, item by item, in
+[TRACEABILITY.md](docs/servicing/TRACEABILITY.md).
+
+---
+
+## Scope coverage: loan servicing use cases
+
+The full servicing scope (24 loan types, 75 use cases, 8 operations areas,
+10 document-management items and 20 golden test vectors) is in
+[docs/servicing/USE_CASES.md](docs/servicing/USE_CASES.md) and
+[docs/servicing/TEST_VECTORS.md](docs/servicing/TEST_VECTORS.md). Each item is
+traced to code, tests and a status in
+[docs/servicing/TRACEABILITY.md](docs/servicing/TRACEABILITY.md).
+
+| Group | ✅ Done | 🟡 Partial | ⛔ Missing | Total |
+|---|---|---|---|---|
+| Loan types | 24 | 0 | 0 | 24 |
+| Use cases | 74 | 1 | 0 | 75 |
+| Operations | 7 | 1 | 0 | 8 |
+| Customer documents | 10 | 0 | 0 | 10 |
+| Test vectors | 20 match to the cent | 0 | 0 | 20 |
+
+**Strong today:** every schedule method and golden test vector, configurable
+allocation with advances, both prepayment options with lock-in charges and
+waivers, Rule of 78 / actuarial rebates, composable loan policies,
+non-accrual and impairment (regulatory or ECL), suspense and refunds,
+restructuring, payment holidays, refinance, negotiated settlement, write-off
+and recovery, floating-rate resets, facilities with term-out and arrears,
+group lending with member contributions, collateral margin calls and release,
+recovery workflows (repossession, pawn custody and auction, credit insurance
+claims, debt sale), maker-checker throughout, an automatic end-of-day run, one customer
+document library (object storage, review by another user, versions, expiry
+reminders, retention and legal hold, audited short-lived downloads, filed
+key facts and letters, portal requests), and a tested tenant
+wall ([TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md)).
+
+**Remaining gaps** (full list in
+[TRACEABILITY.md](docs/servicing/TRACEABILITY.md)):
+
+1. Auto-debit, SMS, KYC and credit-bureau submission run on mock adapters
+   that production refuses (UC-16 and the integration rows of the
+   capability matrix).
+2. Borrower notices are produced on demand, not sent by the end-of-day
+   batch (OPS-4).
+3. Several money rules are documented assumptions awaiting product-owner,
+   finance or Sharia sign-off (DECISIONS D-011..D-034).
+
+End-to-end QA journeys (onboarding → KYC → application → approval →
+disbursement → servicing → closure) for every loan type are in
+`apps/api/test/lending/e2e/` and the module specs; the scenario matrix is
+[docs/servicing/SCENARIOS.md](docs/servicing/SCENARIOS.md).
 
 ---
 
@@ -320,16 +477,22 @@ Walkthrough and credentials: [OPERATIONS.md](docs/lending/OPERATIONS.md#demo-dat
 
 ```bash
 pnpm test                 # lint + typecheck + prisma validate (turbo)
-pnpm test:engine          # lending engine: decimal reference cases, restructuring, configuration
+pnpm test:engine          # lending engine: decimal reference cases, golden test vectors TV-01..TV-20, restructuring, configuration
 pnpm test:api             # API unit tests (incl. decision-engine security tests)
 
 # Lending integration tests against a real PostgreSQL (throwaway DB; name must contain "test" or "ci")
 export LENDING_TEST_DATABASE_URL=<postgres connection string>
-pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS)
-pnpm test:lending:int     # Phase 1, security, restructuring, facilities, floating, groups, settlement, relief
+pnpm test:lending:db      # reset + schema + database invariants (triggers, RLS) + the unprivileged app role
+pnpm test:lending:int     # every lending suite, then the tenant-wall suite last (WALL_STRICT=1)
 
 pnpm docs:capabilities    # regenerate docs/lending/CAPABILITY_MATRIX.md from code
 ```
+
+The integration suites connect as `lending_app_test`, a `NOSUPERUSER
+NOBYPASSRLS` role created by `test:lending:db`, so row-level security is
+actually exercised. The tenant-wall suite replays every registered route as
+another tenant and fails if any row of another tenant changes or leaks — see
+[TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md).
 
 Security and production-readiness checks (also run in CI):
 
@@ -353,6 +516,9 @@ packages/
   db/                  Prisma schema, migrations, seed, lending demo seed
   shared/              shared domain logic and the lending engine (+ engine tests)
 docs/lending/          lending platform documentation
+docs/ui/               web workspace design and interactive prototype
+docs/servicing/        servicing scope, golden test vectors, traceability, decisions, policy model
+docs/security/         tenant isolation: the walls, their tests, what is open
 scripts/               security scans, production config check, lending test-DB and capability-matrix tools
 ```
 
@@ -388,3 +554,24 @@ environment layout and the backup caveat).
   they are expected to be empty — confirm that against the target database
   (`SELECT count(*) FROM "Facility"; SELECT count(*) FROM "Drawdown";`) before
   applying it, because the migration discards their contents.
+* The servicing build-out migrations (`20261018000001` … `20261018000006`:
+  loan policies, advances and non-accrual; row-level security on the
+  remaining lending tables; the Telegram bot-token hash; unidentified
+  payments; impairment; collateral servicing) are additive — new tables, and
+  columns that are nullable or defaulted; `FinancialEvent.loanAccountId` and
+  the lending journal's `loanAccountId` become nullable for tenant-level
+  receipts. Their invariants run in CI. They have not been run against a
+  production-shaped database: take a snapshot first.
+* The payment-channels migration (`20261019000300_lending_payment_channels`:
+  mandates, auto-debit attempts, channel files and lines, channel settings) is
+  additive — new tables only, with CHECKs, an immutability trigger on imported
+  lines and forced RLS. Two ledger accounts (1050 FX position, 4400 FX
+  gain/loss) are added to the chart on first use.
+* **Database role.** Row-level security does nothing for a superuser or a
+  `BYPASSRLS` role, and Railway's default user is `postgres`. Run the API as a
+  `NOSUPERUSER NOBYPASSRLS` role that does not own the tables (migrations keep
+  running as the owner) and set `DB_ROLE_MUST_RESPECT_RLS=true`; until then the
+  API logs an error at startup. See
+  [TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md).
+* **Impairment** posts nothing until finance proposes and risk approves a
+  policy (Lending › Operations › Impairment policy; DECISIONS D-010).

@@ -65,6 +65,19 @@ export class AuthzService {
     }
   }
 
+  /**
+   * The branch a branch-scoped principal is confined to, as a `where`
+   * fragment ({} for everyone else). For list and aggregate queries, where
+   * assertBranchAccess on a single row does not apply.
+   */
+  branchFilter(actor: Actor): { branchId?: string } {
+    if (this.isPlatform(actor) || !actor.branchId) return {};
+    const role = canonicalRole(actor.role);
+    return ['BRANCH_MANAGER', 'LOAN_OFFICER', 'CUSTOMER_SUPPORT'].includes(role)
+      ? { branchId: actor.branchId }
+      : {};
+  }
+
   assertCanAssignRole(actor: Actor, targetRole: string) {
     const actorRole = canonicalRole(actor.role);
     const desired = canonicalRole(targetRole);
@@ -90,6 +103,17 @@ export class AuthzService {
 
     if (targetRole === 'SUPERADMIN' && actorRole !== 'SUPERADMIN') {
       throw new ForbiddenException('Only SUPERADMIN can manage SUPERADMIN users.');
+    }
+
+    // A tenant admin cannot reset, re-role or remove a fellow tenant admin:
+    // one compromised admin account must not be able to take over the others.
+    // The platform operator (or the admin themselves) can.
+    if (
+      targetRole === 'TENANT_ADMIN' &&
+      actorRole !== 'SUPERADMIN' &&
+      targetUser.id !== this.actorId(actor)
+    ) {
+      throw new ForbiddenException('Another tenant admin can only be managed by the platform operator.');
     }
 
     if (requestedRole) {

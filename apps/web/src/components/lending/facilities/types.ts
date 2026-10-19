@@ -1,0 +1,194 @@
+/**
+ * Facility types, mirroring apps/api/src/lending/facilities/facilities.service.ts
+ * (the `view`, `drawdownView`, `statementView` and `limitChangeView` shapes)
+ * and the engine types in packages/shared/src/lending/facility.ts.
+ *
+ * Money and rates are decimal strings; dates are YYYY-MM-DD unless noted.
+ */
+
+export type FacilityType = 'REVOLVING' | 'OVERDRAFT' | 'STAGED_DRAWDOWN';
+
+export const FACILITY_TYPES: FacilityType[] = ['REVOLVING', 'OVERDRAFT', 'STAGED_DRAWDOWN'];
+export const FACILITY_STATUSES = ['PENDING', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'TERMED_OUT', 'CLOSED', 'CANCELLED'];
+
+export interface FacilitySummary {
+    id: string;
+    reference: string;
+    borrowerId: string;
+    facilityType: FacilityType | string;
+    currency: string;
+    limitAmount: string;
+    /** Cumulative amount ever advanced; never reduced by repayment. */
+    totalDrawn: string;
+    chargesRaised: string;
+    status: string;
+    availabilityFrom: string | null;
+    availabilityTo: string | null;
+    maturityDate: string | null;
+    createdAt: string;
+}
+
+export interface FacilityTranche {
+    code: string;
+    amount: string;
+    availableFrom: string;
+    conditions: string[];
+}
+
+export interface FacilityTerms {
+    type: FacilityType | string;
+    currency: string;
+    limitAmount: string;
+    availabilityStart: string;
+    availabilityEnd: string;
+    maturityDate: string;
+    annualRate: string;
+    dayCount: string;
+    rounding: unknown;
+    minimumDrawdown: string | null;
+    maximumDrawdown: string | null;
+    commitmentFeeRate: string | null;
+    minimumPaymentRate: string | null;
+    minimumPaymentFloor: string | null;
+    overlimitRate: string | null;
+    tranches: FacilityTranche[];
+}
+
+export interface FacilityPosition {
+    outstanding: string;
+    totalDrawn: string;
+    totalRepaid: string;
+    available: string;
+    /** Outstanding ÷ limit, as a decimal fraction. */
+    utilization: string;
+    overlimit: string;
+    releasedTranches: string[];
+}
+
+export interface Drawdown {
+    id: string;
+    facilityId: string;
+    sequence: number;
+    amount: string;
+    currency: string;
+    valueDate: string | null;
+    trancheCode: string | null;
+    purpose: string;
+    /** REQUESTED, APPROVED, RELEASED, REJECTED, CANCELLED */
+    status: string;
+    eventId: string | null;
+    requestedBy: string;
+    approvedBy: string | null;
+    approvedAt: string | null;
+    releasedBy: string | null;
+    releasedAt: string | null;
+    rejectedBy: string | null;
+    rejectedAt: string | null;
+    rejectionReason: string | null;
+    createdAt: string;
+}
+
+export interface FacilityCondition {
+    id: string;
+    trancheCode: string;
+    code: string;
+    label: string;
+    /** PENDING, SATISFIED, WAIVED */
+    status: string;
+    evidence: string | null;
+    satisfiedBy: string | null;
+    satisfiedAt: string | null;
+    waivedBy: string | null;
+    waivedAt: string | null;
+    waiverReason: string | null;
+    createdAt: string;
+}
+
+export interface FacilityStatementRow {
+    id: string;
+    sequence: number;
+    periodStart: string | null;
+    /** Exclusive. */
+    periodEnd: string | null;
+    openingBalance: string;
+    drawdowns: string;
+    repayments: string;
+    interest: string;
+    overlimitInterest: string;
+    commitmentFee: string;
+    closingBalance: string;
+    chargesRaised: string;
+    minimumPayment: string | null;
+    minimumPaymentDue: string | null;
+    engineVersion: string;
+    createdBy: string;
+    createdAt: string;
+}
+
+export interface FacilityLimitChange {
+    id: string;
+    previousLimit: string;
+    newLimit: string;
+    /** INCREASE, DECREASE, RENEWAL (older rows may carry EXTENSION, SUSPENSION, REINSTATEMENT) */
+    changeType: string;
+    /** RENEWAL: months the availability end and maturity move by. */
+    renewalMonths?: number | null;
+    reason: string;
+    effectiveDate: string | null;
+    /** REQUESTED, APPROVED, REJECTED */
+    status: string;
+    requestedBy: string;
+    approvedBy: string | null;
+    approvedAt: string | null;
+    rejectedBy: string | null;
+    rejectedAt: string | null;
+    createdAt: string;
+}
+
+export interface FacilityDetail {
+    /** Set on invoice finance, factoring, supply-chain finance and forfaiting lines. */
+    receivablesKind?: string | null;
+    facility: FacilitySummary;
+    /** Set when this line is a credit card's (LT-07): card money moves on the card. */
+    card?: { id: string; reference: string; status: string } | null;
+    terms: FacilityTerms;
+    position: FacilityPosition;
+    /** The loan account carrying the drawn balance. */
+    loanAccountId: string;
+    drawdowns: Drawdown[];
+    conditions: FacilityCondition[];
+    statements: FacilityStatementRow[];
+    limitChanges: FacilityLimitChange[];
+    /** LT-14: what the borrowing base lets the line draw today; null on a line without one. */
+    borrowingBase?: {
+        limit: string; borrowingBase: string | null; drawingCap: string; outstanding: string; available: string;
+        certificateAsOf: string | null; certificateValidThrough: string | null; stale: boolean; reason: string | null;
+    } | null;
+    /** LT-17: the project this facility finances; null on other facilities. */
+    project?: { id: string; status: string; capitalizeConstructionInterest: boolean; targetDscr: string } | null;
+}
+
+export interface DrawdownCheck {
+    ok: boolean;
+    issues: { path: string; message: string }[];
+    resulting: FacilityPosition | null;
+}
+
+export interface TermOutPlan {
+    principal: string;
+    effectiveDate: string;
+    months: number;
+}
+
+/**
+ * Kinds of limit change a maker can request. The API applies every kind as a
+ * new limit amount; only a RENEWAL also moves the availability end and
+ * maturity (by `renewalMonths`). Suspending or reinstating a line is a status
+ * change (POST /status), not a limit change, so it is not offered here.
+ */
+export const LIMIT_CHANGE_TYPES = ['INCREASE', 'DECREASE', 'RENEWAL'];
+
+export const MONEY_RE = /^\d+(\.\d{1,4})?$/;
+export const CODE_RE = /^[A-Z0-9][A-Z0-9_.-]{1,47}$/;
+
+export type Can = (code: string) => { allowed: boolean; reason?: string };

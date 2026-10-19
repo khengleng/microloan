@@ -59,6 +59,17 @@ export class PaymentInstrumentsService {
     }
   }
 
+  /** Branches a collection QR can be pinned to: the caller's organisation only. */
+  async branches(actor: JwtPayload) {
+    this.authz.assertPermission(actor, Permission.CONFIG_UPDATE);
+    if (!actor.tenantId) return [];
+    return this.prisma.branch.findMany({
+      where: { tenantId: actor.tenantId },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   private async assertBranchInTenant(actor: JwtPayload, branchId?: string) {
     if (!branchId) return;
     const branch = await this.prisma.branch.findFirst({
@@ -156,7 +167,8 @@ export class PaymentInstrumentsService {
           qrPayload: dto.qrPayload,
           qrImage: dto.qrImage,
           currency: dto.currency as any,
-          branchId: dto.branchId ?? null,
+          // Omitted keeps the branch; only an explicit null clears it.
+          branchId: dto.branchId === undefined ? undefined : dto.branchId,
           isActive: dto.isActive,
           isDefault: dto.isDefault,
         },

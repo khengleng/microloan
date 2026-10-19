@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -15,7 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 
-const PLANS = ['FREE', 'BASIC', 'PROFESSIONAL', 'ENTERPRISE'];
+// Plans come from the platform's plan tiers (GET /platform/plan-tiers).
+interface PlanTierOption { name: string; displayName: string; isActive: boolean }
 const PLAN_COLORS: Record<string, string> = {
     FREE: 'bg-slate-100 text-slate-500',
     BASIC: 'bg-indigo-100 text-indigo-700',
@@ -62,7 +65,7 @@ export default function TenantsPage() {
     const [statusFilter, setStatus] = useState('ALL');
     const [isModalOpen, setModal] = useState(false);
     const [editTenant, setEdit] = useState<Tenant | null>(null);
-    const [form, setForm] = useState({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' });
+    const [form, setForm] = useState({ name: '', plan: '', adminEmail: '', adminPassword: '' });
     const [submitting, setSub] = useState(false);
     const [menuOpen, setMenu] = useState<string | null>(null);
     const [selectedTenantUsers, setSelectedTenantUsers] = useState<any[]>([]);
@@ -70,6 +73,19 @@ export default function TenantsPage() {
     const [isUsersModalOpen, setUsersModalOpen] = useState(false);
     const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [planTiers, setPlanTiers] = useState<PlanTierOption[]>([]);
+    const { locale } = useParams();
+    const o = useTranslations('Overview');
+    const defaultPlan = planTiers.find((p) => p.isActive)?.name ?? '';
+    // Tiers on offer, plus the organisation's current tier if it has since been retired.
+    const planOptions = planTiers.filter((p) => p.isActive || p.name === form.plan);
+
+    useEffect(() => {
+        api.get<PlanTierOption[]>('/platform/plan-tiers').then(
+            (r) => setPlanTiers(Array.isArray(r.data) ? r.data : []),
+            () => setPlanTiers([]),
+        );
+    }, []);
 
     const fetchAll = async () => {
         setLoading(true);
@@ -99,13 +115,14 @@ export default function TenantsPage() {
             } else {
                 await api.post('/tenants', {
                     name: form.name,
+                    ...(form.plan ? { plan: form.plan } : {}),
                     adminEmail: form.adminEmail,
                     adminPassword: form.adminPassword
                 });
                 showToast(t('orgRegistered'), 'success');
             }
             setModal(false);
-            setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' });
+            setForm({ name: '', plan: defaultPlan, adminEmail: '', adminPassword: '' });
             fetchAll();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Operation failed', 'error');
@@ -128,7 +145,7 @@ export default function TenantsPage() {
             await api.put(`/tenants/${t.id}/activate`);
             showToast(`${t.name} has been activated`, 'success');
             fetchAll();
-        } catch { showToast('Failed to activate tenant', 'error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || 'Failed to activate tenant', 'error'); }
         setMenu(null);
     };
 
@@ -217,7 +234,7 @@ export default function TenantsPage() {
                     <p className="text-slate-500 font-medium mt-1">{t('subtitle')}</p>
                 </div>
                 <Button
-                    onClick={() => { setEdit(null); setForm({ name: '', plan: 'FREE', adminEmail: '', adminPassword: '' }); setModal(true); }}
+                    onClick={() => { setEdit(null); setForm({ name: '', plan: defaultPlan, adminEmail: '', adminPassword: '' }); setModal(true); }}
                     className="rounded-2xl font-black px-8 h-12 bg-slate-950 text-white hover:bg-slate-800 shadow-lg shadow-slate-950/20 transition-all hover:scale-[1.02] flex items-center gap-2"
                 >
                     <Plus size={18} />
@@ -364,6 +381,10 @@ export default function TenantsPage() {
                                                 <button onClick={() => handleSuspend(tenant)} className="w-full text-left px-5 py-3 hover:bg-rose-50 flex items-center gap-3 text-rose-600">
                                                     <Ban size={14} /> {t('suspendInstance')}
                                                 </button>
+                                            ) : tenant.status === 'PENDING_PAYMENT' ? (
+                                                <Link href={`/${locale}/platform-payments`} className="w-full text-left px-5 py-3 hover:bg-amber-50 flex items-center gap-3 text-amber-700">
+                                                    <RefreshCcw size={14} /> {o('confirmPlanPayment')}
+                                                </Link>
                                             ) : (
                                                 <button onClick={() => handleActivate(tenant)} className="w-full text-left px-5 py-3 hover:bg-emerald-50 flex items-center gap-3 text-emerald-600">
                                                     <RefreshCcw size={14} /> {t('reactivate')}
@@ -438,7 +459,7 @@ export default function TenantsPage() {
                                     onChange={e => setForm({ ...form, plan: e.target.value })}
                                     className="w-full h-14 pl-5 pr-10 appearance-none text-sm font-black border border-slate-200/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 bg-white"
                                 >
-                                    {PLANS.map(p => <option key={p} value={p}>{p}</option>)}
+                                    {planOptions.map(p => <option key={p.name} value={p.name}>{p.displayName}{p.isActive ? '' : ` (${o('planRetired')})`}</option>)}
                                 </select>
                                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                             </div>
@@ -456,7 +477,7 @@ export default function TenantsPage() {
                                         <Input
                                             value={form.adminEmail}
                                             onChange={e => setForm({ ...form, adminEmail: e.target.value })}
-                                            placeholder="admin@tenant.com"
+                                            placeholder="owner@example.com"
                                             autoComplete="email"
                                             className="h-12 border-slate-200/50 rounded-2xl px-5 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10"
                                             required={!editTenant}

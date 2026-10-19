@@ -53,17 +53,6 @@ const EMERGENCY_CEILINGS: QuotaCeilings = {
   maxLoans: 100,
 };
 
-/**
- * How long a tier read is served from memory.
- *
- * The quota guard consults this on every quota-checked write, so an uncached
- * read would add a round trip to each of those. Tiers change roughly never, and
- * every write through this service busts the cache, so the window only matters
- * for a second API instance — where 30s of stale pricing is harmless because
- * the price is re-read when the QR is actually minted.
- */
-const CACHE_TTL_MS = 30_000;
-
 /** The env vars this table replaced. Their presence now means "misconfigured". */
 const SUPERSEDED_PRICE_ENV = [
   'PLAN_PRICE_BASIC',
@@ -98,7 +87,6 @@ type TierRow = {
 @Injectable()
 export class PlanTierService implements OnModuleInit {
   private readonly logger = new Logger(PlanTierService.name);
-  private cache: { rows: TierRow[]; at: number } | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -122,7 +110,12 @@ export class PlanTierService implements OnModuleInit {
   // ── Reads ───────────────────────────────────────────────────────────────
 
   /**
-   * Every tier, newest cache or a fresh read.
+   * Every tier, read from the database each time.
+   *
+   * There is no in-process cache: one was kept for 30 s, which a write on one
+   * API instance could not clear on another, so a lowered quota or a retired
+   * tier stayed in force elsewhere. The table holds a handful of rows, so the
+   * read is one cheap query per quota-checked write.
    *
    * Runs as system: the catalogue is read on the pre-auth signup page and by
    * the quota guard mid-request, and it is not tenant-owned. The Prisma guard
@@ -131,21 +124,17 @@ export class PlanTierService implements OnModuleInit {
    * restriction.
    */
   private async rows(): Promise<TierRow[]> {
-    const fresh = this.cache && Date.now() - this.cache.at < CACHE_TTL_MS;
-    if (fresh) return this.cache!.rows;
-
     const rows = (await runAsSystem('plan tier catalogue read', () =>
       this.prisma.planTier.findMany({
-        orderBy: [{ sortOrder: 'asc' }, { priceAmount: 'asc' }, { name: 'asc' }],
+        orderBy: [
+          { sortOrder: 'asc' },
+          { priceAmount: 'asc' },
+          { name: 'asc' },
+        ],
       }),
     )) as unknown as TierRow[];
 
-    this.cache = { rows, at: Date.now() };
     return rows;
-  }
-
-  private invalidate(): void {
-    this.cache = null;
   }
 
   private static toView(row: TierRow): PlanTierView {
@@ -311,7 +300,6 @@ export class PlanTierService implements OnModuleInit {
         isActive: dto.isActive ?? true,
       },
     });
-    this.invalidate();
     this.logger.log(`Plan tier created: ${name}`);
     return PlanTierService.toView(row as unknown as TierRow);
   }
@@ -346,7 +334,6 @@ export class PlanTierService implements OnModuleInit {
         isActive: dto.isActive ?? undefined,
       },
     });
-    this.invalidate();
     return PlanTierService.toView(row as unknown as TierRow);
   }
 
@@ -383,7 +370,6 @@ export class PlanTierService implements OnModuleInit {
     }
 
     await this.prisma.planTier.delete({ where: { id } });
-    this.invalidate();
     this.logger.log(`Plan tier deleted: ${existing.name}`);
     return { success: true };
   }
@@ -398,7 +384,6 @@ export class PlanTierService implements OnModuleInit {
         }),
       ),
     );
-    this.invalidate();
     return this.list();
   }
 }

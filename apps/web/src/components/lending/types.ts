@@ -167,6 +167,16 @@ export interface Terms {
     balloonAmount?: Money;
     explicitSchedule?: { dueDate: LocalDate; principal: Money }[];
     waivedFeeCodes?: string[];
+    /** Paid by the borrower before disbursement (UC-02); not part of the loan. */
+    downPayment?: Money;
+    /** Campaign code of the product's promotional rate (UC-46). */
+    promotionCode?: string;
+    /** Business financials for debt-service coverage (LT-16). */
+    financials?: { annualNetOperatingIncome: Money; otherAnnualDebtService?: Money };
+    /** Income-contingent loans: the income declared at origination. */
+    declaredAnnualIncome?: Money;
+    /** Non-default policy choices and adjusted parameters (POLICY_MODEL.md); a kind left out uses the product default. */
+    policies?: Partial<Record<'PREPAYMENT' | 'LATE_CHARGES' | 'ALLOCATION' | 'NON_ACCRUAL', { code?: string; parameters?: Record<string, number> }>>;
 }
 
 /* ── Workflows ────────────────────────────────────────────────────────────── */
@@ -177,6 +187,8 @@ export interface WorkflowVersion { id: string; code: string; version: number; na
 export interface WorkflowsResponse {
     supportedSteps: string[];
     mandatorySteps: string[];
+    /** Steps a new version cannot drop (e.g. CONDITIONS_PRECEDENT, enforced from the product). */
+    alwaysOnSteps?: string[];
     builtIn: Record<string, { name: string; definition: WorkflowDefinition }>;
     versions: WorkflowVersion[];
 }
@@ -207,6 +219,9 @@ export interface PolicyRule { id: string; effect: 'DENY' | 'REQUIRE'; actions: s
 export interface PolicyVersion { id: string; version: number; rules: PolicyRule[]; status: string; makerId: string | null }
 export interface Policy { id: string; code: string; name: string; description?: string | null; versions: PolicyVersion[] }
 
+export interface BranchRef { id: string; name: string; code: string | null; isActive: boolean }
+export interface PortfolioRef { id: string; code: string; name: string; branchId: string | null; isActive: boolean }
+
 export interface AccessOverview {
     permissions: Permission[];
     roles: Role[];
@@ -215,6 +230,11 @@ export interface AccessOverview {
     authorities: Authority[];
     users: LendingUser[];
     policies: Policy[];
+    /** Scope pickers (absent on an older API). */
+    branches?: BranchRef[];
+    portfolios?: PortfolioRef[];
+    /** The lender's limits (lending settings), checked again by the API. */
+    limits?: { maxDelegationDays: number };
 }
 
 export interface FlagEvaluation { enabled: boolean; source: string; ruleId: string | null; scope: string | null }
@@ -270,6 +290,14 @@ export interface LoanAccount extends LoanSummary {
     borrowerId: string; applicationId: string; productId: string; productVersionId: string; familyCode: string;
     instalmentAmount: Money | null; disbursementDate: LocalDate | null; lastAccrualDate: LocalDate | null;
     restructureCount: number; probationRemaining: number; delinquencyFloorBucket: string | null;
+    /** Money paid before it was due, applied to instalments on their due dates (UC-27). */
+    advanceBalance?: Money;
+    /** Interest is held in suspense instead of income while true (UC-62). */
+    nonAccrual?: boolean; nonAccrualSince?: LocalDate | null; interestInSuspense?: Money;
+    /** Loss allowance and classification from the tenant's impairment policy (OPS-5). */
+    allowance?: Money; classification?: string | null; impairmentStage?: number | null;
+    /** Down payment received before disbursement and the part the lender still holds (UC-02). */
+    downPaymentReceived?: Money; downPaymentHeld?: Money;
 }
 
 export interface LoanScheduleLine {
@@ -287,9 +315,12 @@ export interface FinancialEvent {
     journal: { lines: JournalLine[] } | null; allocations: unknown[];
 }
 
-export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; payload?: unknown; createdAt?: string }
+export interface ApprovalTask { id: string; action: string; status: string; amount: Money | null; currency?: string | null; makerId: string; makerEmail?: string | null; payload?: unknown; createdAt?: string }
 
-export interface AgreementVersion { version: number; reason: string; effectiveDate: LocalDate; engineVersion: string; configHash: string; createdAt: string; createdBy: string }
+/** A policy the contract was composed from, frozen at booking (POLICY_MODEL.md). */
+export interface ContractPolicy { kind: string; code: string; version: number; policyVersionId: string; parameters: Record<string, number> }
+
+export interface AgreementVersion { version: number; reason: string; effectiveDate: LocalDate; engineVersion: string; configHash: string; createdAt: string; createdBy: string; policies?: ContractPolicy[] | null }
 
 export interface LoanDetail {
     account: LoanAccount;
@@ -300,11 +331,23 @@ export interface LoanDetail {
     schedule: LoanScheduleLine[];
     events: FinancialEvent[];
     tasks: ApprovalTask[];
+    /** Set when this account carries a facility's drawn balance (money goes out by drawdown, never a disbursement). */
+    facility?: { id: string; reference: string; facilityType: string } | null;
+    /** Card, BNPL or lease behaviour on this loan (LT-07, LT-11, LT-15). */
+    specialised?: { kind: 'CARD'; cardId: string | null } | { kind: 'BNPL' } | { kind: 'LEASE'; structure: string } | { kind: 'PROJECT_FINANCE' } | { kind: 'TRADE'; direction: 'IMPORT' | 'EXPORT' } | { kind: 'MURABAHA' } | { kind: 'INCOME_CONTINGENT' } | { kind: 'INSTITUTIONAL' } | null;
 }
 
 export interface SettlementQuote {
     asOf: LocalDate; currency: string; principal: Money; interest: Money; fees: Money; penalties: Money;
     settlementFee: Money; total: Money; payable: Money; roundingDifference: Money;
+    /** Lock-in tier or base fee that set the settlement fee (UC-32). */
+    settlementFeeExplanation?: string;
+    /** Money held on advance that goes towards the payoff (UC-27). */
+    advanceApplied?: Money;
+    /** Rule of 78 / actuarial rebate on precomputed interest (UC-33). */
+    interestRebate?: { method: string; rebate: Money; explanation: string };
+    /** Murabaha: profit owed on settlement after any ibra'. */
+    murabaha?: { unearnedProfit: Money; ibra: Money; profitOwed: Money; explanation: string };
 }
 
 /* ── Ops ──────────────────────────────────────────────────────────────────── */
@@ -434,7 +477,7 @@ export interface RestructureProposal {
 
 export interface RestructureCaseSummary {
     id: string; reference: string; status: string; trigger: string; hardshipCategory: string; difficultyType: string;
-    loanAccountId: string; previousRestructures: number; createdAt: string;
+    loanAccountId: string; loanReference?: string | null; previousRestructures: number; createdAt: string;
 }
 
 export interface RestructureCase extends RestructureCaseSummary {

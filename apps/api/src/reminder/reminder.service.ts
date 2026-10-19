@@ -3,6 +3,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BotService } from '../bot/bot.service';
 import { SystemContext } from '../prisma/tenant-context';
+import { JobClaimService } from '../prisma/job-claim.service';
+import { formatCurrency, Currency as SharedCurrency } from '@microloan/shared';
 
 @Injectable()
 export class ReminderService {
@@ -11,12 +13,15 @@ export class ReminderService {
     constructor(
         private prisma: PrismaService,
         private bot: BotService,
+        private claims: JobClaimService,
     ) { }
 
     /**
-     * Daily job at 8:00 AM to send reminders for payments due tomorrow.
+     * Daily job (LEGACY_REMINDER_CRON, default 8:00 AM) to send reminders for
+     * payments due tomorrow. Every API instance runs it; each tenant's batch
+     * is claimed once per day (ScheduledJobClaim), so nobody is messaged twice.
      */
-    @Cron(CronExpression.EVERY_DAY_AT_8AM)
+    @Cron(process.env.LEGACY_REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM)
     @SystemContext('cron: scans installments across all tenants')
     async sendDailyReminders() {
         this.logger.log('[ReminderService] Starting daily payment reminders scan...');
@@ -53,14 +58,19 @@ export class ReminderService {
 
         this.logger.log(`[ReminderService] Found ${installments.length} installments due tomorrow.`);
 
+        const runKey = new Date().toISOString().slice(0, 10);
+        const claimed = new Map<string, boolean>();
         for (const item of installments) {
             const { loan } = item;
-            const { borrower, tenant } = loan;
+            const { borrower } = loan;
+            if (!claimed.has(loan.tenantId))
+                claimed.set(loan.tenantId, await this.claims.once(loan.tenantId, 'legacy.due-tomorrow-reminders', runKey));
+            if (!claimed.get(loan.tenantId)) continue;
 
             // ── Sending to Borrower (if they have a Telegram Chat ID) ───────────────
             if (borrower.telegramChatId) {
                 try {
-                    const msg = `🔔 **Payment Reminder**\n\nDear ${borrower.firstName},\nYour installment of **$${item.totalAmount}** for Loan #${loan.id.slice(0, 8).toUpperCase()} is due tomorrow (${item.dueDate.toLocaleDateString()}).\n\nPlease ensure your payment is made on time to avoid penalties. Thank you!`;
+                    const msg = `🔔 **Payment Reminder**\n\nDear ${borrower.firstName},\nYour installment of **${formatCurrency(Number(item.totalAmount), loan.currency as unknown as SharedCurrency)}** for Loan #${loan.id.slice(0, 8).toUpperCase()} is due tomorrow (${item.dueDate.toLocaleDateString()}).\n\nPlease ensure your payment is made on time to avoid penalties. Thank you!`;
 
                     await this.bot.sendDisbursementAlert(loan.tenantId, borrower.telegramChatId, msg);
                     this.logger.log(`[ReminderService] Reminder sent to borrower ${borrower.id} for loan ${loan.id}`);

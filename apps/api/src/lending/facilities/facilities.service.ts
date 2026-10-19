@@ -28,6 +28,10 @@ import {
   resourceOf as loanResourceOf,
 } from '../servicing/loan-state';
 import { FacilityState, loadFacilityState, resourceOf } from './facility-state';
+import {
+  assertWithinBorrowingBase,
+  borrowingBaseAvailabilityFor,
+} from './borrowing-base.service';
 
 type Json = Prisma.InputJsonValue;
 type Dec = InstanceType<typeof lending.D>;
@@ -62,7 +66,104 @@ export class FacilitiesService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
-  ) {}
+  ) {
+    // A facility's loan account carries the drawn balance; money goes out
+    // through the facility's drawdowns, so it is never disbursed directly.
+    this.servicing.registerDisbursementGuard(async (tx, state) => {
+      const facility = await tx.facility.findFirst({
+        where: {
+          tenantId: state.account.tenantId,
+          agreementId: state.account.agreementId,
+        },
+        select: { reference: true },
+      });
+      if (facility)
+        throw new ConflictException({
+          message: `This account carries the drawn balance of facility ${facility.reference}: money goes out through the facility's drawdowns, not a disbursement.`,
+          code: 'FACILITY_ACCOUNT',
+        });
+    });
+    // UC-38: a line with no schedule still has payments due — each
+    // statement's minimum payment — and arrears on them age like any other.
+    this.servicing.registerBatchHook(async (tx, state, businessDate) => {
+      // A card ages its own minimum payments (CardsService); leave it alone.
+      if (state.config.card) return;
+      // A term loan has no facility: only a non-TERM facility config is ever
+      // booked as one (ApplicationsService.bookFacility), and later agreement
+      // versions carry the config over, so there is nothing to look up.
+      if (state.config.facility?.type === 'TERM') {
+        state.externalDpd = 0;
+        return;
+      }
+      state.externalDpd = await this.minimumPaymentArrears(
+        tx,
+        state.account.tenantId,
+        state.account.agreementId,
+        state.account.id,
+        businessDate,
+      );
+    });
+  }
+
+  /**
+   * Days past due on a facility's minimum payments. Repayments since the
+   * first statement are applied to the statements' minimum payments oldest
+   * first; the oldest one still not covered after its due date sets the
+   * days past due. A late payment therefore cures the arrears it covers, and
+   * a repaid line is never past due.
+   */
+  async minimumPaymentArrears(
+    tx: Tx,
+    tenantId: string,
+    agreementId: string,
+    loanAccountId: string,
+    businessDate: string,
+  ): Promise<number> {
+    const facility = await tx.facility.findFirst({
+      where: { tenantId, agreementId },
+      select: { id: true, status: true },
+    });
+    // A termed-out line is an instalment loan: its schedule governs.
+    if (!facility || facility.status === 'TERMED_OUT') return 0;
+    const statements = await tx.facilityStatement.findMany({
+      where: {
+        tenantId,
+        facilityId: facility.id,
+        minimumPayment: { gt: 0 },
+        minimumPaymentDue: { not: null },
+      },
+      orderBy: { sequence: 'asc' },
+    });
+    if (!statements.length) return 0;
+    const account = await tx.loanAccount.findFirst({
+      where: { id: loanAccountId, tenantId },
+      select: { principalOutstanding: true },
+    });
+    if (!account || D(account.principalOutstanding).lte(0)) return 0;
+    const paid = await tx.financialEvent.aggregate({
+      where: {
+        tenantId,
+        loanAccountId,
+        type: 'REPAYMENT',
+        status: 'POSTED',
+        valueDate: { gte: statements[0].periodEnd },
+      },
+      _sum: { amount: true },
+    });
+    let pool = D(paid._sum.amount ?? '0');
+    for (const st of statements) {
+      const due = D(st.minimumPayment);
+      if (pool.gte(due)) {
+        pool = pool.minus(due);
+        continue;
+      }
+      const dueDate = toLocalDate(st.minimumPaymentDue)!;
+      return lending.compareDates(dueDate, businessDate) < 0
+        ? lending.daysBetween(dueDate, businessDate)
+        : 0;
+    }
+    return 0;
+  }
 
   // ── Reads ─────────────────────────────────────────────────────────────────
 
@@ -124,8 +225,34 @@ export class FacilitiesService {
       const position = engineCall(() =>
         lending.facilityPosition(state.terms, state.movements, asOf),
       );
+      const card = await tx.cardAccount.findFirst({
+        where: { tenantId, facilityId: id },
+        select: { id: true, reference: true, status: true },
+      });
+      const borrowingBase = state.config.borrowingBase
+        ? await borrowingBaseAvailabilityFor(tx, state, asOf)
+        : null;
+      const project = state.config.projectFinance
+        ? await tx.projectFinance.findFirst({
+            where: { tenantId, loanAccountId: state.account.id },
+            select: { id: true, status: true },
+          })
+        : null;
       return {
         facility: view(state.facility),
+        // Invoice finance, factoring, supply-chain finance or forfaiting move
+        // through the receivables register, never a plain drawdown.
+        receivablesKind: lending.receivablesKind(state.config),
+        card,
+        borrowingBase,
+        project: project
+          ? {
+              ...project,
+              capitalizeConstructionInterest:
+                state.config.projectFinance!.capitalizeConstructionInterest,
+              targetDscr: state.config.projectFinance!.targetDscr,
+            }
+          : null,
         terms: state.terms,
         position,
         loanAccountId: state.account.id,
@@ -180,6 +307,8 @@ export class FacilitiesService {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      assertNotInvoiceFacility(state, 'drawn');
+      refuseCard(state, 'drawdowns');
       await this.policy.enforce(
         actor,
         'facility.drawdown.request',
@@ -515,6 +644,7 @@ export class FacilitiesService {
     const hash = requestHash({ op: 'facility.statement', id, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      refuseCard(state, 'statements');
       await this.policy.enforce(
         actor,
         'facility.statement.generate',
@@ -546,13 +676,29 @@ export class FacilitiesService {
         ),
       );
       const interest = D(statement.interest).plus(statement.overlimitInterest);
-      const fee = D(statement.commitmentFee);
+      // UC-41: a flat fee for a period in which the balance went over the limit.
+      const wentOver =
+        D(statement.overlimitInterest).gt(0) ||
+        (state.facility.facilityType !== 'STAGED_DRAWDOWN' &&
+          D(statement.closingBalance).gt(D(state.facility.limitAmount)));
+      const overlimitFee =
+        wentOver && state.config.facility.overlimitFee
+          ? D(state.config.facility.overlimitFee)
+          : D(0);
+      const fee = D(statement.commitmentFee).plus(overlimitFee);
       const charges = interest.plus(fee);
 
       const loanState = await loadLoanState(tx, tenantId, state.account.id, {
         lock: false,
       });
       const acct = state.config.accounting;
+      // LT-17: during construction a project's interest is added to principal
+      // rather than billed — the sponsor pays nothing until the project earns.
+      const capitalized =
+        state.config.projectFinance?.capitalizeConstructionInterest &&
+        state.facility.status !== 'TERMED_OUT'
+          ? interest
+          : D(0);
       if (charges.gt(0)) {
         await this.servicing.recordEvent(tx, loanState, {
           type: 'ACCRUAL',
@@ -564,6 +710,7 @@ export class FacilitiesService {
             interest: statement.interest,
             overlimitInterest: statement.overlimitInterest,
             commitmentFee: statement.commitmentFee,
+            overlimitFee: overlimitFee.toString(),
             periodStart,
             periodEnd,
           },
@@ -592,13 +739,46 @@ export class FacilitiesService {
               : []),
           ],
         });
+        if (capitalized.gt(0)) {
+          await this.servicing.recordEvent(tx, loanState, {
+            type: 'CAPITALIZATION',
+            amount: capitalized,
+            businessDate,
+            valueDate: periodEnd,
+            components: {
+              facilityId: id,
+              capitalizedInterest: capitalized.toString(),
+              periodStart,
+              periodEnd,
+              reason: 'CONSTRUCTION_INTEREST',
+            },
+            idempotencyKey: `${idempotencyKey}:capitalize`,
+            requestHash: hash,
+            actor,
+            narrative: `Construction interest capitalized ${periodStart} → ${periodEnd} on ${state.facility.reference}`,
+            lines: [
+              {
+                accountCode: acct.loansReceivable,
+                debit: capitalized.toString(),
+              },
+              {
+                accountCode: acct.interestReceivable,
+                credit: capitalized.toString(),
+              },
+            ],
+          });
+        }
         await this.servicing.casAccount(
           tx,
           loanState,
           loanState.account.status,
           {
+            principalOutstanding: D(loanState.account.principalOutstanding)
+              .plus(capitalized)
+              .toString(),
             interestReceivable: D(loanState.account.interestReceivable)
               .plus(interest)
+              .minus(capitalized)
               .toString(),
             feesReceivable: D(loanState.account.feesReceivable)
               .plus(fee)
@@ -632,9 +812,17 @@ export class FacilitiesService {
           chargesRaised: statement.chargesRaised,
           minimumPayment: statement.minimumPayment?.amount ?? null,
           minimumPaymentDue: statement.minimumPayment
-            ? fromLocalDate(lending.addDays(periodEnd, 21))
+            ? fromLocalDate(
+                lending.addDays(
+                  periodEnd,
+                  state.config.facility.minimumPaymentDueDays,
+                ),
+              )
             : null,
-          calculation: statement as unknown as Json,
+          calculation: {
+            ...statement,
+            overlimitFee: overlimitFee.toString(),
+          } as unknown as Json,
           engineVersion: lending.LENDING_ENGINE_VERSION,
           createdBy: actor.id,
         },
@@ -650,7 +838,14 @@ export class FacilitiesService {
         periodEnd,
         charges: charges.toString(),
       });
-      return { statement: statementView(row), detail: statement };
+      return {
+        statement: statementView(row),
+        detail: {
+          ...statement,
+          overlimitFee: overlimitFee.toString(),
+          capitalizedInterest: capitalized.toString(),
+        },
+      };
     });
   }
 
@@ -674,6 +869,7 @@ export class FacilitiesService {
     const hash = requestHash({ op: 'facility.repay', id, body });
     return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
+      refuseCard(state, 'payments');
       const amount = lending.parseMoney(
         String(body.amount ?? ''),
         state.facility.currency,
@@ -681,6 +877,13 @@ export class FacilitiesService {
       );
       if (amount.lte(0))
         throw new BadRequestException('Amount must be positive.');
+      assertNotInvoiceFacility(state, 'repaid');
+      if (state.facility.status === 'TERMED_OUT')
+        throw new BadRequestException({
+          message: `This facility has termed out into an instalment loan; post repayments on loan ${state.account.reference}.`,
+          code: 'FACILITY_TERMED_OUT',
+          loanAccountId: state.account.id,
+        });
 
       const loanState = await loadLoanState(tx, tenantId, state.account.id, {
         lock: false,
@@ -794,6 +997,8 @@ export class FacilitiesService {
       changeType: string;
       reason: string;
       effectiveDate?: string;
+      /** RENEWAL (UC-42): months to extend availability and maturity by. */
+      renewalMonths?: number;
     },
   ) {
     const tenantId = requireTenant(actor);
@@ -803,7 +1008,12 @@ export class FacilitiesService {
       'EXTENSION',
       'SUSPENSION',
       'REINSTATEMENT',
+      'RENEWAL',
     ];
+    if (body.changeType === 'RENEWAL' && !body.renewalMonths)
+      throw new BadRequestException(
+        'A renewal says how many months to extend the facility by.',
+      );
     if (!types.includes(body.changeType)) {
       throw new BadRequestException(
         `changeType must be one of ${types.join(', ')}.`,
@@ -861,6 +1071,8 @@ export class FacilitiesService {
           effectiveDate: fromLocalDate(effectiveDate),
           status: 'REQUESTED',
           requestedBy: actor.id,
+          renewalMonths:
+            body.changeType === 'RENEWAL' ? body.renewalMonths : null,
         },
       });
       await this.writeAudit(actor, tx, state, 'facility.limit.request', {
@@ -914,8 +1126,37 @@ export class FacilitiesService {
       if (decided.count !== 1)
         throw concurrentModification('This limit change');
       if (body.outcome === 'APPROVE') {
+        // UC-42: a renewal also extends availability and maturity, and
+        // brings an expired line back into use.
+        const months = change.renewalMonths ?? 0;
+        if (
+          months &&
+          !['ACTIVE', 'SUSPENDED', 'EXPIRED'].includes(state.facility.status)
+        )
+          throw new ConflictException(
+            `A ${state.facility.status.toLowerCase()} facility cannot be renewed.`,
+          );
         await this.casFacility(tx, state, {
           limitAmount: decStr(change.newLimit),
+          ...(months
+            ? {
+                availabilityTo: fromLocalDate(
+                  lending.addMonths(
+                    toLocalDate(state.facility.availabilityTo)!,
+                    months,
+                  ),
+                ),
+                maturityDate: fromLocalDate(
+                  lending.addMonths(
+                    toLocalDate(state.facility.maturityDate)!,
+                    months,
+                  ),
+                ),
+                ...(state.facility.status === 'EXPIRED'
+                  ? { status: 'ACTIVE' }
+                  : {}),
+              }
+            : {}),
         });
       }
       await this.writeAudit(
@@ -992,7 +1233,92 @@ export class FacilitiesService {
    * itself is built by `generateSchedule`, so a termed-out facility is
    * serviced by exactly the code that services a term loan from then on.
    */
-  async termOut(actor: LendingActor, id: string) {
+  /**
+   * LT-17: the repayment profile a project would term out on — sculpted to
+   * the projected CFADS at the product's target DSCR — without writing
+   * anything. `principal` sizes a what-if; by default it is the balance
+   * drawn (construction interest included).
+   */
+  async sculptPreview(
+    actor: LendingActor,
+    id: string,
+    body: {
+      cfads: lending.CfadsProjection[];
+      balloonAmount?: string;
+      principal?: string;
+      startDate?: string;
+    },
+  ) {
+    const tenantId = requireTenant(actor);
+    return this.lp.tenantTx(tenantId, async (tx) => {
+      const state = await loadFacilityState(tx, tenantId, id, { lock: false });
+      await this.policy.enforce(actor, 'facility.read', resourceOf(state), tx);
+      const pf = state.config.projectFinance;
+      if (!pf)
+        throw new BadRequestException({
+          message:
+            'Only a project-finance facility terms out on a sculpted profile.',
+          code: 'NOT_PROJECT_FINANCE',
+        });
+      const businessDate = await this.businessDate.get(tenantId, tx);
+      const start =
+        body.startDate ??
+        (lending.compareDates(
+          businessDate,
+          toLocalDate(state.facility.availabilityTo)!,
+        ) > 0
+          ? businessDate
+          : toLocalDate(state.facility.availabilityTo)!);
+      const principal =
+        body.principal ?? D(state.account.principalOutstanding).toString();
+      if (D(principal).lte(0))
+        throw new BadRequestException(
+          'Nothing is drawn yet; give a principal to size the profile.',
+        );
+      const result = this.sculpt(state, principal, start, body);
+      return {
+        ...result,
+        startDate: start,
+        maturityDate: state.terms.maturityDate,
+      };
+    });
+  }
+
+  private sculpt(
+    state: FacilityState,
+    principal: string,
+    startDate: string,
+    body: { cfads: lending.CfadsProjection[]; balloonAmount?: string },
+  ) {
+    const pf = state.config.projectFinance!;
+    const last = body.cfads[body.cfads.length - 1]?.dueDate;
+    if (last && lending.compareDates(last, state.terms.maturityDate) > 0)
+      throw new BadRequestException({
+        message: `The projection runs to ${last}, beyond the facility's maturity ${state.terms.maturityDate}.`,
+        code: 'SCULPT_BEYOND_MATURITY',
+      });
+    return engineCall(() =>
+      lending.sculptRepayment({
+        principal,
+        currency: state.facility.currency,
+        rounding: state.config.pricing.rounding,
+        startDate,
+        annualRate: state.terms.annualRate,
+        dayCount: state.config.pricing.dayCount,
+        rateConvention: state.config.pricing.rateConvention,
+        ratePrecision: state.config.pricing.ratePrecision,
+        periods: body.cfads,
+        targetDscr: pf.targetDscr,
+        balloonAmount: body.balloonAmount ?? null,
+      }),
+    );
+  }
+
+  async termOut(
+    actor: LendingActor,
+    id: string,
+    body: { cfads?: lending.CfadsProjection[]; balloonAmount?: string } = {},
+  ) {
     const tenantId = requireTenant(actor);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const state = await loadFacilityState(tx, tenantId, id);
@@ -1002,6 +1328,7 @@ export class FacilitiesService {
         resourceOf(state),
         tx,
       );
+      refuseCard(state, 'term-out');
       if (!state.config.facility.termOutOnExpiry) {
         throw new BadRequestException(
           'This facility is repayable on demand; it does not term out.',
@@ -1031,19 +1358,188 @@ export class FacilitiesService {
           'Settle the outstanding drawdown requests before terming out.',
         );
       }
-      const plan = engineCall(() =>
-        lending.termOut(state.terms, state.movements),
-      );
+      // Charges to the term-out date are posted by a statement first, so the
+      // schedule's own accrual starts exactly where the facility's stopped.
+      const statedTo = toLocalDate(state.facility.lastStatementTo);
+      if (!statedTo || lending.compareDates(statedTo, businessDate) !== 0)
+        throw new ConflictException({
+          message: `Generate a statement up to ${businessDate} first, so interest to the term-out date is charged.`,
+          code: 'STATEMENT_REQUIRED',
+        });
+      // The engine checks there is a balance and at least a month to maturity.
+      engineCall(() => lending.termOut(state.terms, state.movements));
+      const loanState = await loadLoanState(tx, tenantId, state.account.id);
+      const principal = D(loanState.account.principalOutstanding);
+      if (principal.lte(0))
+        throw new ConflictException(
+          'Nothing is drawn; there is nothing to term out.',
+        );
+      const maturity = state.terms.maturityDate;
+      const months = lending.wholeMonthsBetween(businessDate, maturity);
+      if (months < 1)
+        throw new ConflictException(
+          `There is less than a month between today and maturity (${maturity}); repay the facility instead.`,
+        );
+
+      // UC-43: the drawn balance becomes an amortizing loan on the same
+      // account, so repayment, delinquency, penalties and accrual follow the
+      // ordinary loan path from here.
+      const cfg = state.config;
+      // LT-17: a project terms out on a profile sculpted to its projected
+      // cash flow instead of level monthly instalments.
+      const pf = cfg.projectFinance;
+      if (pf && !body.cfads?.length)
+        throw new BadRequestException({
+          message:
+            'A project terms out on a repayment profile sculpted to its projected CFADS; give the projection.',
+          code: 'SCULPTING_REQUIRED',
+        });
+      if (!pf && body.cfads?.length)
+        throw new BadRequestException({
+          message:
+            'Only a project-finance facility terms out on a sculpted profile.',
+          code: 'NOT_PROJECT_FINANCE',
+        });
+      const sculpted = pf
+        ? this.sculpt(state, principal.toString(), businessDate, {
+            cfads: body.cfads!,
+            balloonAmount: body.balloonAmount,
+          })
+        : null;
+      const input: lending.ScheduleInput = sculpted
+        ? sculpted.scheduleInput
+        : {
+            principal: principal.toString(),
+            currency: loanState.account.currency,
+            rounding: cfg.pricing.rounding,
+            disbursementDate: businessDate,
+            annualRate: state.terms.annualRate,
+            rateConvention: cfg.pricing.rateConvention,
+            interestMethod: 'REDUCING_BALANCE',
+            accrualBasis: cfg.pricing.accrualBasis,
+            dayCount: cfg.pricing.dayCount,
+            ratePrecision: cfg.pricing.ratePrecision,
+            method: 'EQUAL_INSTALMENT',
+            frequency: 'MONTHLY',
+            numberOfInstalments: months,
+          };
+      const schedule = sculpted
+        ? sculpted.schedule
+        : engineCall(() => lending.generateSchedule(input));
+      const version = loanState.agreementVersion + 1;
+      const latest = await tx.agreementVersion.findFirst({
+        where: {
+          tenantId,
+          agreementId: loanState.account.agreementId,
+          version: loanState.agreementVersion,
+        },
+      });
+      await tx.agreementVersion.create({
+        data: {
+          tenantId,
+          agreementId: loanState.account.agreementId,
+          version,
+          reason: 'TERM_OUT',
+          productConfig: latest!.productConfig as Prisma.InputJsonValue,
+          policies: (latest!.policies ?? undefined) as
+            | Prisma.InputJsonValue
+            | undefined,
+          configHash: latest!.configHash,
+          terms: {
+            termOutOf: state.facility.reference,
+          } as Prisma.InputJsonValue,
+          scheduleInput: input as unknown as Prisma.InputJsonValue,
+          calculation: { schedule } as unknown as Prisma.InputJsonValue,
+          engineVersion: lending.LENDING_ENGINE_VERSION,
+          effectiveDate: fromLocalDate(businessDate),
+          createdBy: actor.id,
+        },
+      });
+      // Charges already stated but unpaid fall due with the first instalment,
+      // so they are collected and aged like any other arrears.
+      const carriedInterest = D(loanState.account.interestReceivable);
+      const carriedFees = D(loanState.account.feesReceivable);
+      await tx.scheduleInstalment.createMany({
+        data: schedule.lines.map((l, i) => ({
+          tenantId,
+          loanAccountId: loanState.account.id,
+          agreementVersion: version,
+          number: l.number,
+          periodStart: fromLocalDate(l.periodStart),
+          periodEnd: fromLocalDate(l.periodEnd),
+          dueDate: fromLocalDate(l.dueDate),
+          openingPrincipal: l.openingPrincipal,
+          principalDue: l.principal,
+          interestDue: l.interest,
+          deferredInterestDue: i === 0 ? carriedInterest.toString() : '0',
+          feeDue: i === 0 ? carriedFees.toString() : '0',
+          capitalizedInterest: l.capitalizedInterest,
+          annualRate: l.annualRate,
+          projected: l.projected,
+        })),
+      });
+      await this.servicing.casAccount(tx, loanState, loanState.account.status, {
+        instalmentAmount: schedule.instalmentAmount,
+        maturityDate: fromLocalDate(
+          schedule.lines[schedule.lines.length - 1].dueDate,
+        ),
+        lastAccrualDate: fromLocalDate(businessDate),
+      });
       await this.casFacility(tx, state, {
         status: 'TERMED_OUT',
         termedOutAt: new Date(),
       });
+      if (sculpted) {
+        const res = await tx.projectFinance.updateMany({
+          where: {
+            tenantId,
+            loanAccountId: loanState.account.id,
+            status: 'CONSTRUCTION',
+          },
+          data: {
+            status: 'OPERATIONS',
+            termedOutOn: fromLocalDate(businessDate),
+            sculpting: {
+              cfads: body.cfads,
+              balloonAmount: body.balloonAmount ?? null,
+              targetDscr: sculpted.targetDscr,
+              sculptedDscr: sculpted.sculptedDscr,
+              minDscr: sculpted.minDscr,
+              averageDscr: sculpted.averageDscr,
+              maxDebt: sculpted.maxDebt,
+              lines: sculpted.lines,
+              explanation: sculpted.explanation,
+            } as unknown as Json,
+            version: { increment: 1 },
+          },
+        });
+        if (res.count !== 1) throw concurrentModification('The project');
+      }
       await this.writeAudit(actor, tx, state, 'facility.manage', {
         action: 'TERM_OUT',
-        principal: plan.principal,
-        months: plan.months,
+        principal: principal.toString(),
+        months: schedule.lines.length,
+        agreementVersion: version,
+        sculptedDscr: sculpted?.sculptedDscr ?? null,
       });
-      return plan;
+      return {
+        principal: principal.toString(),
+        effectiveDate: businessDate,
+        months: sculpted ? schedule.lines.length : months,
+        sculpting: sculpted
+          ? {
+              sculptedDscr: sculpted.sculptedDscr,
+              minDscr: sculpted.minDscr,
+              maxDebt: sculpted.maxDebt,
+              lines: sculpted.lines,
+            }
+          : null,
+        instalmentAmount: schedule.instalmentAmount,
+        maturityDate: schedule.lines[schedule.lines.length - 1].dueDate,
+        carriedInterest: carriedInterest.toString(),
+        carriedFees: carriedFees.toString(),
+        loanAccountId: loanState.account.id,
+      };
     });
   }
 
@@ -1087,6 +1583,8 @@ export class FacilitiesService {
         issues: check.issues,
       });
     }
+    // LT-14: a borrowing-base line draws only up to its certified base.
+    await assertWithinBorrowingBase(tx, state, req);
   }
 
   /** Condition codes satisfied or waived for a tranche. */
@@ -1210,6 +1708,20 @@ export class FacilitiesService {
 }
 
 /**
+ * A card's facility carries the limit, but its balance is split into
+ * purchases, cash advances and plans that price differently; moving it
+ * through the generic facility path would bypass that split. Card money
+ * moves through /lending/cards (CardsService) only.
+ */
+function refuseCard(state: FacilityState, what: string) {
+  if (state.config.card)
+    throw new ConflictException({
+      message: `This facility is a credit card: post ${what} through the card, not the facility.`,
+      code: 'CARD_FACILITY',
+    });
+}
+
+/**
  * `@db.Date` columns come back from Prisma as UTC-midnight `Date`s, which
  * serialize as full timestamps. Business dates leave this API as plain
  * `YYYY-MM-DD`, as they do everywhere else on the platform.
@@ -1275,4 +1787,18 @@ function view(f: {
     maturityDate: toLocalDate(f.maturityDate),
     createdAt: f.createdAt,
   };
+}
+
+/**
+ * An invoice-finance facility moves only through its invoices (LT-18): an
+ * advance is drawn against one approved invoice, and money in is applied to
+ * the invoice it pays. A plain drawdown or repayment would leave the invoice
+ * register and the balance telling different stories.
+ */
+function assertNotInvoiceFacility(state: FacilityState, verb: string) {
+  if (lending.receivablesKind(state.config))
+    throw new BadRequestException({
+      message: `This is a receivables facility (invoice finance, factoring, supply-chain finance or forfaiting); it is ${verb} through its receivables register.`,
+      code: 'INVOICE_FACILITY',
+    });
 }

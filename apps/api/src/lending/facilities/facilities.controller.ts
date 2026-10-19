@@ -14,6 +14,7 @@ import type { Request } from 'express';
 import { LendingAction, lendingActorOf } from '../policy/lending-action.guard';
 import { ZodPipe } from '../common/zod.pipe';
 import { FacilitiesService } from './facilities.service';
+import { BorrowingBaseService } from './borrowing-base.service';
 
 const ID = new ParseUUIDPipe();
 const actor = (req: Request) => lendingActorOf(req as never);
@@ -51,9 +52,11 @@ const limitRequest = z
       'EXTENSION',
       'SUSPENSION',
       'REINSTATEMENT',
+      'RENEWAL',
     ]),
     reason: z.string().min(1).max(500),
     effectiveDate: date.optional(),
+    renewalMonths: z.number().int().min(1).max(120).optional(),
   })
   .strict();
 
@@ -75,6 +78,55 @@ const statusChange = z
   })
   .strict();
 
+const cfadsProjection = z
+  .array(z.object({ dueDate: date, cfads: money }).strict())
+  .min(1)
+  .max(480);
+const termOut = z
+  .object({
+    cfads: cfadsProjection.optional(),
+    balloonAmount: money.optional(),
+  })
+  .strict();
+const sculptPreview = z
+  .object({
+    cfads: cfadsProjection,
+    balloonAmount: money.optional(),
+    principal: money.optional(),
+    startDate: date.optional(),
+  })
+  .strict();
+const certificateLines = z
+  .array(
+    z
+      .object({
+        classCode: code,
+        description: z.string().trim().min(1).max(200),
+        counterparty: z.string().trim().max(120).optional(),
+        grossValue: money,
+        ineligibleAmount: money.optional(),
+        ineligibleReason: z.string().trim().max(200).optional(),
+        ageDays: z.number().int().min(0).max(36500).optional(),
+      })
+      .strict(),
+  )
+  .min(1)
+  .max(500);
+const certificate = z
+  .object({
+    asOfDate: date,
+    lines: certificateLines,
+    notes: z.string().max(500).optional(),
+  })
+  .strict();
+const certificatePreview = z.object({ lines: certificateLines }).strict();
+const certificateDecision = z
+  .object({
+    outcome: z.enum(['ACCEPT', 'REJECT']),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
 /**
  * Facility administration. Money endpoints (releasing a drawdown, raising a
  * period's charges) require an Idempotency-Key, like every other money
@@ -82,7 +134,10 @@ const statusChange = z
  */
 @Controller('lending/facilities')
 export class LendingFacilitiesController {
-  constructor(private readonly svc: FacilitiesService) {}
+  constructor(
+    private readonly svc: FacilitiesService,
+    private readonly bb: BorrowingBaseService,
+  ) {}
 
   @LendingAction('facility.read')
   @Get()
@@ -261,7 +316,65 @@ export class LendingFacilitiesController {
 
   @LendingAction('facility.manage')
   @Post(':id/term-out')
-  termOut(@Req() req: Request, @Param('id', ID) id: string) {
-    return this.svc.termOut(actor(req), id);
+  termOut(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(termOut.optional()))
+    body: z.infer<typeof termOut> | undefined,
+  ) {
+    return this.svc.termOut(actor(req), id, body ?? {});
+  }
+
+  /** LT-17: the sculpted profile a project would term out on; writes nothing. */
+  @LendingAction('facility.read')
+  @Post(':id/sculpting-preview')
+  sculptPreview(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(sculptPreview)) body: z.infer<typeof sculptPreview>,
+  ) {
+    return this.svc.sculptPreview(actor(req), id, body);
+  }
+
+  // ── Borrowing base (LT-14) ────────────────────────────────────────────────
+
+  @LendingAction('facility.read')
+  @Get(':id/borrowing-base')
+  borrowingBase(@Req() req: Request, @Param('id', ID) id: string) {
+    return this.bb.overview(actor(req), id);
+  }
+
+  /** Work out what a certificate would support; writes nothing. */
+  @LendingAction('facility.read')
+  @Post(':id/borrowing-base/preview')
+  borrowingBasePreview(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(certificatePreview))
+    body: z.infer<typeof certificatePreview>,
+  ) {
+    return this.bb.preview(actor(req), id, body);
+  }
+
+  @LendingAction('facility.borrowing_base.submit')
+  @Post(':id/borrowing-base/certificates')
+  submitCertificate(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(certificate)) body: z.infer<typeof certificate>,
+  ) {
+    return this.bb.submit(actor(req), id, body);
+  }
+
+  @LendingAction('facility.borrowing_base.decide')
+  @Post(':id/borrowing-base/certificates/:certificateId/decision')
+  decideCertificate(
+    @Req() req: Request,
+    @Param('id', ID) id: string,
+    @Param('certificateId', ID) certificateId: string,
+    @Body(new ZodPipe(certificateDecision))
+    body: z.infer<typeof certificateDecision>,
+  ) {
+    return this.bb.decide(actor(req), id, certificateId, body);
   }
 }

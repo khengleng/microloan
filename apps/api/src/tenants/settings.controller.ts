@@ -1,12 +1,13 @@
-import { Controller, Get, Put, Body, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Put, Body, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
 import { BotService } from '../bot/bot.service';
-import { normalizeCurrency, NBC_ANNUAL_INTEREST_CAP_PCT } from '@microloan/shared';
+import { normalizeCurrency } from '@microloan/shared';
+import { operationalConfig } from '../config/operational-config';
 import { Currency } from '@microloan/db';
-import { encryptField } from '../common/field-crypto';
+import { blindIndex, encryptField } from '../common/field-crypto';
 
 @Controller('settings')
 export class SettingsController {
@@ -60,15 +61,26 @@ export class SettingsController {
     ) {
         if (!user.tenantId) throw new UnauthorizedException('Tenant scope is required.');
 
-        // Feature #1: never allow a tenant cap above the NBC regulatory ceiling.
+        // Feature #1: never allow a tenant cap above the regulatory ceiling
+        // (REGULATORY_MAX_ANNUAL_RATE_PCT, default the NBC 18%).
         let cap: number | undefined;
         if (data.maxAnnualInterestRatePct !== undefined) {
-            cap = Math.min(Number(data.maxAnnualInterestRatePct), NBC_ANNUAL_INTEREST_CAP_PCT);
-            if (!(cap > 0)) cap = NBC_ANNUAL_INTEREST_CAP_PCT;
+            const ceiling = operationalConfig().regulatoryMaxAnnualRatePct;
+            cap = Math.min(Number(data.maxAnnualInterestRatePct), ceiling);
+            if (!(cap > 0)) cap = ceiling;
         }
         const baseCurrency = data.baseCurrency
             ? (normalizeCurrency(data.baseCurrency) as unknown as Currency)
             : undefined;
+
+        // One bot serves one organisation: a token already saved by another
+        // tenant would let this one receive that tenant's customers' messages.
+        const botTokenHash = data.telegramBotToken ? blindIndex(data.telegramBotToken) : null;
+        if (botTokenHash) {
+            const taken = await this.prisma.$queryRaw<{ id: string }[]>`
+                SELECT id FROM "Tenant" WHERE "telegramBotTokenHash" = ${botTokenHash} AND id <> ${user.tenantId}`;
+            if (taken.length) throw new ConflictException('This Telegram bot is already connected to another organisation.');
+        }
 
         const tenant = await this.prisma.tenant.update({
             where: { id: user.tenantId },
@@ -76,7 +88,9 @@ export class SettingsController {
                 name: data.name,
                 // Only overwrite the token when a non-empty value is supplied
                 // (the field is write-only, so a blank on save must not clear it).
-                ...(data.telegramBotToken ? { telegramBotToken: encryptField(data.telegramBotToken) } : {}),
+                ...(data.telegramBotToken
+                    ? { telegramBotToken: encryptField(data.telegramBotToken), telegramBotTokenHash: botTokenHash }
+                    : {}),
                 baseCurrency,
                 maxAnnualInterestRatePct: cap,
                 requireCreditCheckForApproval: data.requireCreditCheckForApproval,
@@ -89,7 +103,9 @@ export class SettingsController {
             await this.botService.startBotForTenant(tenant.id, data.telegramBotToken);
         }
 
-        const { telegramBotToken, ...rest } = tenant;
+        // Neither the token nor its hash ever leaves the server.
+        const { telegramBotToken, telegramBotTokenHash, ...rest } = tenant;
+        void telegramBotTokenHash;
         return { ...rest, telegramBotConfigured: !!telegramBotToken };
     }
 }

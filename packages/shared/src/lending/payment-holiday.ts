@@ -218,8 +218,14 @@ export function holidayDeferredInterest(
     case 'DEFER_NO_CAPITALIZATION':
       return calc.components.deferred.interest;
     case 'CAPITALIZE':
+      // Capitalized, the interest is added to the principal at the end of
+      // each deferred period; the deferred lines carry it as such.
+      return calc.lines
+        .slice(0, instalments)
+        .reduce((total, l) => total.plus(dec(l.capitalizedInterest, 'capitalizedInterest')), ZERO)
+        .toString();
     case 'PAY_SEPARATELY':
-      // These treatments leave the interest on the instalments themselves.
+      // The interest stays on the instalments themselves.
       return calc.lines
         .slice(0, instalments)
         .reduce((total, l) => total.plus(dec(l.interest, 'interest')), ZERO)

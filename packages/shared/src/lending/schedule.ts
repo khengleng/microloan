@@ -13,6 +13,7 @@ import {
   parseDate,
   yearFraction,
 } from './dates.js';
+import { incomeContingentSchedule, type IncomeContingentContract } from './income-contingent.js';
 
 /** Bumped whenever a change could alter any computed schedule. Recorded on every calculation. */
 export const LENDING_ENGINE_VERSION = '1.0.0';
@@ -71,12 +72,36 @@ export interface ScheduleInput {
   principalGraceInstalments?: number;
   /** Instalments at the start in which nothing is paid and interest is capitalized. */
   interestGraceInstalments?: number;
+  /**
+   * How interest is capitalized during that grace: COMPOUND (default) charges
+   * each period on the balance including interest already capitalized;
+   * SIMPLE charges every grace period on the principal at the start, so no
+   * interest is charged on interest (TV-13, TV-16).
+   */
+  graceCapitalization?: 'COMPOUND' | 'SIMPLE';
   balloonAmount?: string;
   explicitSchedule?: ExplicitInstalment[];
   businessDayConvention?: BusinessDayConvention;
   calendar?: HolidayCalendar;
   /** Whether interest accrues to the unadjusted or the business-day-adjusted date. */
   accrualDateBasis?: 'UNADJUSTED' | 'ADJUSTED';
+  /**
+   * Stepped instalments (UC-15): consecutive runs of repayment instalments,
+   * each paying `multiplier` × a base instalment solved so the loan closes.
+   * Instalments after the listed runs pay the base (multiplier 1).
+   */
+  instalmentSteps?: InstalmentStep[];
+  /**
+   * Income-contingent repayment: the instalment is a share of the declared
+   * income above a threshold, not an annuity (income-contingent.ts).
+   */
+  incomeContingent?: IncomeContingentContract;
+}
+
+export interface InstalmentStep {
+  instalments: number;
+  /** Relative size of these instalments, e.g. '0.5' for half, '1.5' for half again. */
+  multiplier: string;
 }
 
 export type LineKind = 'CAPITALIZATION' | 'INTEREST_ONLY' | 'AMORTIZING' | 'FINAL';
@@ -301,12 +326,15 @@ export interface AmortizeRequest {
   opening: Dec;
   principalGrace: number;
   interestGrace: number;
+  graceCapitalization?: 'COMPOUND' | 'SIMPLE';
   balloon: Dec;
   explicitPrincipal?: Dec[];
   /** Keep this level instalment instead of solving for one (prepayment "shorten tenor"). */
   fixedInstalment?: Dec;
   /** Interest for the first period supplied by the caller (mid-period prepayment). */
   firstPeriodInterestOverride?: Dec;
+  /** Per-period weight of a level instalment (stepped instalments); 1 when absent. */
+  stepMultipliers?: Dec[];
   firstLineNumber?: number;
 }
 
@@ -320,19 +348,38 @@ export interface AmortizeRequest {
  * and with F = 0 the standard annuity. It needs no equal-period assumption,
  * which is why irregular dated periods use it instead of the textbook formula.
  */
-export function levelPayment(balance: Dec, factors: Dec[], residual: Dec): Dec {
+export function levelPayment(balance: Dec, factors: Dec[], residual: Dec, weights?: Dec[]): Dec {
+  // With weights wₖ the k-th payment is wₖ·A, so the denominator weights each term.
+  const w = (k: number) => weights?.[k] ?? ONE;
   let growth = ONE;
   for (const f of factors) growth = growth.times(ONE.plus(f));
   let denominator = ZERO;
   let tail = ONE;
   for (let k = factors.length - 1; k >= 0; k--) {
-    denominator = denominator.plus(tail);
+    denominator = denominator.plus(tail.times(w(k)));
     tail = tail.times(ONE.plus(factors[k]));
   }
   if (factors.every((f) => f.isZero())) {
-    return balance.minus(residual).div(factors.length);
+    return balance.minus(residual).div(factors.reduce((acc, _f, k) => acc.plus(w(k)), ZERO));
   }
   return balance.times(growth).minus(residual).div(denominator);
+}
+
+/** Per-period weights for stepped instalments; grace periods weigh 1 and are never paid as level instalments. */
+export function stepWeights(steps: InstalmentStep[] | undefined, periods: number, amortStart: number): Dec[] | undefined {
+  if (!steps?.length) return undefined;
+  const out: Dec[] = Array.from({ length: periods }, () => ONE);
+  let k = amortStart;
+  for (const [i, st] of steps.entries()) {
+    if (!Number.isInteger(st.instalments) || st.instalments < 1) throw new EngineError('INVALID_STEPS', `instalmentSteps[${i}].instalments must be a positive whole number.`);
+    const m = dec(st.multiplier, `instalmentSteps[${i}].multiplier`);
+    if (m.lte(0)) throw new EngineError('INVALID_STEPS', `instalmentSteps[${i}].multiplier must be positive.`);
+    for (let j = 0; j < st.instalments; j++, k++) {
+      if (k >= periods) throw new EngineError('INVALID_STEPS', 'The instalment steps run past the last instalment.');
+      out[k] = m;
+    }
+  }
+  return out;
 }
 
 interface RawLine {
@@ -409,7 +456,9 @@ export function amortize(req: AmortizeRequest): { lines: RawLine[]; instalment: 
     }
 
     if (k < req.interestGrace) {
-      // Nothing is paid; the period's interest is added to principal.
+      // Nothing is paid; the period's interest is added to principal. Simple
+      // capitalization charges it on the principal at the start of the grace.
+      if (req.graceCapitalization === 'SIMPLE') interest = round(req.opening.times(factor));
       balance = balance.plus(interest);
       lines.push({ period, opening, principal: ZERO, interest: ZERO, capitalized: interest, annualRate: rate, factor, kind: 'CAPITALIZATION', projected: !!point.projected });
       continue;
@@ -432,12 +481,13 @@ export function amortize(req: AmortizeRequest): { lines: RawLine[]; instalment: 
           if (k === 0 && req.firstPeriodInterestOverride !== undefined) {
             factors[0] = opening.isZero() ? ZERO : req.firstPeriodInterestOverride.div(opening);
           }
-          instalment = round(levelPayment(opening, factors, req.balloon));
+          instalment = round(levelPayment(opening, factors, req.balloon, req.stepMultipliers?.slice(k)));
           instalmentRate = rate;
         }
-        principal = isLast ? balance : instalment!.minus(interest);
+        const due = req.stepMultipliers ? round(instalment!.times(req.stepMultipliers[k])) : instalment!;
+        principal = isLast ? balance : due.minus(interest);
         if (principal.lt(0)) {
-          throw new EngineError('NEGATIVE_AMORTIZATION', `Instalment ${instalment!.toString()} does not cover interest ${interest.toString()} in period ${k + 1}.`);
+          throw new EngineError('NEGATIVE_AMORTIZATION', `Instalment ${due.toString()} does not cover interest ${interest.toString()} in period ${k + 1}.`);
         }
         if (req.fixedInstalment !== undefined && principal.gte(balance)) {
           principal = balance; // shortened tenor finishes early
@@ -525,6 +575,7 @@ export function contractContext(input: ScheduleInput): { ctx: RateContext; rates
 export type { RateContext };
 
 export function generateSchedule(input: ScheduleInput): ScheduleResult {
+  if (input.incomeContingent) return incomeContingentSchedule(input);
   const currency = getCurrency(input.currency).code;
   const rounding = input.rounding ?? defaultRounding(currency);
   validateRoundingRule(currency, rounding);
@@ -581,8 +632,16 @@ export function generateSchedule(input: ScheduleInput): ScheduleResult {
     opening: principal,
     principalGrace: input.principalGraceInstalments ?? 0,
     interestGrace: input.interestGraceInstalments ?? 0,
+    graceCapitalization: input.graceCapitalization,
     balloon,
     explicitPrincipal,
+    stepMultipliers: (() => {
+      if (!input.instalmentSteps?.length) return undefined;
+      if (input.method !== 'EQUAL_INSTALMENT' || input.interestMethod !== 'REDUCING_BALANCE') {
+        throw new EngineError('INVALID_COMBINATION', 'Stepped instalments need level instalments on a reducing balance.');
+      }
+      return stepWeights(input.instalmentSteps, built.periods.length, input.principalGraceInstalments ?? 0);
+    })(),
   });
   const lines = finalizeLines(raw, ctx);
 
@@ -590,7 +649,9 @@ export function generateSchedule(input: ScheduleInput): ScheduleResult {
   const totalInterest = sum(raw.map((l) => l.interest));
   const totalCapitalized = sum(raw.map((l) => l.capitalized));
   const last = lines[lines.length - 1];
-  const finalResidual = instalment && input.method !== 'BALLOON' && input.method !== 'EXPLICIT' ? dec(last.total).minus(instalment) : null;
+  const lastWeight = input.instalmentSteps?.length ? stepWeights(input.instalmentSteps, built.periods.length, input.principalGraceInstalments ?? 0)![lines.length - 1] : ONE;
+  const finalResidual =
+    instalment && input.method !== 'BALLOON' && input.method !== 'EXPLICIT' ? dec(last.total).minus(roundMoney(instalment.times(lastWeight), rounding)) : null;
 
   const explanation = explain(input, built, ctx, rounding, instalment, finalResidual, totalCapitalized);
   return {

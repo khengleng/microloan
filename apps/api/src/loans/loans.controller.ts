@@ -1,3 +1,4 @@
+import { AddDocumentDto } from './dto/add-document.dto';
 import {
   Controller,
   Get,
@@ -10,8 +11,13 @@ import {
   Query,
 } from '@nestjs/common';
 import { LoansService } from './loans.service';
-import { CreateLoanDto, ChangeLoanStatusDto, CreateInteractionDto } from './dto/create-loan.dto';
+import {
+  CreateLoanDto,
+  ChangeLoanStatusDto,
+  CreateInteractionDto,
+} from './dto/create-loan.dto';
 import { Roles } from '../auth/roles.decorator';
+import { AnyAuthenticated } from '../auth/auth-scope.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { QuotaGuard, CheckQuota } from '../common/quota.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -21,7 +27,7 @@ import { Permission } from '../authz/permission.enum';
 @UseGuards(QuotaGuard)
 @Controller('loans')
 export class LoansController {
-  constructor(private readonly loansService: LoansService) { }
+  constructor(private readonly loansService: LoansService) {}
 
   @Roles('ADMIN', 'OPERATOR', 'SALES')
   @CheckQuota('loans')
@@ -50,6 +56,13 @@ export class LoansController {
     );
   }
 
+  /** Whether the legacy loan book is closed to new business (lending.legacy_loans.readonly). */
+  @AnyAuthenticated()
+  @Get('legacy-status')
+  legacyStatus(@CurrentUser() user: JwtPayload) {
+    return this.loansService.legacyStatus(user);
+  }
+
   @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get('overdue')
@@ -64,8 +77,13 @@ export class LoansController {
     return this.loansService.findOne(user, id);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES')
-  @RequirePermissions(Permission.LOAN_APPLICATION_REVIEW)
+  // Approve, reject and disburse are different people with different
+  // permissions; the service checks the one each transition needs
+  // (LOAN_APPROVE, LOAN_REJECT, LOAN_DISBURSE). Requiring
+  // LOAN_APPLICATION_REVIEW here as well locked out the Approver role
+  // (and Finance, for disbursement), who do not hold it.
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'APPROVER', 'BRANCH_MANAGER')
+  @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Put(':id/status')
   changeStatus(
     @CurrentUser() user: JwtPayload,
@@ -75,7 +93,15 @@ export class LoansController {
     return this.loansService.changeStatus(user, id, dto);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'SALES', 'CX', 'TENANT_ADMIN', 'ACCOUNTANT')
+  @Roles(
+    'ADMIN',
+    'OPERATOR',
+    'FINANCE',
+    'SALES',
+    'CX',
+    'TENANT_ADMIN',
+    'ACCOUNTANT',
+  )
   @RequirePermissions(Permission.CUSTOMER_VIEW)
   @Get(':id/payoff-quote')
   payoffQuote(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
@@ -106,7 +132,7 @@ export class LoansController {
   addDocument(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: { name: string; content: string; type: string },
+    @Body() dto: AddDocumentDto,
   ) {
     return this.loansService.addDocument(user, id, dto);
   }
@@ -119,7 +145,13 @@ export class LoansController {
     @Param('id') id: string,
     @Body() dto: CreateInteractionDto,
   ) {
-    return this.loansService.addInteraction(user, id, dto.notes, dto.title, dto.type);
+    return this.loansService.addInteraction(
+      user,
+      id,
+      dto.notes,
+      dto.title,
+      dto.type,
+    );
   }
 
   @Roles('ADMIN', 'OPERATOR')

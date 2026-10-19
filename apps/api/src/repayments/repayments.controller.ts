@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { PostRepaymentDto } from './dto/post-repayment.dto';
+import { SettleLoanDto } from './dto/settle-loan.dto';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -16,6 +17,14 @@ export class RepaymentsController {
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: PostRepaymentDto) {
     return this.repaymentsService.postRepayment(user, dto);
+  }
+
+  /** UC-31: pay the payoff quote and close the loan, waiving future interest. */
+  @Roles('ADMIN', 'OPERATOR', 'FINANCE')
+  @RequirePermissions(Permission.LOAN_REPAYMENT_POST)
+  @Post('settlements')
+  settle(@CurrentUser() user: JwtPayload, @Body() dto: SettleLoanDto) {
+    return this.repaymentsService.settleLoan(user, dto);
   }
 
   @Roles('ADMIN', 'FINANCE', 'TENANT_ADMIN', 'ACCOUNTANT', 'SUPERADMIN')

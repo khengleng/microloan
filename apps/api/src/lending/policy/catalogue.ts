@@ -114,6 +114,52 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Book an approved application as a loan agreement',
     category: 'Operations',
   },
+  // Scoring and alternative data (D-075…D-080)
+  {
+    code: 'credit_score.run',
+    description: 'Re-run the credit score of an undecided application',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.read',
+    description:
+      'View scorecards, try inputs on them and read the scorecard monitoring report',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.manage',
+    description: 'Draft scorecards and versions and submit them for approval',
+    category: 'Credit',
+  },
+  {
+    code: 'scorecard.approve',
+    description:
+      'Approve, reject, activate and retire scorecard versions drafted by someone else',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.read',
+    description:
+      'View a customer’s consents and alternative data (utility, telco, rent, cash flow)',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.consent.manage',
+    description:
+      'Record and withdraw a customer’s consent to an alternative data source',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.record',
+    description:
+      'Capture document-backed alternative data for a customer (counts once verified)',
+    category: 'Credit',
+  },
+  {
+    code: 'alt_data.verify',
+    description: 'Verify or reject alternative data captured by someone else',
+    category: 'Credit',
+  },
   // Servicing
   {
     code: 'loan.read',
@@ -190,6 +236,66 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Record benchmark rate observations',
     category: 'Operations',
   },
+  {
+    code: 'impairment.manage',
+    description:
+      'Propose loan classification and impairment (provisioning) policies',
+    category: 'Operations',
+  },
+  {
+    code: 'impairment.approve',
+    description: 'Approve an impairment policy proposed by someone else',
+    category: 'Operations',
+  },
+  {
+    code: 'tenant_settings.manage',
+    description:
+      'Propose the lending settings: regulatory return bands, tenant-level ledger accounts, payment-file and delegation limits',
+    category: 'Operations',
+  },
+  {
+    code: 'tenant_settings.approve',
+    description: 'Approve lending settings proposed by someone else',
+    category: 'Operations',
+  },
+  {
+    code: 'loan.migration.manage',
+    description:
+      'Load and check a loan book taken over from another system (migration file)',
+    category: 'Operations',
+  },
+  {
+    code: 'loan.migration.approve',
+    description:
+      'Approve posting a migration file loaded by someone else (opening balances)',
+    category: 'Operations',
+    financial: true,
+  },
+  {
+    code: 'accounting.period.close',
+    description:
+      'Prepare month-end and year-end close, and request a period be reopened',
+    category: 'Operations',
+  },
+  {
+    code: 'accounting.period.approve',
+    description:
+      'Approve (lock) a period close or a reopening prepared by someone else',
+    category: 'Operations',
+    financial: true,
+  },
+  {
+    code: 'regulatory.prepare',
+    description:
+      'Generate regulatory returns for closed months and ask for their submission',
+    category: 'Operations',
+  },
+  {
+    code: 'regulatory.submit',
+    description:
+      'Submit a regulatory return prepared by someone else (checker)',
+    category: 'Operations',
+  },
   // Restructuring and hardship
   {
     code: 'restructure.request',
@@ -264,6 +370,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Read the audit trail',
     category: 'Audit',
     platformAllowed: true,
+  },
+  // Learning centre (D-095): everyone keeps their own progress; this reads the team's.
+  {
+    code: 'learning.report.read',
+    description: "View the team's Learning centre progress report",
+    category: 'Learning',
   },
   // Access governance
   {
@@ -424,6 +536,71 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Facilities',
     financial: true,
   },
+  // Customer documents (DOC-1..10)
+  {
+    code: 'document.read',
+    description:
+      'View customer documents and download them (every access is audited)',
+    category: 'Documents',
+  },
+  {
+    code: 'document.upload',
+    description:
+      'Upload and replace customer documents; request documents from customers',
+    category: 'Documents',
+  },
+  {
+    code: 'document.review',
+    description:
+      'Accept or reject a document uploaded by someone else (checker)',
+    category: 'Documents',
+  },
+  {
+    code: 'document.manage',
+    description: 'Legal hold, retention rules and deletion after retention',
+    category: 'Documents',
+  },
+  {
+    code: 'trade.invoice.manage',
+    description: 'Register invoices in an invoice-finance register (maker)',
+    category: 'Trade finance',
+  },
+  {
+    code: 'trade.invoice.approve',
+    description:
+      'Approve or reject invoices as eligible for an advance (checker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'trade.lc.read',
+    description: 'View letters of credit and their drawings',
+    category: 'Trade finance',
+  },
+  {
+    code: 'trade.lc.request',
+    description: 'Request letters of credit and record presentations (maker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'trade.lc.issue',
+    description: 'Issue, reject, expire or cancel letters of credit (checker)',
+    category: 'Trade finance',
+    financial: true,
+  },
+  {
+    code: 'syndication.manage',
+    description: 'Set up the participants of a syndicated loan (maker)',
+    category: 'Syndication',
+    financial: true,
+  },
+  {
+    code: 'syndication.approve',
+    description: 'Approve a syndicate (checker)',
+    category: 'Syndication',
+    financial: true,
+  },
 ];
 
 export const PERMISSION_CODES = new Set(PERMISSIONS.map((p) => p.code));
@@ -433,6 +610,8 @@ export const CUSTOMER_PERMISSIONS = [
   'restructure.request',
   'restructure.read_own',
   'restructure.accept_own',
+  'document.read_own',
+  'document.upload_own',
 ];
 
 /** Permissions a platform administrator holds. None touch tenant borrower data or money. */
@@ -448,6 +627,7 @@ export interface RoleDefinition {
 }
 
 const READ_ALL = [
+  'document.read',
   'loan.read',
   'loan_application.read',
   'loan_product.read',
@@ -471,6 +651,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'audit.read',
       'policy.simulate',
       'business_date.manage',
+      'learning.report.read',
     ],
   },
   {
@@ -478,6 +659,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Product maker',
     description: 'Drafts products, versions and workflows.',
     permissions: [
+      'scorecard.read',
       'loan_product.read',
       'loan_product.create',
       'loan_product.update',
@@ -492,6 +674,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Approves, activates and retires product and workflow versions.',
     permissions: [
+      'scorecard.read',
       'loan_product.read',
       'loan_product.approve',
       'loan_product.activate',
@@ -505,6 +688,11 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Originates applications and runs solidarity groups for borrowers in their scope.',
     permissions: [
+      'alt_data.read',
+      'alt_data.consent.manage',
+      'alt_data.record',
+      'document.read',
+      'document.upload',
       'borrower_group.read',
       'borrower_group.manage',
       'loan_application.create',
@@ -524,6 +712,16 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit analyst',
     description: 'Assesses applications and recommends decisions.',
     permissions: [
+      'scorecard.read',
+      'scorecard.manage',
+      'credit_score.run',
+      'alt_data.read',
+      'alt_data.consent.manage',
+      'alt_data.record',
+      'alt_data.verify',
+      'document.read',
+      'document.upload',
+      'document.review',
       'borrower_group.read',
       'loan_application.read',
       'credit_decision.recommend',
@@ -540,6 +738,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Credit approver',
     description: 'Approves or rejects credit within approval authority.',
     permissions: [
+      'scorecard.read',
+      'credit_score.run',
+      'alt_data.read',
+      'document.read',
       'loan_application.read',
       'credit_decision.approve',
       'credit_decision.reject',
@@ -550,6 +752,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.read',
       'facility.limit.approve',
       'facility.condition.waive',
+      'trade.invoice.approve',
+      'trade.lc.read',
+      'trade.lc.issue',
+      'syndication.approve',
     ],
   },
   {
@@ -558,6 +764,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Books agreements, prepares disbursements, posts repayments, proposes write-offs.',
     permissions: [
+      'document.upload',
+      'document.review',
       ...READ_ALL,
       'loan.agreement.book',
       'loan.disbursement.prepare',
@@ -570,6 +778,10 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.condition.manage',
       'facility.limit.request',
       'facility.statement.generate',
+      'trade.invoice.manage',
+      'trade.lc.read',
+      'trade.lc.request',
+      'syndication.manage',
     ],
   },
   {
@@ -578,6 +790,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     description:
       'Approves and executes disbursements, reverses repayments, approves write-offs.',
     permissions: [
+      'document.review',
       ...READ_ALL,
       'loan.disbursement.approve',
       'loan.disbursement.execute',
@@ -589,6 +802,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'facility.drawdown.approve',
       'facility.drawdown.release',
       'facility.manage',
+      'trade.lc.read',
     ],
   },
   {
@@ -596,6 +810,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Collections officer',
     description: 'Works delinquent accounts and posts collections.',
     permissions: [
+      'document.read',
+      'document.upload',
       'loan.read',
       'loan.repayment.post',
       'loan.recovery.post',
@@ -634,8 +850,13 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'accounting.read',
       'business_date.manage',
       'rate_observation.manage',
+      'impairment.manage',
+      'tenant_settings.manage',
       'servicing.batch.run',
       'loan_data.export',
+      'accounting.period.close',
+      'loan.migration.manage',
+      'regulatory.prepare',
     ],
   },
   {
@@ -643,13 +864,24 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Risk / compliance reviewer',
     description: 'Read access across lending with the policy simulator.',
     permissions: [
+      'scorecard.read',
+      'scorecard.approve',
+      'alt_data.read',
+      'alt_data.verify',
+      'document.manage',
       ...READ_ALL,
       'audit.read',
       'accounting.read',
+      'impairment.approve',
+      'tenant_settings.approve',
+      'accounting.period.approve',
+      'loan.migration.approve',
+      'regulatory.submit',
       'feature_flag.read',
       'access_policy.read',
       'policy.simulate',
       'loan_data.export',
+      'learning.report.read',
     ],
   },
   {
@@ -657,6 +889,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
     name: 'Auditor',
     description: 'Read-only access including the audit trail.',
     permissions: [
+      'scorecard.read',
+      'alt_data.read',
       ...READ_ALL,
       'audit.read',
       'accounting.read',
@@ -764,6 +998,84 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     defaultEnabled: false,
   },
   {
+    key: 'lending.trade.invoice_finance',
+    description:
+      'Invoice financing: registers, advances and debtor collections',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.letters_of_credit',
+    description: 'Letters of credit and their conversion to loans',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.receivables_purchase',
+    description:
+      'Bought receivables: factoring, supply-chain finance and forfaiting',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.trade.documentary',
+    description:
+      'Import and export loans against trade documents, repaid from the proceeds',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.syndication',
+    description: 'Syndicated loans with participants',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.project_finance',
+    description:
+      'Project and infrastructure finance: sculpted term-out, reserve and cash waterfall',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.institutional',
+    description:
+      'Institutional lending: interbank, municipal, sovereign and development loans against approved counterparty and country limits',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.collateral.borrowing_base',
+    description:
+      'Borrowing-base lines: certificates of inventory and receivables limit drawings',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.education.income_contingent',
+    description:
+      'Income-contingent education loans: instalments set by assessed income, forgiveness at the end of the term',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.islamic.murabaha',
+    description:
+      'Murabaha: asset purchase and resale at a disclosed profit, deferred and recognised over the term',
+    category: 'Capabilities',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
     key: 'lending.group.joint_liability',
     description: 'Group / joint-liability lending',
     category: 'Capabilities',
@@ -859,6 +1171,14 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
     key: 'lending.integration.credit_bureau',
     description: 'Live credit bureau enquiries',
     category: 'Integrations',
+    sensitive: true,
+    defaultEnabled: false,
+  },
+  {
+    key: 'lending.legacy_loans.readonly',
+    description:
+      'Legacy loans are closed to new business: no new legacy loans and no legacy disbursements. Repayments, payoff and servicing of existing legacy loans continue. New lending goes through the lending platform.',
+    category: 'Consolidation',
     sensitive: true,
     defaultEnabled: false,
   },

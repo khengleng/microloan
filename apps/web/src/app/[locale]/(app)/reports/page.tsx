@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { LegacyModuleNote } from '@/components/LegacyModuleNote';
+import { ReportCurrencyContext } from '@/components/reports/KpiCard';
+import { CURRENCY_OPTIONS } from '@/lib/currency';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -179,7 +182,7 @@ export default function ReportsPage() {
     borrowers,
     statuses: STATUS_OPTIONS,
     riskGrades: RISK_OPTIONS,
-    currencies: [{ label: 'USD', value: 'USD' }],
+    currencies: CURRENCY_OPTIONS,
   }), [branches, officers, products, borrowers]);
 
   return (
@@ -188,6 +191,7 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-black text-slate-900">{t('title')}</h1>
         <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
       </div>
+      <LegacyModuleNote />
 
       {isBorrower ? (
         <div className="bg-white border border-red-200 text-red-700 rounded-lg p-5 text-sm">
@@ -206,6 +210,7 @@ export default function ReportsPage() {
             options={filterOptions}
           />
 
+          <ReportCurrencyContext.Provider value={data?.currency}>
           {activeTab === 'overview' && (
             <OverviewDashboard
               data={data}
@@ -269,6 +274,7 @@ export default function ReportsPage() {
               onExport={onExport}
             />
           )}
+          </ReportCurrencyContext.Provider>
         </>
       )}
     </div>

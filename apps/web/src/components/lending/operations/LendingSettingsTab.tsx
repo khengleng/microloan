@@ -1,0 +1,179 @@
+"use client";
+
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
+import { JsonDiff } from '../JsonDiff';
+import { jsonDiff } from '../policies/types';
+import { StatusBadge } from '../StatusBadge';
+import { Btn, Card, Empty, ErrorBox, Field, Notice, Spinner, Table, TextArea, td, th } from '../ui';
+import { useAction, useApi } from '../useAsync';
+import { useWorkspace } from '@/lib/workspace';
+import { EditorModeSwitch, StructuredJsonEditor, jsonProblem } from '../StructuredJsonEditor';
+import { fmtDateTime } from '../format';
+import { Person } from '../People';
+
+interface SettingsRow {
+    id: string; version: number; status: string; settings: unknown; makerId: string; checkerId: string | null;
+    decidedAt: string | null; reason: string; createdAt: string;
+}
+interface SettingsList { active: SettingsRow | null; versions: SettingsRow[]; effective: Record<string, unknown>; defaults: Record<string, unknown> }
+
+/** What each setting means, for the read-only view. Keys are dotted paths; translated as LendingOps.settings.labels.<path with _>. */
+const LABELS: Record<string, string> = {
+    'regulatory.classes': 'Regulatory loan classes (days past due → provision rate)',
+    'regulatory.sizeBandEdgesUsd': 'Regulatory return: loan-size band edges (USD)',
+    'regulatory.sizeBandKhrPerUsd': 'Regulatory return: KHR per USD for the size bands',
+    'regulatory.rateBandEdgesPct': 'Regulatory return: interest-rate band edges (% a year)',
+    'accounting.cash': 'Cash / bank account',
+    'accounting.retainedEarnings': 'Retained earnings (year-end close)',
+    'accounting.migrationClearing': 'Migration clearing (opening balances)',
+    'accounting.fxPosition': 'FX position',
+    'accounting.fxGainLoss': 'FX gain / loss',
+    'accounting.unidentifiedSuspense': 'Unidentified receipts (suspense)',
+    'accounting.legacy.loansReceivable': 'Original loan book: loans receivable',
+    'accounting.legacy.interestIncome': 'Original loan book: interest income',
+    'accounting.legacy.penaltyIncome': 'Original loan book: penalty income',
+    'accounting.legacy.feeIncome': 'Original loan book: fee income',
+    'accounting.legacy.loanLossAllowance': 'Original loan book: loan-loss allowance',
+    'accounting.legacy.provisionExpense': 'Original loan book: provision expense',
+    'accounting.legacy.writeOffExpense': 'Original loan book: write-off expense',
+    'payments.maxFileLines': 'Payment files: most lines per file',
+    'payments.maxBackdateDays': 'Unidentified receipts and payment files: most days back-dated',
+    'access.maxDelegationDays': 'Longest delegation of authority (days)',
+    'legacyServicing.defaultAfterDaysOverdue': 'Original loan book: mark DEFAULTED after days overdue',
+    'scoring.monitoring.badDaysPastDue': 'Scorecard monitoring: a loan is bad once an instalment is this many days late',
+    'scoring.monitoring.performanceMonths': 'Scorecard monitoring: … within this many months of disbursement',
+    'scoring.monitoring.baselineWindowDays': 'Scorecard monitoring: baseline window for stability (days)',
+    'scoring.monitoring.recentWindowDays': 'Scorecard monitoring: recent window for stability (days)',
+    'scoring.monitoring.psiEpsilon': 'Scorecard monitoring: share given to an empty grade in the stability index',
+    'scoring.consent.maxValidityDays': 'Alternative data: longest a customer consent may run (days)',
+    'scoring.alternativeData.maxRecordAgeDays': 'Alternative data: verified records older than this no longer count (days)',
+    'scoring.alternativeData.digitalChannels': 'Alternative data: payment channels counted as digital repayments',
+};
+
+function flatten(v: unknown, prefix = ''): [string, unknown][] {
+    if (v && typeof v === 'object' && !Array.isArray(v))
+        return Object.entries(v as Record<string, unknown>).flatMap(([k, x]) => flatten(x, prefix ? `${prefix}.${k}` : k));
+    return [[prefix, v]];
+}
+const show = (v: unknown) => (Array.isArray(v) && v.every((x) => typeof x !== 'object') ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : String(v));
+
+/**
+ * The lender's own operating parameters (DECISIONS D-071): regulatory return
+ * bands and classes, tenant-level ledger accounts, payment-file and
+ * delegation limits. Finance proposes a complete version; a different user
+ * with the approval permission (risk) approves it. Until one is approved the
+ * defaults apply — the values the platform used before these were settings.
+ */
+export function LendingSettingsTab() {
+    const { showToast } = useToast();
+    const list = useApi<SettingsList>('/lending/ops/settings');
+    const [draft, setDraft] = useState('');
+    const [reason, setReason] = useState('');
+    const [problem, setProblem] = useState('');
+    const [mode, setMode] = useState<'form' | 'json'>('form');
+    const [formInvalid, setFormInvalid] = useState(0);
+    const [formKey, setFormKey] = useState(0);
+    const { busy, error, run, clearError } = useAction();
+    const { can, access } = useWorkspace();
+    const me = access?.principal.id;
+    const canPropose = can('tenant_settings.manage');
+    const canDecide = can('tenant_settings.approve');
+    const t = useTranslations('LendingOps.settings');
+    const labels: Record<string, string> = Object.fromEntries(Object.entries(LABELS).map(([k, v]) => {
+        const key = `labels.${k.replace(/\./g, '_')}`;
+        return [k, t.has(key) ? t(key) : v];
+    }));
+
+    if (!list.data) return list.error ? <ErrorBox error={list.error} /> : <Spinner />;
+    const { active, versions, effective, defaults } = list.data;
+    const defaultsFlat = new Map(flatten(defaults));
+
+    const propose = async () => {
+        let settings: unknown;
+        const bad = jsonProblem(draft);
+        if (bad) { setProblem(t('invalidJson', { error: bad })); return; }
+        settings = JSON.parse(draft);
+        setProblem('');
+        const res = await run('propose', () => api.post('/lending/ops/settings', { settings, reason: reason.trim() || undefined }));
+        if (res) { showToast(t('proposed'), 'success'); setDraft(''); list.reload(); }
+    };
+    const decide = async (id: string, approve: boolean) => {
+        const res = await run(`${id}:${approve}`, () => api.post(`/lending/ops/settings/${id}/decision`, { approve }));
+        if (res) { showToast(approve ? t('approved') : t('rejected'), 'success'); list.reload(); }
+    };
+
+    return (
+        <div className="space-y-4">
+            {!active && (
+                <Notice tone="info" title={t('defaultsInForce')}>
+                    {t('defaultsInForceBody')}
+                </Notice>
+            )}
+            <Card title={active ? t('inForce', { version: active.version }) : t('inForceDefaults')} subtitle={active?.decidedAt ? t('approvedAt', { at: fmtDateTime(active.decidedAt) }) : undefined} bodyClass="p-0">
+                <Table>
+                    <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('colSetting')}</th><th className={th}>{t('colValue')}</th><th className={th}>{t('colDefault')}</th></tr></thead>
+                    <tbody className="divide-y divide-[#F0F2F5]">
+                        {flatten(effective).map(([k, v]) => (
+                            <tr key={k}>
+                                <td className={td}>{labels[k] ?? k}<div className="font-mono text-[11px] text-[#697386]">{k}</div></td>
+                                <td className={`${td} font-mono text-[12px]`}>{show(v)}</td>
+                                <td className={`${td} font-mono text-[12px] text-[#697386]`}>{show(defaultsFlat.get(k))}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            </Card>
+            <Card title={t('versions')} bodyClass="p-0">
+                {versions.length === 0 ? <Empty>{t('noVersions')}</Empty> : (
+                    <Table>
+                        <thead><tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]"><th className={th}>{t('colVersion')}</th><th className={th}>{t('colStatus')}</th><th className={th}>{t('colProposed')}</th><th className={th}>{t('colNote')}</th><th className={th}></th></tr></thead>
+                        <tbody className="divide-y divide-[#F0F2F5]">
+                            {versions.map((v) => (
+                                <tr key={v.id}>
+                                    <td className={td}>v{v.version}</td>
+                                    <td className={td}><StatusBadge status={v.status} /></td>
+                                    <td className={`${td} whitespace-nowrap`}>{fmtDateTime(v.createdAt)} · <Person id={v.makerId} /></td>
+                                    <td className={td}>{v.reason || '—'}</td>
+                                    <td className={td}>
+                                        {v.status === 'PENDING' && (
+                                            <div className="flex gap-2">
+                                                <Btn size="sm" variant="primary" onClick={() => decide(v.id, true)} busy={busy === `${v.id}:true`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? t('needApprove') : v.makerId === me ? t('ownApprove') : undefined}>{t('approve')}</Btn>
+                                                <Btn size="sm" variant="danger" onClick={() => decide(v.id, false)} busy={busy === `${v.id}:false`} disabled={!canDecide || v.makerId === me} reason={!canDecide ? t('needApprove') : v.makerId === me ? t('ownDecide') : undefined}>{t('reject')}</Btn>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                )}
+            </Card>
+            <Card
+                title={t('proposeTitle')}
+                subtitle={t('proposeSubtitle')}
+                actions={<Btn size="sm" onClick={() => { setDraft(JSON.stringify(effective, null, 2)); setProblem(''); setFormInvalid(0); setFormKey((k) => k + 1); }}>{t('startFromInForce')}</Btn>}
+            >
+                {draft === '' ? <p className="text-[13px] text-[#697386]">{t('startHint')}</p> : (
+                    <div className="space-y-3">
+                        <EditorModeSwitch mode={mode} onChange={(m) => { if (m === 'form' && jsonProblem(draft)) return; setMode(m); setFormInvalid(0); setFormKey((k) => k + 1); }} />
+                        {mode === 'form' && !jsonProblem(draft) ? (
+                            <StructuredJsonEditor key={formKey} value={JSON.parse(draft)} labels={labels} onChange={(next) => setDraft(JSON.stringify(next, null, 2))} onValidity={setFormInvalid} />
+                        ) : (
+                            <Field label={t('settingsJson')} error={problem || jsonProblem(draft) || undefined}>
+                                <TextArea value={draft} onChange={(v) => { setDraft(v); setProblem(''); }} rows={18} className="font-mono text-[12px]" />
+                            </Field>
+                        )}
+                        {(() => { try { return <JsonDiff diff={jsonDiff(effective, JSON.parse(draft))} emptyLabel={t('sameAsInForce')} />; } catch { return null; } })()}
+                        <Field label={t('why')}><TextArea value={reason} onChange={setReason} rows={2} maxLength={500} /></Field>
+                        <ErrorBox error={error} onDismiss={clearError} />
+                        <Btn variant="primary" onClick={propose} busy={busy === 'propose'} disabled={!canPropose || !!jsonProblem(draft) || (mode === 'form' && formInvalid > 0)} reason={!canPropose ? t('needManage') : undefined}>{t('propose')}</Btn>
+                    </div>
+                )}
+            </Card>
+            {error && !draft && <ErrorBox error={error} onDismiss={clearError} />}
+        </div>
+    );
+}

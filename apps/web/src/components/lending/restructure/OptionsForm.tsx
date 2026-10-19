@@ -1,10 +1,11 @@
 "use client";
 
 import { Plus, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { RestructureOptions } from '../types';
 import { isDecimalString, percentToFraction, todayIso } from '../format';
 import { Checkbox, Disclosure, Field, SelectInput, TextInput } from '../ui';
-import { MONEY_RE, intOrUndef } from './labels';
+import { MONEY_RE, intOrUndef, useRestructureLabels } from './labels';
 
 /** Form state for restructure options; every value is a string as typed. */
 export interface OptionsDraft {
@@ -46,32 +47,35 @@ export function emptyDraft(): OptionsDraft {
 
 const money = (v: string) => (v.trim() ? v.trim() : undefined);
 
-/** Convert the draft to API options, collecting validation problems. */
-export function draftToOptions(d: OptionsDraft): { options: RestructureOptions; problems: string[] } {
+/** Translator for the "LendingRestructure" namespace (from useTranslations). */
+type Tr = (key: string, values?: Record<string, string | number>) => string;
+
+/** Convert the draft to API options, collecting validation problems (translated with `t`). */
+export function draftToOptions(d: OptionsDraft, t: Tr): { options: RestructureOptions; problems: string[] } {
     const problems: string[] = [];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.effectiveDate)) problems.push('Effective date is required.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.effectiveDate)) problems.push(t('optionsForm.problems.effectiveDate'));
     const moneyFields: [string, string][] = [
-        ['Target instalment', d.targetInstalment], ['Waive interest', d.waiveInterest], ['Waive fees', d.waiveFees],
-        ['Waive penalties', d.waivePenalties], ['Principal forgiveness', d.principalForgiveness],
-        ['Principal payment at restructure', d.principalPaymentAtRestructure], ['Balloon amount', d.balloonAmount],
+        ['targetInstalment', d.targetInstalment], ['waiveInterest', d.waiveInterest], ['waiveFees', d.waiveFees],
+        ['waivePenalties', d.waivePenalties], ['principalForgiveness', d.principalForgiveness],
+        ['principalPaymentAtRestructure', d.principalPaymentAtRestructure], ['balloonAmount', d.balloonAmount],
     ];
-    for (const [label, v] of moneyFields) if (v.trim() && !MONEY_RE.test(v.trim())) problems.push(`${label} must be a decimal amount.`);
+    for (const [k, v] of moneyFields) if (v.trim() && !MONEY_RE.test(v.trim())) problems.push(t('optionsForm.problems.decimal', { field: t(`optionsForm.fields.${k}`) }));
     const intFields: [string, string, number][] = [
-        ['Number of instalments', d.numberOfInstalments, 1200], ['Temporary rate instalments', d.tempRateInstalments, 120],
-        ['Interest-only instalments', d.interestOnlyInstalments, 60], ['Payment deferral instalments', d.paymentDeferralInstalments, 24],
+        ['numberOfInstalments', d.numberOfInstalments, 1200], ['tempRateInstalmentsName', d.tempRateInstalments, 120],
+        ['interestOnlyInstalments', d.interestOnlyInstalments, 60], ['paymentDeferralName', d.paymentDeferralInstalments, 24],
     ];
-    for (const [label, v, max] of intFields) {
+    for (const [k, v, max] of intFields) {
         if (!v.trim()) continue;
         const n = intOrUndef(v);
-        if (n === undefined || n > max) problems.push(`${label} must be a whole number 1–${max}.`);
+        if (n === undefined || n > max) problems.push(t('optionsForm.problems.wholeNumber', { field: t(`optionsForm.fields.${k}`), max }));
     }
-    if (d.annualRatePct.trim() && !isDecimalString(d.annualRatePct)) problems.push('Annual rate must be a percentage like 12.5.');
+    if (d.annualRatePct.trim() && !isDecimalString(d.annualRatePct)) problems.push(t('optionsForm.problems.annualRate'));
     if (d.tempRatePct.trim() || d.tempRateInstalments.trim()) {
-        if (!isDecimalString(d.tempRatePct) || !intOrUndef(d.tempRateInstalments)) problems.push('Temporary rate needs both a rate (%) and a number of instalments.');
+        if (!isDecimalString(d.tempRatePct) || !intOrUndef(d.tempRateInstalments)) problems.push(t('optionsForm.problems.tempRate'));
     }
-    if (d.method === 'BALLOON' && !d.balloonAmount.trim()) problems.push('Balloon method needs a balloon amount.');
+    if (d.method === 'BALLOON' && !d.balloonAmount.trim()) problems.push(t('optionsForm.problems.balloon'));
     const sched = d.explicitSchedule.filter((r) => r.dueDate || r.principal);
-    if (sched.some((r) => !r.dueDate || !MONEY_RE.test(r.principal.trim()))) problems.push('Each explicit schedule row needs a due date and principal.');
+    if (sched.some((r) => !r.dueDate || !MONEY_RE.test(r.principal.trim()))) problems.push(t('optionsForm.problems.schedule'));
 
     const tempN = intOrUndef(d.tempRateInstalments);
     const options: RestructureOptions = {
@@ -106,6 +110,8 @@ let seq = 0;
 
 /** Controlled editor for restructure options. */
 export function OptionsForm({ draft, onChange }: { draft: OptionsDraft; onChange: (d: OptionsDraft) => void }) {
+    const t = useTranslations('LendingRestructure.optionsForm');
+    const L = useRestructureLabels();
     const set = <K extends keyof OptionsDraft>(k: K) => (v: OptionsDraft[K]) => onChange({ ...draft, [k]: v });
     const text = (k: keyof OptionsDraft, label: string, hint?: string, extra?: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) => (
         <Field label={label} hint={hint}>
@@ -118,71 +124,67 @@ export function OptionsForm({ draft, onChange }: { draft: OptionsDraft; onChange
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {text('effectiveDate', 'Effective date', undefined, { type: 'date' })}
-                {text('numberOfInstalments', 'Number of instalments', 'Remaining term after restructure', { inputMode: 'numeric' })}
-                {text('targetInstalment', 'Target instalment', 'Solve the term for this amount', { inputMode: 'decimal' })}
-                {text('annualRatePct', 'New annual rate (%)', 'e.g. 12.5 — blank keeps the current rate', { inputMode: 'decimal' })}
-                <Field label="Method">
-                    <SelectInput value={draft.method} onChange={set('method')} placeholder="Keep current" options={['EQUAL_INSTALMENT', 'EQUAL_PRINCIPAL', 'BALLOON']} />
+                {text('effectiveDate', t('fields.effectiveDate'), undefined, { type: 'date' })}
+                {text('numberOfInstalments', t('fields.numberOfInstalments'), t('hints.numberOfInstalments'), { inputMode: 'numeric' })}
+                {text('targetInstalment', t('fields.targetInstalment'), t('hints.targetInstalment'), { inputMode: 'decimal' })}
+                {text('annualRatePct', t('fields.annualRate'), t('hints.annualRate'), { inputMode: 'decimal' })}
+                <Field label={t('fields.method')}>
+                    <SelectInput value={draft.method} onChange={set('method')} placeholder={t('keepCurrent')} options={L.options('method', ['EQUAL_INSTALMENT', 'EQUAL_PRINCIPAL', 'BALLOON'])} />
                 </Field>
-                <Field label="Frequency">
-                    <SelectInput value={draft.frequency} onChange={set('frequency')} placeholder="Keep current" options={['WEEKLY', 'FORTNIGHTLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL']} />
+                <Field label={t('fields.frequency')}>
+                    <SelectInput value={draft.frequency} onChange={set('frequency')} placeholder={t('keepCurrent')} options={L.options('frequency', ['WEEKLY', 'FORTNIGHTLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL'])} />
                 </Field>
-                {draft.method === 'BALLOON' && text('balloonAmount', 'Balloon amount', undefined, { inputMode: 'decimal' })}
-                {text('firstDueDate', 'First due date', 'Optional', { type: 'date' })}
+                {draft.method === 'BALLOON' && text('balloonAmount', t('fields.balloonAmount'), undefined, { inputMode: 'decimal' })}
+                {text('firstDueDate', t('fields.firstDueDate'), t('hints.optional'), { type: 'date' })}
             </div>
 
             <fieldset className="border border-[#E3E8EE] rounded-md p-3 space-y-3">
-                <legend className="px-1 text-[12px] font-bold text-[#3C4257]">Payment relief</legend>
+                <legend className="px-1 text-[12px] font-bold text-[#3C4257]">{t('paymentRelief')}</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {text('paymentDeferralInstalments', 'Payment break (instalments)', '1–24 — nothing due', { inputMode: 'numeric' })}
-                    {text('interestOnlyInstalments', 'Interest-only instalments', '1–60', { inputMode: 'numeric' })}
-                    {text('tempRatePct', 'Temporary rate (%)', 'Reduced rate for a period', { inputMode: 'decimal' })}
-                    {text('tempRateInstalments', '…for instalments', '1–120', { inputMode: 'numeric' })}
+                    {text('paymentDeferralInstalments', t('fields.paymentDeferral'), t('hints.paymentDeferral'), { inputMode: 'numeric' })}
+                    {text('interestOnlyInstalments', t('fields.interestOnlyInstalments'), '1–60', { inputMode: 'numeric' })}
+                    {text('tempRatePct', t('fields.tempRate'), t('hints.tempRate'), { inputMode: 'decimal' })}
+                    {text('tempRateInstalments', t('fields.tempRateInstalments'), '1–120', { inputMode: 'numeric' })}
                 </div>
-                <Field label="Interest during the break">
-                    <SelectInput value={draft.deferredInterestTreatment} onChange={set('deferredInterestTreatment')} placeholder="Default" options={[
-                        { value: 'PAY_SEPARATELY', label: 'Pay separately' },
-                        { value: 'DEFER_NO_CAPITALIZATION', label: 'Defer without capitalizing' },
-                        { value: 'CAPITALIZE', label: 'Capitalize into principal' },
-                        { value: 'WAIVE', label: 'Waive (concession)' },
-                    ]} />
+                <Field label={t('fields.deferredInterest')}>
+                    <SelectInput value={draft.deferredInterestTreatment} onChange={set('deferredInterestTreatment')} placeholder={t('default')} options={L.options('deferredInterest', [
+                        'PAY_SEPARATELY', 'DEFER_NO_CAPITALIZATION', 'CAPITALIZE', 'WAIVE',
+                    ])} />
                 </Field>
             </fieldset>
 
             <fieldset className="border border-[#E3E8EE] rounded-md p-3 space-y-3">
-                <legend className="px-1 text-[12px] font-bold text-[#3C4257]">Arrears & charges</legend>
-                <Field label="Arrears treatment">
-                    <SelectInput value={draft.arrearsTreatment} onChange={set('arrearsTreatment')} placeholder="Default" options={[
-                        { value: 'PAY_AT_EFFECTIVE_DATE', label: 'Customer pays arrears on the effective date' },
-                        { value: 'SPREAD_OVER_TERM', label: 'Spread arrears over the new term' },
-                    ]} />
+                <legend className="px-1 text-[12px] font-bold text-[#3C4257]">{t('arrearsCharges')}</legend>
+                <Field label={t('fields.arrearsTreatment')}>
+                    <SelectInput value={draft.arrearsTreatment} onChange={set('arrearsTreatment')} placeholder={t('default')} options={L.options('arrears', [
+                        'PAY_AT_EFFECTIVE_DATE', 'SPREAD_OVER_TERM',
+                    ])} />
                 </Field>
                 <div>
-                    <p className="text-[12px] font-semibold text-[#3C4257] mb-1">Capitalize into principal</p>
+                    <p className="text-[12px] font-semibold text-[#3C4257] mb-1">{t('capitalize')}</p>
                     <div className="flex flex-wrap gap-4">
-                        <Checkbox checked={draft.capOverdueInterest} onChange={set('capOverdueInterest')} label="Overdue interest" />
-                        <Checkbox checked={draft.capAccruedInterest} onChange={set('capAccruedInterest')} label="Accrued interest" />
-                        <Checkbox checked={draft.capFees} onChange={set('capFees')} label="Fees" />
-                        <Checkbox checked={draft.capPenalties} onChange={set('capPenalties')} label="Penalties" />
+                        <Checkbox checked={draft.capOverdueInterest} onChange={set('capOverdueInterest')} label={t('fields.overdueInterest')} />
+                        <Checkbox checked={draft.capAccruedInterest} onChange={set('capAccruedInterest')} label={t('fields.accruedInterest')} />
+                        <Checkbox checked={draft.capFees} onChange={set('capFees')} label={t('fields.fees')} />
+                        <Checkbox checked={draft.capPenalties} onChange={set('capPenalties')} label={t('fields.penalties')} />
                     </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {text('waiveInterest', 'Waive interest', 'Concession', { inputMode: 'decimal' })}
-                    {text('waiveFees', 'Waive fees', undefined, { inputMode: 'decimal' })}
-                    {text('waivePenalties', 'Waive penalties', undefined, { inputMode: 'decimal' })}
-                    {text('principalForgiveness', 'Principal forgiveness', 'Requires senior approval', { inputMode: 'decimal' })}
-                    {text('principalPaymentAtRestructure', 'Principal paid at restructure', 'Lump sum from customer', { inputMode: 'decimal' })}
+                    {text('waiveInterest', t('fields.waiveInterest'), t('hints.concession'), { inputMode: 'decimal' })}
+                    {text('waiveFees', t('fields.waiveFees'), undefined, { inputMode: 'decimal' })}
+                    {text('waivePenalties', t('fields.waivePenalties'), undefined, { inputMode: 'decimal' })}
+                    {text('principalForgiveness', t('fields.principalForgiveness'), t('hints.principalForgiveness'), { inputMode: 'decimal' })}
+                    {text('principalPaymentAtRestructure', t('fields.principalPaidAtRestructure'), t('hints.principalPaidAtRestructure'), { inputMode: 'decimal' })}
                 </div>
             </fieldset>
 
-            <Disclosure summary={`Explicit principal schedule (${draft.explicitSchedule.length} rows)`}>
+            <Disclosure summary={t('explicitSchedule', { count: draft.explicitSchedule.length })}>
                 <div className="space-y-2">
                     {draft.explicitSchedule.map((r) => (
                         <div key={r.k} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                            <Field label="Due date"><TextInput type="date" value={r.dueDate} onChange={(v) => updRow(r.k, { dueDate: v })} /></Field>
-                            <Field label="Principal"><TextInput value={r.principal} onChange={(v) => updRow(r.k, { principal: v })} inputMode="decimal" /></Field>
-                            <button type="button" aria-label="Remove row" className="p-1.5 text-[#697386] hover:text-red-600"
+                            <Field label={t('fields.dueDate')}><TextInput type="date" value={r.dueDate} onChange={(v) => updRow(r.k, { dueDate: v })} /></Field>
+                            <Field label={t('fields.principal')}><TextInput value={r.principal} onChange={(v) => updRow(r.k, { principal: v })} inputMode="decimal" /></Field>
+                            <button type="button" aria-label={t('removeRow')} className="p-1.5 text-[#697386] hover:text-red-600"
                                 onClick={() => onChange({ ...draft, explicitSchedule: draft.explicitSchedule.filter((x) => x.k !== r.k) })}>
                                 <Trash2 size={14} />
                             </button>
@@ -190,7 +192,7 @@ export function OptionsForm({ draft, onChange }: { draft: OptionsDraft; onChange
                     ))}
                     <button type="button" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#635BFF]" disabled={draft.explicitSchedule.length >= 60}
                         onClick={() => onChange({ ...draft, explicitSchedule: [...draft.explicitSchedule, { k: ++seq, dueDate: '', principal: '' }] })}>
-                        <Plus size={13} /> Add row
+                        <Plus size={13} /> {t('addRow')}
                     </button>
                 </div>
             </Disclosure>

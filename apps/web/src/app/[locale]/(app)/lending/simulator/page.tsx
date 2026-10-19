@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { LendingShell } from '@/components/lending/LendingShell';
 import { Btn, Card, Disclosure, ErrorBox, Field, SelectInput, Spinner, TextInput } from '@/components/lending/ui';
@@ -47,6 +48,7 @@ function buildTerms(f: FormState): Terms {
 }
 
 function Simulator() {
+    const t = useTranslations('LendingSimulator');
     const params = useSearchParams();
     const products = useApi<Product[]>('/lending/products');
     const [versionId, setVersionId] = useState(params.get('version') ?? '');
@@ -60,8 +62,8 @@ function Simulator() {
         value: v.id, label: `${p.name} (${p.code}) — v${v.version} ${v.status}`,
     })));
 
-    const principalErr = f.principal && !isDecimalString(f.principal) ? 'Decimal amount, e.g. 1500.00' : undefined;
-    const rateErr = f.annualRatePct && !isDecimalString(f.annualRatePct) ? 'Percent, e.g. 12.5' : undefined;
+    const principalErr = f.principal && !isDecimalString(f.principal) ? t('principalError') : undefined;
+    const rateErr = f.annualRatePct && !isDecimalString(f.annualRatePct) ? t('rateError') : undefined;
 
     const simulate = async () => {
         const r = await run('sim', () => api.post<SimulationResult>(`/lending/product-versions/${versionId}/simulate`, buildTerms(f)));
@@ -70,39 +72,39 @@ function Simulator() {
 
     return (
         <LendingShell title="Pricing & repayment simulator" subtitle="Price a loan against any product version. Side-effect free: nothing is booked.">
-            <Card title="Terms">
+            <Card title={t('terms')}>
                 {products.loading && !products.data ? <Spinner /> : (
                     <div className="space-y-4">
                         <ErrorBox error={products.error} />
-                        <Field label="Product version">
-                            <SelectInput value={versionId} onChange={setVersionId} options={options} placeholder="Select a product version…" />
+                        <Field label={t('productVersion')}>
+                            <SelectInput value={versionId} onChange={setVersionId} options={options} placeholder={t('selectVersion')} />
                         </Field>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <Field label="Principal" error={principalErr}><TextInput inputMode="decimal" value={f.principal} onChange={(v) => set('principal', v)} /></Field>
-                            <Field label="Number of instalments"><TextInput type="number" min={1} value={f.numberOfInstalments} onChange={(v) => set('numberOfInstalments', v)} /></Field>
-                            <Field label="Annual rate (%)" hint="Blank = product default" error={rateErr}><TextInput inputMode="decimal" value={f.annualRatePct} onChange={(v) => set('annualRatePct', v)} placeholder="e.g. 12" /></Field>
-                            <Field label="Disbursement date"><TextInput type="date" value={f.disbursementDate} onChange={(v) => set('disbursementDate', v)} /></Field>
-                            <Field label="First due date" hint="Optional"><TextInput type="date" value={f.firstDueDate} onChange={(v) => set('firstDueDate', v)} /></Field>
-                            <Field label="Principal grace instalments"><TextInput type="number" min={0} value={f.principalGraceInstalments} onChange={(v) => set('principalGraceInstalments', v)} /></Field>
-                            <Field label="Interest grace instalments"><TextInput type="number" min={0} value={f.interestGraceInstalments} onChange={(v) => set('interestGraceInstalments', v)} /></Field>
-                            <Field label="Balloon amount" hint="Balloon products only"><TextInput inputMode="decimal" value={f.balloonAmount} onChange={(v) => set('balloonAmount', v)} /></Field>
-                            <Field label="Waived fee codes" hint="Comma-separated" className="sm:col-span-2"><TextInput value={f.waivedFeeCodes} onChange={(v) => set('waivedFeeCodes', v)} /></Field>
+                            <Field label={t('principal')} error={principalErr}><TextInput inputMode="decimal" value={f.principal} onChange={(v) => set('principal', v)} /></Field>
+                            <Field label={t('instalments')}><TextInput type="number" min={1} value={f.numberOfInstalments} onChange={(v) => set('numberOfInstalments', v)} /></Field>
+                            <Field label={t('annualRate')} hint={t('annualRateHint')} error={rateErr}><TextInput inputMode="decimal" value={f.annualRatePct} onChange={(v) => set('annualRatePct', v)} placeholder={t('annualRatePlaceholder')} /></Field>
+                            <Field label={t('disbursementDate')}><TextInput type="date" value={f.disbursementDate} onChange={(v) => set('disbursementDate', v)} /></Field>
+                            <Field label={t('firstDueDate')} hint={t('optional')}><TextInput type="date" value={f.firstDueDate} onChange={(v) => set('firstDueDate', v)} /></Field>
+                            <Field label={t('principalGrace')}><TextInput type="number" min={0} value={f.principalGraceInstalments} onChange={(v) => set('principalGraceInstalments', v)} /></Field>
+                            <Field label={t('interestGrace')}><TextInput type="number" min={0} value={f.interestGraceInstalments} onChange={(v) => set('interestGraceInstalments', v)} /></Field>
+                            <Field label={t('balloon')} hint={t('balloonHint')}><TextInput inputMode="decimal" value={f.balloonAmount} onChange={(v) => set('balloonAmount', v)} /></Field>
+                            <Field label={t('waivedFees')} hint={t('waivedFeesHint')} className="sm:col-span-2"><TextInput value={f.waivedFeeCodes} onChange={(v) => set('waivedFeeCodes', v)} /></Field>
                         </div>
-                        <Disclosure summary={`Explicit schedule (EXPLICIT repayment method)${f.explicit.length ? ` — ${f.explicit.length} rows` : ''}`}>
+                        <Disclosure summary={f.explicit.length ? t('explicitRows', { count: f.explicit.length }) : t('explicit')}>
                             <div className="space-y-2">
                                 {f.explicit.map((row, i) => (
                                     <div key={i} className="flex gap-2 items-end">
-                                        <Field label={`Due date #${i + 1}`}><TextInput type="date" value={row.dueDate} onChange={(v) => set('explicit', f.explicit.map((r, j) => (j === i ? { ...r, dueDate: v } : r)))} /></Field>
-                                        <Field label="Principal"><TextInput inputMode="decimal" value={row.principal} onChange={(v) => set('explicit', f.explicit.map((r, j) => (j === i ? { ...r, principal: v } : r)))} /></Field>
+                                        <Field label={t('dueDateN', { n: i + 1 })}><TextInput type="date" value={row.dueDate} onChange={(v) => set('explicit', f.explicit.map((r, j) => (j === i ? { ...r, dueDate: v } : r)))} /></Field>
+                                        <Field label={t('principal')}><TextInput inputMode="decimal" value={row.principal} onChange={(v) => set('explicit', f.explicit.map((r, j) => (j === i ? { ...r, principal: v } : r)))} /></Field>
                                         <Btn variant="ghost" onClick={() => set('explicit', f.explicit.filter((_, j) => j !== i))}><Trash2 size={14} /></Btn>
                                     </div>
                                 ))}
-                                <Btn size="sm" onClick={() => set('explicit', [...f.explicit, { dueDate: '', principal: '' }])}><Plus size={13} /> Add row</Btn>
+                                <Btn size="sm" onClick={() => set('explicit', [...f.explicit, { dueDate: '', principal: '' }])}><Plus size={13} /> {t('addRow')}</Btn>
                             </div>
                         </Disclosure>
                         <ErrorBox error={error} />
                         <div className="flex justify-end">
-                            <Btn variant="primary" busy={busy === 'sim'} disabled={!versionId || !!principalErr || !!rateErr || !f.principal || !f.disbursementDate} onClick={simulate}>Simulate</Btn>
+                            <Btn variant="primary" busy={busy === 'sim'} disabled={!versionId || !!principalErr || !!rateErr || !f.principal || !f.disbursementDate} onClick={simulate}>{t('simulate')}</Btn>
                         </div>
                     </div>
                 )}

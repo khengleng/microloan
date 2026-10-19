@@ -11,9 +11,7 @@ import { SystemContext } from '../prisma/tenant-context';
 import type { PlanTierView } from '../plan-tiers/plan-tier.service';
 import { buildKhqrPayload } from './khqr';
 import { PlatformQrService } from './platform-qr.service';
-
-/** How long an unpaid signup QR stays valid before it must be regenerated. */
-const PAYMENT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+import { operationalConfig } from '../config/operational-config';
 
 export type SignupPaymentView = {
   reference: string;
@@ -102,7 +100,10 @@ export class SignupPaymentService {
       reference,
       qrPayload,
       status: 'PENDING',
-      expiresAt: new Date(Date.now() + PAYMENT_TTL_MS),
+      // How long an unpaid signup QR stays valid: SIGNUP_PAYMENT_TTL_DAYS (default 7).
+      expiresAt: new Date(
+        Date.now() + operationalConfig().signupPaymentTtlDays * 86_400_000,
+      ),
     };
 
     const client = tx ?? this.prisma;

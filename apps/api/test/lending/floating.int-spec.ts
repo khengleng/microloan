@@ -455,4 +455,27 @@ d('Floating-rate resets (integration)', () => {
       expect(r.resets).toEqual([]);
     });
   });
+
+  describe('end-of-day batch', () => {
+    // Regression: the batch passed its state to the reset hook, which
+    // compare-and-set the account, and then wrote with the stale version —
+    // so every account with a reset due failed and the reset rolled back.
+    it('applies a due reset during the batch without failing the account', async () => {
+      const loanId = await bookAndDisburse({
+        principal: '6000',
+        numberOfInstalments: 12,
+        disbursementDate: '2027-04-30',
+      });
+      await observe('2027-07-01', '0.05');
+      await setBusinessDate('2027-07-31');
+      expect(expectOk(await resets(loanId)).due).toEqual(['2027-07-30']);
+
+      const run = expectOk(
+        await f.as('finance').post('/lending/loans/batch/run'),
+      );
+      expect(run.failed.filter((x: any) => x.id === loanId)).toEqual([]);
+
+      expect(expectOk(await resets(loanId)).due).toEqual([]);
+    });
+  });
 });

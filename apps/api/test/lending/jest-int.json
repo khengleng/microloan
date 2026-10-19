@@ -14,5 +14,6 @@
   "moduleNameMapper": {
     "^otplib$": "<rootDir>/test/lending/stubs/otplib.ts"
   },
-  "forceExit": true
+  "forceExit": true,
+  "testSequencer": "<rootDir>/test/lending/sequencer.js"
 }

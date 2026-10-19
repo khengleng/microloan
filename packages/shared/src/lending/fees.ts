@@ -17,6 +17,8 @@ export interface FeeDefinition {
   /** Tax on the fee as a fraction (0.10 = 10% VAT). */
   taxRate?: string;
   waivable: boolean;
+  /** INSURER: a credit-insurance premium collected for the insurer (UC-06). */
+  payee?: 'LENDER' | 'INSURER';
 }
 
 export interface FeeLine {
@@ -26,6 +28,8 @@ export interface FeeLine {
   amount: string;
   tax: string;
   waived: boolean;
+  /** Present when the fee is collected for an insurer rather than earned (UC-06). */
+  payee?: 'INSURER';
 }
 
 export interface UpfrontFeeResult {
@@ -72,7 +76,15 @@ export function computeUpfrontFees(
     amount = waived ? ZERO : roundMoney(amount, rounding);
     const tax = waived ? ZERO : roundMoney(amount.times(dec(fee.taxRate ?? '0', `${fee.code}.taxRate`)), rounding);
     by[fee.treatment].push(amount.plus(tax));
-    lines.push({ code: fee.code, name: fee.name, treatment: fee.treatment, amount: amount.toString(), tax: tax.toString(), waived });
+    lines.push({
+      code: fee.code,
+      name: fee.name,
+      treatment: fee.treatment,
+      amount: amount.toString(),
+      tax: tax.toString(),
+      waived,
+      ...(fee.payee === 'INSURER' ? { payee: 'INSURER' as const } : {}),
+    });
   }
   const financed = sum(by.FINANCED);
   const deducted = sum(by.DEDUCTED);

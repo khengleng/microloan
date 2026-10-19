@@ -8,6 +8,7 @@ import { GoogleIdentityService } from './google-identity.service';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { BillingModule } from '../billing/billing.module';
+import { operationalConfig } from '../config/operational-config';
 
 @Module({
   imports: [
@@ -16,11 +17,11 @@ import { BillingModule } from '../billing/billing.module';
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET,
-      signOptions: { expiresIn: (process.env.JWT_ACCESS_TTL || '15m') as any },
+      signOptions: { expiresIn: operationalConfig().auth.accessTtl as any },
     }),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleIdentityService],
   exports: [AuthService, GoogleIdentityService],
 })
-export class AuthModule { }
+export class AuthModule {}

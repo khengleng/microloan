@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { SimulationResult } from './types';
 import { Card, Disclosure, IssueList, JsonBlock, KV, Notice, Table, th, thR, td, tdR } from './ui';
 import { Money, MoneyCell, Rate } from './MoneyCell';
@@ -8,44 +9,45 @@ import { StatusBadge } from './StatusBadge';
 export function SimulationResultView({ result, currency }: { result: SimulationResult; currency?: string }) {
     const s = result.schedule;
     const cur = currency ?? s.currency;
+    const t = useTranslations('LendingShared.simulation');
     return (
         <div className="space-y-4">
-            <Notice tone="info" title="Simulation only">Nothing has been booked or posted. Amounts are computed by the lending engine from the selected product version.</Notice>
+            <Notice tone="info" title={t('onlyTitle')}>{t('onlyBody')}</Notice>
             {!result.termsCheck.ok && (
-                <Notice tone="warn" title="These terms would be rejected by the product rules">
+                <Notice tone="warn" title={t('rejectedTerms')}>
                     <IssueList issues={result.termsCheck.issues} />
                 </Notice>
             )}
             {s.hasProjectedAmounts && (
-                <Notice tone="warn" title="Contains projected amounts">Some instalments depend on a future rate observation; projected rows are highlighted.</Notice>
+                <Notice tone="warn" title={t('projectedTitle')}>{t('projectedBody')}</Notice>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card title="Summary">
+                <Card title={t('summary')}>
                     <KV cols={2} items={[
-                        ['Instalment', s.instalmentAmount ? <Money key="i" value={s.instalmentAmount} currency={cur} /> : 'varies'],
-                        ['Effective annual rate (EIR)', result.effectiveAnnualRate ? <b key="e"><Rate value={result.effectiveAnnualRate} /></b> : '—'],
-                        ['Total principal', <Money key="p" value={s.totals.principal} currency={cur} />],
-                        ['Total interest', <Money key="t" value={s.totals.interest} currency={cur} />],
-                        ['Capitalized interest', <Money key="c" value={s.totals.capitalizedInterest} currency={cur} />],
-                        ['Total payments', <b key="tp"><Money value={s.totals.payments} currency={cur} /></b>],
-                        ['Maturity date', s.maturityDate],
-                        ['Final residual (rounding)', s.finalResidual ?? '—'],
+                        [t('instalment'), s.instalmentAmount ? <Money key="i" value={s.instalmentAmount} currency={cur} /> : t('varies')],
+                        [t('eir'), result.effectiveAnnualRate ? <b key="e"><Rate value={result.effectiveAnnualRate} /></b> : '—'],
+                        [t('totalPrincipal'), <Money key="p" value={s.totals.principal} currency={cur} />],
+                        [t('totalInterest'), <Money key="t" value={s.totals.interest} currency={cur} />],
+                        [t('capitalizedInterest'), <Money key="c" value={s.totals.capitalizedInterest} currency={cur} />],
+                        [t('totalPayments'), <b key="tp"><Money value={s.totals.payments} currency={cur} /></b>],
+                        [t('maturityDate'), s.maturityDate],
+                        [t('finalResidual'), s.finalResidual ?? '—'],
                     ]} />
                 </Card>
-                <Card title="How this was calculated">
+                <Card title={t('howCalculated')}>
                     <ul className="list-disc pl-5 space-y-1 text-[13px] text-[#3C4257]">
                         {s.explanation.map((e, i) => <li key={i}>{e}</li>)}
                     </ul>
                 </Card>
             </div>
 
-            <Card title="Up-front fees" bodyClass="p-0">
-                {result.fees.lines.length === 0 ? <p className="p-4 text-[13px] text-[#697386]">No up-front fees.</p> : (
+            <Card title={t('upfrontFees')} bodyClass="p-0">
+                {result.fees.lines.length === 0 ? <p className="p-4 text-[13px] text-[#697386]">{t('noFees')}</p> : (
                     <Table>
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className={th}>Fee</th><th className={th}>Treatment</th><th className={thR}>Amount</th><th className={thR}>Tax</th><th className={th}></th>
+                                <th className={th}>{t('fee')}</th><th className={th}>{t('treatment')}</th><th className={thR}>{t('amount')}</th><th className={thR}>{t('tax')}</th><th className={th}></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F0F2F5]">
@@ -63,21 +65,21 @@ export function SimulationResultView({ result, currency }: { result: SimulationR
                 )}
                 <div className="p-4 border-t border-[#E3E8EE]">
                     <KV cols={4} items={[
-                        ['Financed (added to principal)', <Money key="f" value={result.fees.financed} />],
-                        ['Deducted from payout', <Money key="d" value={result.fees.deducted} />],
-                        ['Paid separately', <Money key="s" value={result.fees.separate} />],
-                        ['Booked principal', <b key="b"><Money value={result.fees.bookedPrincipal} /></b>],
-                        ['Net disbursement', <b key="n"><Money value={result.fees.netDisbursement} /></b>],
+                        [t('financed'), <Money key="f" value={result.fees.financed} />],
+                        [t('deducted'), <Money key="d" value={result.fees.deducted} />],
+                        [t('separate'), <Money key="s" value={result.fees.separate} />],
+                        [t('bookedPrincipal'), <b key="b"><Money value={result.fees.bookedPrincipal} /></b>],
+                        [t('netDisbursement'), <b key="n"><Money value={result.fees.netDisbursement} /></b>],
                     ]} />
                 </div>
             </Card>
 
-            <Card title={`Schedule (${s.lines.length} instalments)`} bodyClass="p-0">
-                <ScheduleTable rows={rowsFromSimulation(s.lines)} currency={cur} chargesLabel="Capitalized" />
+            <Card title={t('schedule', { count: s.lines.length })} bodyClass="p-0">
+                <ScheduleTable rows={rowsFromSimulation(s.lines)} currency={cur} chargesLabel={t('capitalized')} />
             </Card>
 
             {result.calculationRecord !== undefined && (
-                <Disclosure summary="Calculation record (inputs, engine version, config hash)">
+                <Disclosure summary={t('calcRecord')}>
                     <JsonBlock value={result.calculationRecord} />
                 </Disclosure>
             )}

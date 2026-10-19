@@ -33,6 +33,7 @@ function fakePrisma(rows: Record<string, FakeRow[]> = {}) {
     journalEntry: delegate('journalEntry'),
     provisionRun: delegate('provisionRun'),
     user: delegate('user'),
+    branch: delegate('branch'),
   } as any;
 }
 
@@ -332,6 +333,118 @@ describe('Prisma tenant guard — the database-level Chinese wall', () => {
       await asTenant(TENANT_A, () => guard(prisma)(params, next));
 
       expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('references and nested writes', () => {
+    const rows = {
+      loan: [{ id: 'loan-a', tenantId: TENANT_A }],
+      borrower: [
+        { id: 'bor-a', tenantId: TENANT_A },
+        { id: 'bor-b', tenantId: TENANT_B },
+      ],
+      loanProduct: [{ id: 'prod-a', tenantId: TENANT_A }],
+      branch: [{ id: 'br-b', tenantId: TENANT_B }],
+    };
+    const run = (params: any) =>
+      asTenant(TENANT_A, () =>
+        guard(fakePrisma(rows))(
+          params,
+          jest.fn(async (p: any) => p),
+        ),
+      );
+    const loanData = (over: Record<string, unknown> = {}) => ({
+      borrowerId: 'bor-a',
+      productId: 'prod-a',
+      principal: 100,
+      ...over,
+    });
+
+    it('refuses a create whose foreign key names another tenant row', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'create',
+          args: { data: loanData({ borrowerId: 'bor-b' }) },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows a create whose foreign keys stay in the tenant', async () => {
+      await expect(
+        run({ model: 'Loan', action: 'create', args: { data: loanData() } }),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses an update that repoints a row at another tenant row', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'update',
+          args: { where: { id: 'loan-a' }, data: { branchId: 'br-b' } },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses an update that hands a row to another tenant', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'update',
+          args: { where: { id: 'loan-a' }, data: { tenantId: TENANT_B } },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'updateMany',
+          args: { where: {}, data: { tenantId: TENANT_B } },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses a nested connect to another tenant row', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'create',
+          args: {
+            data: {
+              ...loanData(),
+              borrowerId: undefined,
+              borrower: { connect: { id: 'bor-b' } },
+            },
+          },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses nested writes that act on already-linked rows', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'update',
+          args: {
+            where: { id: 'loan-a' },
+            data: { borrower: { update: { firstName: 'x' } } },
+          },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('checks nested creates like top-level ones', async () => {
+      await expect(
+        run({
+          model: 'Loan',
+          action: 'create',
+          args: {
+            data: {
+              ...loanData(),
+              documents: { create: [{ name: 'x', tenantId: TENANT_B }] },
+            },
+          },
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 

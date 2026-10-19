@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { site } from "@/lib/site";
 
 export default function TermsAndConditionsPage() {
   return (
@@ -9,12 +10,12 @@ export default function TermsAndConditionsPage() {
 
         <section className="mt-8 space-y-4 text-sm leading-6">
           <p>
-            These Terms and Conditions govern use of the MicroLoan platform provided by DBank Cambodia.
+            These Terms and Conditions govern use of the {site.productName} platform provided by {site.operatorName}.
             By accessing or using the service, you agree to these terms.
           </p>
           <h2 className="text-lg font-semibold">1. Service scope</h2>
           <p>
-            MicroLoan provides digital loan origination, underwriting workflow, repayment tracking, and
+            {site.productName} provides digital loan origination, underwriting workflow, repayment tracking, and
             portfolio reporting tools for authorized organizations and their users.
           </p>
           <h2 className="text-lg font-semibold">2. Eligibility and accounts</h2>
@@ -43,13 +44,13 @@ export default function TermsAndConditionsPage() {
           </p>
           <h2 className="text-lg font-semibold">7. Limitation of liability</h2>
           <p>
-            To the extent permitted by law, DBank Cambodia is not liable for indirect or consequential damages.
+            To the extent permitted by law, {site.operatorName} is not liable for indirect or consequential damages.
           </p>
           <h2 className="text-lg font-semibold">8. Contact</h2>
           <p>
             For questions about these terms, contact{" "}
-            <a className="text-primary hover:underline" href="mailto:support@dbankcambodia.com">
-              support@dbankcambodia.com
+            <a className="text-primary hover:underline" href={`mailto:${site.contact.support}`}>
+              {site.contact.support}
             </a>.
           </p>
         </section>

@@ -28,9 +28,9 @@ const PATTERNS = {
     /postgresql:\/\/[^\s"']*:[^\s"']+@/i,
   ],
   timebombs: [
-    /disableAfter/i,
-    /validUntil/i,
-    /killSwitch/i,
+    // A switch or expiry fixed to a literal date or epoch in code. (A name
+    // alone proves nothing: `disableAfterFailures` is a retry limit.)
+    /(disableAfter|validUntil|killSwitch)\w*\s*[:=]\s*(new Date\(\s*['"`\d]|['"`]\d{4}-\d{2}-\d{2}|\d{10,13}\b)/i,
     /if\s*\([^\)]*Date\.now\(\)\s*[><=]/,
     /new Date\(['"][0-9]{4}-[0-9]{2}-[0-9]{2}/,
     /trial\s*expir/i,
@@ -88,6 +88,11 @@ for (const rel of files) {
     patterns.forEach((pattern) => {
       if (pattern.test(line)) {
         if (mode === 'hardcodes' && rel.endsWith('.env.example') && line.includes('<') && line.includes('>')) {
+          return;
+        }
+        // Prose that describes behaviour is not a store; the structural
+        // check for in-process state is scripts/config-audit.mjs.
+        if (mode === 'memory' && (rel.endsWith('.md') || /^\s*(\/\/|\*|#|\/\*)/.test(line))) {
           return;
         }
         const allowed = allowlist.some((entry) => {

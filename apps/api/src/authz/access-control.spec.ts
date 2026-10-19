@@ -356,3 +356,33 @@ describe('Platform ownership — only SUPERADMIN acts on tenants', () => {
     }
   });
 });
+
+describe('User management — admins cannot take over fellow admins', () => {
+  const admin = { sub: 'admin-1', role: 'TENANT_ADMIN', tenantId: 't1' } as any;
+  const peer = { id: 'admin-2', role: 'TENANT_ADMIN', tenantId: 't1' };
+  const officer = { id: 'officer-1', role: 'LOAN_OFFICER', tenantId: 't1' };
+
+  it('refuses a tenant admin managing another tenant admin', () => {
+    expect(() => authz.assertCanManageUser(admin, peer)).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('lets a tenant admin manage themselves and non-admin staff', () => {
+    expect(() =>
+      authz.assertCanManageUser(admin, { ...peer, id: 'admin-1' }),
+    ).not.toThrow();
+    expect(() => authz.assertCanManageUser(admin, officer)).not.toThrow();
+  });
+
+  it('lets the platform operator manage any tenant admin', () => {
+    const platform = { sub: 'root', role: 'SUPERADMIN', tenantId: null } as any;
+    expect(() => authz.assertCanManageUser(platform, peer)).not.toThrow();
+  });
+
+  it('refuses managing a user of another tenant', () => {
+    expect(() =>
+      authz.assertCanManageUser(admin, { ...officer, tenantId: 't2' }),
+    ).toThrow(ForbiddenException);
+  });
+});

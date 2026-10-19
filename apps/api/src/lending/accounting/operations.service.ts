@@ -21,6 +21,8 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { AdapterRegistry } from '../integrations/adapters';
+import { principalRepaid } from '../facilities/facility-state';
+import { operationalConfig } from '../../config/operational-config';
 
 /** Account codes whose GL balance must equal a loan-account balance field. */
 const SUBLEDGER_FIELDS: {
@@ -28,13 +30,46 @@ const SUBLEDGER_FIELDS: {
     | 'principalOutstanding'
     | 'interestReceivable'
     | 'feesReceivable'
-    | 'penaltyReceivable';
+    | 'penaltyReceivable'
+    | 'advanceBalance'
+    | 'interestInSuspense'
+    | 'allowance'
+    | 'downPaymentHeld';
   mapping: string;
+  /** Credit-balance accounts: the GL balance is credits − debits. */
+  credit?: true;
+  /** Code used when an agreement predates the mapping key. */
+  fallback?: string;
 }[] = [
   { field: 'principalOutstanding', mapping: 'loansReceivable' },
   { field: 'interestReceivable', mapping: 'interestReceivable' },
   { field: 'feesReceivable', mapping: 'feesReceivable' },
   { field: 'penaltyReceivable', mapping: 'penaltyReceivable' },
+  {
+    field: 'advanceBalance',
+    mapping: 'customerAdvances',
+    credit: true,
+    fallback: '2300',
+  },
+  {
+    field: 'interestInSuspense',
+    mapping: 'interestSuspense',
+    credit: true,
+    fallback: '2400',
+  },
+  // The loss allowance is a contra-asset: a credit balance per loan.
+  {
+    field: 'allowance',
+    mapping: 'loanLossAllowance',
+    credit: true,
+    fallback: '1300',
+  },
+  {
+    field: 'downPaymentHeld',
+    mapping: 'downPaymentsHeld',
+    credit: true,
+    fallback: '2600',
+  },
 ];
 
 @Injectable()
@@ -287,13 +322,33 @@ export class LendingOperationsService {
       'accounting.read',
       tenantResource(tenantId),
     );
-    const entries = await this.prisma.lendingJournalEntry.findMany({
+    // Summed in the database per currency and account: loading every entry
+    // with its lines needs one bind parameter per entry, which fails beyond
+    // PostgreSQL's 32,767 (about 24,000 entries in practice).
+    const currencies = await this.prisma.lendingJournalEntry.groupBy({
+      by: ['currency'],
       where: { tenantId },
-      select: {
-        currency: true,
-        lines: { select: { accountCode: true, debit: true, credit: true } },
-      },
+      orderBy: { currency: 'asc' },
     });
+    const entries: {
+      currency: string;
+      lines: { accountCode: string; debit: string; credit: string }[];
+    }[] = [];
+    for (const { currency } of currencies) {
+      const sums = await this.prisma.lendingJournalLine.groupBy({
+        by: ['accountCode'],
+        where: { tenantId, entry: { currency } },
+        _sum: { debit: true, credit: true },
+      });
+      entries.push({
+        currency,
+        lines: sums.map((x) => ({
+          accountCode: x.accountCode,
+          debit: (x._sum.debit ?? 0).toString(),
+          credit: (x._sum.credit ?? 0).toString(),
+        })),
+      });
+    }
     const byCurrency = new Map<
       string,
       Map<
@@ -387,23 +442,57 @@ export class LendingOperationsService {
     // repayments, so it is reconciled against those instead.
     const facilities = await this.prisma.facility.findMany({
       where: { tenantId },
-      select: { agreementId: true, reference: true, totalDrawn: true },
+      select: {
+        id: true,
+        agreementId: true,
+        reference: true,
+        totalDrawn: true,
+      },
     });
+    const cards = await this.prisma.cardAccount.findMany({
+      where: { tenantId },
+      select: {
+        facilityId: true,
+        reference: true,
+        purchaseBalance: true,
+        cashBalance: true,
+        planBalance: true,
+      },
+    });
+    const cardByFacility = new Map(cards.map((c) => [c.facilityId, c]));
     const facilityByAgreement = new Map(
       facilities.map((x) => [x.agreementId, x]),
     );
+    // Read in bulk, not per loan (docs/lending/PERFORMANCE.md): each
+    // agreement's accounting mapping from its latest version, the schedule's
+    // unpaid principal per loan, and the facility loans' principal movements.
+    const mappings = await this.accountingMappings(tenantId);
+    const schedules = await this.prisma.scheduleInstalment.groupBy({
+      by: ['loanAccountId'],
+      where: { tenantId, status: 'DUE' },
+      _sum: {
+        principalDue: true,
+        principalPaid: true,
+        capitalizedInterest: true,
+      },
+    });
+    const unpaidByLoan = new Map(
+      schedules.map((x) => [
+        x.loanAccountId,
+        D(x._sum.principalDue ?? '0')
+          .minus(D(x._sum.principalPaid ?? '0'))
+          .minus(D(x._sum.capitalizedInterest ?? '0')),
+      ]),
+    );
+    const facilityEvents = await this.facilityMovements(
+      tenantId,
+      accounts
+        .filter((a) => facilityByAgreement.has(a.agreementId))
+        .map((a) => a.id),
+    );
     const breaks: Record<string, unknown>[] = [];
     for (const a of accounts) {
-      const version = await this.prisma.agreementVersion.findFirst({
-        where: { tenantId, agreementId: a.agreementId },
-        orderBy: { version: 'desc' },
-        select: { productConfig: true },
-      });
-      const mapping = (
-        version?.productConfig as
-          | { accounting?: Record<string, string> }
-          | undefined
-      )?.accounting;
+      const mapping = mappings.get(a.agreementId);
       if (!mapping) {
         breaks.push({
           loanAccountId: a.id,
@@ -415,8 +504,9 @@ export class LendingOperationsService {
       }
       for (const f of SUBLEDGER_FIELDS) {
         const sub = D(a[f.field]);
-        const ledger =
-          gl.get(`${a.id}:${mapping[f.mapping]}`) ?? new lending.D(0);
+        const code = mapping[f.mapping] ?? f.fallback;
+        const net = gl.get(`${a.id}:${code}`) ?? new lending.D(0);
+        const ledger = f.credit ? net.negated() : net;
         if (!sub.eq(ledger))
           breaks.push({
             loanAccountId: a.id,
@@ -431,24 +521,44 @@ export class LendingOperationsService {
       if (facility) {
         // Drawn − repaid must be the principal balance. Capitalized charges
         // raise principal too, so they count as advances here.
-        const movements = await this.prisma.financialEvent.groupBy({
-          by: ['type'],
-          where: {
-            tenantId,
-            loanAccountId: a.id,
-            status: 'POSTED',
-            type: {
-              in: ['DISBURSEMENT', 'REPAYMENT', 'SETTLEMENT', 'CAPITALIZATION'],
-            },
-          },
-          _sum: { amount: true },
-        });
+        const events = facilityEvents.get(a.id) ?? [];
+        // A repayment moves the drawn balance only by the principal it
+        // repaid; the rest settled stated interest, fees or penalties.
         const movedBy = (t: string) =>
-          D(movements.find((m) => m.type === t)?._sum.amount ?? '0');
+          events
+            .filter((e) => e.type === t)
+            .reduce(
+              (s, e) =>
+                s.plus(
+                  t === 'REPAYMENT' ||
+                    t === 'SETTLEMENT' ||
+                    t === 'TRADE_WRITE_OFF'
+                    ? principalRepaid(e, mapping.loansReceivable ?? '1200')
+                    : D(e.amount),
+                ),
+              new lending.D(0),
+            );
         const expected = movedBy('DISBURSEMENT')
           .plus(movedBy('CAPITALIZATION'))
           .minus(movedBy('REPAYMENT'))
-          .minus(movedBy('SETTLEMENT'));
+          .minus(movedBy('SETTLEMENT'))
+          .minus(movedBy('TRADE_WRITE_OFF'));
+        // A card's balances (purchases, cash advances, plans) are the principal, split.
+        const card = cardByFacility.get(facility.id);
+        if (card) {
+          const split = D(card.purchaseBalance)
+            .plus(D(card.cashBalance))
+            .plus(D(card.planBalance));
+          if (!split.eq(D(a.principalOutstanding)))
+            breaks.push({
+              loanAccountId: a.id,
+              reference: a.reference,
+              check: 'cardBalances',
+              card: card.reference,
+              subledger: D(a.principalOutstanding).toString(),
+              cardBalances: split.toString(),
+            });
+        }
         if (!expected.eq(D(a.principalOutstanding)))
           breaks.push({
             loanAccountId: a.id,
@@ -459,22 +569,7 @@ export class LendingOperationsService {
             movements: expected.toString(),
           });
       } else if (a.status === 'ACTIVE') {
-        const sched = await this.prisma.scheduleInstalment.findMany({
-          where: { tenantId, loanAccountId: a.id, status: 'DUE' },
-          select: {
-            principalDue: true,
-            principalPaid: true,
-            capitalizedInterest: true,
-          },
-        });
-        const unpaid = sched.reduce(
-          (s, l) =>
-            s
-              .plus(D(l.principalDue))
-              .minus(D(l.principalPaid))
-              .minus(D(l.capitalizedInterest)),
-          new lending.D(0),
-        );
+        const unpaid = unpaidByLoan.get(a.id) ?? new lending.D(0);
         if (!unpaid.eq(D(a.principalOutstanding)))
           breaks.push({
             loanAccountId: a.id,
@@ -482,6 +577,43 @@ export class LendingOperationsService {
             check: 'schedulePrincipal',
             subledger: D(a.principalOutstanding).toString(),
             schedule: unpaid.toString(),
+          });
+      }
+    }
+    // LT-17: a project's reserve and lock-up equal their ledger accounts,
+    // and the waterfall's receipts clearing account is always emptied.
+    const projects = await this.prisma.projectFinance.findMany({
+      where: { tenantId },
+    });
+    for (const p of projects) {
+      const loan = accounts.find((a) => a.id === p.loanAccountId);
+      if (!loan) continue;
+      const version = await this.prisma.agreementVersion.findFirst({
+        where: { tenantId, agreementId: loan.agreementId },
+        orderBy: { version: 'desc' },
+        select: { productConfig: true },
+      });
+      const acc = (
+        version?.productConfig as
+          | { projectFinance?: { accounts?: Record<string, string> } }
+          | undefined
+      )?.projectFinance?.accounts;
+      const held = (code: string) =>
+        (gl.get(`${p.loanAccountId}:${code}`) ?? new lending.D(0)).negated();
+      const checks: [string, string, InstanceType<typeof lending.D>][] = [
+        ['projectDsra', acc?.dsra ?? '2410', D(p.dsraBalance)],
+        ['projectLockUp', acc?.lockUp ?? '2420', D(p.lockUpBalance)],
+        ['projectProceeds', acc?.proceeds ?? '2430', new lending.D(0)],
+      ];
+      for (const [check, code, expected] of checks) {
+        const ledger = held(code);
+        if (!ledger.eq(expected))
+          breaks.push({
+            loanAccountId: p.loanAccountId,
+            check,
+            subledger: expected.toString(),
+            ledger: ledger.toString(),
+            difference: expected.minus(ledger).toString(),
           });
       }
     }
@@ -503,6 +635,59 @@ export class LendingOperationsService {
     return result;
   }
 
+  /** Each agreement's accounting mapping, from its latest version. */
+  private async accountingMappings(tenantId: string) {
+    // Raw SQL for DISTINCT ON and to read only the mapping out of the
+    // configuration; scoped by tenant explicitly.
+    const rows = await this.prisma.$queryRaw<
+      { agreementId: string; accounting: Record<string, string> | null }[]
+    >`SELECT DISTINCT ON ("agreementId") "agreementId", "productConfig" -> 'accounting' AS accounting
+      FROM "AgreementVersion" WHERE "tenantId" = ${tenantId}
+      ORDER BY "agreementId", version DESC`;
+    const out = new Map<string, Record<string, string>>();
+    for (const r of rows)
+      if (r.accounting && typeof r.accounting === 'object')
+        out.set(r.agreementId, r.accounting);
+    return out;
+  }
+
+  /** Posted principal movements of facility loans, with their journals, by loan. */
+  private async facilityMovements(tenantId: string, loanIds: string[]) {
+    const out = new Map<
+      string,
+      Prisma.FinancialEventGetPayload<{
+        include: { journal: { include: { lines: true } } };
+      }>[]
+    >();
+    // In slices: an IN list has to stay under PostgreSQL's bind-parameter limit.
+    for (let i = 0; i < loanIds.length; i += 500) {
+      const events = await this.prisma.financialEvent.findMany({
+        where: {
+          tenantId,
+          loanAccountId: { in: loanIds.slice(i, i + 500) },
+          status: 'POSTED',
+          type: {
+            // TRADE_WRITE_OFF: a bought receivable lost without recourse (factoring, forfaiting).
+            in: [
+              'DISBURSEMENT',
+              'REPAYMENT',
+              'SETTLEMENT',
+              'CAPITALIZATION',
+              'TRADE_WRITE_OFF',
+            ],
+          },
+        },
+        include: { journal: { include: { lines: true } } },
+      });
+      for (const e of events) {
+        const list = out.get(e.loanAccountId!) ?? [];
+        list.push(e);
+        out.set(e.loanAccountId!, list);
+      }
+    }
+    return out;
+  }
+
   // ── Audit explorer ────────────────────────────────────────────────────────
 
   async auditEvents(
@@ -521,7 +706,9 @@ export class LendingOperationsService {
       tenantResource(actor.tenantId, 'TENANT'),
     );
     // Tenants see their own trail; the platform sees only platform-level events.
-    const where: Prisma.AuditEventWhereInput = { tenantId: actor.tenantId };
+    const where: Prisma.AuditEventWhereInput = {
+      tenantId: actor.tenantId ?? null,
+    };
     if (q.resourceType) where.resourceType = q.resourceType;
     if (q.resourceId) where.resourceId = q.resourceId;
     if (q.action) where.action = { contains: q.action };
@@ -555,17 +742,31 @@ export class LendingOperationsService {
    * Delivers outbox messages written in the same transaction as the financial
    * change. Mock adapters are refused in production, so there messages stay
    * PENDING with the reason recorded rather than being marked sent.
+   *
+   * Every API instance runs this. A message is claimed before it is sent by
+   * moving its availability past a lease (LENDING_DELIVERY_LEASE_SECONDS) in
+   * one conditional update, so no two instances send the same message; one
+   * that dies mid-send leaves it to be retried when the lease runs out.
    */
   @Interval('lending-outbox', 60_000)
   async deliverOutbox(): Promise<void> {
     if (process.env.LENDING_OUTBOX_DISABLED === 'true') return;
+    const { outbox, deliveryLeaseSeconds } = operationalConfig();
     await runAsSystem('lending outbox delivery', async () => {
       const batch = await this.prisma.outboxMessage.findMany({
         where: { status: 'PENDING', availableAt: { lte: new Date() } },
         orderBy: { createdAt: 'asc' },
-        take: 50,
+        take: outbox.batchSize,
       });
       for (const m of batch) {
+        const now = new Date();
+        const claimed = await this.prisma.outboxMessage.updateMany({
+          where: { id: m.id, status: 'PENDING', availableAt: { lte: now } },
+          data: {
+            availableAt: new Date(now.getTime() + deliveryLeaseSeconds * 1_000),
+          },
+        });
+        if (claimed.count !== 1) continue;
         try {
           await this.adapters
             .notifications()
@@ -585,7 +786,7 @@ export class LendingOperationsService {
             data: {
               attempts,
               lastError: (e as Error).message.slice(0, 300),
-              status: attempts >= 20 ? 'FAILED' : 'PENDING',
+              status: attempts >= outbox.maxAttempts ? 'FAILED' : 'PENDING',
               availableAt: new Date(
                 Date.now() +
                   Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts, 6)),

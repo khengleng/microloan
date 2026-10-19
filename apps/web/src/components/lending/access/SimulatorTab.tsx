@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FlaskConical } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { Btn, Card, Disclosure, ErrorBox, Field, JsonBlock, Notice, SelectInput, TextInput } from '../ui';
 import { DecisionExplain } from '../DecisionExplain';
@@ -20,9 +21,10 @@ export function SimulatorTab({ data }: TabProps) {
     const [assurance, setAssurance] = useState('');
     const [amount, setAmount] = useState('');
     const [result, setResult] = useState<PolicySimulation | null>(null);
+    const t = useTranslations('LendingAccess.simulator');
 
-    const idErr = resourceId && !UUID_RE.test(resourceId.trim()) ? 'Must be a UUID' : undefined;
-    const amountErr = amount && !MONEY_RE.test(amount.trim()) ? 'Decimal with up to 4 places' : undefined;
+    const idErr = resourceId && !UUID_RE.test(resourceId.trim()) ? t('uuidRule') : undefined;
+    const amountErr = amount && !MONEY_RE.test(amount.trim()) ? t('amountRule') : undefined;
     const valid = userId && action && !idErr && !amountErr;
 
     const simulate = async () => {
@@ -39,52 +41,52 @@ export function SimulatorTab({ data }: TabProps) {
 
     return (
         <div className="space-y-5">
-            <Notice tone="info" title="Simulation is side-effect free — nothing is changed or audited as an action.">
-                Ask “can this user perform this action on this resource, and why?”. The same policy engine and inputs as a real request are used.
+            <Notice tone="info" title={t('noticeTitle')}>
+                {t('noticeBody')}
             </Notice>
-            <Card title="Policy simulator">
+            <Card title={t('title')}>
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Field label="User"><SelectInput value={userId} onChange={setUserId} options={data.users.map((u) => ({ value: u.id, label: `${u.email} (${u.role})${u.isActive ? '' : ' — inactive'}` }))} placeholder="Select user…" /></Field>
-                        <Field label="Action">
+                        <Field label={t('user')}><SelectInput value={userId} onChange={setUserId} options={data.users.map((u) => ({ value: u.id, label: u.isActive ? `${u.email} (${u.role})` : t('userInactive', { email: u.email, role: u.role }) }))} placeholder={t('selectUser')} /></Field>
+                        <Field label={t('action')}>
                             <select value={action} onChange={(e) => setAction(e.target.value)} className="w-full rounded border border-[#E3E8EE] bg-white px-2.5 py-1.5 text-[13px] text-[#1A1F36] focus:outline-none focus:ring-2 focus:ring-[#635BFF]/30">
-                                <option value="">Select action…</option>
+                                <option value="">{t('selectAction')}</option>
                                 {groups.map(([cat, perms]) => (
                                     <optgroup key={cat} label={cat}>{perms.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</optgroup>
                                 ))}
                             </select>
                         </Field>
-                        <Field label="Resource type"><SelectInput value={resourceType} onChange={setResourceType} options={RESOURCE_TYPES} /></Field>
-                        <Field label="Resource ID (optional)" error={idErr} hint={resourceType === 'TENANT' ? 'Not used for TENANT' : 'UUID of the application, loan or product version'}>
+                        <Field label={t('resourceType')}><SelectInput value={resourceType} onChange={setResourceType} options={RESOURCE_TYPES} /></Field>
+                        <Field label={t('resourceId')} error={idErr} hint={resourceType === 'TENANT' ? t('resourceIdTenant') : t('resourceIdHint')}>
                             <TextInput value={resourceType === 'TENANT' ? '' : resourceId} onChange={setResourceId} disabled={resourceType === 'TENANT'} placeholder="uuid" />
                         </Field>
-                        <Field label="Assurance (optional)"><SelectInput value={assurance} onChange={setAssurance} options={['MFA', 'SINGLE_FACTOR']} placeholder="(session default)" /></Field>
-                        <Field label="Amount (optional)" error={amountErr}><TextInput value={amount} onChange={setAmount} inputMode="decimal" placeholder="e.g. 25000.00" /></Field>
+                        <Field label={t('assurance')}><SelectInput value={assurance} onChange={setAssurance} options={['MFA', 'SINGLE_FACTOR']} placeholder={t('sessionDefault')} /></Field>
+                        <Field label={t('amount')} error={amountErr}><TextInput value={amount} onChange={setAmount} inputMode="decimal" placeholder={t('amountPlaceholder')} /></Field>
                     </div>
                     <ErrorBox error={error} onDismiss={clearError} />
                     <div className="flex justify-end">
-                        <Btn variant="primary" busy={busy === 'sim'} disabled={!valid} reason={!valid ? 'Select a user and action' : undefined} onClick={simulate}><FlaskConical size={13} /> Simulate</Btn>
+                        <Btn data-tour="access-simulator-run" variant="primary" busy={busy === 'sim'} disabled={!valid} reason={!valid ? t('required') : undefined} onClick={simulate}><FlaskConical size={13} /> {t('simulate')}</Btn>
                     </div>
                 </div>
             </Card>
 
             {result && (
-                <Card title="Result">
+                <Card title={t('result')}>
                     <div className="space-y-5">
                         <div className="flex flex-col md:flex-row md:items-center gap-4">
                             <div className={`shrink-0 w-28 h-28 rounded-xl flex items-center justify-center text-4xl font-black text-white ${result.answer === 'YES' ? 'bg-emerald-600' : 'bg-red-600'}`}>
-                                {result.answer}
+                                {result.answer === 'YES' ? t('yes') : result.answer === 'NO' ? t('no') : result.answer}
                             </div>
                             <p className="text-[15px] text-[#1A1F36] font-semibold">{result.question}</p>
                         </div>
                         <div>
-                            <p className="text-[12px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">Decision checks</p>
+                            <p className="text-[12px] font-bold uppercase tracking-wide text-[#8792A2] mb-2">{t('checks')}</p>
                             <DecisionExplain checks={result.decision.checks} />
                         </div>
-                        <Disclosure summary={`Feature flags evaluated (${Array.isArray(result.decision.flags) ? result.decision.flags.length : 0})`}>
+                        <Disclosure summary={t('flagsEvaluated', { count: Array.isArray(result.decision.flags) ? result.decision.flags.length : 0 })}>
                             <JsonBlock value={result.decision.flags} />
                         </Disclosure>
-                        <Disclosure summary="Subject: roles, grants, authorities, cohorts">
+                        <Disclosure summary={t('subject')}>
                             <JsonBlock value={result.subject} />
                         </Disclosure>
                     </div>

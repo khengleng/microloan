@@ -38,6 +38,9 @@ const MOVEMENT_OF: Record<string, lending.FacilityMovementType> = {
   REPAYMENT: 'REPAYMENT',
   SETTLEMENT: 'REPAYMENT',
   CAPITALIZATION: 'CAPITALIZATION',
+  // Writing off a bought receivable takes it off the drawn balance and so
+  // frees the limit, as a repayment of it would.
+  TRADE_WRITE_OFF: 'REPAYMENT',
 };
 
 /**
@@ -71,6 +74,7 @@ export function facilityTerms(
     minimumPaymentRate: fc.minimumPaymentRate,
     minimumPaymentFloor: fc.minimumPaymentFloor,
     overlimitRate: fc.overlimitRate,
+    overlimitTolerance: fc.overlimitTolerance,
     // Shares of the limit become amounts only here, where the limit is known.
     tranches: fc.tranches.map((t) => ({
       code: t.code,
@@ -82,6 +86,21 @@ export function facilityTerms(
       conditions: t.conditions,
     })),
   };
+}
+
+/**
+ * How much of an event moved the drawn principal. A facility or card
+ * repayment that also cleared interest or fees records its principal share as
+ * the PRINCIPAL component; only that share reduces the balance.
+ */
+export function principalMoved(e: {
+  type: string;
+  amount: unknown;
+  components: unknown;
+}): string {
+  const principal = (e.components as { PRINCIPAL?: string } | null)?.PRINCIPAL;
+  if (e.type === 'REPAYMENT' && principal != null) return decStr(principal);
+  return decStr(e.amount as string);
 }
 
 export async function loadFacilityState(
@@ -126,6 +145,7 @@ export async function loadFacilityState(
         type: { in: Object.keys(MOVEMENT_OF) },
       },
       orderBy: [{ valueDate: 'asc' }, { createdAt: 'asc' }],
+      include: { journal: { include: { lines: true } } },
     }),
   ]);
   if (!account) throw new NotFoundException('Facility loan account not found');
@@ -157,12 +177,40 @@ export async function loadFacilityState(
     movements: events.map((e) => ({
       date: toLocalDate(e.valueDate)!,
       type: MOVEMENT_OF[e.type],
-      amount: decStr(e.amount),
+      amount:
+        MOVEMENT_OF[e.type] === 'REPAYMENT'
+          ? principalRepaid(e, config.accounting.loansReceivable)
+          : decStr(e.amount),
       ...(drawdownTranche.has(e.id)
         ? { trancheCode: drawdownTranche.get(e.id) }
         : {}),
     })),
   };
+}
+
+/**
+ * The principal a repayment or settlement took off the drawn balance: what it
+ * credited to loans receivable. The rest of the payment settled stated
+ * interest, fees or penalties, which never consumed the limit, so counting
+ * the whole payment overstated the headroom and broke reconciliation.
+ */
+export function principalRepaid(
+  event: {
+    amount: unknown;
+    journal?: {
+      lines: { accountCode: string; debit: unknown; credit: unknown }[];
+    } | null;
+  },
+  loansReceivable: string,
+): string {
+  if (!event.journal) return decStr(event.amount as string);
+  return event.journal.lines
+    .filter((l) => l.accountCode === loansReceivable)
+    .reduce(
+      (t, l) => t.plus(D(l.credit as string)).minus(D(l.debit as string)),
+      D('0'),
+    )
+    .toString();
 }
 
 export function resourceOf(

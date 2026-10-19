@@ -262,6 +262,15 @@ export class PaymentHolidayService {
           `The ${programme.code} programme is ${programme.status.toLowerCase()}; it is not accepting enrolments.`,
         );
       }
+      // A holiday is a restructure: a product that excludes restructuring
+      // (a Murabaha's fixed sale price, an income-contingent schedule set by
+      // assessed income) excludes holidays too.
+      if (!state.config.operations.restructureAllowed)
+        throw new BadRequestException({
+          message:
+            'This product does not allow restructuring, so a payment holiday cannot be granted on it.',
+          code: 'HOLIDAY_NOT_AVAILABLE',
+        });
       const businessDate = await this.businessDate.get(tenantId, tx);
       const candidate = await this.candidate(tx, state, programmeId);
       const eligibility = engineCall(() =>
@@ -293,14 +302,20 @@ export class PaymentHolidayService {
         throw new ConflictException('This loan has no remaining instalments.');
       }
       const effectiveDate = body.effectiveDate ?? remaining[0].periodStart;
-      const options = engineCall(() =>
-        lending.holidayRestructureOptions(
-          engineProgramme(programme),
-          body.instalments,
-          effectiveDate,
-          remaining.length,
+      const options = {
+        ...engineCall(() =>
+          lending.holidayRestructureOptions(
+            engineProgramme(programme),
+            body.instalments,
+            effectiveDate,
+            remaining.length,
+          ),
         ),
-      );
+        // A capitalizing holiday is grace capitalization: it follows the
+        // product's basis, so a SIMPLE product never charges interest on
+        // interest (TV-13, DECISIONS D-009).
+        capitalizationBasis: state.config.pricing.capitalization.basis,
+      };
       const snapshot = await this.snapshot(tx, state, effectiveDate);
       const calc = engineCall(() =>
         lending.calculateRestructure(state.contract, snapshot, options, {
@@ -351,6 +366,18 @@ export class PaymentHolidayService {
           openingPrincipal: l.openingPrincipal,
           principalDue: l.principal,
           interestDue: l.interest,
+          // Without it a capitalizing holiday never accrued or capitalized
+          // the deferred interest, and the schedule's principal drifted
+          // from the ledger's.
+          capitalizedInterest: l.capitalizedInterest,
+          // A deferral without capitalization: the holiday's interest is
+          // earned over the holiday and collected on the later instalments
+          // (D-QA-05) — never silently dropped.
+          deferredAccrual: l.deferredAccrual,
+          deferredInterestDue: l.deferred.interest,
+          feeDue: l.deferred.fees,
+          penaltyDue: l.deferred.penalties,
+          taxDue: l.deferred.taxes,
           annualRate: l.annualRate,
           projected: false,
         })),
@@ -370,6 +397,8 @@ export class PaymentHolidayService {
           version: agreementVersion,
           reason: 'PAYMENT_HOLIDAY',
           productConfig: previous!.productConfig as Json,
+          // The contract's policies carry forward unchanged.
+          policies: (previous!.policies ?? undefined) as Json | undefined,
           configHash: previous!.configHash,
           terms: previous!.terms as Json,
           scheduleInput: previous!.scheduleInput as Json,
