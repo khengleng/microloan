@@ -124,7 +124,7 @@ Limits are managed on **Access & policy › Approval authorities** ([18-tenant-a
 
 ## 6. When you need your authenticator code (MFA step-up)
 
-Some actions are allowed only if you signed in **with** your authenticator code in this session. A password-only session can view everything but cannot do these:
+Some actions need an authenticator code from the **last 15 minutes** (a deployment setting, `AUTH_MFA_STEP_UP_MINUTES`). A password-only session, or one whose last code is older than that, can view everything but cannot do these without a fresh code:
 
 - Approve credit; approve counterparty limits.
 - Approve a disbursement or a letter-of-credit drawing.
@@ -140,12 +140,13 @@ How you can tell:
 - The top-bar chip shows **Password only** (amber) instead of **MFA** (green).
 - An amber banner says **Verify with your authenticator to approve.**
 - Home tiles and items show **Needs MFA**.
-- If you try: **This action requires signing in with multi-factor authentication** (check **ABAC**).
+- If you try: a box **Confirm it is you** asks for the six-digit code from your authenticator app. Enter it and the action is retried for you. (The policy check shows **This action requires a recent multi-factor authentication code** under **ABAC**.)
 
 What to do:
 
 1. If you have not set up an authenticator yet, follow [01-getting-started.md](01-getting-started.md), section 4.
-2. Click **Sign out**, then sign in again and enter the six-digit code when asked.
+2. Enter the current code when asked. Each code works once; if it was just used, wait for the next one.
+3. Staying signed in does not keep the code fresh: the session lasts for weeks, the code's freshness only 15 minutes.
 
 ---
 

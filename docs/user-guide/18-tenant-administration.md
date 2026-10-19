@@ -111,7 +111,11 @@ Only an organisation admin can change the plan. If you see **Plan changes are un
 
 ### 4.4 Security Verification
 
-Your own authenticator setup — see [01-getting-started.md](01-getting-started.md), section 4.
+Your own authenticator setup — see [01-getting-started.md](01-getting-started.md), section 4. As an administrator you **must** have one: until it is set up, every page sends you to **My account** ([01-getting-started.md](01-getting-started.md), section 3.1).
+
+### 4.5 What the platform operator did in your organisation
+
+When the platform operator (a platform super-administrator) acts on your organisation — resets a team member's password or authenticator, suspends or reactivates someone, changes your organisation's status or plan, archives it for erasure — the entry appears in your **Audit log** with the badge **Platform operator** as the actor. The operator's own email is not shown; the platform keeps it in its own log.
 
 ---
 
@@ -319,5 +323,10 @@ Your organisation's own operating parameters: the regulatory loan classes and pr
 - A **Finance officer** proposes a complete new version (**Propose a change**, **Start from what is in force**, edit **Settings (JSON)**, **Why**, **Propose**).
 - A different person with the settings-approval permission (normally **Risk / compliance reviewer**) clicks **Approve** or **Reject** under **Versions**.
 - The Tenant administrator role does not have these permissions.
+
+Two settings concern access rather than accounting:
+
+- **Administrators must use an authenticator** (`security.requireMfaForAdmins`, default **on**). Turning it off lets organisation administrators work without an authenticator. Leave it on unless a regulator or auditor has agreed otherwise.
+- **Customers may apply for loans in the Telegram bot** (`telegramBot.allowLoanApplications`, default **off**). When on, a customer whose chat is linked (by sharing their phone number) can apply through the bot. The application is recorded by **Telegram bot**, never under a staff member's name, and is refused if the amount or term is outside the product's limits for the rate offered. It lands as a pending application in the original loan module for a loan officer to review; while the original loan book is read-only it is refused.
 
 Details are in [14-accounting-and-period-close.md](14-accounting-and-period-close.md).

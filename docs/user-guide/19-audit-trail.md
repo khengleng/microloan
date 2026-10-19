@@ -103,3 +103,6 @@ Click **Export CSV** to download the events matching the action, type and date f
 | `MFA_SETUP_INITIATED`, `MFA_ENABLED` | Someone started / finished setting up an authenticator. |
 | `USER_CREATE`, `USER_DISABLE` | An account was created / suspended on **Team members**. |
 | `GOOGLE_LOGIN_UNKNOWN_EMAIL` | Someone tried Google sign-in with an address that has no account. |
+| `MFA_STEP_UP`, `MFA_STEP_UP_FAILED`, `MFA_STEP_UP_REPLAY_REJECTED`, `LOGIN_MFA_REPLAY_REJECTED` | Someone confirmed (or failed to confirm) a fresh authenticator code; a replay is a code that was already used. |
+| Any event with the badge **Platform operator** | The platform's super-administrator did this in your organisation (for example `USER_PASSWORD_RESET`, `USER_MFA_RESET`, `TENANT_SUSPEND`, `TENANT_ARCHIVE_CREATED`). |
+| `LOAN_CREATE` by **Telegram bot** | A customer applied through the Telegram bot (only when your organisation turned this on). |

@@ -99,7 +99,7 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B20 | `borrower-portal/borrower-auth.service.ts:10-14` | OTP 5 minutes, 5 guesses, 3 codes per 15 minutes (the SMS also said "5 minutes") | `BORROWER_OTP_TTL_SECONDS` (300), `BORROWER_OTP_MAX_ATTEMPTS` (5), `BORROWER_OTP_MAX_PER_WINDOW` (3), `BORROWER_OTP_WINDOW_MINUTES` (15) |
 | B21 | `borrower-portal/borrower-jwt.ts:15` | Borrower session 2 h | `BORROWER_TOKEN_TTL` (2h) |
 | B22 | `billing/signup-payment.service.ts:16` | Signup QR valid 7 days | `SIGNUP_PAYMENT_TTL_DAYS` (7) |
-| B23 | `tenants/tenants.service.ts:298` | Erasure notice 30 days | `TENANT_ERASURE_GRACE_DAYS` (30) |
+| B23 | `tenants/tenants.service.ts:298` | Erasure grace 30 days (enforced before a purge, D-131) | `TENANT_ERASURE_GRACE_DAYS` (30) |
 | B24 | `app.module.ts:55` | 120 requests/second | `RATE_LIMIT_PER_SECOND` (120) |
 | B25 | `main.ts:70,71` | 5 MB body limit | `API_BODY_LIMIT` (5mb) |
 | B26 | `lending/policy/policy.service.ts:37` | Authorization memo 30 s | `LENDING_AUTHZ_CACHE_TTL_MS` (30000); new bound `LENDING_AUTHZ_CACHE_MAX_ENTRIES` (5000) |
@@ -108,6 +108,9 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B29 | `penalty-cron.service.ts:66` | Penalty fallback `?? 10.0` | Removed: `Tenant.penaltyRatePerDay` is required with a column default, so the literal could never apply |
 | B30 | `penalty-cron.service.ts`, `reminder/reminder.service.ts`, `bot/bot.service.ts`, `collections/collections.service.ts` (D-102) | Legacy jobs ran in the server's time zone | `timeZone: LENDING_EOD_TZ` (Asia/Phnom_Penh), shared with end of day via `loans/legacy-money.ts` |
 | B31 | `provisioning/provisioning.service.ts` (new, D-101) | Transaction timeout of a legacy provisioning run under its advisory lock | `LEGACY_PROVISIONING_TX_TIMEOUT_MS` (120000) |
+| B32 | `auth/mfa-policy.ts` (new, D-128, D-129) | Who must use an authenticator; how recent a code an MFA-gated action needs | `AUTH_MFA_REQUIRED_SUPERADMIN` (true), tenant setting `security.requireMfaForAdmins` (true), `AUTH_MFA_STEP_UP_MINUTES` (15) |
+| B33 | `platform-approvals/platform-approval.service.ts`, `tenants/tenant-purge.service.ts` (new, D-130, D-131) | Life of a second-super-administrator request; purge transaction timeout | `PLATFORM_APPROVAL_TTL_DAYS` (7), `TENANT_PURGE_TX_TIMEOUT_MS` (300000) |
+| B34 | `bot/bot.service.ts` (D-132) | Loan applications from the Telegram bot | Tenant setting `telegramBot.allowLoanApplications` (false); limits from the product's rate policy |
 
 ### Ledger postings that bypassed the account mapping
 

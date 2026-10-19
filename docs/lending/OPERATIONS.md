@@ -1023,6 +1023,26 @@ To score thin-file borrowers: enable `scoring.thinFile` on the product (and
 optionally install and adjust `THIN_FILE`), collect consents, capture and
 verify the customer's documents' data, then submit the application.
 
+## Authenticator step-up, platform approvals and tenant purge
+
+- **Step-up (D-129).** Every lending action with `minAssurance: 'MFA'` needs an
+  authenticator code verified within `AUTH_MFA_STEP_UP_MINUTES` (default 15).
+  A stale session gets 403 `MFA_STEP_UP_REQUIRED` (the decision's only failing
+  check is `ASSURANCE`; any other failure stays `ACCESS_DENIED`). The web asks
+  for a code, calls `POST /auth/mfa/step-up` and retries. `GET /me/access`
+  reports `assurance.stepUpNeeded` on the same rule, so "Needs MFA" in the work
+  queues means "needs a fresh code".
+- **Administrators (D-128).** Tenant administrators must have an authenticator
+  unless the tenant's lending settings turn `security.requireMfaForAdmins` off.
+- **Platform audit (D-130).** Platform actions on a tenant's users or on the
+  tenant appear in that tenant's audit log as "Platform operator".
+- **Tenant purge (D-131).** Grace period, archive (SHA-256 recorded), legal
+  holds and retention (D-020 rules) and a second super-administrator are all
+  required; see DEPLOYMENT.md › Platform super-administrators.
+- **Telegram applications (D-132).** Off unless `telegramBot.allowLoanApplications`
+  is on; recorded by the "Telegram bot" system principal within the product's
+  limits.
+
 ## Known limitations
 
 * Not implemented: connected-party (group) exposure checks
