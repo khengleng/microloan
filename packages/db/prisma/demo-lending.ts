@@ -178,6 +178,12 @@ async function main() {
     ).map((tpl) => ({ template: tpl.code, code: tpl.code.replace(/_/g, '-').slice(0, 30), name: tpl.name })),
   ];
   const skipped: string[] = [];
+  // The interest-rate cap in force, as the API resolves it (DECISIONS D-102…D-107):
+  // a demo product is only activated when its rates fit under it.
+  const { operationalConfig } = await import('../../../apps/api/src/config/operational-config');
+  const ceiling = lending.pctToFraction(operationalConfig().regulatoryMaxAnnualRatePct);
+  const tenantCap = lending.pctToFraction(tenant.maxAnnualInterestRatePct?.toString());
+  const capPolicy = lending.rateCapPolicyOf(lending.defaultTenantLendingSettings());
   for (const p of all) {
     if (await prisma.lendingProduct.findFirst({ where: { tenantId: t, code: p.code } })) continue;
     const template = lending.TEMPLATE_BY_CODE[p.template];
@@ -185,6 +191,12 @@ async function main() {
     const valid = lending.validateProductConfig(config);
     if (!valid.ok) {
       skipped.push(`${p.code} (invalid default configuration)`);
+      continue;
+    }
+    const cap = lending.resolveRateCap({ regulatorCeiling: ceiling, tenantCap, productCap: valid.config.pricing.regulatoryCapAnnualRate });
+    const capReport = lending.productRateCapReport(valid.config, cap, capPolicy, { asOf: new Date().toISOString().slice(0, 10) });
+    if (capReport.findings.length) {
+      skipped.push(`${p.code} (${capReport.findings.map((f) => f.message).join(' ')})`);
       continue;
     }
     const required = [...new Set([...lending.requiredCapabilitiesFor(valid.config), ...template.extraCapabilities])].sort();
