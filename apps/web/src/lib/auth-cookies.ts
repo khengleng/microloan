@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * Server-only helpers for the staff session cookies. The tokens live in
@@ -52,19 +52,4 @@ export function clearAuthCookies<T extends NextResponse>(response: T): T {
     response.cookies.set('access_token', '', { ...cookieBase(), maxAge: 0 });
     response.cookies.set('refresh_token', '', { ...cookieBase(), maxAge: 0 });
     return response;
-}
-
-/**
- * The browser's IP for the API's per-IP throttle on unauthenticated routes.
- * Same rule as the API proxy: the platform edge appends the true client IP as
- * the LAST X-Forwarded-For entry; anything to its left is client-supplied.
- */
-export function clientIp(req: NextRequest): string {
-    const chain = (req.headers.get('x-forwarded-for') || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    return (chain.length ? chain[chain.length - 1] : undefined)
-        || req.headers.get('x-real-ip')?.trim()
-        || '127.0.0.1';
 }
