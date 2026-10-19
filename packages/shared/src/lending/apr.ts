@@ -73,7 +73,14 @@ export function periodicRateFromPayments(amountFinanced: string, payments: strin
   const pmts = payments.map((p, i) => dec(p, `payments[${i}]`));
   const n = dec(periodsPerYear, 'periodsPerYear');
   if (pv.lte(0) || !pmts.length || n.lte(0)) throw new EngineError('APR_INPUT', 'An amount financed, at least one payment and a positive number of periods per year are needed.');
-  const npv = (r: Dec) => pmts.reduce((acc, p, i) => acc.plus(p.div(ONE.plus(r).pow(i + 1))), ZERO).minus(pv);
+  // Σ pᵢ·vⁱ⁺¹ by Horner's rule (v = 1 / (1 + r)): one multiplication per
+  // payment instead of a power, so a 360-payment schedule solves quickly.
+  const npv = (r: Dec) => {
+    const v = ONE.div(ONE.plus(r));
+    let acc = ZERO;
+    for (let i = pmts.length - 1; i >= 0; i--) acc = acc.plus(pmts[i]).times(v);
+    return acc.minus(pv);
+  };
   // NPV falls as r rises; bisection is exact enough and cannot diverge.
   let lo = new D('-0.99');
   let hi = new D(1000);

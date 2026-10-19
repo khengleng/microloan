@@ -59,7 +59,8 @@ export interface BenchmarkObservation {
   rate: string;
 }
 
-export type RateBound = 'BENCHMARK' | 'FLOOR' | 'CAP';
+/** REGULATORY_CAP: the interest-rate cap in force held the rate down (DECISIONS D-108). */
+export type RateBound = 'BENCHMARK' | 'FLOOR' | 'CAP' | 'REGULATORY_CAP';
 
 export interface ResolvedRate {
   /** The all-in annual rate the contract charges. */
@@ -80,7 +81,7 @@ export interface ResolvedRate {
  * cap binds, the audit trail has to show what the benchmark would otherwise
  * have produced.
  */
-export function resolveFloatingRate(terms: FloatingTerms, observation: BenchmarkObservation): ResolvedRate {
+export function resolveFloatingRate(terms: FloatingTerms, observation: BenchmarkObservation, regulatoryCap?: string | null): ResolvedRate {
   if (observation.benchmarkCode !== terms.benchmarkCode) {
     throw new EngineError(
       'BENCHMARK_MISMATCH',
@@ -100,10 +101,16 @@ export function resolveFloatingRate(terms: FloatingTerms, observation: Benchmark
     annualRate = dec(terms.cap, 'cap');
     bound = 'CAP';
   }
+  // The interest-rate cap in force wins over the contract's own bounds: a
+  // reset never re-prices a loan above it (clamped, not refused — D-108).
+  if (regulatoryCap && annualRate.gt(dec(regulatoryCap, 'regulatoryCap'))) {
+    annualRate = dec(regulatoryCap, 'regulatoryCap');
+    bound = 'REGULATORY_CAP';
+  }
   if (annualRate.lt(0)) {
     throw new EngineError('NEGATIVE_RATE', `${terms.benchmarkCode} ${observation.rate} + margin ${terms.margin} is negative; set a floor.`);
   }
-  const boundNote = bound === 'BENCHMARK' ? '' : ` (${bound.toLowerCase()} ${annualRate.toString()} applied)`;
+  const boundNote = bound === 'BENCHMARK' ? '' : ` (${bound.toLowerCase().replace('_', ' ')} ${annualRate.toString()} applied)`;
   return {
     annualRate: annualRate.toString(),
     bound,
