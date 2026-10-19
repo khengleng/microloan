@@ -192,6 +192,8 @@ const LITERALS: Record<string, string> = {
 /** Global (platform) rows: not tenant data, so no victim to name. */
 const PLATFORM_ROWS: Record<string, string> = {
   'plan-tiers/:id': 'planTier',
+  // Platform-only second-super-administrator requests (D-130, D-131).
+  'purge-requests/:approvalId': 'platformApproval',
 };
 
 /** Routes outside the wall's subject matter: sign-in flows and health. */

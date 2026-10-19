@@ -77,6 +77,7 @@ d('Workspace: access, work queues and search (integration)', () => {
         tenantId,
         branchId,
         amr: 'mfa',
+        mfaAt: Math.floor(Date.now() / 1000),
       },
       { expiresIn: '1h' },
     );
