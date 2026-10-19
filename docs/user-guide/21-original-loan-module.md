@@ -20,20 +20,30 @@ The two do not share loans. A loan created under **Loans (original)** never appe
 
 When to use which:
 - **New loans:** use the lending platform ([05-applications-and-credit-decisions.md](05-applications-and-credit-decisions.md)) unless your organisation has told you to keep using the original module.
-- **Existing original loans:** keep servicing them here (repayments, early settlement, rescheduling, collections) until they are paid off or moved across with a loan-book migration ([16-loan-book-migration.md](16-loan-book-migration.md)). A migrated loan becomes a new platform loan. The old record and its legacy ledger entries stay where they are.
+- **Existing original loans:** move them across with a loan-book migration ([16-loan-book-migration.md](16-loan-book-migration.md)) and service them on the platform. The original module is read-only by default (see below), so payments, settlements and write-offs are not taken here unless your organisation has switched that off. A migrated loan becomes a new platform loan. The old record and its legacy ledger entries stay where they are.
 - **Combined figures:** **Finance › Combined ledger** shows both journals side by side ([14-accounting-and-period-close.md](14-accounting-and-period-close.md)).
 
 ### The legacy read-only switch
 
-A tenant administrator can close the original module to new business by turning on the feature flag `lending.legacy_loans.readonly` under **Risk & audit › Access & policy** (flags). One administrator proposes the change and a second administrator approves it. The flag is off by default.
+The original module is **read-only by default**. The feature flag `lending.legacy_loans.readonly` is on for every organisation unless a tenant administrator has switched it off.
 
 While it is on:
-- The **New Loan** button and the **Disburse Funds** button are hidden. On the dashboard, **Create New Loan** becomes **New application (lending)**.
-- A yellow banner **Legacy loans are read-only** appears on the loan list (and on approved loans), with links **New application** and **Migrate loans**.
-- Repayments, early settlement, rejection, rescheduling, write-off and reading of existing loans carry on as before.
-- If someone still tries, the server refuses with "New legacy loans are closed: create the loan in the lending platform (Lending › Applications)." or "Legacy disbursements are closed: book and disburse the loan in the lending platform."
+- No money moves in the original module. These are refused: new loans, **Disburse Funds**, **Post Payment** / **Record Payment**, early settlement, repayment reversal, write-off, restructure / reschedule and **Run Provisioning**. The nightly late-penalty job does not charge your loans either.
+- The buttons for these are hidden. The payoff quote is still shown, without the **Settle** button.
+- A yellow banner **The original loan module is read-only** appears on the loan list, the loan page, **Repayments** and **Provisioning**, with links **Lending › Loans**, **Migrate loans** and **New application**.
+- You can still open loans, schedules, repayments and receipts, get payoff quotes, export, print statements, approve or reject applications, record promises to pay, manage documents and see the combined ledger.
+- If someone still tries (for example through the API), the server refuses with a message such as "Repayments are closed in the original module, which is read-only. Move the loan to the lending platform with the loan-book migration (Lending › Migration) and service it in Lending › Loans." The error code is `LEGACY_LOANS_READONLY`.
 
-A loan that is already **Approved** can no longer be paid out once the switch is on. Reject it and create it again in the lending platform.
+**What to do with running original loans:** move them to the lending platform with a loan-book migration ([16-loan-book-migration.md](16-loan-book-migration.md)) and service them in **Loans › Loan accounts**. A migrated loan is closed in the original module and its balance cleared from the legacy ledger.
+
+**If your organisation must keep collecting in the original module for a while,** a tenant administrator switches the read-only flag off for the organisation under **Risk & audit › Access & policy** (flags): add a rule for the whole organisation with the flag **off**. One administrator proposes the change and a second administrator approves it. Remove the rule to make the module read-only again.
+
+While the module is open:
+- Two payments posted on the same loan at the same moment are both applied, one after the other; amounts must be in whole cents and cannot exceed what is owed.
+- A loan can be disbursed or written off only once, even if two people click at the same time.
+- A write-off first uses the provision already held for the loan; the rest of the loss is booked as write-off expense.
+- Only the **latest** repayment on a loan can be reversed. To correct an older one, reverse the later ones first. Reversing an early settlement makes the interest it waived owed again and reopens the loan.
+- Late penalties are charged from the day after the due date (Cambodia time), only while principal or interest of the instalment is unpaid, and stop at a cap per instalment (the lending setting **Original loan book: most late penalty on one instalment**, 25% of its principal and interest by default).
 
 ---
 
@@ -117,7 +127,7 @@ If it is blocked:
 
 The person who approved the loan, or who created it, cannot disburse it.
 
-If it is blocked: "Approver cannot disburse the same loan.", "Loan must be approved before disbursement.", or the read-only message.
+If it is blocked: "Approver cannot disburse the same loan.", "Loan must be approved before disbursement.", "This loan is no longer approved: it has already been disbursed or changed.", or the read-only message.
 
 ### 4.3 Post a payment
 
@@ -127,14 +137,14 @@ If it is blocked: "Approver cannot disburse the same loan.", "Loan must be appro
 
 A payment pays interest first, then principal, then penalty.
 
-If it is blocked: "Repayment amount cannot exceed the remaining balance of $X", "Can only post repayments for disbursed or defaulted loans".
+If it is blocked: "Repayment amount cannot exceed the remaining balance of X", "Repayment amounts are in whole cents (at most two decimals).", "Can only post repayments for disbursed or defaulted loans", or the read-only message (the button is hidden while the module is read-only).
 
 ### 4.4 Early settlement
 
 1. In **Early settlement**, click **Get payoff quote**. It shows **Principal**, **Interest due**, **Penalties**, **Future interest waived** and **Payoff today**.
 2. Click **Settle $X and close**, then confirm. The loan becomes **Closed** and future interest is waived.
 
-An ordinary payment of the same amount does not close the loan. Use this panel to settle. If the quote is out of date, you see "The settlement amount today is …"; get a new quote.
+An ordinary payment of the same amount does not close the loan. Use this panel to settle. While the module is read-only the quote is shown but **Settle** is not offered. If the quote is out of date, you see "The settlement amount today is …"; get a new quote.
 
 ### 4.5 Restructure / reschedule
 
