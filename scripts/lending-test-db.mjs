@@ -55,6 +55,11 @@ const appRole = 'lending_app_test';
 //    set after this, never before.
 execute('reset', 'DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n');
 
+// The role that runs the migrations owns the tables; the runtime role's
+// default privileges are granted on its behalf.
+const owner = decodeURIComponent(new URL(url).username);
+if (!owner) throw new Error('LENDING_TEST_DATABASE_URL must name its user (the migration owner).');
+
 // 2. The production runbook, with its psql variables filled in. psql
 //    meta-commands (`\set`) are dropped: `prisma db execute` is not psql.
 const quote = (s) => `'${String(s).replace(/'/g, "''")}'`;
@@ -65,7 +70,7 @@ const runbook = fs
   .join('\n')
   .replaceAll(":'app_role'", quote(appRole))
   .replaceAll(":'app_password'", quote(appRole))
-  .replaceAll(":'owner_role'", 'current_user');
+  .replaceAll(":'owner_role'", quote(owner));
 if (/:'[a-z_]+'/.test(runbook)) throw new Error('ops/db/app-role.sql uses a psql variable this script does not fill in.');
 execute('app-role', runbook);
 

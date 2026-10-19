@@ -40,9 +40,11 @@
 
 \set ON_ERROR_STOP on
 
-SELECT set_config('microloan.app_role', :'app_role', false),
-       set_config('microloan.owner_role', :'owner_role', false),
-       set_config('microloan.app_password', :'app_password', false);
+-- Hand the psql variables to the DO block (psql does not interpolate inside
+-- dollar quotes). SET prints nothing, so the password is never echoed.
+SET microloan.app_role = :'app_role';
+SET microloan.owner_role = :'owner_role';
+SET microloan.app_password = :'app_password';
 
 DO $app_role$
 DECLARE
@@ -92,7 +94,7 @@ END
 $app_role$;
 
 -- Do not leave the password in the session settings.
-SELECT set_config('microloan.app_password', '', false);
+RESET microloan.app_password;
 
 -- Verification: the role must not bypass row-level security.
 SELECT rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
