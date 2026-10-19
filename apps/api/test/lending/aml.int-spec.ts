@@ -19,6 +19,7 @@
 import {
   Fixture,
   TEST_DB,
+  acceptKeyFacts,
   bootstrap,
   borrower,
   expectOk,
@@ -202,6 +203,7 @@ d('AML/CFT controls (integration)', () => {
       expect(book.body.code).toBe('AML_CDD_INCOMPLETE');
 
       await clear(b.id);
+      await acceptKeyFacts(f, appId);
       const booked = expectOk(
         await f.as('opsMaker').post(`/lending/applications/${appId}/book`, {}),
       );
