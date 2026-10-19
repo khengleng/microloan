@@ -112,10 +112,15 @@ A return shows:
 - A **Currency** selector ("Amounts are never added across currencies.").
 - Four tiles: **Principal outstanding** (with loan count), **NBC provision required** (with allowance held), **PAR 30**, and **Ledger** ("Ties to the ledger" or "*N* break(s)").
 - **Reconciliation to the ledger**: for each book (**Lending platform**, **Legacy loans**, **Total**) and measure (**Principal outstanding**, **Loss allowance**): **Ledger accounts**, **Loans in the return**, **Ledger at month end**, **Frozen at close** (lending book), **Less: moved to lending** (legacy loans already migrated), **Difference** and **Status** (**Ties** or **Break**).
-- **Return tables**, one tab each: **Portfolio**, **Loan classification and provisioning**, **Portfolio at risk** (PAR 1 / 30 / 90), **By product**, **By branch**, **By purpose**, **By borrower type**, **By loan size**, **Restructured loans**, **Disbursed, written off and recovered in the month**, **Largest borrowers** (top 20), **Interest rates against the cap** (rows above the cap are highlighted red).
-- Self-checks: "All *N* self-checks passed" or "*N* of *M* self-checks failed" (expand to see each one).
+- **Return tables**, one tab each: **Portfolio**, **Loan classification and provisioning**, **Portfolio at risk** (PAR 1 / 30 / 90), **By product**, **By branch**, **By purpose**, **By borrower type**, **By loan size**, **Restructured loans**, **Disbursed, written off and recovered in the month**, **Largest borrowers** (top 20), **Interest rates against the cap** (rows above the cap are highlighted red), and **Regulatory provision and reserve**.
+- Self-checks: "All *N* self-checks passed" or "*N* of *M* self-checks failed" (expand to see each one). One of them is **An impairment policy is approved**: it fails while lending loans are outstanding and no impairment policy is approved, and a return with a failed check cannot be sent for submission.
+- Warnings above the tables, including "*N* USD loan(s) graded Loss have reached the write-off floor and are not written off: review them for write-off." Those loans are also in the Home queue **Loss loans due for write-off** for the people who propose write-offs.
 
-Loan size bands, rate bands and the classes come from **Lending settings** ([chapter 14](14-accounting-and-period-close.md#lending-settings)). The rate cap is your organisation's maximum annual rate.
+**Loan classification and provisioning** has a **Term** column: each class appears once for **Short-term** loans (original term up to 366 days by default: 0–14, 15–30, 31–60, 61–90, 91+ days past due) and once for **Long-term** loans (0–29, 30–89, 90–179, 180–359, 360+), with rates 1%, 3%, 20%, 50% and 100%. A restructured loan still on probation is graded on the days past due it had when restructured (if more) and at least Substandard, as the table's notes explain. A loan is never graded better than the class its impairment policy recorded.
+
+**Regulatory provision and reserve** shows, per currency for the lending platform: **Allowance basis** (CIFRS 9 expected credit loss, NBC provision, or no impairment policy), **NBC provision required**, **Allowance held**, **NBC provision above allowance**, **Reserve required**, **Reserve on the ledger (3200)** and **Difference**. Under an ECL policy the reserve is set at each month-end close (see [chapter 14](14-accounting-and-period-close.md#regulatory-reserve-ecl-policies)); a difference means the books moved after the close was prepared. Under a REGULATORY policy the notes state that the books are **not CIFRS 9 compliant**.
+
+Loan size bands, rate bands and both sets of classes come from **Lending settings** ([chapter 14](14-accounting-and-period-close.md#lending-settings)). The rate cap is your organisation's maximum annual rate.
 
 ### Download a return
 
@@ -237,4 +242,4 @@ Note: some figures on this screen are placeholders, not your data. The "vs last 
 
 ## NBC provisioning for the original module
 
-See **Finance › Provisioning** in [chapter 14](14-accounting-and-period-close.md#provisioning-nbc-loan-loss-provisioning-original-module).
+The original module's loans are graded on the same short- and long-term classes (by start date plus term months). See **Finance › Provisioning** in [chapter 14](14-accounting-and-period-close.md#provisioning-nbc-loan-loss-provisioning-original-module).
