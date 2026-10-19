@@ -24,6 +24,8 @@ export const ACCOUNT_CODES = {
   TAX_PAYABLE: '2200',
   CUSTOMER_ADVANCES: '2300',
   INTEREST_SUSPENSE: '2400',
+  // Late penalties on non-accrual loans not yet recognised (DECISIONS D-134)
+  PENALTY_SUSPENSE: '2450',
   UNIDENTIFIED_SUSPENSE: '2500',
   DOWN_PAYMENTS_HELD: '2600',
   // Year-end close: the year's income and expense are carried here (OPS-6)
@@ -155,6 +157,12 @@ export const DEFAULT_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   {
     code: ACCOUNT_CODES.INTEREST_SUSPENSE,
     name: 'Interest in Suspense (non-accrual)',
+    type: LedgerAccountType.ASSET,
+  },
+  // Contra to penalties receivable: late penalties charged on non-accrual loans.
+  {
+    code: ACCOUNT_CODES.PENALTY_SUSPENSE,
+    name: 'Penalties in Suspense (non-accrual)',
     type: LedgerAccountType.ASSET,
   },
   {

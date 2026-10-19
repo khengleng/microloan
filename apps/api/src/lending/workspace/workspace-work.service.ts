@@ -81,6 +81,11 @@ const TASK_QUEUES: Record<
     title: 'Refunds to approve',
     action: 'loan.advance_refund.approve',
   },
+  DOWN_PAYMENT_REFUND: {
+    code: 'REFUNDS_TO_APPROVE',
+    title: 'Refunds to approve',
+    action: 'loan.down_payment.refund.approve',
+  },
   SUSPENSE_REFUND: {
     code: 'REFUNDS_TO_APPROVE',
     title: 'Refunds to approve',

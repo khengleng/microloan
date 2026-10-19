@@ -29,6 +29,7 @@ import {
   allowanceRelease,
   refuseWhileAdvanceHeld,
   suspenseRelease,
+  releasePenaltySuspense,
 } from '../servicing/servicing.service';
 import {
   LoanState,
@@ -1335,7 +1336,9 @@ export class RecoveryService {
             price: price.toString(),
             owed: owedPosition(state),
             allowance: decStr(state.account.allowance),
-            interestInSuspense: decStr(state.account.interestInSuspense),
+            interestInSuspense: D(state.account.interestInSuspense)
+              .plus(D(state.account.penaltyInSuspense))
+              .toString(),
           },
           state.account.currency,
         ),
@@ -1610,6 +1613,11 @@ export class RecoveryService {
       D(result.applied.find((x) => x.component === c)?.amount ?? '0');
     const interest = paid('INTEREST');
     const released = suspenseRelease(state, interest);
+    const penaltyReleased = await releasePenaltySuspense(
+      tx,
+      state,
+      paid('PENALTY'),
+    );
     const settles = result.settlesLoan;
     const allowance = settles ? allowanceRelease(state) : null;
     const lines: PostingLine[] = [
@@ -1628,6 +1636,7 @@ export class RecoveryService {
       },
       { accountCode: acc.borrowerRefundsPayable, credit: result.surplus },
       ...released.lines,
+      ...penaltyReleased.lines,
       ...(allowance?.lines ?? []),
     ];
     const components = {
@@ -1639,6 +1648,7 @@ export class RecoveryService {
       surplus: result.surplus,
       deficiency: result.deficiency,
       interestInSuspenseReleased: released.amount.toString(),
+      penaltyInSuspenseReleased: penaltyReleased.amount.toString(),
       allowanceReleased: allowance?.amount.toString() ?? '0',
     };
     const next = {
@@ -1973,7 +1983,10 @@ export class RecoveryService {
           price: decStr(sale.price),
           owed: owedPosition(state),
           allowance: decStr(a.allowance),
-          interestInSuspense: decStr(a.interestInSuspense),
+          // Interest and penalties held in suspense were never income (D-134).
+          interestInSuspense: D(a.interestInSuspense)
+            .plus(D(a.penaltyInSuspense))
+            .toString(),
         },
         a.currency,
       ),
@@ -1993,6 +2006,7 @@ export class RecoveryService {
         penalties: decStr(a.penaltyReceivable),
         allowance: decStr(a.allowance),
         interestInSuspense: decStr(a.interestInSuspense),
+        penaltyInSuspense: decStr(a.penaltyInSuspense),
         carryingAmount: r.carryingAmount,
         gainLoss: r.gainLoss,
         previousStatus: wasStatus,
@@ -2009,6 +2023,10 @@ export class RecoveryService {
         {
           accountCode: acc.interestSuspense,
           debit: decStr(a.interestInSuspense),
+        },
+        {
+          accountCode: acc.penaltySuspense,
+          debit: decStr(a.penaltyInSuspense),
         },
         { accountCode: acc.debtSaleLoss, debit: r.loss },
         {
@@ -2039,6 +2057,7 @@ export class RecoveryService {
       feesReceivable: '0',
       penaltyReceivable: '0',
       interestInSuspense: '0',
+      penaltyInSuspense: '0',
       allowance: '0',
       lastAccrualDate: a.lastAccrualDate,
       nonAccrual: false,

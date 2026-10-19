@@ -1970,6 +1970,8 @@ model LoanAccount {
   nonAccrualSince        DateTime?        @db.Date
   /// Interest accrued while on non-accrual, held in suspense until cure.
   interestInSuspense     Decimal          @default(0) @db.Decimal(24, 4)
+  /// Late penalties charged while on non-accrual (or moved there on entry), held in suspense until collected or cured (DECISIONS D-134).
+  penaltyInSuspense      Decimal          @default(0) @db.Decimal(24, 4)
   /// Loss allowance held against this loan (OPS-5); posted as the change from the previous day.
   allowance              Decimal          @default(0) @db.Decimal(24, 4)
   /// Classification class and IFRS 9 stage from the tenant's impairment policy.
@@ -2208,9 +2210,43 @@ model ScheduleInstalment {
   /// DUE, PAID, SUPERSEDED
   status                 String      @default("DUE")
   penaltyAssessedThrough DateTime?   @db.Date
+  /// Penalty interest accrued on this line, unrounded (DECISIONS D-133).
+  penaltyAccrued         Decimal     @default(0) @db.Decimal(30, 12)
+  /// Penalty interest posted on this line: the rounded accrual, less any cap.
+  penaltyPosted          Decimal     @default(0) @db.Decimal(24, 4)
   createdAt              DateTime    @default(now())
 
   @@index([tenantId, loanAccountId, status])
+}
+
+/// One late-penalty assessment on one instalment (UC-55, UC-56; DECISIONS D-133, D-135).
+///
+/// DAILY rows hold the unrounded penalty interest over [fromDate, toDate) on
+/// the overdue amount, which was constant over that period. ONCE rows hold a
+/// one-off charge triggered after fromDate (the end of grace). A backdated
+/// payment rewinds the rows it would have prevented: they become REWOUND, and
+/// the part before the value date is kept as a new POSTED row.
+model PenaltyAccrual {
+  id               String   @id @default(uuid())
+  tenantId         String
+  loanAccountId    String
+  instalmentId     String
+  /// DAILY, ONCE
+  kind             String
+  fromDate         DateTime @db.Date
+  toDate           DateTime @db.Date
+  /// The overdue amount the penalty was computed on.
+  basis            Decimal  @db.Decimal(24, 4)
+  accrued          Decimal  @db.Decimal(30, 12)
+  /// Charged while the loan was on non-accrual (credited to penalty suspense).
+  suspended        Boolean  @default(false)
+  /// POSTED, REWOUND
+  status           String   @default("POSTED")
+  /// The backdated repayment that rewound this row.
+  rewoundByEventId String?
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, loanAccountId, instalmentId, status])
 }
 
 model AccrualEvent {
@@ -2269,6 +2305,8 @@ model PaymentAllocation {
   event            FinancialEvent @relation(fields: [tenantId, financialEventId], references: [tenantId, id], onDelete: Cascade)
   loanAccountId    String
   instalmentNumber Int
+  /// The schedule line paid (DECISIONS D-137): a reversal undoes exactly this line. Null on rows recorded before it was kept and not backfilled.
+  instalmentId     String?
   /// PENALTY, FEE, TAX, INTEREST, PRINCIPAL
   component        String
   amount           Decimal        @db.Decimal(24, 4)

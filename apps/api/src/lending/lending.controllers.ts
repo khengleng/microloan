@@ -930,6 +930,34 @@ export class LendingLoansController {
     return this.servicing.recordDownPayment(actor(req), id, body, key);
   }
 
+  @LendingAction('loan.down_payment.refund.propose')
+  @Post(':id/down-payment-refunds')
+  proposeDownPaymentRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.refundProposal)) body: never,
+  ) {
+    return this.servicing.proposeDownPaymentRefund(actor(req), id, body);
+  }
+
+  @LendingAction('loan.down_payment.refund.approve')
+  @Post(':id/down-payment-refunds/:taskId/decision')
+  decideDownPaymentRefund(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Param('taskId', ID) taskId: string,
+    @Body(new ZodPipe(S.approve)) body: never,
+    @Headers('idempotency-key') key: string,
+  ) {
+    return this.servicing.decideDownPaymentRefund(
+      actor(req),
+      id,
+      taskId,
+      body,
+      key,
+    );
+  }
+
   @LendingAction('loan.fee_waiver.propose')
   @Post(':id/fee-waivers')
   proposeFeeWaiver(
