@@ -251,11 +251,15 @@ model User {
   lockedUntil      DateTime? // Account locked until this timestamp
   lastLoginAt      DateTime? // Last successful login
   lastLoginIp      String? // Last known IP for anomaly detection
+  /// The last TOTP time step accepted for this person: a code from that step
+  /// or an earlier one is refused, so an observed code cannot be replayed.
+  totpLastStep     Int?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   auditLogs           AuditLog[]
   refreshTokens       RefreshToken[]
+  mfaChallenges       MfaChallenge[]
   passwordResetTokens PasswordResetToken[]
   identities          FederatedIdentity[]
   roleAssignments     RoleAssignment[]
@@ -316,6 +320,66 @@ model RefreshToken {
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
+}
+
+/// The second step of an MFA sign-in: the short-lived mfaToken names this row
+/// (its jti). Redeeming it marks it consumed, so a token answers once — on any
+/// API instance — within its few minutes.
+model MfaChallenge {
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// A platform action that needs a second super-administrator (maker-checker
+/// for the platform): promoting someone to SUPERADMIN, purging a tenant.
+/// Platform-only: no tenant principal may read or write it.
+model PlatformApproval {
+  id          String    @id @default(uuid())
+  /// SUPERADMIN_GRANT, TENANT_PURGE
+  action      String
+  /// User, Tenant
+  subjectType String
+  subjectId   String
+  payload     Json      @default("{}")
+  /// PENDING, APPROVED, REJECTED, CANCELLED, EXECUTED
+  status      String    @default("PENDING")
+  makerId     String
+  checkerId   String?
+  decidedAt   DateTime?
+  comment     String?
+  executedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([action, subjectId, status])
+  @@index([status, createdAt])
+}
+
+/// The archive written before a tenant is purged: one JSON bundle of the
+/// tenant's records in document storage, with its checksum. Platform-only and
+/// deliberately not linked to Tenant, so it outlives the purge it permits.
+model TenantArchive {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenantName      String
+  /// S3 or LOCAL_DISK
+  storageProvider String
+  storageKey      String
+  sha256          String
+  sizeBytes       Int
+  /// Rows per table in the bundle.
+  recordCounts    Json     @default("{}")
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 model Borrower {

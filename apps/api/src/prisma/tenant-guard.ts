@@ -201,6 +201,7 @@ const RELATION_SCOPED_MODELS: Record<string, RelationScope> = {
     parentDelegate: 'user',
   },
   RefreshToken: { relation: 'user', fk: 'userId', parentDelegate: 'user' },
+  MfaChallenge: { relation: 'user', fk: 'userId', parentDelegate: 'user' },
   FederatedIdentity: { relation: 'user', fk: 'userId', parentDelegate: 'user' },
   LoanPolicy: {
     relation: 'product',
@@ -233,6 +234,14 @@ const RELATION_SCOPED_MODELS: Record<string, RelationScope> = {
   },
 };
 
+/**
+ * How a model without its own tenantId reaches its tenant (the tenant
+ * archive written before a purge walks the same relations).
+ */
+export function relationScopeFor(model: string): RelationScope | undefined {
+  return RELATION_SCOPED_MODELS[model];
+}
+
 /** The tenant row itself is scoped by primary key, not by a `tenantId` column. */
 const TENANT_MODEL = 'Tenant';
 
@@ -246,7 +255,12 @@ const TENANT_MODEL = 'Tenant';
  * behaviour for platform secrets. Anything holding operator payment details
  * belongs here.
  */
-const PLATFORM_ONLY_MODELS = new Set(['PlatformPaymentQr']);
+const PLATFORM_ONLY_MODELS = new Set([
+  'PlatformPaymentQr',
+  // Second-super-administrator approvals and the archives a tenant purge needs (D-130, D-131).
+  'PlatformApproval',
+  'TenantArchive',
+]);
 
 /**
  * Platform-owned *catalogue*: written only by the platform, but legitimately
