@@ -6,6 +6,9 @@
  * borrower portal's requested documents.
  */
 import { createHmac } from 'crypto';
+import { readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { JwtService } from '@nestjs/jwt';
 import {
   Fixture,
@@ -732,6 +735,40 @@ d('Customer documents (integration)', () => {
       }),
     );
     expect(denied.length).toBeGreaterThan(0);
+  });
+
+  it('DOC-2: files on disk are encrypted at rest, and a legacy plaintext file still downloads (D-137)', async () => {
+    const b = await borrower(f, f.t1, f.b1);
+    const doc = expectOk(await upload('ro', b.id));
+    const [v] = await version(doc.id);
+    if (v.storageProvider !== 'LOCAL_DISK') return;
+    const root =
+      process.env.DOCUMENT_STORAGE_DIR ||
+      join(tmpdir(), 'microloan-customer-documents');
+    const file = join(root, v.storageKey);
+    const stored = readFileSync(file);
+    expect(stored.subarray(0, 8).toString('latin1')).toBe('MLDOCENC');
+    expect(stored.includes(Buffer.from('national id'))).toBe(false);
+    const download = async () => {
+      const link = expectOk(
+        await f.as('ro').post(`/lending/documents/${doc.id}/link`, {}),
+      );
+      const res = await f
+        .http()
+        .get(`/v1${link.url}`)
+        .buffer(true)
+        .parse((r, cb) => {
+          const chunks: Buffer[] = [];
+          r.on('data', (c: Buffer) => chunks.push(c));
+          r.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+      expect(res.status).toBe(200);
+      return (res.body as Buffer).toString('latin1');
+    };
+    expect(await download()).toBe('%PDF-1.4 national id');
+    // A file written before encryption was switched on is read as it is.
+    writeFileSync(file, Buffer.from(pdf('national id'), 'base64'));
+    expect(await download()).toBe('%PDF-1.4 national id');
   });
 
   it('DOC-8: another tenant cannot read, review, link or upload against this tenant’s documents', async () => {

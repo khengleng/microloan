@@ -50,6 +50,23 @@ if (fieldKey) {
     failed = true;
   }
 }
+// Customer documents on a disk volume are encrypted by the API with a key
+// derived from DOCUMENT_ENCRYPTION_KEY: required whenever S3 is not configured.
+const s3Configured = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME'].every((k) =>
+  (process.env[k] || '').trim(),
+);
+const documentKey = (process.env.DOCUMENT_ENCRYPTION_KEY || '').trim();
+if (!s3Configured && !documentKey) {
+  console.error('Missing required env: DOCUMENT_ENCRYPTION_KEY (documents are stored on disk because S3 is not configured).');
+  failed = true;
+}
+if (documentKey) {
+  const isHex = /^[0-9a-fA-F]{64}$/.test(documentKey);
+  if (!isHex && Buffer.from(documentKey, 'base64').length !== 32) {
+    console.error('DOCUMENT_ENCRYPTION_KEY must be 32 bytes (base64 or 64-char hex).');
+    failed = true;
+  }
+}
 for (const key of ['DOCUMENT_LINK_SECRET', 'SERVICE_KEY_PEPPER']) {
   const value = process.env[key] || '';
   if (value && value.trim().length < 32) {

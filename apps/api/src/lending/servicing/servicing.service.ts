@@ -2713,12 +2713,12 @@ export class ServicingService {
           // or one a later end of day reached.
           const was = rewind.through[n.id];
           const now = toLocalDate(l.penaltyAssessedThrough);
+          const through =
+            was && (!now || lending.compareDates(was, now) > 0) ? was : now;
           await tx.scheduleInstalment.update({
             where: { id: l.id },
             data: {
-              penaltyAssessedThrough: fromLocalDate(
-                was && (!now || lending.compareDates(was, now) > 0) ? was : now,
-              ),
+              penaltyAssessedThrough: through ? fromLocalDate(through) : null,
               penaltyDue: D(l.penaltyDue).minus(n.penaltyDue).toString(),
               penaltyAccrued: lending.D.max(
                 0,

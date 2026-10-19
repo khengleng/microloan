@@ -15,6 +15,11 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Settings } from '../../config/s3';
+import {
+  decryptDocument,
+  documentKekFromEnv,
+  encryptDocument,
+} from './document-crypto';
 
 /**
  * Object storage for the customer document library (DOC-2).
@@ -24,7 +29,10 @@ import { s3Settings } from '../../config/s3';
  * it a local-disk store is used (development, or a mounted volume named by
  * DOCUMENT_STORAGE_DIR) and downloads go through a short-lived signed link
  * served by the API. Production refuses to start writing to a temporary
- * directory.
+ * directory. Files on disk are envelope-encrypted with a key derived from
+ * DOCUMENT_ENCRYPTION_KEY (document-crypto.ts, DECISIONS D-137), which
+ * production requires for the disk store; files written before encryption
+ * are still read as plaintext.
  *
  * Keys are always `tenants/<tenant>/customers/<borrower>/documents/<doc>/v<n>-<uuid>`:
  * the client's file name never shapes a key, and a key outside the caller's
@@ -161,9 +169,13 @@ class S3LibraryStorage implements LibraryStorage {
   }
 }
 
-class LocalLibraryStorage implements LibraryStorage {
+export class LocalLibraryStorage implements LibraryStorage {
   readonly provider = 'LOCAL_DISK' as const;
-  constructor(private readonly root: string) {}
+  /** `kek`: the key-encryption key; null stores plaintext (development only). */
+  constructor(
+    private readonly root: string,
+    private readonly kek: Buffer | null,
+  ) {}
   private path(key: string): string {
     const full = resolve(this.root, key);
     if (!full.startsWith(resolve(this.root) + sep))
@@ -173,10 +185,11 @@ class LocalLibraryStorage implements LibraryStorage {
   async put(key: string, body: Buffer) {
     const p = this.path(key);
     await mkdir(dirname(p), { recursive: true });
-    await writeFile(p, body, { flag: 'wx' });
+    const stored = this.kek ? encryptDocument(body, key, this.kek) : body;
+    await writeFile(p, stored, { flag: 'wx', mode: 0o600 });
   }
   async get(key: string) {
-    return readFile(this.path(key));
+    return decryptDocument(await readFile(this.path(key)), key, this.kek);
   }
   async delete(key: string) {
     await rm(this.path(key), { force: true });
@@ -215,7 +228,18 @@ export class DocumentStorageService {
         this.logger.warn(
           `Customer documents are stored under DOCUMENT_STORAGE_DIR=${root}; every API instance must mount the same volume.`,
         );
-      this.store = new LocalLibraryStorage(root);
+      // Files on the volume are encrypted by the API (D-137): production
+      // never writes customer documents to disk in the clear.
+      const kek = documentKekFromEnv();
+      if (!kek && process.env.NODE_ENV === 'production')
+        throw new ServiceUnavailableException(
+          'Document storage on disk needs DOCUMENT_ENCRYPTION_KEY in production.',
+        );
+      if (!kek)
+        this.logger.warn(
+          'DOCUMENT_ENCRYPTION_KEY is not set: customer documents on local disk are stored unencrypted (development only).',
+        );
+      this.store = new LocalLibraryStorage(root, kek);
     }
     return this.store;
   }

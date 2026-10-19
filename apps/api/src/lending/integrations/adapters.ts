@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import {
+  decryptDocument,
+  documentKekFromEnv,
+  encryptDocument,
+} from '../documents/document-crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -208,14 +213,19 @@ class MockDocuments implements DocumentStorageAdapter {
   readonly name = 'MOCK_LOCAL_DISK';
   readonly isMock = true;
   private dir = join(tmpdir(), 'microloan-mock-documents');
+  // Encrypted like the customer document store when a key is set (D-137).
+  private kek = documentKekFromEnv();
   async put(input: { tenantId: string; key: string; body: Buffer }) {
     await mkdir(join(this.dir, input.tenantId), { recursive: true });
     const key = `${input.tenantId}/${createHash('sha256').update(input.key).digest('hex')}`;
-    await writeFile(join(this.dir, key), input.body);
+    const body = this.kek
+      ? encryptDocument(input.body, key, this.kek)
+      : input.body;
+    await writeFile(join(this.dir, key), body, { mode: 0o600 });
     return { provider: this.name, key };
   }
   async get(key: string) {
-    return readFile(join(this.dir, key));
+    return decryptDocument(await readFile(join(this.dir, key)), key, this.kek);
   }
 }
 
