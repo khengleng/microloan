@@ -44,6 +44,12 @@ export const knockoutsSchema = z
     maxAgeYears: z.number().int().min(0).max(150).nullable().default(null),
     /** Decline above this debt-service ratio. */
     maxDebtServiceRatio: rateFraction.nullable().default(null),
+    /**
+     * With maxDebtServiceRatio set and no ratio to test (income unknown):
+     * REFER sends the application to a person, never AUTO_APPROVE (D-126);
+     * IGNORE passes it as before.
+     */
+    missingDebtServiceRatio: z.enum(['REFER', 'IGNORE']).default('REFER'),
   })
   .strict();
 
@@ -160,6 +166,8 @@ export function evaluateStrategy(
   const dsr = num('debtServiceRatio');
   if (k.maxDebtServiceRatio !== null && dsr !== null && dsr.gt(k.maxDebtServiceRatio))
     knockouts.push({ code: 'KO_DEBT_SERVICE', message: `Debt-service ratio ${dsr.toDecimalPlaces(3).toString()} exceeds ${k.maxDebtServiceRatio}.` });
+  // Affordability that cannot be measured is not affordability passed.
+  const dsrUnknown = k.maxDebtServiceRatio !== null && dsr === null && k.missingDebtServiceRatio === 'REFER';
 
   const thresholds = [strategy.declineBelowScore, input.minCreditScore].filter((t): t is number => t !== null);
   const declineBelowScore = thresholds.length ? Math.max(...thresholds) : null;
@@ -179,6 +187,8 @@ export function evaluateStrategy(
       outcome = 'REFER';
       reasons.push({ code: 'AMOUNT_ABOVE_GRADE_LIMIT', message: `Grade ${input.grade} allows at most ${maxAmount}; the request is referred.` });
     }
+    if (dsrUnknown && outcome === 'AUTO_APPROVE') outcome = 'REFER';
+    if (dsrUnknown) reasons.push({ code: 'DEBT_SERVICE_UNKNOWN', message: 'Income is unknown, so the debt-service ratio cannot be tested; the application is referred.' });
   }
   return { outcome, knockouts, reasons, declineBelowScore, maxAmount, amountAboveGradeLimit, rateAddOnBps: rule?.rateAddOnBps ?? 0 };
 }

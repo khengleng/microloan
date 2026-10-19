@@ -1535,6 +1535,10 @@ model Application {
   requestedAmount  Decimal   @db.Decimal(24, 4)
   terms            Json
   purpose          String    @default("")
+  /// Declared by the applicant (D-126): monthly repayments owed to other
+  /// lenders, in the application's currency, and how many other lenders.
+  declaredExternalMonthlyPayments Decimal? @db.Decimal(24, 4)
+  declaredOtherLenders            Int?
   createdBy        String
   submittedAt      DateTime?
   decidedAt        DateTime?
@@ -1548,6 +1552,7 @@ model Application {
   guarantees Guarantee[]
   pledges    CollateralPledge[]
   scoreEvaluations ScoreEvaluation[]
+  keyFactsStatements KeyFactsStatement[]
 
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
@@ -1572,6 +1577,47 @@ model ApplicationDocument {
   createdAt       DateTime    @default(now())
 
   @@index([tenantId, applicationId])
+}
+
+/// The pre-contract key facts statement (D-123): generated from the approved
+/// terms, filed in the customer's library in English and Khmer, and accepted
+/// by the customer before the loan can be booked. Bound to the terms it
+/// discloses by `termsHash`, so changed terms need a new statement.
+model KeyFactsStatement {
+  id                  String      @id @default(uuid())
+  tenantId            String
+  applicationId       String
+  application         Application @relation(fields: [tenantId, applicationId], references: [tenantId, id], onDelete: Cascade)
+  borrowerId          String
+  /// 1, 2, … per application.
+  version             Int
+  /// sha256 of the approved terms and the contract configuration disclosed.
+  termsHash           String
+  /// ISSUED, ACCEPTED, SUPERSEDED, BOOKED
+  status              String      @default("ISSUED")
+  /// en, km
+  languages           String[]
+  /// Library documents by language: { "en": id, "km": id }.
+  documentIds         Json
+  /// The figures disclosed (lending.KeyFacts) and the disclosure context.
+  content             Json
+  engineVersion       String
+  generatedBy         String
+  createdAt           DateTime    @default(now())
+  acceptedAt          DateTime?
+  /// CUSTOMER (borrower portal) or STAFF_ON_BEHALF
+  acceptedByType      String?
+  acceptedById        String?
+  /// SIGNED_FORM, PORTAL
+  acceptanceMethod    String?
+  /// For SIGNED_FORM: the customer-library document holding the signed form.
+  acceptanceDocumentId String?
+  /// Set when the loan is booked on this statement.
+  loanAccountId       String?
+
+  @@unique([tenantId, applicationId, version])
+  @@unique([tenantId, id])
+  @@index([tenantId, applicationId, status])
 }
 
 /// Immutable credit decision history.
