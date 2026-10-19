@@ -189,6 +189,9 @@ export async function bootstrap(): Promise<Fixture> {
         tenantId: u.tenantId,
         branchId: u.branchId,
         amr: 'mfa',
+        // When the authenticator code was verified (D-129): MFA-gated actions
+        // need it within AUTH_MFA_STEP_UP_MINUTES.
+        mfaAt: Math.floor(Date.now() / 1000),
       },
       { expiresIn: '1h' },
     );
