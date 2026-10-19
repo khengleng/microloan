@@ -15,6 +15,7 @@ import {
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
+import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -22,7 +23,14 @@ type Json = Prisma.InputJsonValue;
  * The tenant's classification and impairment policy (OPS-5). Finance
  * proposes; a different user (risk) approves; one policy is in force at a
  * time and approving a new one retires the old. End of day reads the policy
- * in force; with none approved, no allowance is posted (DECISIONS D-010).
+ * in force; with none approved, no allowance is posted (DECISIONS D-010)
+ * and a month with loans outstanding cannot be closed (D-116).
+ *
+ * In REGULATORY mode the classes and rates applied are the lender's
+ * regulatory settings — the short- or long-term NBC bands by the loan's
+ * original term, the restructure probation floor and minimum class — so
+ * the allowance is the regulator's provision (D-113, D-114). The policy's
+ * own class list is kept as proposed, for the record.
  */
 @Injectable()
 export class ImpairmentService {
@@ -31,6 +39,7 @@ export class ImpairmentService {
     private readonly lp: LendingPrisma,
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
+    private readonly settings: TenantSettingsService,
   ) {}
 
   /** The policy in force, or null. */
@@ -48,18 +57,23 @@ export class ImpairmentService {
       'impairment.read',
       tenantResource(tenantId),
     );
-    const versions = await this.prisma.impairmentPolicy.findMany({
-      where: { tenantId },
-      orderBy: { version: 'desc' },
-    });
+    const [versions, settings] = await Promise.all([
+      this.prisma.impairmentPolicy.findMany({
+        where: { tenantId },
+        orderBy: { version: 'desc' },
+      }),
+      this.settings.get(tenantId),
+    ]);
     return {
       active: versions.find((v) => v.status === 'ACTIVE') ?? null,
       versions,
-      // A starting point for a first proposal: the NBC classes in REGULATORY mode.
+      // A starting point for a first proposal: the lender's short-term NBC classes in REGULATORY mode.
       template: {
         mode: 'REGULATORY',
-        classes: lending.NBC_IMPAIRMENT_CLASSES,
+        classes: settings.regulatory.classes,
       } satisfies lending.ImpairmentPolicy,
+      /** What REGULATORY mode grades on, and what the regulatory reserve is measured against (D-114, D-115). */
+      regulatoryBands: lending.regulatoryBands(settings),
     };
   }
 

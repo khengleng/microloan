@@ -271,6 +271,7 @@ async function main() {
   }
 
   await demoScoring(t, users);
+  await demoImpairment(t, users);
 
   // Institutional counterparties, so the interbank, municipal, sovereign and
   // development loan types can be originated: each borrows through its own
@@ -304,6 +305,7 @@ async function main() {
 
   console.log(`Demo tenant "${TENANT}" ready.`);
   console.log('  Scorecards STANDARD_RETAIL and THIN_FILE are in force; PL-STD runs THIN_FILE as a silent challenger, MF-IND scores thin-file borrowers on THIN_FILE.');
+  console.log('  An impairment policy (NBC classes, REGULATORY mode) is in force: end of day provisions and month-end close is allowed.');
   console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
   if (created.size)
     console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
@@ -315,6 +317,31 @@ async function main() {
   for (const [key, secret] of Object.entries(qaSecrets))
     console.log(`  ${key}@demo-lending.test  →  authenticator secret ${secret}  (otpauth://totp/${ISSUER}:${key}%40demo-lending.test?secret=${secret}&issuer=${ISSUER})`);
   console.log('Approvals and executions require MFA: enrol TOTP for approver, approver2, ops.checker and committee in Settings first.');
+}
+
+/**
+ * An impairment policy in force (DECISIONS D-010, D-116): without one no
+ * loss allowance is posted and month-end close is refused while loans are
+ * outstanding. The NBC classes in REGULATORY mode, proposed by finance and
+ * approved by risk; end of day grades on the lending settings' short- and
+ * long-term bands (D-114). Kept if the tenant already has one in force.
+ */
+async function demoImpairment(t: string, users: Record<string, string>) {
+  if (await prisma.impairmentPolicy.findFirst({ where: { tenantId: t, status: 'ACTIVE' } })) return;
+  const last = await prisma.impairmentPolicy.findFirst({ where: { tenantId: t }, orderBy: { version: 'desc' } });
+  const settings: lending.ImpairmentPolicy = { mode: 'REGULATORY', classes: lending.NBC_SHORT_TERM_CLASSES };
+  await prisma.impairmentPolicy.create({
+    data: {
+      tenantId: t,
+      version: (last?.version ?? 0) + 1,
+      settings: settings as never,
+      status: 'ACTIVE',
+      makerId: users.finance,
+      checkerId: users.risk,
+      decidedAt: new Date(),
+      reason: 'Demo: NBC regulatory classes',
+    },
+  });
 }
 
 /**

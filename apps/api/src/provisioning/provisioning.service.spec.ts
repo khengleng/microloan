@@ -58,6 +58,12 @@ describe('ProvisioningService.run — DPD basis', () => {
             { code: 'SPECIAL_MENTION', minDpd: 30, rate: '0.03', label: 'SM' },
             { code: 'SUBSTANDARD', minDpd: 90, rate: '0.2', label: 'SS' },
           ],
+          longTermClasses: [
+            { code: 'NORMAL', minDpd: 0, rate: '0.01', label: 'Normal' },
+            { code: 'SPECIAL_MENTION', minDpd: 60, rate: '0.03', label: 'SM' },
+            { code: 'SUBSTANDARD', minDpd: 180, rate: '0.2', label: 'SS' },
+          ],
+          shortTermMaxDays: 366,
         },
         accounting: { legacy: { provisionExpense: '5100', loanLossAllowance: '1290' } },
       }),

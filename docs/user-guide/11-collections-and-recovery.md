@@ -313,6 +313,8 @@ A write-off removes an uncollectable loan from the book. It is maker-checker: on
 
 To propose (for example **Loan operations maker**):
 
+Loans graded **Loss** that have reached the write-off floor and are not written off are listed on **Home** under **Loss loans due for write-off**.
+
 1. Open the loan (it must be **ACTIVE**).
 2. In **Servicing actions** click **Propose write-off**.
 3. Enter the **Reason** (at least 3 characters).
@@ -328,7 +330,7 @@ What happens next: on approval, the loan status becomes **WRITTEN OFF**. Princip
 
 If it is blocked:
 - "This product does not allow write-off." The product has no minimum DPD for write-off.
-- "Write-off needs at least 180 days past due (currently N)." The minimum comes from the product (the standard templates use 180 or 360).
+- "Write-off needs at least N days past due (currently M)." The minimum is the higher of the product's minimum (the standard templates use 180 or 360) and your organisation's write-off floor in **Lending settings**, which by default is the day the loan reaches the **Loss** class: 91 days for loans with an original term up to one year, 360 days for longer loans. It is checked again when the write-off is approved.
 - "A write-off proposal is already pending."
 - "This loan holds X USD paid in advance. Refund the advance before you write it off."
 - "You cannot approve or complete an action you created or proposed"

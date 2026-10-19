@@ -627,7 +627,7 @@ d('Legacy loan module freeze (integration)', () => {
     it('uses the provision, expenses the shortfall, and the next run does not release it again; runs are serialised', async () => {
       const rule = await openLegacyBook(f, f.t2);
       try {
-        // Business date 2026-01-05: due 2025-12-01 → 35 days → SUBSTANDARD 25%.
+        // Business date 2026-01-05: due 2025-12-01 → 35 days → SUBSTANDARD 20% (short-term NBC bands, D-114).
         const id = await legacyLoan(f.t2, f.b3, [], {
           dueDates: [new Date(Date.UTC(2025, 11, 1))],
         });
@@ -637,8 +637,8 @@ d('Legacy loan module freeze (integration)', () => {
           f.as('t2admin').post('/provisioning/run'),
         ]);
         runs.forEach((r) => expectOk(r));
-        expect(await balance(f.t2, '1300')).toBe(-250);
-        expect(await balance(f.t2, '5000')).toBe(250);
+        expect(await balance(f.t2, '1300')).toBe(-200);
+        expect(await balance(f.t2, '5000')).toBe(200);
 
         const wo = expectOk(
           await f
@@ -649,8 +649,8 @@ d('Legacy loan module freeze (integration)', () => {
         const [entry] = await journal(id, 'WRITEOFF');
         const by = (code: string) =>
           entry.lines.find((l: any) => l.account.code === code);
-        expect(Number(by('1300').debit)).toBe(250);
-        expect(Number(by('5100').debit)).toBe(750);
+        expect(Number(by('1300').debit)).toBe(200);
+        expect(Number(by('5100').debit)).toBe(800);
         expect(Number(by('1200').credit)).toBe(1000);
         expect(await balance(f.t2, '1300')).toBe(0);
 

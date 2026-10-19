@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
 /**
  * Month-end and year-end close (OPS-6): checks, snapshot, maker-checker lock,
  * the period lock in the application and in the database, reopening under
@@ -81,8 +81,44 @@ d('Month-end and year-end close (integration)', () => {
 
   it('after the last end of day the month is ready, with a snapshot of the books and the portfolio', async () => {
     await moveTo('2026-01-31');
+    // D-116: with a loan outstanding and no impairment policy approved, no
+    // allowance has been posted and the month cannot be closed.
+    const blocked = expectOk(await month(2026, 1));
+    expect(blocked.ready).toBe(false);
+    expect(
+      blocked.checks.find((c: any) => c.code === 'IMPAIRMENT_POLICY'),
+    ).toMatchObject({ status: 'FAIL', link: '/lending/operations' });
+    const refused = await prepare(2026, 1);
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('CLOSE_CHECKS_FAILED');
+    // Finance proposes the NBC template; risk approves; end of day provisions.
+    const list = expectOk(
+      await f.as('finance').get('/lending/ops/impairment-policy'),
+    );
+    const proposed = expectOk(
+      await f
+        .as('finance')
+        .post('/lending/ops/impairment-policy', { settings: list.template }),
+    );
+    expectOk(
+      await f
+        .as('nobody')
+        .post(`/lending/ops/impairment-policy/${proposed.id}/decision`, {
+          approve: true,
+        }),
+    );
+    expect(
+      expectOk(await f.as('finance').post('/lending/loans/batch/run')).failed,
+    ).toEqual([]);
     const m = expectOk(await month(2026, 1));
     expect(m.ready).toBe(true);
+    expect(
+      m.checks.find((c: any) => c.code === 'IMPAIRMENT_POLICY').status,
+    ).toBe('PASS');
+    // REGULATORY mode: no reserve, but the approver is told the books are not CIFRS 9.
+    expect(
+      m.checks.find((c: any) => c.code === 'REGULATORY_RESERVE'),
+    ).toMatchObject({ status: 'WARN' });
     expect(m.checks.map((c: any) => c.code)).toEqual(
       expect.arrayContaining([
         'BUSINESS_DATE',
@@ -247,9 +283,13 @@ d('Month-end and year-end close (integration)', () => {
     );
     const usdTb = tb.find((t: any) => t.currency === 'USD');
     expect(usdTb.totals.balanced).toBe(true);
+    // Retained earnings hold the year's result (a credit balance is negative
+    // here); the loan's loss allowance under the policy can make it a loss.
     const re = usdTb.rows.find((a: any) => a.code === '3100');
-    expect(Number(re.balance)).toBeLessThan(0);
-    for (const r of usdTb.rows.filter((a: any) => ['INCOME', 'EXPENSE'].includes(a.type)))
+    expect(Number(re.balance)).toBeCloseTo(-Number(usd.netIncome), 2);
+    for (const r of usdTb.rows.filter((a: any) =>
+      ['INCOME', 'EXPENSE'].includes(a.type),
+    ))
       expect(Number(r.balance)).toBe(0);
     const rec = expectOk(
       await f.as('finance').get('/lending/ops/reconciliation'),

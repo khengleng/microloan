@@ -23,12 +23,19 @@ interface SettingsList { active: SettingsRow | null; versions: SettingsRow[]; ef
 
 /** What each setting means, for the read-only view. Keys are dotted paths; translated as LendingOps.settings.labels.<path with _>. */
 const LABELS: Record<string, string> = {
-    'regulatory.classes': 'Regulatory loan classes (days past due → provision rate)',
+    'regulatory.classes': 'Regulatory loan classes, short-term loans (days past due → provision rate)',
+    'regulatory.longTermClasses': 'Regulatory loan classes, long-term loans (days past due → provision rate)',
+    'regulatory.shortTermMaxDays': 'Short-term loans: original term up to this many days (longer loans use the long-term classes)',
+    'regulatory.restructured.minClass': 'Restructured loans: lowest class while on probation',
+    'regulatory.restructured.minProbationInstalments': 'Restructured loans: fewest consecutive on-time instalments that end probation',
+    'regulatory.writeOffMinDpd.shortTerm': 'Write-off: fewest days past due, short-term loans (empty: the Loss class)',
+    'regulatory.writeOffMinDpd.longTerm': 'Write-off: fewest days past due, long-term loans (empty: the Loss class)',
     'regulatory.sizeBandEdgesUsd': 'Regulatory return: loan-size band edges (USD)',
     'regulatory.sizeBandKhrPerUsd': 'Regulatory return: KHR per USD for the size bands',
     'regulatory.rateBandEdgesPct': 'Regulatory return: interest-rate band edges (% a year)',
     'accounting.cash': 'Cash / bank account',
     'accounting.retainedEarnings': 'Retained earnings (year-end close)',
+    'accounting.regulatoryReserve': 'Regulatory reserve (equity; NBC provision above the ECL allowance)',
     'accounting.migrationClearing': 'Migration clearing (opening balances)',
     'accounting.fxPosition': 'FX position',
     'accounting.fxGainLoss': 'FX gain / loss',

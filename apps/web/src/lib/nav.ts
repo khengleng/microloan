@@ -100,7 +100,7 @@ export const NAV: NavSection[] = [
                 queues: ['RESTRUCTURES_TO_ASSESS', 'RESTRUCTURES_TO_PROPOSE', 'RESTRUCTURES_TO_APPROVE', 'RESTRUCTURE_ACCEPTANCES', 'RESTRUCTURES_TO_EXECUTE', 'RESTRUCTURE_MONITORING'],
             },
             { key: 'relief', href: '/lending/relief', icon: Umbrella, lending: ['payment_holiday.read'], queues: ['HOLIDAY_PROGRAMMES_TO_PUBLISH'] },
-            { key: 'recovery', href: '/lending/recovery', icon: HandCoins, lending: ['loan.recovery.post', 'loan.writeoff.propose', 'loan.writeoff.approve'], queues: ['RECOVERY_TO_APPROVE'] },
+            { key: 'recovery', href: '/lending/recovery', icon: HandCoins, lending: ['loan.recovery.post', 'loan.writeoff.propose', 'loan.writeoff.approve'], queues: ['RECOVERY_TO_APPROVE', 'AGED_LOSS'] },
             { key: 'suspense', href: '/lending/suspense', icon: PiggyBank, lending: ['loan.repayment.post', 'loan.repayment.reverse'], queues: ['UNIDENTIFIED_PAYMENTS', 'REFUNDS_TO_APPROVE'] },
             { key: 'paymentChannels', href: '/lending/payment-channels', icon: Banknote, lending: ['loan.repayment.post', 'rate_observation.manage'] },
         ],

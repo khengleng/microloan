@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { dec } from './decimal.js';
-import { NBC_IMPAIRMENT_CLASSES } from './impairment.js';
+import {
+  NBC_LONG_TERM_CLASSES,
+  NBC_SHORT_TERM_CLASSES,
+  NBC_SHORT_TERM_MAX_DAYS,
+  RegulatoryBands,
+} from './impairment.js';
 import { MAX_FILE_LINES } from './channels.js';
 
 /**
@@ -40,11 +45,47 @@ export const tenantLendingSettingsSchema = z
     /** The monthly regulatory return and the legacy provisioning run. */
     regulatory: z
       .object({
-        /** Loan classes by days past due with their provision rates (default: the NBC classes). */
+        /**
+         * SHORT-TERM loan classes (original term up to `shortTermMaxDays`) by
+         * days past due with their provision rates (default: the NBC
+         * short-term classes; D-114, assumed — needs compliance sign-off).
+         */
         classes: z
           .array(regulatoryClass)
           .length(REGULATORY_CLASS_CODES.length)
-          .default(NBC_IMPAIRMENT_CLASSES.map((c) => ({ ...c })) as never),
+          .default(NBC_SHORT_TERM_CLASSES.map((c) => ({ ...c })) as never),
+        /** LONG-TERM loan classes (original term over `shortTermMaxDays`); default: the NBC long-term classes. */
+        longTermClasses: z
+          .array(regulatoryClass)
+          .length(REGULATORY_CLASS_CODES.length)
+          .default(NBC_LONG_TERM_CLASSES.map((c) => ({ ...c })) as never),
+        /** Original term in days (disbursement to original maturity) up to which a loan is short-term. */
+        shortTermMaxDays: z.number().int().min(28).max(3650).default(NBC_SHORT_TERM_MAX_DAYS),
+        /** Restructured loans (D-113, assumed — needs compliance sign-off). */
+        restructured: z
+          .object({
+            /** Graded at least this class while on probation; null: no minimum class. */
+            minClass: z.enum(REGULATORY_CLASS_CODES).nullable().default('SUBSTANDARD'),
+            /**
+             * Consecutive on-time revised instalments that cure a restructure,
+             * at the least: a product asking for fewer (even 0) is raised to this.
+             */
+            minProbationInstalments: z.number().int().min(1).max(60).default(3),
+          })
+          .strict()
+          .default({}),
+        /**
+         * Fewest days past due a loan may be written off at, per term (D-117).
+         * Null: the first day of the Loss class of that term's bands. A
+         * product's own minimum can only raise it.
+         */
+        writeOffMinDpd: z
+          .object({
+            shortTerm: z.number().int().min(0).max(3650).nullable().default(null),
+            longTerm: z.number().int().min(0).max(3650).nullable().default(null),
+          })
+          .strict()
+          .default({}),
         /** Upper edges of the loan-size bands, in USD; KHR edges are these × khrPerUsd. */
         sizeBandEdgesUsd: z.array(z.number().int().positive()).min(1).max(12).default([500, 1_000, 5_000, 10_000, 50_000]),
         /** The fixed conversion the size bands use for KHR loans (not a market rate). */
@@ -65,6 +106,11 @@ export const tenantLendingSettingsSchema = z
         cash: accountCode.default('1000'),
         /** Year-end close carries the year's income and expense here. */
         retainedEarnings: accountCode.default('3100'),
+        /**
+         * Equity reserve for the regulator's provision above the ECL allowance
+         * (D-115): appropriated from retained earnings at month end.
+         */
+        regulatoryReserve: accountCode.default('3200'),
         /** Opening balances of loans taken over from another system. */
         migrationClearing: accountCode.default('3900'),
         /** Money received in a currency other than the loan's (UC-21). */
@@ -206,14 +252,16 @@ export function defaultTenantLendingSettings(): TenantLendingSettings {
 /** Cross-field checks the schema cannot express. Empty when valid. */
 export function validateTenantLendingSettings(s: TenantLendingSettings): string[] {
   const issues: string[] = [];
-  const classes = s.regulatory.classes;
-  classes.forEach((c, i) => {
-    if (c.code !== REGULATORY_CLASS_CODES[i])
-      issues.push(`regulatory.classes[${i}] must be ${REGULATORY_CLASS_CODES[i]} (the classes are fixed and ordered).`);
-    if (i === 0 && c.minDpd !== 0) issues.push('regulatory.classes: the first class must start at 0 days past due.');
-    if (i > 0 && c.minDpd <= classes[i - 1].minDpd)
-      issues.push(`regulatory.classes: ${c.code} must start after ${classes[i - 1].code}.`);
-  });
+  for (const key of ['classes', 'longTermClasses'] as const) {
+    const classes = s.regulatory[key];
+    classes.forEach((c, i) => {
+      if (c.code !== REGULATORY_CLASS_CODES[i])
+        issues.push(`regulatory.${key}[${i}] must be ${REGULATORY_CLASS_CODES[i]} (the classes are fixed and ordered).`);
+      if (i === 0 && c.minDpd !== 0) issues.push(`regulatory.${key}: the first class must start at 0 days past due.`);
+      if (i > 0 && c.minDpd <= classes[i - 1].minDpd)
+        issues.push(`regulatory.${key}: ${c.code} must start after ${classes[i - 1].code}.`);
+    });
+  }
   const edges = s.regulatory.sizeBandEdgesUsd;
   edges.forEach((e, i) => {
     if (i > 0 && e <= edges[i - 1]) issues.push('regulatory.sizeBandEdgesUsd must increase.');
@@ -227,6 +275,16 @@ export function validateTenantLendingSettings(s: TenantLendingSettings): string[
   if (dec(s.scoring.monitoring.psiEpsilon).lte(0) || dec(s.scoring.monitoring.psiEpsilon).gte('0.1'))
     issues.push('scoring.monitoring.psiEpsilon must be greater than 0 and below 0.1.');
   return [...new Set(issues)];
+}
+
+/** The regulator's classification as these settings set it, for the impairment engine. */
+export function regulatoryBands(s: TenantLendingSettings): RegulatoryBands {
+  return {
+    shortTerm: s.regulatory.classes,
+    longTerm: s.regulatory.longTermClasses,
+    shortTermMaxDays: s.regulatory.shortTermMaxDays,
+    restructuredMinClass: s.regulatory.restructured.minClass,
+  };
 }
 
 /** Every ledger account code the settings name, for checking against the chart. */

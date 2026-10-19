@@ -87,7 +87,9 @@ CI runs all three in the `lending-tests` job of `.github/workflows/security.yml`
 3. Run the batch: `POST /v1/lending/loans/batch/run` — auto-debit collection
    under active mandates (first, so a collected instalment is never late), accrual, interest
    capitalization, penalties, delinquency buckets and collection stages,
-   restructure monitoring and system referrals. It is idempotent and processes
+   restructure monitoring and system referrals, and — once an impairment
+   policy is approved — each loan's classification and the change in its loss
+   allowance (see *Classification and provisioning* below). It is idempotent and processes
    only accounts in the caller's scope; each account is its own transaction.
 4. Check reconciliation: `GET /v1/lending/ops/reconciliation` must report no breaks.
 
@@ -186,8 +188,21 @@ snapshot) and waits for a person to approve it.
 
 * **Checks** — the business date has reached month end; end of day has
   processed every day without failures; the previous month is closed;
-  debits equal credits; the sub-ledgers reconcile. Open money approvals and
-  unidentified payments are warnings shown to the approver.
+  debits equal credits; **an impairment policy is approved** whenever lending
+  loans are active (`IMPAIRMENT_POLICY`, D-116: without one no allowance has
+  been posted, so the month cannot close); the sub-ledgers reconcile. Open
+  money approvals and unidentified payments are warnings shown to the
+  approver, and so is REGULATORY impairment mode (`REGULATORY_RESERVE`: the
+  books are not CIFRS 9 compliant).
+* **Regulatory reserve** (ECL policy, D-115) — preparing the close measures
+  the NBC provision on the active lending loans against the ECL allowance
+  held, per currency, and brings the regulatory reserve to the excess with a
+  journal dated the month end: Dr retained earnings (3100) / Cr regulatory
+  reserve (3200, lending setting `accounting.regulatoryReserve`) to raise it,
+  the reverse to release it (event `REGULATORY_RESERVE`). It is measured
+  against the ledger, so preparing again posts nothing; the figures are kept
+  in `snapshot.regulatoryReserve`. In REGULATORY mode the reserve is released
+  to zero.
 * **Snapshot** — trial balance at month end, the month's disbursements,
   collections, write-offs and net income, and the portfolio (outstanding,
   PAR 1/30/90, buckets, allowance), kept with the close.
@@ -206,6 +221,39 @@ snapshot) and waits for a person to approve it.
 
 The close covers the lending ledger. The legacy ledger is closed separately.
 
+## Classification and provisioning (NBC)
+
+Assumptions: DECISIONS D-113 – D-117 (need compliance sign-off).
+
+* **Policy** — Operations › Impairment: finance proposes, risk approves. Until
+  one is approved no allowance is posted and month-end close is refused while
+  loans are outstanding (D-010, D-116).
+* **Bands by term** — lending settings `regulatory.classes` (short-term,
+  original maturity up to `regulatory.shortTermMaxDays`, default 366 days:
+  0–14 / 15–30 / 31–60 / 61–90 / 91+) and `regulatory.longTermClasses`
+  (0–29 / 30–89 / 90–179 / 180–359 / 360+); rates 1 / 3 / 20 / 50 / 100 %.
+  The term is disbursement → original maturity
+  (`LoanAccount.originalMaturityDate`, kept by a trigger through restructures).
+  In REGULATORY mode end of day provisions on these settings; in ECL mode the
+  allowance is PD × LGD × exposure and the NBC figure drives the reserve.
+* **Restructured loans** — while on probation a loan is graded on max(actual
+  days past due, days past due at the restructure) and, in REGULATORY mode and
+  the return, at least `regulatory.restructured.minClass` (default
+  Substandard). Probation ends after max(product
+  `restructuring.probationInstalments`,
+  `regulatory.restructured.minProbationInstalments` (default 3)) consecutive
+  on-time revised instalments.
+* **Regulatory reserve** — under ECL, the NBC provision above the allowance
+  is appropriated to equity at each month-end close (see above).
+* **Write-off floor** — a write-off needs max(product `writeOffMinDpd`,
+  `regulatory.writeOffMinDpd.shortTerm` / `.longTerm`; default the Loss class
+  of the loan's bands: 91 / 360 days), checked at proposal and approval
+  (`WRITE_OFF_TOO_EARLY`). Loss loans at the floor appear in the work queue
+  **Loss loans due for write-off** (`AGED_LOSS`, `loan.writeoff.propose`).
+* Changing any of these is a lending-settings version (Operations › Lending
+  settings), maker-checker. A version approved before this change keeps its
+  25% Substandard rate until a new one is approved.
+
 ## Regulatory returns and the two loan books
 
 Lending › Regulatory returns. One monthly NBC-style return per organisation
@@ -213,12 +261,19 @@ covers the lending platform **and** the legacy loans, per currency
 (assumptions: DECISIONS D-045..D-049).
 
 * **Tables** — portfolio by currency and book; classification and
-  provisioning (NBC classes, required provision against allowance held);
+  provisioning (NBC classes on the short- or long-term bands by each loan's
+  original term, restructured loans held at their probation floor and
+  minimum class; required provision against allowance held);
   PAR 1/30/90; by product and family, branch, purpose, borrower type (group
   or individual) and loan size; restructured loans by class; disbursed,
   written off and recovered in the month; the 20 largest borrowers; interest
-  rates against the cap. Every table carries per-currency totals, and the
-  return checks that every breakdown adds up to the portfolio.
+  rates against the cap; the **regulatory provision and reserve** (NBC
+  provision, allowance held, reserve required and reserve on the ledger, with
+  a note that REGULATORY-mode books are not CIFRS 9 compliant). Every table
+  carries per-currency totals, and the return checks that every breakdown
+  adds up to the portfolio and that an impairment policy is approved while
+  lending loans are outstanding. Loss loans at the write-off floor that are
+  not written off are listed as a warning.
 * **Reconciliation** — for each currency and book, principal and allowance of
   the loans in the return against loans receivable and the allowance in that
   book's journal at month end (the lending book also against the trial
@@ -1066,7 +1121,10 @@ verify the customer's documents' data, then submit the application.
   what is due is held as an advance or prepaid per the product.
 * Penalty interest uses ACT/365F on overdue principal + interest.
 * Impairment (regulatory class rates or ECL by stage) posts only once a
-  policy is approved; modification accounting still needs integration review.
+  policy is approved, and a month cannot close without one; modification
+  accounting still needs integration review. The NBC bands, the restructured
+  minimum class and the write-off floor are the team's reading of the Prakas
+  and need compliance sign-off (D-113 – D-117).
 * The business date is per tenant (not per branch or legal entity).
 
 ## API index (`/v1/lending/...`)

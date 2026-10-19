@@ -2062,6 +2062,8 @@ model LoanAccount {
   collectionStage        String?
   disbursementDate       DateTime?        @db.Date
   maturityDate           DateTime?        @db.Date
+  /// The maturity first agreed: kept by a trigger until disbursement, then frozen (a restructure does not move it). Chooses the NBC band set (DECISIONS D-114).
+  originalMaturityDate   DateTime?        @db.Date
   lastAccrualDate        DateTime?        @db.Date
   closedAt               DateTime?
   writtenOffAt           DateTime?
