@@ -542,7 +542,7 @@ d('Legacy loan module freeze (integration)', () => {
       PenaltyCronService,
     } = require('../../src/penalty-cron/penalty-cron.service');
     // 2026-03-11 17:00 in Phnom Penh (10:00 UTC).
-    const at = new Date('2026-03-11T10:00:00.000Z');
+    const at = new Date(Date.UTC(2026, 2, 11, 10));
     const utc = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
     it('charges from the day after the due date in Phnom Penh, never on paid principal and interest, up to the cap', async () => {
@@ -629,7 +629,7 @@ d('Legacy loan module freeze (integration)', () => {
       try {
         // Business date 2026-01-05: due 2025-12-01 → 35 days → SUBSTANDARD 25%.
         const id = await legacyLoan(f.t2, f.b3, [], {
-          dueDates: [new Date('2025-12-01T00:00:00.000Z')],
+          dueDates: [new Date(Date.UTC(2025, 11, 1))],
         });
         // Two runs at once: the second sees the first and moves nothing.
         const runs = await Promise.all([
