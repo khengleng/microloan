@@ -26,7 +26,10 @@ import { PolicyService } from '../policy/policy.service';
 import { RateCapService } from '../common/rate-cap.service';
 import type { Resource } from '../policy/decision';
 import { PostingLine } from '../accounting/posting.service';
-import { ServicingService } from '../servicing/servicing.service';
+import {
+  ServicingService,
+  adjustPenaltySuspense,
+} from '../servicing/servicing.service';
 import { oncePerRun } from '../servicing/batch-scope';
 import {
   LoanState,
@@ -1274,6 +1277,7 @@ export class RestructuringService implements OnModuleInit {
         interestReceivable: a.interestReceivable.toString(),
         feesReceivable: a.feesReceivable.toString(),
         penaltyReceivable: a.penaltyReceivable.toString(),
+        penaltyInSuspense: a.penaltyInSuspense.toString(),
         instalmentAmount: a.instalmentAmount?.toString() ?? null,
         maturityDate: toLocalDate(a.maturityDate),
         daysPastDue: a.daysPastDue,
@@ -1396,6 +1400,13 @@ export class RestructuringService implements OnModuleInit {
     const waivedTotal = D(k.waived.interest)
       .plus(k.waived.fees)
       .plus(k.waived.penalties);
+    // Waived penalty held in suspense was never income, so waiving it costs
+    // nothing: it comes out of suspense against the concession (D-134).
+    const waivedFromSuspense = lending.D.min(
+      D(a.penaltyInSuspense),
+      D(k.waived.penalties),
+    );
+    await adjustPenaltySuspense(tx, state, waivedFromSuspense.negated());
     const lines: PostingLine[] = [
       { accountCode: acc.loansReceivable, debit: capTotal.toString() },
       { accountCode: acc.interestReceivable, credit: k.capitalized.interest },
@@ -1405,6 +1416,14 @@ export class RestructuringService implements OnModuleInit {
       { accountCode: acc.interestReceivable, credit: k.waived.interest },
       { accountCode: acc.feesReceivable, credit: k.waived.fees },
       { accountCode: acc.penaltyReceivable, credit: k.waived.penalties },
+      {
+        accountCode: acc.penaltySuspense,
+        debit: waivedFromSuspense.toString(),
+      },
+      {
+        accountCode: acc.concessionsExpense,
+        credit: waivedFromSuspense.toString(),
+      },
       { accountCode: acc.principalForgivenessExpense, debit: k.forgiven },
       { accountCode: acc.loansReceivable, credit: k.forgiven },
       { accountCode: acc.cash, debit: k.principalPaidAtRestructure },
@@ -1718,6 +1737,9 @@ export class RestructuringService implements OnModuleInit {
         interestReceivable: b.interestReceivable as string,
         feesReceivable: b.feesReceivable as string,
         penaltyReceivable: b.penaltyReceivable as string,
+        // Restructures executed before D-134 did not record it: left as is.
+        penaltyInSuspense:
+          (b.penaltyInSuspense as string | undefined) ?? undefined,
         instalmentAmount: (b.instalmentAmount as string | null) ?? null,
         maturityDate: b.maturityDate
           ? fromLocalDate(b.maturityDate as string)
