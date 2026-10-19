@@ -206,7 +206,7 @@ export default function LoanDetailsPage() {
 
     return (
         <div className="max-w-6xl space-y-5">
-            {loan.status === 'APPROVED' && <LegacyReadonlyBanner status={legacy} />}
+            <LegacyReadonlyBanner status={legacy} />
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
@@ -260,12 +260,12 @@ export default function LoanDetailsPage() {
                             )}
                         </>
                     )}
-                    {loan.status === 'APPROVED' && !legacy?.readonly && legacyCan('LOAN_DISBURSE') && (
+                    {loan.status === 'APPROVED' && legacy && !legacy.readonly && legacyCan('LOAN_DISBURSE') && (
                         <button onClick={handleDisburse} className="btn-primary bg-[#006644] hover:bg-[#004d33]">
                             <Wallet size={14} /> Disburse Funds
                         </button>
                     )}
-                    {loan.status === 'DISBURSED' && legacyCan('LOAN_REPAYMENT_POST') && (
+                    {loan.status === 'DISBURSED' && legacy && !legacy.readonly && legacyCan('LOAN_REPAYMENT_POST') && (
                         <button onClick={() => {
                             clarityEvent('repayment_modal_open_from_loan');
                             setIsModalOpen(true);
@@ -343,7 +343,7 @@ export default function LoanDetailsPage() {
 
                     {/* Early settlement at the payoff quote (UC-31) */}
                     {(loan.status === 'DISBURSED' || loan.status === 'DEFAULTED') && (
-                        <EarlySettlementPanel loanId={loan.id} onSettled={fetchLoan} />
+                        <EarlySettlementPanel loanId={loan.id} onSettled={fetchLoan} readOnly={!legacy || legacy.readonly} />
                     )}
 
                     {/* Static-QR collection panel (display-only) */}

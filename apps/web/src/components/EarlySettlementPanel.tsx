@@ -19,7 +19,8 @@ interface PayoffQuote {
  * Settling closes the loan and waives interest not yet due; an ordinary
  * repayment of the same amount would not close it.
  */
-export function EarlySettlementPanel({ loanId, onSettled }: { loanId: string; onSettled: () => void }) {
+/** `readOnly`: the original module is frozen (D-097) — the quote is shown, settling is not offered. */
+export function EarlySettlementPanel({ loanId, onSettled, readOnly = false }: { loanId: string; onSettled: () => void; readOnly?: boolean }) {
     const { showToast } = useToast();
     const confirm = useConfirm();
     const [quote, setQuote] = useState<PayoffQuote | null>(null);
@@ -74,9 +75,11 @@ export function EarlySettlementPanel({ loanId, onSettled }: { loanId: string; on
                     <div className="flex justify-between"><span className="text-muted-foreground">Penalties</span><span>{money(quote.outstandingPenalty)}</span></div>
                     <div className="flex justify-between text-emerald-700"><span>Future interest waived</span><span>−{money(quote.futureInterestWaived)}</span></div>
                     <div className="flex justify-between border-t border-border pt-2 font-bold"><span>Payoff today</span><span>{money(quote.payoffAmount)}</span></div>
+                    {!readOnly && (
                     <button onClick={settle} disabled={busy} className="w-full mt-2 bg-primary text-white text-sm font-semibold rounded py-2 disabled:opacity-50">
                         {busy ? <Loader2 size={14} className="animate-spin inline" /> : `Settle ${money(quote.payoffAmount)} and close`}
                     </button>
+                    )}
                 </div>
             )}
         </div>

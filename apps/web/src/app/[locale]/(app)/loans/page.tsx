@@ -141,7 +141,7 @@ export default function LoansPage() {
                     <button onClick={exportToExcel} className="btn-ghost">
                         <Download size={14} /> {t('export')}
                     </button>
-                    {!legacy?.readonly && legacyCan('LOAN_APPLICATION_CREATE') && (
+                    {legacy && !legacy.readonly && legacyCan('LOAN_APPLICATION_CREATE') && (
                         <button onClick={() => {
                             clarityEvent('loan_application_start');
                             setIsModalOpen(true);
