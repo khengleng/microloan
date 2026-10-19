@@ -64,6 +64,27 @@ interface LegacyOverview {
 
 type ChartPoint = { name: string; collections: number; disbursements: number };
 
+/** Recharts tooltip; module-level so it is not re-created on every render. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ChartTooltip({ active, payload, label, currency }: any) {
+    if (!active || !payload || !payload.length) return null;
+    return (
+        <div className="bg-card border border-border p-3 rounded text-[12px] shadow-lg">
+            <p className="font-bold text-foreground mb-2">{label}</p>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {payload.map((entry: any, index: number) => (
+                <div key={index} className="flex items-center justify-between gap-6">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: entry.color }} />
+                        {entry.name}
+                    </span>
+                    <span className="font-bold text-foreground">{money(entry.value, currency)}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function DashboardPage() {
     const router = useRouter();
     const { locale } = useParams();
@@ -75,7 +96,6 @@ export default function DashboardPage() {
     const [legacyData, setLegacyData] = useState<LegacyOverview | null>(null);
     const [failed, setFailed] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [isMounted, setIsMounted] = useState(false);
     const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
     const legacy = useLegacyStatus();
     const [isBorrowerModalOpen, setIsBorrowerModalOpen] = useState(false);
@@ -85,7 +105,6 @@ export default function DashboardPage() {
     const canLegacy = legacyCan('CUSTOMER_VIEW');
 
     useEffect(() => {
-        setIsMounted(true);
         // Guard: Platform staff have no microfinance data — redirect to platform view
         if (user?.isPlatform) {
             router.replace(`/${locale}/tenants`);
@@ -135,26 +154,6 @@ export default function DashboardPage() {
             : [];
     const chartCurrency = lend ? lend.reportingCurrency : legacyData?.currency;
     const chartHasMoney = chartData.some((p) => p.collections || p.disbursements);
-
-    const CustomTooltip = ({ active, payload, label }: any) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-card border border-border p-3 rounded text-[12px] shadow-lg">
-                    <p className="font-bold text-foreground mb-2">{label}</p>
-                    {payload.map((entry: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between gap-6">
-                            <span className="text-muted-foreground flex items-center gap-1.5">
-                                <span className="inline-block w-2 h-2 rounded-full" style={{ background: entry.color }} />
-                                {entry.name}
-                            </span>
-                            <span className="font-bold text-foreground">{money(entry.value, chartCurrency)}</span>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        return null;
-    };
 
     if (loading) return (
         <div className="flex h-[50vh] items-center justify-center">
@@ -263,35 +262,33 @@ export default function DashboardPage() {
                     </div>
                     <div className="p-4">
                         <div className="h-[280px] w-full min-w-0">
-                            {isMounted ? (
-                                chartHasMoney ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 10, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#2962FF" stopOpacity={0.15} />
-                                                    <stop offset="95%" stopColor="#2962FF" stopOpacity={0} />
-                                                </linearGradient>
-                                                <linearGradient id="colorDisbursements" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#ef5350" stopOpacity={0.1} />
-                                                    <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#DFE1E6" />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} dy={8} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString(undefined, { notation: 'compact' })} />
-                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#2a2e39', strokeWidth: 1 }} />
-                                            <Area type="monotone" dataKey="collections" name={t('collections')} stroke="#2962FF" strokeWidth={2} fillOpacity={1} fill="url(#colorCollections)" />
-                                            <Area type="monotone" dataKey="disbursements" name={t('disbursements')} stroke="#ef5350" strokeWidth={2} strokeDasharray="4 2" fillOpacity={1} fill="url(#colorDisbursements)" />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-[13px] gap-2 border border-dashed border-border rounded">
-                                        <BarChart2 size={24} className="opacity-30" />
-                                        {t('noCashflow')}
-                                    </div>
-                                )
-                            ) : null}
+                            {chartHasMoney ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 10, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorCollections" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#2962FF" stopOpacity={0.15} />
+                                                <stop offset="95%" stopColor="#2962FF" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="colorDisbursements" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#ef5350" stopOpacity={0.1} />
+                                                <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#DFE1E6" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} dy={8} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#787b86', fontSize: 11 }} tickFormatter={(v) => Number(v).toLocaleString(undefined, { notation: 'compact' })} />
+                                        <Tooltip content={<ChartTooltip currency={chartCurrency} />} cursor={{ stroke: '#2a2e39', strokeWidth: 1 }} />
+                                        <Area type="monotone" dataKey="collections" name={t('collections')} stroke="#2962FF" strokeWidth={2} fillOpacity={1} fill="url(#colorCollections)" />
+                                        <Area type="monotone" dataKey="disbursements" name={t('disbursements')} stroke="#ef5350" strokeWidth={2} strokeDasharray="4 2" fillOpacity={1} fill="url(#colorDisbursements)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-[13px] gap-2 border border-dashed border-border rounded">
+                                    <BarChart2 size={24} className="opacity-30" />
+                                    {t('noCashflow')}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

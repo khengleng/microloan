@@ -63,8 +63,8 @@ export default function AccountingPage() {
     const [journalPages, setJournalPages] = useState(1);
     const [journalTotal, setJournalTotal] = useState(0);
 
+    // Only runs on mount, while `loading` is already true from its initial state.
     const fetchData = useCallback(() => {
-        setLoading(true);
         Promise.all([
             api.get('/ledger/accounts'),
         ])

@@ -36,17 +36,22 @@ export default function ProductsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<LoanProduct | null>(null);
 
-    const fetchProducts = useCallback(() => {
-        setLoading(true);
+    const loadProducts = useCallback(() => {
         api.get('/loan-products')
             .then(res => setProducts(res.data))
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
     }, []);
 
+    const fetchProducts = useCallback(() => {
+        setLoading(true);
+        loadProducts();
+    }, [loadProducts]);
+
+    // Initial load: `loading` starts true, so no synchronous setState in the effect.
     useEffect(() => {
-        fetchProducts();
-    }, [fetchProducts]);
+        loadProducts();
+    }, [loadProducts]);
 
     const handleDelete = async (id: string, name: string) => {
         const ok = await confirm({
