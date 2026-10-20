@@ -10,7 +10,7 @@ import { StepUpModal } from '@/components/auth/step-up-modal';
 import { useEffect } from 'react';
 import { clarityIdentify, claritySetTag } from '@/lib/clarity';
 import { WorkspaceProvider, useQueueCount, useWorkspace } from '@/lib/workspace';
-import { NAV, PLATFORM_NAV, visibleNav, type NavItem } from '@/lib/nav';
+import { NAV, PLATFORM_NAV, breadcrumbFor, visibleNav, type NavItem } from '@/lib/nav';
 import { GlobalSearch } from '@/components/workspace/GlobalSearch';
 import { ShellBanners, ShellChips } from '@/components/workspace/ShellStatus';
 import { LearningProvider } from '@/lib/learning';
@@ -48,6 +48,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
     const enrolmentLock = !!user?.mfaEnrolmentRequired;
     const onAccount = pathname === `/${locale}/account`;
     const sections = enrolmentLock ? [] : visibleNav(isPlatform ? PLATFORM_NAV : NAV, ws);
+
+    // Header breadcrumb: the translated menu page, then any deeper page by its
+    // path words (record ids skipped). My account is not in the menu.
+    const crumb = (() => {
+        const rel = (pathname || '').replace(new RegExp(`^/${locale}(?=/|$)`), '') || '/';
+        if (rel === '/account' || rel.startsWith('/account/')) return { page: ta('menuLink'), sub: null };
+        const b = breadcrumbFor(rel, !!isPlatform);
+        return { page: b.navKey ? tw(`nav.${b.navKey}`) : null, sub: b.sub };
+    })();
 
     useEffect(() => {
         if (enrolmentLock && !onAccount) router.replace(`/${locale}/account?enrol=1`);
@@ -188,10 +197,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         <nav className="hidden xl:flex items-center gap-1 text-sm text-muted-foreground">
                             <span>MicroLoan</span>
                             <ChevronRight size={14} />
-                            <span className="text-foreground font-medium capitalize">
-                                {/* The last segment that is not a record id (a UUID squeezed the header and read as words). */}
-                                {pathname.split('/').filter((x) => x && !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x)).pop()?.replace(/-/g, ' ')}
-                            </span>
+                            {crumb.page && (
+                                <span data-testid="breadcrumb-page" className={crumb.sub ? '' : 'text-foreground font-medium'}>{crumb.page}</span>
+                            )}
+                            {crumb.page && crumb.sub && <ChevronRight size={14} />}
+                            {crumb.sub && (
+                                <span data-testid="breadcrumb-sub" lang="en" className="text-foreground font-medium capitalize">{crumb.sub}</span>
+                            )}
                         </nav>
                     </div>
                     {!enrolmentLock && <GlobalSearch platform={!!isPlatform} />}

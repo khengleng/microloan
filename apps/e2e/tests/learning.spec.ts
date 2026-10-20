@@ -40,7 +40,6 @@ test('portal orientation tour: every step is shown and completion is recorded', 
 test('a quiz: wrong answers fail, right answers pass and complete the lesson', async ({ page }) => {
   const lesson = LESSON_BY_ID['portal-orientation'];
   await page.goto('/en/learn/portal-orientation');
-  await page.waitForLoadState('networkidle');
   const answer = async (pick: (q: (typeof lesson.quiz.questions)[number]) => number) => {
     for (const [i, q] of lesson.quiz.questions.entries()) {
       // Each question is a fieldset whose legend is "<n>. <prompt>".
@@ -56,6 +55,22 @@ test('a quiz: wrong answers fail, right answers pass and complete the lesson', a
   await answer((q) => q.answer);
   await expect(page.getByText('Passed — lesson complete.')).toBeVisible();
   await expect(page.getByText(`You scored ${lesson.quiz.questions.length} of ${lesson.quiz.questions.length}.`)).toBeVisible();
+});
+
+test('quiz answers ticked straight after the page loads (before hydration ends) stick, without a page error', async ({ page }) => {
+  // No wait for the network or hydration: a person can tick as soon as the
+  // quiz is painted. The fixture fails the test on any uncaught page error.
+  const lesson = LESSON_BY_ID['portal-orientation'];
+  await page.goto('/en/learn/portal-orientation', { waitUntil: 'commit' });
+  for (const [i, q] of lesson.quiz.questions.entries()) {
+    const group = page.getByRole('group', { name: `${i + 1}. ${q.prompt}` });
+    await group.getByLabel(q.options[q.answer], { exact: true }).check();
+  }
+  for (const [i, q] of lesson.quiz.questions.entries()) {
+    const group = page.getByRole('group', { name: `${i + 1}. ${q.prompt}` });
+    await expect(group.getByLabel(q.options[q.answer], { exact: true })).toBeChecked();
+  }
+  await expect(page.getByRole('button', { name: 'Check answers' })).toBeEnabled();
 });
 
 for (const tourId of ['scorecards', 'create-application'] as const) {
