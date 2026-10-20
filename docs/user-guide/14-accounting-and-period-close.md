@@ -135,6 +135,12 @@ Normally you do not need to do anything. The platform runs end of day automatica
 
 Note: your IT team can switch the nightly run off. If the business date shown on Home is behind today, ask them whether it is running.
 
+### Operational alerts
+
+The platform checks your organisation every 10 minutes and shows anything wrong in a box at the top of **Finance › End of day & operations**: **End of day is behind**, **End of day left accounts unprocessed**, **Month end not closed** (10 days into the next month), **Outbox backed up**, **Webhook deliveries backed up**, **Reconciliation breaks** and **Scheduled jobs failed**. Each line says what was found and since when. Red lines are critical: interest, arrears or the books may be wrong until the cause is fixed.
+
+You do not close an alert yourself: it disappears on the next check after the cause is fixed (for example, the next end-of-day run catches up, or the month is closed). The platform operator is e-mailed about every alert; to have your own staff e-mailed as well, add their addresses to the lending setting **operations.alertEmails** (see [Lending settings](#lending-settings)). They get one e-mail when an alert opens, a reminder every 6 hours while it stays open, and one when it is resolved.
+
 ### Advance the business date by hand
 
 Use this to catch up when the nightly run is switched off, or in a test or demo environment. You need the "Advance the tenant business date" permission (Finance officer, Tenant administrator).
@@ -260,6 +266,7 @@ The **Lending settings** tab holds your organisation's own operating parameters:
 - payment-file limits (most lines per file, most days back-dated);
 - the longest delegation of authority (days);
 - after how many days overdue an original-module loan is marked DEFAULTED.
+- **Operational alerts: e-mail addresses of the lender’s operations contacts** (`operations.alertEmails`, up to 10, none by default): who in your organisation is e-mailed about your operational alerts, besides the platform operator.
 
 Until a version is approved, the platform defaults apply (**Defaults in force**). The table shows each **Setting**, its **Value** and the **Default**.
 

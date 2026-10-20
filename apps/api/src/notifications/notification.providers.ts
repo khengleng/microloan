@@ -24,7 +24,7 @@ export function isSmsConfigured(): boolean {
 }
 
 export async function sendEmailViaProvider(
-    to: string,
+    to: string | string[],
     subject: string,
     html: string,
 ): Promise<SendResult> {

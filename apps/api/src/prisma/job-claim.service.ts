@@ -25,6 +25,14 @@ import { runAsTenant } from './tenant-context';
  * wall admits the claim row whatever the caller's context — a cron loop runs
  * as system, a shutdown hook with no context at all (D-142).
  */
+/**
+ * The claim scope of platform-wide jobs, which belong to no tenant (the
+ * operational health monitor, D-150). Not a tenant id — tenant ids are
+ * UUIDs — and ScheduledJobClaim has no foreign key to Tenant; the row is
+ * declared and walled like any other claim.
+ */
+export const PLATFORM_JOB_SCOPE = 'platform';
+
 @Injectable()
 export class JobClaimService {
   /** This process, as recorded on the claims it makes. */
@@ -71,6 +79,20 @@ export class JobClaimService {
       RETURNING "id"`,
     );
     return rows.length === 1;
+  }
+
+  /**
+   * Delete one job's run-once claims made before `before` (a job claimed
+   * every few minutes would otherwise keep a row per run for good).
+   */
+  async prune(tenantId: string, job: string, before: Date): Promise<number> {
+    return runAsTenant(
+      tenantId,
+      () => this.prisma.$executeRaw`
+      DELETE FROM "ScheduledJobClaim"
+      WHERE "tenantId" = ${tenantId} AND "job" = ${job}
+        AND "leaseUntil" IS NULL AND "claimedAt" < ${before}`,
+    );
   }
 
   /** Give up a lease this instance holds (shutdown), so another can take it at once. */

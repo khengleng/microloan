@@ -48,6 +48,12 @@ The top bar shows the chip **Platform · all organisations**. The search box fin
 
 Platform queues: **Organisations pending activation**, **Plan payments to confirm**, and **Suspended organisations** (for information). Click a tile to open the page.
 
+### Operational alerts
+
+The top of **Organisations** shows every open operational alert — the platform's own (the database) and each organisation's (end of day behind or failing, month end not closed, outbox or webhook backlog, reconciliation breaks, failed scheduled jobs) — with its severity, organisation and since when. The platform checks every 10 minutes and e-mails the addresses in the API setting `ALERT_EMAIL_TO` when an alert opens, every 6 hours while it stays open, and when it resolves. If the box says alerts are **not e-mailed**, ask whoever runs the deployment to set `ALERT_EMAIL_TO` (and `RESEND_API_KEY`); see DEPLOYMENT.md → E-mail alerts.
+
+Alerts close themselves when the cause is gone. If the whole platform is down, this page cannot tell you: a separate uptime check run by GitHub every 10 minutes e-mails the same people and opens an issue labelled `uptime` in the code repository.
+
 ---
 
 ## 3. How a new organisation joins

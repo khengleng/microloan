@@ -187,6 +187,38 @@ instance reports the same figure and a restart loses nothing.
 Errors themselves still go to Sentry (`SENTRY_DSN`); the metrics say *that*
 something is wrong, Sentry and the logs say *what*.
 
+### E-mail alerts (DECISIONS D-150…D-152)
+
+Without Prometheus, the platform still tells someone when something is wrong:
+
+* **Health monitor (in the API).** Every `ALERT_CHECK_INTERVAL_MINUTES` (10)
+  one instance claims the slot (`ScheduledJobClaim`, scope `platform`, job
+  `ops.alert-monitor`) and checks each tenant with active loans or an open
+  alert — end of day behind or leaving failures, month end not closed,
+  outbox / webhook backlog, reconciliation breaks, failed scheduled jobs —
+  and the database. State is the table `OperationalAlert` (one open row per
+  tenant and key; platform alerts have no tenant and are visible in system
+  context only). E-mail via Resend to `ALERT_EMAIL_TO` and the lender's
+  `operations.alertEmails`: on open, on resolve, and a reminder at most every
+  `ALERT_REMINDER_HOURS` (6). No recipients or no `RESEND_API_KEY`: logged
+  only. Thresholds and Railway set-up: DEPLOYMENT.md → E-mail alerts.
+* **Uptime check (GitHub Actions, `.github/workflows/uptime.yml`).** Every 10
+  minutes from outside: web sign-in page and `GET /v1/health/ready`; an issue
+  labelled `uptime` holds the state (opened when down, commented at most every
+  6 h, closed on recovery), with one e-mail at each of those moments.
+
+Where to see them: Organisations (the platform operator's home) lists every
+open alert with its organisation; Lending › End of day & operations shows a
+lender its own. `GET /v1/platform/operational-alerts` (platform operator) and
+`GET /v1/lending/ops/alerts` (`tenant_settings.read`) return the same.
+
+An alert resolves by itself on the first check after its cause is gone (for
+end of day: the next run catches up; for month end: the month is closed;
+for failed jobs: no new failure for the look-back window). It cannot be
+dismissed by hand — fix the cause or change the threshold. The first time
+the monitor runs on a lender that has never closed a month it raises one
+"month end not closed" alert listing every such month.
+
 ### Responding
 
 | Alert | First steps |

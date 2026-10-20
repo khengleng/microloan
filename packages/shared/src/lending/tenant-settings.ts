@@ -374,6 +374,20 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /**
+     * The lender's operations contacts (D-151): besides the platform operator
+     * (ALERT_EMAIL_TO), these addresses are e-mailed when one of this
+     * lender's operational alerts opens, is still open (reminder) or resolves —
+     * end of day behind or failing, month end not closed, outbox or webhook
+     * backlog, reconciliation breaks, failed scheduled jobs. Empty: the
+     * lender is not e-mailed; the alerts still show on the operations page.
+     */
+    operations: z
+      .object({
+        alertEmails: z.array(z.string().trim().toLowerCase().email().max(160)).max(10).default([]),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({

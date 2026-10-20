@@ -48,6 +48,9 @@ jobs:
         # See docs/security/HARDCODING_AUDIT.md.
         run: pnpm run security:config-audit
 
+      - name: Uptime workflow decisions (open, remind, close)
+        run: node --test scripts/uptime-check.test.mjs
+
       - name: Production config check
         env:
           # Quote values: an unquoted 32-digit secret is parsed by YAML as a

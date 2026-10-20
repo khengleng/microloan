@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { StatusBadge } from '../StatusBadge';
 import { ImpairmentTab } from './ImpairmentTab';
 import { LendingSettingsTab } from './LendingSettingsTab';
+import { OperationalAlertsCard } from './OperationalAlertsCard';
 import { ActionPanel, Btn, Card, Checkbox, Empty, ErrorBox, Field, KV, Notice, SelectInput, Spinner, Table, Tabs, TextInput, td, th } from '../ui';
 import { qs, useAction, useApi } from '../useAsync';
 import { fmtDateTime, fmtRate, percentToFraction } from '../format';
@@ -463,6 +464,7 @@ export function OperationsView() {
     const [tab, setTab] = useState<Tab>('date');
     return (
         <div className="space-y-5">
+            <OperationalAlertsCard />
             <Tabs<Tab>
                 value={tab}
                 onChange={setTab}

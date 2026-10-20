@@ -48,6 +48,9 @@ import { ProjectFinanceController } from './project-finance/project-finance.cont
 import { RateResetService } from './servicing/rate-reset.service';
 import { EodSchedulerService } from './servicing/eod-scheduler.service';
 import { LendingMetricsCollector } from './monitoring/lending-metrics.collector';
+import { OperationalAlertService } from './monitoring/operational-alerts.service';
+import { PlatformOperationalAlertsController } from './monitoring/operational-alerts.controller';
+import { PrismaHealthIndicator } from '../health/prisma.health';
 import { LendingFacilitiesController } from './facilities/facilities.controller';
 import { InvoiceFinanceService } from './trade/invoice-finance.service';
 import { LettersOfCreditService } from './trade/letters-of-credit.service';
@@ -140,6 +143,7 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
 @Module({
   imports: [PrismaModule, LedgerModule],
   controllers: [
+    PlatformOperationalAlertsController,
     LendingOverviewController,
     RestructuringController,
     RestructuringPortalController,
@@ -226,6 +230,8 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     RateResetService,
     EodSchedulerService,
     LendingMetricsCollector,
+    OperationalAlertService,
+    PrismaHealthIndicator,
     AccessAdminService,
     CatalogueSyncService,
     RestructuringService,

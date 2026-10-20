@@ -114,6 +114,7 @@ Existing agreements keep working: stored configurations are parsed through the s
 | B32 | `auth/mfa-policy.ts` (new, D-128, D-129) | Who must use an authenticator; how recent a code an MFA-gated action needs | `AUTH_MFA_REQUIRED_SUPERADMIN` (true), tenant setting `security.requireMfaForAdmins` (true), `AUTH_MFA_STEP_UP_MINUTES` (15) |
 | B33 | `platform-approvals/platform-approval.service.ts`, `tenants/tenant-purge.service.ts` (new, D-130, D-131) | Life of a second-super-administrator request; purge transaction timeout | `PLATFORM_APPROVAL_TTL_DAYS` (7), `TENANT_PURGE_TX_TIMEOUT_MS` (300000) |
 | B34 | `bot/bot.service.ts` (D-132) | Loan applications from the Telegram bot | Tenant setting `telegramBot.allowLoanApplications` (false); limits from the product's rate policy |
+| B35 | `lending/monitoring/operational-alerts.service.ts` (new, D-150…D-152) | Operational health monitor: who is e-mailed, how often it checks and reminds, and its thresholds | `ALERT_EMAIL_TO` (none → logged only), `ALERT_CHECK_INTERVAL_MINUTES` (10), `ALERT_REMINDER_HOURS` (6), `ALERT_EOD_MAX_LAG_DAYS` (1), `ALERT_MONTH_END_CLOSE_DAYS` (10), `ALERT_BACKLOG_MAX_AGE_MINUTES` (30), `ALERT_JOB_FAILURE_LOOKBACK_HOURS` (24), `ALERT_DB_CONNECTIONS_PCT` (80), `ALERT_MONITOR_DISABLED` (false); per lender, tenant setting `operations.alertEmails` (none) |
 
 ### Ledger postings that bypassed the account mapping
 
@@ -151,6 +152,7 @@ A changed account applies to new postings only; moving a balance is a journal fi
 | C9 | `plan-tiers/plan-tier.service.ts:65,101` | 30 s in-process tier cache, busted only on the writing instance | A lowered quota or retired tier stayed in force on other instances | Removed: one small indexed read per quota-checked write |
 | C10 | `auth/auth.service.ts:590-600,710-717` | Failed-login counter `loginAttempts + 1` read-then-write | Parallel guesses across instances under-counted, weakening the lockout | Atomic increment, lock set when the counted value reaches the threshold |
 | C11 | `app.module.ts:57` | Throttler storage in memory unless `NODE_ENV=production` | A multi-instance staging/preview deployment had per-instance budgets | Redis whenever `REDIS_URL` is set; in-memory only for a single development process |
+| C12 | `lending/monitoring/operational-alerts.service.ts` (new, D-150) | — (new: a scheduled health monitor) | Every instance runs the minute cron; an in-process "last run" would send each alert once per instance | Each check slot is claimed once in `ScheduledJobClaim` (scope `platform`, job `ops.alert-monitor`); alert state lives in `OperationalAlert` (one open row per tenant and key, unique index); reminders and resolves are conditional updates, so a notice is sent at most once |
 
 ### Kept (process-local by nature; allowlisted with reasons)
 
