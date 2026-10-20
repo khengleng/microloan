@@ -35,6 +35,15 @@ describe('tenant lending settings', () => {
     assert.deepEqual(L.validateTenantLendingSettings(d), []);
   });
 
+  test('operations alert contacts: none by default, valid addresses only, at most ten (D-151)', () => {
+    assert.deepEqual(L.defaultTenantLendingSettings().operations, { alertEmails: [] });
+    const s = L.tenantLendingSettingsSchema.parse({ operations: { alertEmails: [' Ops@Lender.example '] } });
+    assert.deepEqual(s.operations.alertEmails, ['ops@lender.example']);
+    assert.equal(L.tenantLendingSettingsSchema.safeParse({ operations: { alertEmails: ['not-an-address'] } }).success, false);
+    const eleven = Array.from({ length: 11 }, (_, i) => `ops${i}@lender.example`);
+    assert.equal(L.tenantLendingSettingsSchema.safeParse({ operations: { alertEmails: eleven } }).success, false);
+  });
+
   test('a partial version keeps every other default', () => {
     const s = L.tenantLendingSettingsSchema.parse({ access: { maxDelegationDays: 7 } });
     assert.equal(s.access.maxDelegationDays, 7);

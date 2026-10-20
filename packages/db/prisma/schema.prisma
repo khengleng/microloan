@@ -82,6 +82,7 @@ model Tenant {
   holidayProgrammes PaymentHolidayProgramme[]
   lendingAgreements LendingAgreement[]
   restructureCases  RestructureCase[]
+  operationalAlerts OperationalAlert[]
 }
 
 /// Plan payment for a self-serve workspace signup.
@@ -5040,4 +5041,39 @@ model AmlStrCase {
   @@unique([tenantId, reference])
   @@unique([tenantId, id])
   @@index([tenantId, status])
+}
+
+/// An operational alert raised by the health monitor (DECISIONS D-150…D-152):
+/// end of day behind or failing, a month-end close overdue, the outbox or
+/// webhooks backed up, reconciliation breaks, failed scheduled jobs, the
+/// database pool. One OPEN row per tenant and key at a time (a partial unique
+/// index); a null tenant is a platform-wide alert, visible only in system
+/// context. A resolved row stays as history; the same problem returning opens
+/// a new row. E-mail goes out when an alert opens, when it resolves, and as a
+/// reminder at most every ALERT_REMINDER_HOURS while it stays open.
+model OperationalAlert {
+  id             String    @id @default(uuid())
+  tenantId       String?
+  tenant         Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Stable key of the check, e.g. eod.stale, month_end.overdue, outbox.backlog.
+  key            String
+  /// CRITICAL, WARNING
+  severity       String
+  /// OPEN, RESOLVED
+  status         String    @default("OPEN")
+  summary        String
+  details        Json      @default("{}")
+  openedAt       DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  resolvedAt     DateTime?
+  /// The last notification (opened or reminder) and how it went out:
+  /// EMAIL, LOG_ONLY (no recipients or no e-mail provider), FAILED.
+  lastNotifiedAt DateTime?
+  lastDelivery   String?
+  notifyCount    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId, status])
+  @@index([status, openedAt])
 }
