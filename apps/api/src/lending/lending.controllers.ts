@@ -46,6 +46,7 @@ import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { KeyFactsService } from './origination/key-facts.service';
 import { CoolingOffService } from './servicing/cooling-off.service';
 import { AmlCustomersService } from './aml/aml-customers.service';
+import { OperationalAlertService } from './monitoring/operational-alerts.service';
 
 type Req_ = Request & { user?: unknown; serviceActor?: never };
 const actor = (req: Req_) => lendingActorOf(req as never);
@@ -1668,7 +1669,15 @@ export class LendingOperationsController {
     private readonly reporting: ReportingService,
     private readonly periods: PeriodCloseService,
     private readonly lendingSettings: LendingSettingsService,
+    private readonly alerts: OperationalAlertService,
   ) {}
+
+  /** This lender's open operational alerts and the last resolved ones (D-150). */
+  @LendingAction('tenant_settings.read')
+  @Get('alerts')
+  operationalAlerts(@Req() req: Req_) {
+    return this.alerts.forTenant(actor(req));
+  }
 
   // ── The lender's own operating parameters (D-071) ─────────────────────────
 

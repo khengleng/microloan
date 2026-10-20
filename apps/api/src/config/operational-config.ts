@@ -1,4 +1,5 @@
 import {
+  ConfigError,
   envBool,
   envDuration,
   envInt,
@@ -293,12 +294,89 @@ export function operationalConfig(env: NodeJS.ProcessEnv = process.env) {
       apiUrl: envUrl('EMAIL_API_URL', env) ?? 'https://api.resend.com/emails',
       from: envOptional('EMAIL_FROM', env),
     },
+
+    /**
+     * The operational health monitor (D-150…D-152): what it checks, how
+     * often, and who is e-mailed. Unset recipients: alerts are logged and
+     * shown on screen only.
+     */
+    alerts: {
+      /** Platform operator addresses, comma-separated (every alert, every tenant). */
+      emailTo: alertEmailList(envOptional('ALERT_EMAIL_TO', env)),
+      /** Minutes between checks; one instance runs each check (ScheduledJobClaim). */
+      checkIntervalMinutes: envInt(
+        'ALERT_CHECK_INTERVAL_MINUTES',
+        10,
+        { min: 1, max: 1_440 },
+        env,
+      ),
+      /** Hours between reminder e-mails while an alert stays open. */
+      reminderHours: envInt(
+        'ALERT_REMINDER_HOURS',
+        6,
+        { min: 1, max: 168 },
+        env,
+      ),
+      /** End of day: days the last run may lag today (tenant time zone) before it alerts. */
+      eodMaxLagDays: envInt(
+        'ALERT_EOD_MAX_LAG_DAYS',
+        1,
+        { min: 0, max: 31 },
+        env,
+      ),
+      /** Month end: days into the next month before an unclosed month alerts. */
+      monthEndCloseDays: envInt(
+        'ALERT_MONTH_END_CLOSE_DAYS',
+        10,
+        { min: 1, max: 60 },
+        env,
+      ),
+      /** Outbox / webhooks: age in minutes of the oldest pending message before it alerts. */
+      backlogMaxAgeMinutes: envInt(
+        'ALERT_BACKLOG_MAX_AGE_MINUTES',
+        30,
+        { min: 1, max: 10_080 },
+        env,
+      ),
+      /** Failed scheduled jobs: hours back the failures are looked for. */
+      jobFailureLookbackHours: envInt(
+        'ALERT_JOB_FAILURE_LOOKBACK_HOURS',
+        24,
+        { min: 1, max: 720 },
+        env,
+      ),
+      /** Database: share of max_connections in use (percent) that alerts. */
+      dbConnectionsPct: envInt(
+        'ALERT_DB_CONNECTIONS_PCT',
+        80,
+        { min: 1, max: 100 },
+        env,
+      ),
+    },
     openAiModel: envString('OPENAI_MODEL', 'gpt-4o', env),
     telegramPolling: envBool('TELEGRAM_POLLING_ENABLED', true, env),
   };
 }
 
 export type OperationalConfig = ReturnType<typeof operationalConfig>;
+
+/** ALERT_EMAIL_TO: comma-separated addresses, lower-cased and de-duplicated. */
+function alertEmailList(v: string | undefined): string[] {
+  const list = [
+    ...new Set(
+      (v ?? '')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+  for (const a of list)
+    if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(a))
+      throw new ConfigError(`ALERT_EMAIL_TO: "${a}" is not an e-mail address.`);
+  if (list.length > 20)
+    throw new ConfigError('ALERT_EMAIL_TO: at most 20 addresses.');
+  return list;
+}
 
 function bodyLimit(v: string): string {
   if (!/^\d+(b|kb|mb)$/i.test(v))

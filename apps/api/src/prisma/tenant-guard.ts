@@ -179,6 +179,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'OutboxMessage',
   // tenantId is null for platform-level events, which tenant principals never see.
   'AuditEvent',
+  // Operational alerts (D-150): null tenantId for platform-wide alerts, likewise.
+  'OperationalAlert',
   'AffordabilityPolicy',
   'RestructureCase',
   'RestructureEvidence',

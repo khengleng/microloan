@@ -95,6 +95,30 @@ describe('operationalConfig', () => {
     expect(webOrigin({})).toBe('http://localhost:3000');
     expect(() => webOrigin({ NODE_ENV: 'production' })).toThrow('WEB_URL');
   });
+
+  it('alert monitor: log-only with no recipients, documented defaults, addresses validated (D-150)', () => {
+    expect(operationalConfig({}).alerts).toEqual({
+      emailTo: [],
+      checkIntervalMinutes: 10,
+      reminderHours: 6,
+      eodMaxLagDays: 1,
+      monthEndCloseDays: 10,
+      backlogMaxAgeMinutes: 30,
+      jobFailureLookbackHours: 24,
+      dbConnectionsPct: 80,
+    });
+    expect(
+      operationalConfig({
+        ALERT_EMAIL_TO: ' Ops@Example.com, oncall@example.com,ops@example.com ',
+      }).alerts.emailTo,
+    ).toEqual(['ops@example.com', 'oncall@example.com']);
+    expect(() =>
+      operationalConfig({ ALERT_EMAIL_TO: 'ops@example.com; other' }),
+    ).toThrow('ALERT_EMAIL_TO');
+    expect(() =>
+      operationalConfig({ ALERT_CHECK_INTERVAL_MINUTES: '0' }),
+    ).toThrow('ALERT_CHECK_INTERVAL_MINUTES');
+  });
 });
 
 describe('loadRuntimeConfig in production', () => {
