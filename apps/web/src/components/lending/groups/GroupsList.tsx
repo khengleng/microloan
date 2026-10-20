@@ -23,6 +23,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function GroupsList() {
     const t = useTranslations('LendingGroups');
     const ts = useTranslations('Status');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const [search, setSearch] = useState('');
@@ -36,8 +38,8 @@ export function GroupsList() {
 
     return (
         <LendingShell
-            title="Borrower groups"
-            subtitle="Solidarity groups whose members borrow under joint liability."
+            title={tw('groups')}
+            subtitle={tp('groups')}
             actions={<Btn variant="primary" onClick={() => setCreating(true)}><Plus size={14} /> {t('list.newGroup')}</Btn>}
         >
             {creating && <NewGroupForm onClose={() => setCreating(false)} />}

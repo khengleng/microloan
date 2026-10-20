@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { clarityEvent, claritySetTag } from "@/lib/clarity";
+import { useTranslations } from "next-intl";
 
 interface RepaymentModalProps {
     open: boolean;
@@ -25,6 +26,8 @@ const labelCls = "block text-sm font-medium text-foreground mb-1";
 
 export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }: RepaymentModalProps) {
     const { showToast } = useToast();
+    const t = useTranslations('Repayments');
+    const tc = useTranslations('Common');
     const [loading, setLoading] = useState(false);
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loanDetails, setLoanDetails] = useState<any>(null);
@@ -99,7 +102,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
             setFormData({ loanId: '', amount: '', date: new Date().toISOString().split('T')[0] });
         } catch (error: any) {
             clarityEvent('repayment_submit_failed');
-            const msg = error.response?.data?.message || 'Failed to post repayment';
+            const msg = error.response?.data?.message || t('modal.postFailed');
             showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
             setLoading(false);
@@ -111,14 +114,14 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
             <DialogContent className="max-w-md bg-white border border-border rounded-lg p-0 shadow-lg overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
-                    <DialogTitle className="text-base font-bold text-foreground">Record Repayment</DialogTitle>
-                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">Post a payment against an active loan.</DialogDescription>
+                    <DialogTitle className="text-base font-bold text-foreground">{t('modal.title')}</DialogTitle>
+                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">{t('modal.description')}</DialogDescription>
                 </div>
 
                 {/* Outstanding balance info */}
                 {loanDetails && (
                     <div className="mx-6 mt-4 p-3 bg-muted rounded border border-border flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Outstanding balance</span>
+                        <span className="text-sm text-muted-foreground">{t('modal.outstandingBalance')}</span>
                         <span className="text-sm font-bold text-foreground">${loanDetails.totalDue.toLocaleString()}</span>
                     </div>
                 )}
@@ -126,7 +129,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                 <form onSubmit={handleSubmit}>
                     <div className="px-6 py-5 space-y-4">
                         <div>
-                            <label htmlFor="loanId" className={labelCls}>Loan <span className="text-destructive">*</span></label>
+                            <label htmlFor="loanId" className={labelCls}>{t('loan')} <span className="text-destructive">*</span></label>
                             <select
                                 id="loanId"
                                 className={`${fieldCls} appearance-none`}
@@ -137,7 +140,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                 }}
                                 required
                             >
-                                <option value="">Select a loan...</option>
+                                <option value="">{t('modal.selectLoan')}</option>
                                 {loans.map(l => (
                                     <option key={l.id} value={l.id}>
                                         {l.borrower.firstName} {l.borrower.lastName} — ${l.principal.toLocaleString()}
@@ -148,7 +151,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="amount" className={labelCls}>Amount (USD) <span className="text-destructive">*</span></label>
+                                <label htmlFor="amount" className={labelCls}>{t('modal.amountUsd')} <span className="text-destructive">*</span></label>
                                 <input
                                     id="amount"
                                     type="number"
@@ -167,7 +170,7 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                                 />
                             </div>
                             <div>
-                                <label htmlFor="date" className={labelCls}>Payment Date <span className="text-destructive">*</span></label>
+                                <label htmlFor="date" className={labelCls}>{t('modal.paymentDate')} <span className="text-destructive">*</span></label>
                                 <input
                                     id="date"
                                     type="date"
@@ -184,10 +187,10 @@ export function RepaymentModal({ open, onOpenChange, onSuccess, defaultLoanId }:
                     </div>
 
                     <div className="px-6 py-4 border-t border-border bg-muted/40 flex justify-end gap-2">
-                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">Cancel</button>
+                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">{tc('cancel')}</button>
                         <button type="submit" disabled={loading} className="btn-primary">
                             {loading && <Loader2 size={14} className="animate-spin" />}
-                            {loading ? 'Posting...' : 'Post Repayment'}
+                            {loading ? t('modal.posting') : t('add_new')}
                         </button>
                     </div>
                 </form>

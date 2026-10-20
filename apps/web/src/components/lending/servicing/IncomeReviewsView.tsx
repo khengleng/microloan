@@ -18,13 +18,15 @@ interface Reviews {
 /** Lending › Income assessments: annual reassessments due, and assessments waiting for a checker. */
 export function IncomeReviewsView() {
     const tl = useTranslations('LendingServicing.incomeReviews');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const res = useApi<Reviews>('/lending/income-contingent/reviews');
     const r = res.data;
     return (
         <LendingShell
-            title="Income assessments"
-            subtitle="Income-contingent loans: the instalment follows the borrower's assessed income. Reassess every year (or on a change of circumstances) with evidence; a second person approves, and the schedule is rebuilt from the next period."
+            title={tw('incomeAssessments')}
+            subtitle={tp('incomeAssessments')}
         >
             {res.error && <ErrorBox error={res.error} />}
             {!r ? <Spinner /> : (

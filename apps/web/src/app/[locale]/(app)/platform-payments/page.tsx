@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -48,6 +49,8 @@ type PlanPayment = {
  * arrive against them.
  */
 export default function PlatformPaymentsPage() {
+    const t = useTranslations('PlatformPayments');
+    const tc = useTranslations('Common');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const fileRef = useRef<HTMLInputElement>(null);
@@ -115,7 +118,7 @@ export default function PlatformPaymentsPage() {
         const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error('Could not read that file.'));
+            reader.onerror = () => reject(new Error(t('fileReadFailed')));
             reader.readAsDataURL(file);
         });
         setPayloadText('');
@@ -127,7 +130,7 @@ export default function PlatformPaymentsPage() {
         setBusy(true);
         try {
             await api.post('/platform/payment-qr', pendingImage ? { image: pendingImage } : { payload: payloadText });
-            showToast(`Payment QR saved — signup codes will be issued to ${preview.merchant.merchantName}.`, 'success');
+            showToast(t('toastSaved', { merchant: preview.merchant.merchantName }), 'success');
             setPreview(null);
             setPendingImage(null);
             setPayloadText('');
@@ -140,10 +143,16 @@ export default function PlatformPaymentsPage() {
 
     const decide = async (payment: PlanPayment, approve: boolean) => {
         const ok = await confirm({
-            title: approve ? 'Confirm payment received?' : 'Reject this payment?',
+            title: approve ? t('confirmTitle') : t('rejectTitle'),
             message: approve
-                ? `This activates ${payment.tenant.name} on the ${payment.plan} plan. Only confirm once you have verified the transfer of ${payment.currency} ${payment.amount} with reference ${payment.reference}.`
-                : `${payment.tenant.name} will stay locked and unable to sign in.`,
+                ? t('confirmMessage', {
+                    tenant: payment.tenant.name,
+                    plan: payment.plan,
+                    currency: payment.currency,
+                    amount: payment.amount,
+                    reference: payment.reference,
+                })
+                : t('rejectMessage', { tenant: payment.tenant.name }),
             variant: approve ? 'default' : 'danger',
         });
         if (!ok) return;
@@ -152,10 +161,10 @@ export default function PlatformPaymentsPage() {
         try {
             if (approve) {
                 await api.put(`/tenants/plan-payments/${payment.id}/confirm`);
-                showToast(`${payment.tenant.name} activated on ${payment.plan}.`, 'success');
+                showToast(t('toastActivated', { tenant: payment.tenant.name, plan: payment.plan }), 'success');
             } else {
                 await api.put(`/tenants/plan-payments/${payment.id}/reject`, { reason: 'Transfer not received' });
-                showToast('Payment rejected.', 'info');
+                showToast(t('toastRejected'), 'info');
             }
             await load();
         } finally {
@@ -168,10 +177,9 @@ export default function PlatformPaymentsPage() {
     return (
         <div className="space-y-6 p-6 max-w-5xl">
             <div>
-                <h1 className="text-xl font-bold text-foreground">Platform payments</h1>
+                <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Configure the KHQR that signup payment codes are generated from, and approve
-                    transfers to activate new workspaces.
+                    {t('subtitle')}
                 </p>
             </div>
 
@@ -179,16 +187,16 @@ export default function PlatformPaymentsPage() {
             <div className={cardClass}>
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                        <QrCode size={16} /> Merchant QR
+                        <QrCode size={16} /> {t('merchantQr')}
                     </h2>
                     <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-                        <RefreshCcw size={13} className="mr-1.5" /> Refresh
+                        <RefreshCcw size={13} className="mr-1.5" /> {t('refresh')}
                     </Button>
                 </div>
 
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                        <Loader2 size={14} className="animate-spin" /> Loading...
+                        <Loader2 size={14} className="animate-spin" /> {tc('loading')}
                     </div>
                 ) : (
                     <>
@@ -203,7 +211,7 @@ export default function PlatformPaymentsPage() {
                                         {status.merchant?.bakongAccountId} · {status.merchant?.merchantCity}
                                     </div>
                                     <div className="text-xs text-muted-foreground mt-1">
-                                        Source: {status.source === 'UPLOAD' ? 'uploaded QR' : 'environment variables'}
+                                        {status.source === 'UPLOAD' ? t('sourceUpload') : t('sourceEnv')}
                                     </div>
                                 </div>
                             </div>
@@ -211,8 +219,7 @@ export default function PlatformPaymentsPage() {
                             <div className="flex items-start gap-3 p-3 rounded border border-amber-500/20 bg-amber-500/5 mb-5">
                                 <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
                                 <div className="text-sm text-foreground">
-                                    No merchant QR configured. Paid plans are unavailable at signup until
-                                    you upload one — only the FREE plan can be selected.
+                                    {t('notConfigured')}
                                 </div>
                             </div>
                         )}
@@ -220,7 +227,7 @@ export default function PlatformPaymentsPage() {
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
                                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                    Upload your KHQR (PNG or JPEG)
+                                    {t('uploadLabel')}
                                 </label>
                                 <input
                                     ref={fileRef}
@@ -234,14 +241,13 @@ export default function PlatformPaymentsPage() {
                                     className="block w-full text-sm text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded file:border file:border-border file:text-sm file:bg-secondary file:text-foreground hover:file:border-primary"
                                 />
                                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                                    A screenshot of your Bakong merchant QR. Any amount on it is ignored —
-                                    each plan gets its own code with the correct price.
+                                    {t('uploadHint')}
                                 </p>
                             </div>
 
                             <div>
                                 <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                                    …or paste the KHQR payload
+                                    {t('payloadLabel')}
                                 </label>
                                 <textarea
                                     rows={3}
@@ -258,7 +264,7 @@ export default function PlatformPaymentsPage() {
                                     disabled={busy || !payloadText.trim()}
                                     onClick={() => { setPendingImage(null); void runPreview({ payload: payloadText }); }}
                                 >
-                                    Read payload
+                                    {t('readPayload')}
                                 </Button>
                             </div>
                         </div>
@@ -266,23 +272,23 @@ export default function PlatformPaymentsPage() {
                         {preview && (
                             <div className="mt-5 p-4 rounded border border-primary/30 bg-primary/5">
                                 <div className="text-sm font-semibold text-foreground mb-2">
-                                    Read from your {preview.sourceType === 'IMAGE' ? 'image' : 'payload'}
+                                    {preview.sourceType === 'IMAGE' ? t('readFromImage') : t('readFromPayload')}
                                 </div>
                                 <dl className="text-sm grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mb-4">
-                                    <dt className="text-muted-foreground">Merchant</dt>
+                                    <dt className="text-muted-foreground">{t('merchant')}</dt>
                                     <dd className="text-foreground">{preview.merchant.merchantName}</dd>
-                                    <dt className="text-muted-foreground">Bakong account</dt>
+                                    <dt className="text-muted-foreground">{t('bakongAccount')}</dt>
                                     <dd className="text-foreground font-mono text-xs">{preview.merchant.bakongAccountId}</dd>
-                                    <dt className="text-muted-foreground">City</dt>
+                                    <dt className="text-muted-foreground">{t('city')}</dt>
                                     <dd className="text-foreground">{preview.merchant.merchantCity}</dd>
                                 </dl>
                                 <div className="flex gap-2">
                                     <Button size="sm" onClick={() => void save()} disabled={busy}>
                                         {busy && <Loader2 size={13} className="animate-spin mr-1.5" />}
-                                        <Upload size={13} className="mr-1.5" /> Use this QR
+                                        <Upload size={13} className="mr-1.5" /> {t('useThisQr')}
                                     </Button>
                                     <Button variant="outline" size="sm" onClick={() => { setPreview(null); setPendingImage(null); }}>
-                                        Cancel
+                                        {tc('cancel')}
                                     </Button>
                                 </div>
                             </div>
@@ -294,18 +300,17 @@ export default function PlatformPaymentsPage() {
             {/* ── Per-plan codes ─────────────────────────────────────────── */}
             {planPreviews.length > 0 && (
                 <div className={cardClass}>
-                    <h2 className="text-base font-semibold text-foreground mb-1">Plan payment codes</h2>
+                    <h2 className="text-base font-semibold text-foreground mb-1">{t('planCodes')}</h2>
                     <p className="text-sm text-muted-foreground mb-4">
-                        Exactly what a customer scans at signup — generated from your merchant QR with
-                        each plan&apos;s price embedded.
+                        {t('planCodesHint')}
                     </p>
                     <div className="grid gap-4 sm:grid-cols-3">
                         {planPreviews.map(p => (
                             <div key={p.plan} className="border border-border rounded p-3 text-center">
                                 {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from our API */}
-                                <img src={p.qrImage} alt={`${p.plan} plan QR`} className="w-full max-w-[160px] mx-auto bg-white rounded p-1.5" />
+                                <img src={p.qrImage} alt={t('planQrAlt', { plan: p.plan })} className="w-full max-w-[160px] mx-auto bg-white rounded p-1.5" />
                                 <div className="mt-2 text-sm font-semibold text-foreground">{p.plan}</div>
-                                <div className="text-sm text-muted-foreground">{p.currency} {p.amount}/mo</div>
+                                <div className="text-sm text-muted-foreground">{t('pricePerMonthValue', { currency: p.currency, amount: p.amount })}</div>
                             </div>
                         ))}
                     </div>
@@ -314,15 +319,14 @@ export default function PlatformPaymentsPage() {
 
             {/* ── Pending approvals ──────────────────────────────────────── */}
             <div className={cardClass}>
-                <h2 className="text-base font-semibold text-foreground mb-1">Awaiting approval</h2>
+                <h2 className="text-base font-semibold text-foreground mb-1">{t('awaitingApproval')}</h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                    New workspaces stay locked until you confirm the transfer landed. Match the
-                    reference against your bank statement before confirming.
+                    {t('awaitingApprovalHint')}
                 </p>
 
                 {pending.length === 0 ? (
                     <div className="text-sm text-muted-foreground py-6 text-center">
-                        No payments waiting.
+                        {t('noPending')}
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -331,16 +335,21 @@ export default function PlatformPaymentsPage() {
                                 <div className="min-w-0">
                                     <div className="text-sm font-semibold text-foreground truncate">{p.tenant.name}</div>
                                     <div className="text-xs text-muted-foreground">
-                                        {p.plan} · {p.currency} {p.amount} · ref{' '}
-                                        <span className="font-mono">{p.reference}</span>
+                                        {t.rich('pendingLine', {
+                                            plan: p.plan,
+                                            currency: p.currency,
+                                            amount: p.amount,
+                                            reference: p.reference,
+                                            mono: chunks => <span className="font-mono">{chunks}</span>,
+                                        })}
                                     </div>
                                 </div>
                                 <div className="flex gap-2 shrink-0">
                                     <Button size="sm" disabled={busy} onClick={() => void decide(p, true)}>
-                                        <CheckCircle size={13} className="mr-1.5" /> Confirm
+                                        <CheckCircle size={13} className="mr-1.5" /> {t('confirm')}
                                     </Button>
                                     <Button variant="outline" size="sm" disabled={busy} onClick={() => void decide(p, false)}>
-                                        <XCircle size={13} className="mr-1.5" /> Reject
+                                        <XCircle size={13} className="mr-1.5" /> {t('reject')}
                                     </Button>
                                 </div>
                             </div>

@@ -24,6 +24,8 @@ export function liveVersion(p: LendingPolicy): LendingPolicyVersion | undefined 
 
 export function PolicyLibrary() {
     const t = useTranslations('LendingPolicies');
+    const tn = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const router = useRouter();
     const { showToast } = useToast();
@@ -36,8 +38,8 @@ export function PolicyLibrary() {
 
     return (
         <LendingShell
-            title="Policy library"
-            subtitle="Reusable, versioned pieces of loan terms that products offer as menus and contracts are composed from. Versions go draft → submitted → approved → retired under maker-checker."
+            title={tn('policies')}
+            subtitle={tp('policies')}
             actions={!creating && can('loan_product.create') && <Btn variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> {t('newPolicy.title')}</Btn>}
         >
             {creating && (

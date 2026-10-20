@@ -41,6 +41,7 @@ const CLASSIFICATION_STYLES: Record<string, string> = {
 
 export default function ProvisioningPage() {
     const { showToast } = useToast();
+    const tp = useTranslations('Overview.provisioningPage');
     const [runs, setRuns] = useState<ProvisioningRun[]>([]);
     const [loading, setLoading] = useState(true);
     const [running, setRunning] = useState(false);
@@ -63,9 +64,9 @@ export default function ProvisioningPage() {
         setDetailLoading(true);
         api.get(`/provisioning/runs/${id}`)
             .then(res => setDetail(res.data))
-            .catch(() => showToast('Failed to load run detail', 'error'))
+            .catch(() => showToast(tp('loadDetailFailed'), 'error'))
             .finally(() => setDetailLoading(false));
-    }, [showToast]);
+    }, [showToast, tp]);
 
     const o = useTranslations('Overview');
     const { legacyCan } = useWorkspace();
@@ -83,7 +84,7 @@ export default function ProvisioningPage() {
             fetchRuns();
             if (res.data.id) loadDetail(res.data.id);
         } catch {
-            showToast('Failed to run provisioning', 'error');
+            showToast(tp('runFailed'), 'error');
         } finally {
             setRunning(false);
         }
@@ -92,7 +93,7 @@ export default function ProvisioningPage() {
     if (loading) return (
         <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
             <Loader2 className="animate-spin text-[#635BFF]" size={40} />
-            <p className="text-[#697386] font-medium">Loading provisioning runs...</p>
+            <p className="text-[#697386] font-medium">{tp('loading')}</p>
         </div>
     );
 
@@ -100,8 +101,8 @@ export default function ProvisioningPage() {
         <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Loan-Loss Provisioning</h1>
-                    <p className="text-[#697386] text-[14px]">Run and review expected credit loss provisioning.</p>
+                    <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{tp('title')}</h1>
+                    <p className="text-[#697386] text-[14px]">{tp('subtitle')}</p>
                     <p className="text-[#697386] text-[12px] mt-1">{o('provisionBasis')}</p>
                 </div>
                 {legacy && !legacy.readonly && legacyCan('PROVISION_RUN') && (
@@ -111,7 +112,7 @@ export default function ProvisioningPage() {
                     className="bg-[#635BFF] hover:bg-[#5D55EF] disabled:opacity-60 text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2"
                 >
                     {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                    {running ? 'Running...' : 'Run Provisioning'}
+                    {running ? tp('running') : tp('run')}
                 </button>
                 )}
             </div>
@@ -120,20 +121,20 @@ export default function ProvisioningPage() {
             {/* Runs table */}
             <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-[#E3E8EE]">
-                    <h2 className="text-[15px] font-bold text-[#1A1F36]">Provisioning Runs</h2>
+                    <h2 className="text-[15px] font-bold text-[#1A1F36]">{tp('runs')}</h2>
                 </div>
                 <div className="overflow-x-auto no-scrollbar">
                     <table className="min-w-full border-collapse">
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Run Date</th>
-                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Loans</th>
-                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Total Provision</th>
+                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colRunDate')}</th>
+                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colLoans')}</th>
+                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colTotalProvision')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F7FAFC]">
                             {runs.length === 0 ? (
-                                <tr><td colSpan={3} className="px-6 py-12 text-center text-[14px] text-[#697386]">No runs yet. Click &quot;Run Provisioning&quot; to start.</td></tr>
+                                <tr><td colSpan={3} className="px-6 py-12 text-center text-[14px] text-[#697386]">{tp('noRuns')}</td></tr>
                             ) : runs.map(run => (
                                 <tr
                                     key={run.id}
@@ -154,7 +155,7 @@ export default function ProvisioningPage() {
             {selectedId && (
                 <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-[#E3E8EE]">
-                        <h2 className="text-[15px] font-bold text-[#1A1F36]">Run Detail</h2>
+                        <h2 className="text-[15px] font-bold text-[#1A1F36]">{tp('runDetail')}</h2>
                     </div>
                     {detailLoading ? (
                         <div className="flex items-center justify-center py-16">
@@ -165,12 +166,12 @@ export default function ProvisioningPage() {
                             <table className="min-w-full border-collapse">
                                 <thead>
                                     <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                        <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Borrower</th>
-                                        <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Classification</th>
-                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Days Overdue</th>
-                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Outstanding</th>
-                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Rate</th>
-                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Provision</th>
+                                        <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colBorrower')}</th>
+                                        <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colClassification')}</th>
+                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colDaysOverdue')}</th>
+                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colOutstanding')}</th>
+                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colRate')}</th>
+                                        <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{tp('colProvision')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#F7FAFC]">
@@ -179,7 +180,7 @@ export default function ProvisioningPage() {
                                             <td className="px-6 py-4 text-[14px] font-medium text-[#1A1F36]">{p.loan.borrower.firstName} {p.loan.borrower.lastName}</td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${CLASSIFICATION_STYLES[p.classification] || 'bg-slate-100 text-slate-600'}`}>
-                                                    {p.classification.replace(/_/g, ' ')}
+                                                    {tp.has(`classes.${p.classification}`) ? tp(`classes.${p.classification}`) : p.classification.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right text-[13px] text-[#4F566B] font-medium">{p.daysOverdue}</td>
@@ -192,7 +193,7 @@ export default function ProvisioningPage() {
                             </table>
                         </div>
                     ) : (
-                        <div className="py-12 text-center text-[14px] text-[#697386]">No provisions in this run.</div>
+                        <div className="py-12 text-center text-[14px] text-[#697386]">{tp('noProvisions')}</div>
                     )}
                 </div>
             )}

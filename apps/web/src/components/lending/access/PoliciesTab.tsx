@@ -118,8 +118,9 @@ function PolicyEditor({ data, reload, state, setState }: TabProps & { state: Edi
     const { showToast } = useToast();
     const { busy, error, run, clearError } = useAction();
     const t = useTranslations('LendingAccess.policies');
+    const tm = useTranslations('LendingAccess.policyModel');
 
-    const converted = state.rules.map(draftToRule);
+    const converted = state.rules.map((d) => draftToRule(d, tm));
     const errors = converted.flatMap((c) => c.errors);
     const ids = state.rules.map((r) => r.id).filter(Boolean);
     const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);

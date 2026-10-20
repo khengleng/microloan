@@ -90,20 +90,20 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {st.knockouts.length > 0 && (
                                     <div>
-                                        <p className="text-[11px] font-bold uppercase tracking-wide text-red-700 mb-1">Knock-outs</p>
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-red-700 mb-1">{t('appScore.knockouts')}</p>
                                         <ul className="space-y-0.5">{st.knockouts.map((k) => <li key={k.code} className="text-[13px] text-red-900">{k.message} <span className="font-mono text-[10px] text-[#8792A2]">{k.code}</span></li>)}</ul>
                                     </div>
                                 )}
                                 {st.reasons.length > 0 && (
                                     <div>
-                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">Strategy reasons</p>
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">{t('appScore.strategyReasons')}</p>
                                         <ul className="space-y-0.5">{st.reasons.map((k) => <li key={k.code} className="text-[13px] text-[#3C4257]">{k.message} <span className="font-mono text-[10px] text-[#8792A2]">{k.code}</span></li>)}</ul>
                                     </div>
                                 )}
                                 <div className="text-[13px] text-[#3C4257] space-y-0.5 md:col-span-2">
-                                    {st.declineBelowScore !== null && <p>Declines below score {st.declineBelowScore}.</p>}
-                                    {st.maxAmount && <p>Grade limit <Money value={st.maxAmount} currency={e.inputs.currency || currency} />{st.amountAboveGradeLimit && <span className="ml-1 font-semibold text-amber-700">— requested amount is above it</span>}</p>}
-                                    {!!st.rateAddOnBps && <p>Rate add-on {st.rateAddOnBps} bps for this grade.</p>}
+                                    {st.declineBelowScore !== null && <p>{t('appScore.declinesBelow', { score: st.declineBelowScore })}</p>}
+                                    {st.maxAmount && <p>{t('appScore.gradeLimit')} <Money value={st.maxAmount} currency={e.inputs.currency || currency} />{st.amountAboveGradeLimit && <span className="ml-1 font-semibold text-amber-700">{t('appScore.aboveGradeLimit')}</span>}</p>}
+                                    {!!st.rateAddOnBps && <p>{t('appScore.rateAddOn', { bps: st.rateAddOnBps })}</p>}
                                 </div>
                             </div>
                         )}
@@ -120,7 +120,7 @@ export function ApplicationScoreCard({ applicationId, status, currency }: { appl
                                 </div>
                                 {d.customerExplanation && (
                                     <div className="border border-[#E3E8EE] rounded-md p-3 bg-[#F7FAFC]">
-                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">What the customer is told</p>
+                                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8792A2] mb-1">{t('appScore.customerTold')}</p>
                                         <p className="text-[13px] font-semibold text-[#1A1F36]">{outcomeLabel(d.customerExplanation.outcome)}</p>
                                         {d.customerExplanation.reasons.length > 0 && (
                                             <ul className="mt-1 space-y-0.5 list-disc list-inside">{d.customerExplanation.reasons.map((r) => <li key={r.code} className="text-[13px] text-[#3C4257]">{r.message}</li>)}</ul>

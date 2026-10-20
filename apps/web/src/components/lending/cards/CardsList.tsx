@@ -17,6 +17,8 @@ const PAGE_SIZE = 50;
 export function CardsList() {
     const tc = useTranslations('LendingCards');
     const ts = useTranslations('Status');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const [page, setPage] = useState(1);
@@ -26,7 +28,7 @@ export function CardsList() {
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     return (
-        <LendingShell title="Cards" subtitle="Credit cards: purchases, cash advances and instalment plans on a revolving line.">
+        <LendingShell title={tw('cards')} subtitle={tp('cards')}>
             <Card
                 title={tc('common.cards')}
                 subtitle={data ? tc('list.count', { count: total }) : undefined}

@@ -11,6 +11,7 @@ import { useLearning, type QuizResult } from '@/lib/learning';
 import { Explainer } from './Explainer';
 import { useTour } from './TourProvider';
 import { StatusIcon, lessonStatus } from './LearnHome';
+import { Notice } from '@/components/lending/ui';
 
 /** /learn/[lessonId]: objectives, animated explainer, "Try it" tour, manual link and quiz. */
 export function LessonView({ lessonId }: { lessonId: string }) {
@@ -47,16 +48,17 @@ export function LessonView({ lessonId }: { lessonId: string }) {
         <div className="max-w-[900px] mx-auto space-y-6 pb-12">
             <div>
                 <Link href={`${base}/learn`} className="text-[12px] font-semibold text-[#635BFF] hover:underline">← {t('lesson.back')}</Link>
-                {path && <p className="mt-1 text-[12px] text-[#697386]">{path.title} · {t('lesson.position', { n: pos + 1, total: path.lessonIds.length })}</p>}
+                {path && <p className="mt-1 text-[12px] text-[#697386]"><span lang="en">{path.title}</span> · {t('lesson.position', { n: pos + 1, total: path.lessonIds.length })}</p>}
                 <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight flex items-center gap-2">
-                    <StatusIcon status={lessonStatus(row)} /> {lesson.title}
+                    <StatusIcon status={lessonStatus(row)} /> <span lang="en">{lesson.title}</span>
                 </h1>
-                <p className="text-[#697386] text-[14px] mt-0.5">{lesson.summary} · {t('minutes', { minutes: lesson.minutes })}</p>
+                <p className="text-[#697386] text-[14px] mt-0.5"><span lang="en">{lesson.summary}</span> · {t('minutes', { minutes: lesson.minutes })}</p>
             </div>
+            {locale !== 'en' && <Notice>{t('englishNote')}</Notice>}
 
             <section className="bg-white border border-[#E3E8EE] rounded-lg p-5">
                 <h2 className="text-[15px] font-bold text-[#1A1F36] flex items-center gap-2"><Target size={16} className="text-[#635BFF]" /> {t('lesson.objectives')}</h2>
-                <ul className="mt-2 space-y-1.5">
+                <ul lang="en" className="mt-2 space-y-1.5">
                     {lesson.objectives.map((o) => (
                         <li key={o} className="flex gap-2 text-[13.5px] text-[#3C4257]"><span className="text-[#635BFF]" aria-hidden="true">•</span>{o}</li>
                     ))}
@@ -73,7 +75,7 @@ export function LessonView({ lessonId }: { lessonId: string }) {
                     <h2 className="text-[15px] font-bold text-[#1A1F36] flex items-center gap-2"><Compass size={16} className="text-[#635BFF]" /> {t('lesson.tryIt')}</h2>
                     {tour ? (
                         <>
-                            <p className="mt-1 text-[13px] text-[#3C4257] flex-1">{tour.summary}</p>
+                            <p className="mt-1 text-[13px] text-[#3C4257] flex-1" lang="en">{tour.summary}</p>
                             {tour.demoAccount && <p className="mt-2 text-[12px] text-[#697386]">{t('lesson.practise', { account: tour.demoAccount })}</p>}
                             <div className="mt-3 flex items-center gap-3">
                                 <button type="button" onClick={() => start(tour.id)} className="px-3 py-1.5 text-[13px] font-semibold rounded bg-[#635BFF] text-white hover:bg-[#5249e6]">
@@ -101,7 +103,7 @@ export function LessonView({ lessonId }: { lessonId: string }) {
                 <Link href={`${base}/learn`} className="text-[13px] font-semibold text-[#635BFF] hover:underline">← {t('lesson.back')}</Link>
                 {nextId && (
                     <Link href={`${base}/learn/${nextId}?path=${path!.id}`} className="px-3 py-1.5 text-[13px] font-semibold rounded border border-[#E3E8EE] bg-white text-[#3C4257] hover:bg-slate-50">
-                        {t('lesson.next')}: {learning.LESSON_BY_ID[nextId].title} →
+                        {t('lesson.next')}: <span lang="en">{learning.LESSON_BY_ID[nextId].title}</span> →
                     </Link>
                 )}
             </nav>
@@ -152,7 +154,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
                     return (
                         <li key={q.id}>
                             <fieldset disabled={!!result || busy}>
-                                <legend className="text-[14px] font-semibold text-[#1A1F36]">{qi + 1}. {q.prompt}</legend>
+                                <legend className="text-[14px] font-semibold text-[#1A1F36]">{qi + 1}. <span lang="en">{q.prompt}</span></legend>
                                 <div className="mt-2 grid gap-1.5">
                                     {q.options.map((o, oi) => {
                                         const isAnswer = !!result && oi === q.answer;
@@ -166,7 +168,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
                                                     checked={chosen === oi}
                                                     onChange={() => setAnswers((a) => a.map((x, i) => (i === qi ? oi : x)))}
                                                 />
-                                                <span>{o}</span>
+                                                <span lang="en">{o}</span>
                                             </label>
                                         );
                                     })}
@@ -174,7 +176,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
                                 {result && (
                                     <p className={`mt-2 text-[13px] flex gap-1.5 motion-safe:animate-in motion-safe:fade-in ${right ? 'text-emerald-800' : 'text-red-800'}`}>
                                         {right ? <CheckCircle2 size={15} className="mt-0.5 flex-shrink-0" /> : <XCircle size={15} className="mt-0.5 flex-shrink-0" />}
-                                        <span><b>{right ? t('correct') : t('incorrect')}.</b> {q.explanation}</span>
+                                        <span><b>{right ? t('correct') : t('incorrect')}.</b> <span lang="en">{q.explanation}</span></span>
                                     </p>
                                 )}
                             </fieldset>

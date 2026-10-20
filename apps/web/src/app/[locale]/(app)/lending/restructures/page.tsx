@@ -85,11 +85,13 @@ export default function RestructuresPage() {
     const { can } = useWorkspace();
     const { data, error, loading } = useApi<RestructureCaseSummary[]>(`/lending/restructures${qs({ status })}`);
     const loanOk = UUID_RE.test(loanId.trim());
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
 
     return (
         <LendingShell
-            title="Restructuring & hardship"
-            subtitle="Hardship cases, affordability assessments, proposals and monitoring."
+            title={tw('restructures')}
+            subtitle={tp('restructures')}
             actions={can('restructure.request') && <Btn variant="primary" onClick={() => setRequesting((r) => !r)}>{t('list.requestBtn')}</Btn>}
         >
             {requesting && (

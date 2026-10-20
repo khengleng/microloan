@@ -28,12 +28,14 @@ interface SyndicateView {
 /** Find a syndicated loan (LT-24). */
 export function SyndicationHome() {
     const t = useTranslations('LendingSyndication.home');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const [search, setSearch] = useState('');
     const [query, setQuery] = useState('');
     const list = useApi<Paged<LoanSummary>>(`/lending/loans${qs({ search: query, page: 1 })}`);
     return (
-        <LendingShell title="Syndication" subtitle="Loans shared with other lenders, with this lender as agent. Book the loan under a syndicated product, then set up its participants here.">
+        <LendingShell title={tw('syndication')} subtitle={tp('syndication')}>
             <Card
                 title={t('loans')}
                 bodyClass="p-0"
@@ -70,6 +72,7 @@ type Row = { lenderName: string; isAgent: boolean; share: string; amount: string
 /** One syndicated loan: participants, approval, funding, shares and payouts. */
 export function SyndicateDetail({ loanId }: { loanId: string }) {
     const t = useTranslations('LendingSyndication.detail');
+    const tw = useTranslations('Workspace.nav');
     const href = useLendingHref();
     const confirm = useConfirm();
     const { can, access } = useWorkspace();
@@ -86,7 +89,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
     const [fundRef, setFundRef] = useState('');
     const [msg, setMsg] = useState('');
 
-    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/syndication', label: 'Syndication' }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
+    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/syndication', label: tw('syndication') }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
     const { loan, syndicate: s, payouts } = view.data;
     const ccy = loan.currency;
     const done = (m: string) => { setMsg(m); view.reload(); };
@@ -117,7 +120,7 @@ export function SyndicateDetail({ loanId }: { loanId: string }) {
         <LendingShell
             title={t('titleRef', { reference: loan.reference })}
             subtitle={t('subtitle')}
-            back={{ href: '/lending/syndication', label: 'Syndication' }}
+            back={{ href: '/lending/syndication', label: tw('syndication') }}
             actions={<Link href={href(`/lending/loans/${loanId}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">{t('loanLink')}</Link>}
         >
             {msg && <Notice tone="success">{msg}</Notice>}

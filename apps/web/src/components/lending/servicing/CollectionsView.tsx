@@ -105,6 +105,8 @@ export function CollectionsView() {
     const href = useLendingHref();
     const t = useTranslations('Servicing.collections');
     const tl = useTranslations('LendingServicing.collections');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     // Paged and filtered on the server, worst first: the whole book is never loaded.
     const [page, setPage] = useState(1);
     const loans = useApi<Paged<LoanSummary>>(`/lending/loans${qs({ pastDue: 1, page })}`);
@@ -112,7 +114,7 @@ export function CollectionsView() {
     const total = loans.data?.total ?? 0;
 
     return (
-        <LendingShell title="Collections" subtitle="Loans past due, worst first. Run the end-of-day batch to refresh delinquency.">
+        <LendingShell title={tw('collections')} subtitle={tp('collections')}>
             <BusinessDateCard onChanged={loans.reload} />
             <WorkQueueCard />
             <NoticesCard />

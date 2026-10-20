@@ -42,6 +42,7 @@ type RegisterResult = {
 
 export default function RegisterTenantPage() {
     const t = useTranslations('Register');
+    const tAuth = useTranslations('Auth');
     const router = useRouter();
     const { locale } = useParams();
     const [submitting, setSubmitting] = useState(false);
@@ -102,7 +103,7 @@ export default function RegisterTenantPage() {
             const data = await res.json();
             if (!res.ok) {
                 clarityEvent('register_submit_failed');
-                throw new Error(data.message || 'Registration failed');
+                throw new Error(data.message || t('errorGeneric'));
             }
             applyResult(data);
         } catch (err: unknown) {
@@ -131,7 +132,7 @@ export default function RegisterTenantPage() {
         const data = await res.json();
         if (!res.ok) {
             clarityEvent('register_google_failed');
-            throw new Error(data.message || 'Registration failed');
+            throw new Error(data.message || t('errorGeneric'));
         }
         applyResult(data);
     };
@@ -411,9 +412,9 @@ export default function RegisterTenantPage() {
 
                         <p className="text-center text-[12px] text-muted-foreground leading-relaxed">
                             {t('agree')}{' '}
-                            <Link href="/terms-and-conditions" className="text-primary hover:text-primary/80 transition-colors">Terms</Link>
+                            <Link href="/terms-and-conditions" className="text-primary hover:text-primary/80 transition-colors">{tAuth('terms')}</Link>
                             {' '}{t('and')}{' '}
-                            <Link href="/privacy-policy" className="text-primary hover:text-primary/80 transition-colors">Privacy Policy</Link>.
+                            <Link href="/privacy-policy" className="text-primary hover:text-primary/80 transition-colors">{t('privacyPolicy')}</Link>.
                         </p>
                         </form>
                     </div>
@@ -426,9 +427,9 @@ export default function RegisterTenantPage() {
                     </p>
 
                     <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
-                        <span className="text-[11px] text-muted-foreground">© 2025 MicroLoan</span>
-                        <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
-                        <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
+                        <span className="text-[11px] text-muted-foreground">{tAuth('copyright')}</span>
+                        <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{tAuth('terms')}</Link>
+                        <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{tAuth('privacy')}</Link>
                     </div>
                 </div>
             </div>

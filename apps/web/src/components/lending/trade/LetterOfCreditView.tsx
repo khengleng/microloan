@@ -21,6 +21,7 @@ type Panel = { kind: 'reject' } | { kind: 'close' } | { kind: 'drawing' } | { ki
  */
 export function LetterOfCreditView({ id }: { id: string }) {
     const t = useTranslations('LendingTrade.lc');
+    const tn = useTranslations('Workspace.nav');
     const href = useLendingHref();
     const confirm = useConfirm();
     const { can, access } = useWorkspace();
@@ -36,7 +37,7 @@ export function LetterOfCreditView({ id }: { id: string }) {
     const [action, setAction] = useState<'CANCEL' | 'EXPIRE'>('CANCEL');
     const [msg, setMsg] = useState('');
 
-    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/trade', label: 'Trade finance' }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
+    if (!view.data) return <LendingShell title={t('title')} back={{ href: '/lending/trade', label: tn('trade') }}>{view.error ? <ErrorBox error={view.error} /> : <Spinner />}</LendingShell>;
     const { letterOfCredit: lc, drawings, undrawn } = view.data;
     const ccy = lc.currency;
     const open = (p: Panel) => { setPanel(p); setText(''); setAmount(''); clearError(); };
@@ -82,7 +83,7 @@ export function LetterOfCreditView({ id }: { id: string }) {
         <LendingShell
             title={t('titleRef', { reference: lc.reference })}
             subtitle={`${lc.beneficiaryName}${lc.beneficiaryBank ? ` · ${lc.beneficiaryBank}` : ''}`}
-            back={{ href: '/lending/trade', label: 'Trade finance' }}
+            back={{ href: '/lending/trade', label: tn('trade') }}
             actions={
                 <>
                     {lc.status === 'REQUESTED' && canIssue && <><Btn variant="primary" onClick={issue} busy={busy === 'issue'}>{t('issueEllipsis')}</Btn><Btn variant="danger" onClick={() => open({ kind: 'reject' })}>{t('reject')}</Btn></>}

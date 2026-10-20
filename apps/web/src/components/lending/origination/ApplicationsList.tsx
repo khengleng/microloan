@@ -18,6 +18,8 @@ const PAGE_SIZE = 50;
 
 export function ApplicationsList() {
     const t = useTranslations('LendingOrigination');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const router = useRouter();
     const [status, setStatus] = useState('');
@@ -38,8 +40,8 @@ export function ApplicationsList() {
 
     return (
         <LendingShell
-            title="Applications"
-            subtitle="Origination pipeline: draft → submitted → recommended → approved → booked."
+            title={tw('applications')}
+            subtitle={tp('applications')}
             actions={<Btn data-tour="app-new-button" variant="primary" onClick={() => setCreating(true)} disabled={creating}>{t('list.newApplication')}</Btn>}
         >
             {creating && (

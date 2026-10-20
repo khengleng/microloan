@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import { KpiCard } from './KpiCard';
 import { ReportChartCard } from './ReportChartCard';
 import { ReportDataTable } from './ReportDataTable';
@@ -7,20 +8,20 @@ import { ReportResponse } from './types';
 import { ExportButtons } from './ExportButtons';
 
 const COLUMNS = [
-  { key: 'loanId', label: 'Loan ID', sortable: true },
-  { key: 'borrowerName', label: 'Borrower', sortable: true },
-  { key: 'branch', label: 'Branch', sortable: true },
-  { key: 'loanOfficer', label: 'Loan Officer', sortable: true },
-  { key: 'product', label: 'Product', sortable: true },
-  { key: 'principal', label: 'Principal', type: 'currency' as const, sortable: true },
-  { key: 'outstandingBalance', label: 'Outstanding', type: 'currency' as const, sortable: true },
-  { key: 'interestRate', label: 'Interest Rate', type: 'percent' as const, sortable: true },
-  { key: 'term', label: 'Term', type: 'number' as const, sortable: true },
-  { key: 'disbursementDate', label: 'Disbursed On', type: 'date' as const, sortable: true },
-  { key: 'maturityDate', label: 'Maturity', type: 'date' as const, sortable: true },
-  { key: 'status', label: 'Status', sortable: true },
-  { key: 'daysPastDue', label: 'DPD', type: 'number' as const, sortable: true },
-  { key: 'riskGrade', label: 'Risk Grade', sortable: true },
+  { key: 'loanId', sortable: true },
+  { key: 'borrowerName', sortable: true },
+  { key: 'branch', sortable: true },
+  { key: 'loanOfficer', sortable: true },
+  { key: 'product', sortable: true },
+  { key: 'principal', type: 'currency' as const, sortable: true },
+  { key: 'outstandingBalance', type: 'currency' as const, sortable: true },
+  { key: 'interestRate', type: 'percent' as const, sortable: true },
+  { key: 'term', type: 'number' as const, sortable: true },
+  { key: 'disbursementDate', type: 'date' as const, sortable: true },
+  { key: 'maturityDate', type: 'date' as const, sortable: true },
+  { key: 'status', sortable: true },
+  { key: 'daysPastDue', type: 'number' as const, sortable: true },
+  { key: 'riskGrade', sortable: true },
 ];
 
 export function LoanPortfolioReport({
@@ -46,6 +47,9 @@ export function LoanPortfolioReport({
   const charts = data?.charts || {};
   const rows = data?.rows || [];
   const pagination = data?.pagination || { page: 1, limit: 20, total: 0 };
+  const t = useTranslations('Reports.analytics');
+  const columns = COLUMNS.map((c) => ({ ...c, label: t(`columns.${c.key}`) }));
+  const kpi = (k: string) => ({ title: t(`kpi.${k}`), formatKey: k });
 
   return (
     <div className="space-y-4">
@@ -54,28 +58,28 @@ export function LoanPortfolioReport({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        <KpiCard title="Outstanding Principal" value={kpis.totalOutstandingPrincipal} />
-        <KpiCard title="Active Loans" value={kpis.totalActiveLoans} />
-        <KpiCard title="Disbursed Amount" value={kpis.totalDisbursedAmount} />
-        <KpiCard title="Avg Interest Rate" value={kpis.averageInterestRate} />
-        <KpiCard title="PAR 1" value={kpis.par1} />
-        <KpiCard title="PAR 7" value={kpis.par7} />
-        <KpiCard title="PAR 30" value={kpis.par30} />
-        <KpiCard title="NPL Amount" value={kpis.nplAmount} />
-        <KpiCard title="Portfolio At Risk" value={kpis.portfolioAtRiskPercentage} />
+        <KpiCard {...kpi('outstandingPrincipal')} value={kpis.totalOutstandingPrincipal} />
+        <KpiCard {...kpi('activeLoans')} value={kpis.totalActiveLoans} />
+        <KpiCard {...kpi('disbursedAmount')} value={kpis.totalDisbursedAmount} />
+        <KpiCard {...kpi('avgInterestRate')} value={kpis.averageInterestRate} />
+        <KpiCard {...kpi('par1')} value={kpis.par1} />
+        <KpiCard {...kpi('par7')} value={kpis.par7} />
+        <KpiCard {...kpi('par30')} value={kpis.par30} />
+        <KpiCard {...kpi('nplAmount')} value={kpis.nplAmount} />
+        <KpiCard {...kpi('portfolioAtRisk')} value={kpis.portfolioAtRiskPercentage} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <ReportChartCard title="Outstanding by Status" type="pie" xKey="name" yKey="value" data={(charts.outstandingByStatus as Record<string, unknown>[]) || []} />
-        <ReportChartCard title="Disbursement Trend" type="line" xKey="month" yKey="amount" data={(charts.disbursementTrend as Record<string, unknown>[]) || []} />
-        <ReportChartCard title="PAR Trend" type="bar" xKey="bucket" yKey="value" data={(charts.parTrend as Record<string, unknown>[]) || []} />
-        <ReportChartCard title="By Product" type="bar" xKey="name" yKey="value" data={(charts.distributionByProduct as Record<string, unknown>[]) || []} />
-        <ReportChartCard title="By Branch" type="bar" xKey="name" yKey="value" data={(charts.distributionByBranch as Record<string, unknown>[]) || []} />
+        <ReportChartCard title={t('charts.outstandingByStatus')} type="pie" xKey="name" yKey="value" data={(charts.outstandingByStatus as Record<string, unknown>[]) || []} />
+        <ReportChartCard title={t('charts.disbursementTrend')} type="line" xKey="month" yKey="amount" data={(charts.disbursementTrend as Record<string, unknown>[]) || []} />
+        <ReportChartCard title={t('charts.parTrend')} type="bar" xKey="bucket" yKey="value" data={(charts.parTrend as Record<string, unknown>[]) || []} />
+        <ReportChartCard title={t('charts.byProduct')} type="bar" xKey="name" yKey="value" data={(charts.distributionByProduct as Record<string, unknown>[]) || []} />
+        <ReportChartCard title={t('charts.byBranch')} type="bar" xKey="name" yKey="value" data={(charts.distributionByBranch as Record<string, unknown>[]) || []} />
       </div>
 
       <ReportDataTable
-        title="Loan Portfolio Preview"
-        columns={COLUMNS}
+        title={t('tables.loanPortfolio')}
+        columns={columns}
         rows={rows}
         loading={loading}
         error={error}

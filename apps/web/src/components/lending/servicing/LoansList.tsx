@@ -22,6 +22,8 @@ export function RestructuredBadge() {
 
 export function LoansList() {
     const t = useTranslations('LendingServicing.loansList');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const [search, setSearch] = useState('');
@@ -35,8 +37,8 @@ export function LoansList() {
 
     return (
         <LendingShell
-            title="Loans"
-            subtitle="Booked loan accounts with live sub-ledger balances."
+            title={tw('loanAccounts')}
+            subtitle={tp('loanAccounts')}
             actions={canExport &&
                 <a href="/api/proxy/lending/loans/export.csv" className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">
                     <Download size={14} /> {t('exportCsv')}

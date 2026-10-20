@@ -88,6 +88,8 @@ function PositionCells({ p }: { p: LimitPosition | undefined }) {
 /** Lending › Counterparties: the exposure view, counterparties and limits awaiting approval. */
 export function CounterpartiesHome() {
     const t = useTranslations('LendingCounterparties');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const typeLabel = useTypeLabel();
     const href = useLendingHref();
     const { showToast } = useToast();
@@ -98,8 +100,8 @@ export function CounterpartiesHome() {
     const e = exp.data;
     return (
         <LendingShell
-            title="Counterparties & exposure"
-            subtitle="Banks, municipalities, sovereigns and development institutions, their ratings, and the counterparty and country limits every institutional loan is checked against at approval and at payout."
+            title={tw('counterparties')}
+            subtitle={tp('counterparties')}
             actions={
                 <>
                     <Btn onClick={() => setPanel('country')}>{t('proposeCountryLimit')}</Btn>
@@ -306,6 +308,7 @@ function ProposeLimit({ counterpartyId, country, onDone, onClose }: { counterpar
 /** One counterparty: rating, limits and their history, and its loans. */
 export function CounterpartyDetailView({ id }: { id: string }) {
     const t = useTranslations('LendingCounterparties');
+    const tw = useTranslations('Workspace.nav');
     const typeLabel = useTypeLabel();
     const href = useLendingHref();
     const { showToast } = useToast();
@@ -317,7 +320,7 @@ export function CounterpartyDetailView({ id }: { id: string }) {
         <LendingShell
             title={c ? c.name : t('counterparty')}
             subtitle={c ? `${typeLabel(c.type)} · ${c.countryCode} · ${c.reference}` : undefined}
-            back={{ href: '/lending/counterparties', label: 'Counterparties' }}
+            back={{ href: '/lending/counterparties', label: tw('counterparties') }}
             actions={c && (
                 <>
                     <Btn onClick={() => setPanel('rating')}>{t('rating.title')}</Btn>

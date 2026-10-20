@@ -25,24 +25,9 @@ const DEFAULT_FILTERS: ReportFiltersType = {
   currency: 'USD',
 };
 
-const STATUS_OPTIONS: OptionItem[] = [
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Approved', value: 'APPROVED' },
-  { label: 'Disbursed', value: 'DISBURSED' },
-  { label: 'Closed', value: 'CLOSED' },
-  { label: 'Defaulted', value: 'DEFAULTED' },
-  { label: 'On Time', value: 'ON_TIME' },
-  { label: 'Late', value: 'LATE' },
-  { label: 'Active', value: 'ACTIVE' },
-  { label: 'Inactive', value: 'INACTIVE' },
-];
+const STATUS_OPTIONS = ['PENDING', 'APPROVED', 'DISBURSED', 'CLOSED', 'DEFAULTED', 'ON_TIME', 'LATE', 'ACTIVE', 'INACTIVE'];
 
-const RISK_OPTIONS: OptionItem[] = [
-  { label: 'Low', value: 'Low' },
-  { label: 'Medium', value: 'Medium' },
-  { label: 'High', value: 'High' },
-  { label: 'Critical', value: 'Critical' },
-];
+const RISK_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
 
 function endpoint(tab: ReportTabKey) {
   if (tab === 'overview') return 'overview';
@@ -119,12 +104,12 @@ export default function ReportsPage() {
       setData(res.data);
     } catch (e: any) {
       setData(null);
-      const message = e?.response?.data?.message || 'Unable to load report data for selected filters.';
+      const message = e?.response?.data?.message || t('analytics.loadFailed');
       setError(Array.isArray(message) ? message[0] : message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadFilterOptions();
@@ -180,10 +165,10 @@ export default function ReportsPage() {
     officers,
     products,
     borrowers,
-    statuses: STATUS_OPTIONS,
-    riskGrades: RISK_OPTIONS,
+    statuses: STATUS_OPTIONS.map((value) => ({ value, label: t(`analytics.filters.statuses.${value}`) })),
+    riskGrades: RISK_OPTIONS.map((value) => ({ value, label: t(`analytics.filters.riskGrades.${value}`) })),
     currencies: CURRENCY_OPTIONS,
-  }), [branches, officers, products, borrowers]);
+  }), [branches, officers, products, borrowers, t]);
 
   return (
     <div className="max-w-7xl space-y-5">

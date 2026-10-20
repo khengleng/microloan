@@ -14,13 +14,13 @@ function formatValue(value: unknown, key: string, currency?: string) {
   return money(value, currency);
 }
 
-export function KpiCard({ title, value }: { title: string; value: unknown }) {
+export function KpiCard({ title, value, formatKey }: { title: string; value: unknown; formatKey?: string }) {
   const currency = useContext(ReportCurrencyContext);
   return (
     <Card className="border-slate-200 shadow-sm">
       <CardContent className="p-4">
         <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">{title}</p>
-        <p className="mt-2 text-2xl font-black text-slate-900">{formatValue(value, title, currency)}</p>
+        <p className="mt-2 text-2xl font-black text-slate-900">{formatValue(value, formatKey ?? title, currency)}</p>
       </CardContent>
     </Card>
   );

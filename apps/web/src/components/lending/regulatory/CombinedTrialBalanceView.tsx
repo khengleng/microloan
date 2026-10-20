@@ -23,7 +23,7 @@ interface Combined { asOf: string; currencies: TbCurrency[] }
 const zero = (v: string) => /^-?0(\.0+)?$/.test(v);
 const amt = (v: string) => (zero(v) ? <span className="text-[#AAB7C4]">—</span> : fmtMoney(v));
 /** Debit balances positive, credit balances shown as "Cr". */
-const bal = (v: string) => (zero(v) ? <span className="text-[#AAB7C4]">0</span> : v.startsWith('-') ? <>{fmtMoney(v.slice(1))} <span className="text-[10px] text-[#8792A2]">Cr</span></> : <>{fmtMoney(v)} <span className="text-[10px] text-[#8792A2]">Dr</span></>);
+const bal = (v: string, t: (k: 'cr' | 'dr') => string) => (zero(v) ? <span className="text-[#AAB7C4]">0</span> : v.startsWith('-') ? <>{fmtMoney(v.slice(1))} <span className="text-[10px] text-[#8792A2]">{t('cr')}</span></> : <>{fmtMoney(v)} <span className="text-[10px] text-[#8792A2]">{t('dr')}</span></>);
 
 function Balanced({ ok, label }: { ok: boolean; label: string }) {
     const t = useTranslations('LendingRegulatory.tb');
@@ -34,13 +34,15 @@ function Balanced({ ok, label }: { ok: boolean; label: string }) {
 
 export function CombinedTrialBalanceView() {
     const t = useTranslations('LendingRegulatory.tb');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const [draft, setDraft] = useState('');
     const [asOf, setAsOf] = useState('');
     const { data, error, loading } = useApi<Combined>(`/lending/regulatory/combined-trial-balance${qs({ asOf })}`);
     return (
         <LendingShell
-            title="Combined ledger"
-            subtitle="One trial balance for both loan books: the legacy journal and the lending journal side by side, on the shared chart of accounts."
+            title={tw('combinedLedger')}
+            subtitle={tp('combinedLedger')}
             actions={
                 <div className="flex items-end gap-2">
                     <Field label={t('asOf')}>
@@ -83,7 +85,7 @@ export function CombinedTrialBalanceView() {
                                             <td className={tdR}>{amt(r.legacyCredit)}</td>
                                             <td className={`${tdR} border-l border-[#F0F2F5]`}>{amt(r.lendingDebit)}</td>
                                             <td className={tdR}>{amt(r.lendingCredit)}</td>
-                                            <td className={`${tdR} border-l border-[#F0F2F5] font-semibold text-[#1A1F36]`}>{bal(r.combinedBalance)}</td>
+                                            <td className={`${tdR} border-l border-[#F0F2F5] font-semibold text-[#1A1F36]`}>{bal(r.combinedBalance, t)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -94,7 +96,7 @@ export function CombinedTrialBalanceView() {
                                         <td className={tdR}>{fmtMoney(c.totals.legacyCredit)}</td>
                                         <td className={`${tdR} border-l border-[#F0F2F5]`}>{fmtMoney(c.totals.lendingDebit)}</td>
                                         <td className={tdR}>{fmtMoney(c.totals.lendingCredit)}</td>
-                                        <td className={`${tdR} border-l border-[#F0F2F5]`}>Dr {fmtMoney(c.totals.debit)} / Cr {fmtMoney(c.totals.credit)}</td>
+                                        <td className={`${tdR} border-l border-[#F0F2F5]`}>{t('totalDrCr', { debit: fmtMoney(c.totals.debit), credit: fmtMoney(c.totals.credit) })}</td>
                                     </tr>
                                 </tfoot>
                             </Table>

@@ -108,15 +108,15 @@ export const ACCEPTED_TYPES = 'application/pdf,image/jpeg,image/png,image/webp';
 /** The API refuses files over 3.5 MB (base64 in a 5 MB JSON body). */
 export const MAX_BYTES = 3.5 * 1024 * 1024;
 
-/** Read a browser File as the base64 body the API expects. */
-export function readFile(file: File): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+/** Read a browser File as the base64 body the API expects. `tf` translates "LendingDocuments.file" keys. */
+export function readFile(file: File, tf: (key: 'tooLarge' | 'unreadable') => string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
     return new Promise((resolve, reject) => {
         if (file.size > MAX_BYTES) {
-            reject(new Error('Files must be 3.5 MB or smaller.'));
+            reject(new Error(tf('tooLarge')));
             return;
         }
         const reader = new FileReader();
-        reader.onerror = () => reject(new Error('Could not read the file.'));
+        reader.onerror = () => reject(new Error(tf('unreadable')));
         reader.onload = () => {
             const s = String(reader.result || '');
             resolve({ fileName: file.name, mimeType: file.type, contentBase64: s.slice(s.indexOf(',') + 1) });

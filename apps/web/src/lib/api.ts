@@ -19,32 +19,46 @@ const api = axios.create({
  * User-friendly messages for common HTTP restriction codes.
  * The API always returns { message: string } in the body — we prefer
  * that over the generic fallback, but fall back gracefully.
+ *
+ * This module lives outside React, so it holds no UI text: a generic fallback
+ * is a key under the `Errors.api` messages namespace, translated into the
+ * reader's language by <ApiErrorListener>.
  */
-function friendlyMessage(status: number, apiMessage?: string): string | null {
+export type ApiErrorKey = 'badRequest' | 'forbidden' | 'notFound' | 'conflict' | 'tooManyRequests' | 'serverError' | 'unavailable';
+export interface ApiErrorEventDetail {
+    /** The API's own message, shown as sent. */
+    message?: string;
+    /** Otherwise a key under `Errors.api`. */
+    messageKey?: ApiErrorKey;
+    status: number;
+}
+
+function friendlyMessage(status: number, apiMessage?: string): Omit<ApiErrorEventDetail, 'status'> | null {
     // Some errors the API already returns with a helpful message — use it directly.
     // For generic / vague ones, provide a better UX fallback.
+    const orKey = (messageKey: ApiErrorKey) => (apiMessage ? { message: apiMessage } : { messageKey });
     switch (status) {
         case 400:
-            return apiMessage || 'The request contained invalid data. Please check your input and try again.';
+            return orKey('badRequest');
         case 403: {
             // Quota exceeded messages come from the API and are very descriptive — use them.
             // Role-based 403s are generic — make them friendlier.
-            if (apiMessage && apiMessage.length > 20) return apiMessage;
-            return 'You don\'t have permission to do that. Contact your administrator if you believe this is a mistake.';
+            if (apiMessage && apiMessage.length > 20) return { message: apiMessage };
+            return { messageKey: 'forbidden' };
         }
         case 404:
-            return apiMessage || 'The requested record could not be found.';
+            return orKey('notFound');
         case 409:
-            return apiMessage || 'A conflict occurred — this record may already exist.';
+            return orKey('conflict');
         case 429:
-            return 'Too many requests. Please slow down and try again in a moment.';
+            return { messageKey: 'tooManyRequests' };
         case 500:
         case 502:
         case 504:
-            return 'Something went wrong on our end. Please try again shortly.';
+            return { messageKey: 'serverError' };
         case 503:
             // Billing / Stripe not configured — API returns a helpful message.
-            return apiMessage || 'This service is temporarily unavailable. Please try again later.';
+            return orKey('unavailable');
         // 401 is handled separately below (session expiry → redirect)
         default:
             return null;
@@ -150,9 +164,10 @@ api.interceptors.response.use(
         // the <ApiErrorListener> component (mounted inside the React tree) can
         // pick it up and show a toast — without needing React context here.
         const quiet = !!config?.quiet && !!status && status < 500;
-        const message = status && !quiet ? friendlyMessage(status, apiMessage) : null;
-        if (message) {
-            window.dispatchEvent(new CustomEvent('api:error', { detail: { message, status } }));
+        const friendly = status && !quiet ? friendlyMessage(status, apiMessage) : null;
+        if (status && friendly) {
+            const detail: ApiErrorEventDetail = { ...friendly, status };
+            window.dispatchEvent(new CustomEvent('api:error', { detail }));
         }
 
         return Promise.reject(error);

@@ -13,7 +13,7 @@ import { StatusBadge } from '../StatusBadge';
 import { fmtDateTime, fmtMoney, localToIso } from '../format';
 import type { Library } from '../documents/types';
 import { usePeople, useScoringText } from './i18n';
-import { shortId, sourceLabel, withIssuePaths } from './types';
+import { shortId, withIssuePaths } from './types';
 import type { AltRecord, AltRecordKind, AlternativeData, ConsentEntry } from './types';
 
 const METHODS = ['SIGNED_FORM', 'RECORDED_VERBAL', 'BORROWER_PORTAL'];
@@ -233,8 +233,8 @@ export function AlternativeDataView({ borrowerId }: { borrowerId: string }) {
                                     const f = entry?.grantId ? entry : undefined;
                                     return (
                                         <tr key={s}>
-                                            <td className={td}>{sourceLabel(s)}<div className="font-mono text-[11px] text-[#697386]">{s}</div></td>
-                                            <td className={td}>{f ? <StatusBadge status="ACTIVE" /> : <span className="text-[12px] text-[#697386]">no consent</span>}</td>
+                                            <td className={td}>{source(s)}<div className="font-mono text-[11px] text-[#697386]">{s}</div></td>
+                                            <td className={td}>{f ? <StatusBadge status="ACTIVE" /> : <span className="text-[12px] text-[#697386]">{t('altData.noConsentShort')}</span>}</td>
                                             <td className={`${td} whitespace-nowrap`}>{f?.expiresAt ? fmtDateTime(f.expiresAt) : '—'}</td>
                                             <td className={`${td} text-right`}>
                                                 {can('alt_data.consent.manage') && (

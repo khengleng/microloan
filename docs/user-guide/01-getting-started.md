@@ -145,7 +145,12 @@ The portal is available in English (**EN**) and Khmer (**ខ្មែរ** / **K
 - **Before signing in:** use the language switch at the top right of the **Sign in**, **Create your account** and payment pages. It shows **EN** and **ខ្មែរ**.
 - **After signing in:** use the **EN | KM** switch at the right of the top bar.
 
-The switch keeps you on the same page. Menus, the Home page, sign-in screens and the original screens are translated. **Most lending-platform screens (applications, loan accounts, Access & policy and so on) are shown in English in both languages** — their labels are not translated yet.
+The switch keeps you on the same page. Every screen — menus, buttons, labels, messages and error notices — is translated. A few things stay in English in both languages:
+
+- **This user guide** and the **lesson and tour text in the Learning centre**. A note at the top of those pages says so.
+- **Text that comes from the data itself**: names and descriptions people typed in, product and policy names, codes such as `USD` or `ACTIVE`, and some messages written by the server (for example a validation message explaining why an action was refused).
+
+In Khmer, the portal uses the Kantumruy Pro typeface for Khmer text, slightly larger small print and more line spacing so that stacked vowels and subscript consonants are not cut off. Numbers, codes and names in Latin letters keep the usual typeface.
 
 ---
 

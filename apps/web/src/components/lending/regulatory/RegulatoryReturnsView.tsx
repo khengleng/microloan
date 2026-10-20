@@ -343,6 +343,8 @@ function StoredReturnView({ id, onChanged, onOpen }: { id: string; onChanged: ()
 
 export function RegulatoryReturnsView() {
     const t = useTranslations('LendingRegulatory.returns');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const [year, setYear] = useState<number | null>(null);
     const { data, error, loading, reload } = useApi<Overview>(`/lending/regulatory/returns${year ? `?year=${year}` : ''}`);
     const [selected, setSelected] = useState<{ kind: 'stored'; id: string } | { kind: 'preview'; month: number } | null>(null);
@@ -364,8 +366,8 @@ export function RegulatoryReturnsView() {
 
     return (
         <LendingShell
-            title="Regulatory returns"
-            subtitle="Monthly NBC returns covering the lending platform and the legacy loans: classification and provisioning, PAR, portfolio breakdowns, write-offs, largest borrowers and rates, reconciled to the ledger."
+            title={tw('regulatoryReturns')}
+            subtitle={tp('regulatoryReturns')}
             actions={
                 <div className="flex items-center gap-1">
                     <Btn size="sm" variant="ghost" onClick={() => setYear(y - 1)}><ChevronLeft size={14} /></Btn>
