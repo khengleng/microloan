@@ -154,7 +154,9 @@ Do this if the secret may have been seen by someone who should not have it, or o
 
 ### Why internal addresses are refused (the "SSRF guard")
 
-The platform only sends webhooks to addresses on the public internet. Addresses inside a private network (for example office networks, the server itself, or cloud internal addresses) are refused, both when an endpoint is registered and again before every single delivery.
+The platform only sends webhooks to addresses on the public internet. Addresses inside a private network (for example office networks, the server itself, or cloud internal addresses) are refused, when an endpoint is registered, when it is activated and again before every single delivery. This holds however the address is written — including IPv6 forms that carry an IPv4 address inside them (for example `[::ffff:7f00:1]`, NAT64 `64:ff9b::…` or 6to4 `2002:…` addresses), which are always refused.
+
+For every delivery the platform looks the address name up once, checks every answer, and connects only to the address it checked. A name that changes its answer between the check and the delivery cannot redirect the message.
 
 Why: if the platform could be told to send messages to internal addresses, someone could misuse the webhook feature to reach systems that should never be reachable from outside. This kind of attack is called server-side request forgery (SSRF). Blocking internal addresses closes that door.
 

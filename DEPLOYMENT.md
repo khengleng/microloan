@@ -97,7 +97,28 @@ Two roles, two URLs on the api service:
 
 `DB_ROLE_MUST_RESPECT_RLS=true` makes the api refuse to boot if
 `DATABASE_URL`'s role is a superuser or has `BYPASSRLS` (PostgreSQL skips every
-row-level-security policy for those and for the table owner).
+row-level-security policy for those; `FORCE` makes them apply to a
+non-superuser owner).
+
+**The database wall denies by default** (D-141…D-143,
+[docs/security/RLS.md](docs/security/RLS.md)). Every tenant-owned table only
+shows rows to a transaction that declared their tenant (`app.tenant_id`) or a
+system path (`app.system = on`); the api declares one on every query. A
+client that declares nothing — `psql` as `lending_app`, a script with a bare
+`PrismaClient` — sees **no** tenant-owned rows and cannot write them. So:
+
+- run seeds and demo data (`pnpm db:seed`, `pnpm demo:lending`,
+  `npx tsx seed-admin.ts`) with the owner's URL:
+  `DATABASE_URL="$MIGRATION_DATABASE_URL" pnpm db:seed`;
+- `pnpm encrypt:backfill` declares system context itself and runs as either
+  role;
+- to look at data as `lending_app` in psql, open a transaction and declare:
+  `BEGIN; SELECT set_config('app.tenant_id', '<tenant id>', true); … COMMIT;`
+  (or `set_config('app.system', 'on', true)` for every tenant — prefer the
+  owner's URL for support work across tenants);
+- a migration that changes rows of a walled table runs as the owner
+  (`postgres`, a superuser, so unaffected); with a non-superuser owner it must
+  start with `SELECT set_config('app.system', 'on', true);`.
 
 **Grants for new tables come from default privileges.** A migration creates
 its tables as the owner; `lending_app` can use them only because of
@@ -436,6 +457,13 @@ Details and the metric list: `docs/lending/OPERATIONS.md` → Monitoring.
 - Migration `20261019001600_lending_eod_scale` adds an index on
   `LendingJournalLine("entryId")`; building it blocks writes to the journal
   for its duration (seconds per few million lines). Deploy outside end of day.
+- Every query outside a transaction is sent as a short batch transaction
+  that first declares the tenant to PostgreSQL (D-142): three extra
+  statements on the same connection (≈ 0.1 ms on localhost, ≈ 3 × RTT over a
+  network). Work inside a transaction — end of day's per-loan `tenantTx` —
+  declares once per transaction. The settings are transaction-local, so they
+  are safe with any pooler that keeps a transaction on one connection
+  (PgBouncer transaction mode included).
 - Set `connection_limit` explicitly in `DATABASE_URL` and keep
   `instances × connection_limit` comfortably under PostgreSQL's
   `max_connections` (plus anything else connecting). The API now opens **one**

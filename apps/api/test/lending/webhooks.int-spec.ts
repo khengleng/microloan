@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- integration fixtures: modules are required after the test environment is configured, and fixture rows come from the untyped API responses. */
 /**
  * Webhooks: an organisation's lending events delivered to its own systems,
  * signed, retried, activated only by a second administrator, and never sent
@@ -65,6 +65,20 @@ d('Webhooks (integration)', () => {
       topics: ['lending.disbursed'],
     });
     expect(internal.status).toBe(400);
+    // Internal addresses spelled as IPv6 (D-144): IPv4-mapped in hex,
+    // IPv4-compatible, NAT64 and 6to4 all reach an IPv4 host.
+    for (const hook of [
+      'https://[::ffff:7f00:1]/hook',
+      'https://[::7f00:1]/hook',
+      'https://[64:ff9b::a9fe:a9fe]/hook',
+      'https://[2002:a00:5::]/hook',
+    ]) {
+      const res6 = await f.as('admin1').post('/lending/webhooks', {
+        url: hook,
+        topics: ['lending.disbursed'],
+      });
+      expect([hook, res6.status]).toEqual([hook, 400]);
+    }
     process.env.WEBHOOK_ALLOW_PRIVATE_NETWORKS = 'true';
   });
 
@@ -134,11 +148,11 @@ d('Webhooks (integration)', () => {
     expect(hits).toHaveLength(1);
     const hit = hits[0];
     expect(hit).toBeTruthy();
-    const body = JSON.parse(hit!.body);
+    const body = JSON.parse(hit.body);
     expect(body.data.loanAccountId).toBe(loanId);
-    const ts = Number(hit!.headers['x-webhook-timestamp']);
-    const expected = `v1=${createHmac('sha256', secret).update(`${ts}.${hit!.body}`).digest('hex')}`;
-    expect(hit!.headers['x-webhook-signature']).toBe(expected);
+    const ts = Number(hit.headers['x-webhook-timestamp']);
+    const expected = `v1=${createHmac('sha256', secret).update(`${ts}.${hit.body}`).digest('hex')}`;
+    expect(hit.headers['x-webhook-signature']).toBe(expected);
     // Each event is delivered once, however often the job runs.
     const before = received.length;
     await webhooks.runOnce();

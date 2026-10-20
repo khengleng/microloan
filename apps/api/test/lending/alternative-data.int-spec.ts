@@ -382,11 +382,29 @@ d('Alternative data and consent (integration)', () => {
       ['EWALLET_DATA', false, 'NOT_CONFIGURED'],
     ]);
     expect(list.implementedProviders).toEqual([]);
+    // Only the public internet (D-144): internal addresses are refused in
+    // every spelling. (Literals, so the test never depends on DNS.)
+    for (const endpointUrl of [
+      'https://169.254.169.254/latest/meta-data',
+      'https://[::ffff:7f00:1]/v1',
+      'https://[64:ff9b::a00:5]/v1',
+      'https://2130706433/v1',
+    ]) {
+      const refused = await f
+        .as('admin1')
+        .post('/lending/alternative-data-providers', {
+          source: 'SMARTPHONE_DATA',
+          providerCode: 'CREDOLAB',
+          endpointUrl,
+          credentials: 'api-key-for-tests-only',
+        });
+      expect([endpointUrl, refused.status]).toEqual([endpointUrl, 400]);
+    }
     const cfg = expectOk(
       await f.as('admin1').post('/lending/alternative-data-providers', {
         source: 'SMARTPHONE_DATA',
         providerCode: 'CREDOLAB',
-        endpointUrl: 'https://scoring.example.com/v1',
+        endpointUrl: 'https://93.184.215.14/v1',
         credentials: 'api-key-for-tests-only',
       }),
     );
