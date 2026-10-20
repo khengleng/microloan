@@ -216,3 +216,34 @@ export function hrefVisible(href: string, s: NavSubject): boolean {
     for (const sec of NAV) for (const i of sec.items) if (i.href === href) return itemVisible(i, s);
     return false;
 }
+
+/** A record id in a URL (UUID): never shown in the breadcrumb. */
+const RECORD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface Breadcrumb {
+    /** Translation key under Workspace.nav of the menu page the path is in, if any. */
+    navKey: string | null;
+    /** The page below that menu page (or the page itself when it is not in the menu), as path words: "portal orientation". */
+    sub: string | null;
+}
+
+/**
+ * The header breadcrumb for a path without its locale ("/lending/loans/<id>/payoff"):
+ * the menu page it belongs to (longest matching menu link), then the last
+ * deeper path segment that is not a record id.
+ */
+export function breadcrumbFor(path: string, platform = false): Breadcrumb {
+    const sections = platform ? [...PLATFORM_NAV, ...NAV] : NAV;
+    let best: NavItem | null = null;
+    for (const sec of sections)
+        for (const i of sec.items)
+            if ((path === i.href || path.startsWith(`${i.href}/`)) && (!best || i.href.length > best.href.length)) best = i;
+    const rest = (best ? path.slice(best.href.length) : path).split('/').filter((x) => x && !RECORD_ID.test(x));
+    const last = rest.pop();
+    let sub: string | null = null;
+    if (last) {
+        try { sub = decodeURIComponent(last); } catch { sub = last; }
+        sub = sub.replace(/[-_]+/g, ' ');
+    }
+    return { navKey: best?.key ?? null, sub };
+}
