@@ -2274,7 +2274,8 @@
         "consumerProtection_coolingOffRefundsLenderFees": "Cooling-off: the lender’s upfront fees are refunded",
         "affordability_maxLendersPerBorrower": "Affordability: most lenders a borrower may owe, counting this one (empty = no limit)",
         "affordability_includeOwnLoans": "Affordability: count the borrower’s other loans with this lender in the debt-service ratio",
-        "affordability_includeFacilityMinimumPayments": "Affordability: count credit-line and card minimum payments in the debt-service ratio"
+        "affordability_includeFacilityMinimumPayments": "Affordability: count credit-line and card minimum payments in the debt-service ratio",
+        "operations_alertEmails": "Operational alerts: e-mail addresses of the lender’s operations contacts (besides the platform operator)"
       },
       "switches": {
         "title": "Sign-in and Telegram",
@@ -10072,5 +10073,38 @@
     "totalExpense": "Total expense",
     "netOperatingIncome": "Net operating income",
     "notes": "Notes"
+  },
+  "OpsAlerts": {
+    "title": "{count, plural, one {# operational alert} other {# operational alerts}} open",
+    "subtitle": "Raised by the platform's health monitor; each resolves by itself once the cause is fixed.",
+    "since": "Open since {at}",
+    "delivery": {
+      "EMAIL": "e-mailed {at}",
+      "LOG_ONLY": "logged {at} (not e-mailed)",
+      "FAILED": "e-mail failed {at}"
+    },
+    "hint": "Your operations contacts are e-mailed when an alert opens and resolves (Lending settings › operations.alertEmails).",
+    "criticalHint": "Critical: interest, arrears or the books may be wrong until this is fixed. Your operations contacts are e-mailed when an alert opens and resolves.",
+    "platformTitle": "{count, plural, one {# operational alert} other {# operational alerts}} open",
+    "platformNone": "No operational alerts open",
+    "platformScope": "Platform",
+    "checkedEvery": "Checked every {minutes} min",
+    "noProvider": "Alerts are not e-mailed: RESEND_API_KEY is not set on the API. They are logged and shown here only.",
+    "noRecipients": "Alerts are not e-mailed: set ALERT_EMAIL_TO on the API (comma-separated addresses). They are logged and shown here only.",
+    "severity": {
+      "CRITICAL": "CRITICAL",
+      "WARNING": "WARNING"
+    },
+    "keys": {
+      "eod_stale": "End of day is behind",
+      "eod_failures": "End of day left accounts unprocessed",
+      "month_end_overdue": "Month end not closed",
+      "outbox_backlog": "Outbox backed up",
+      "webhooks_backlog": "Webhook deliveries backed up",
+      "reconciliation_breaks": "Reconciliation breaks",
+      "jobs_failed": "Scheduled jobs failed",
+      "database_unreachable": "Database not answering",
+      "database_connections": "Database connections nearly exhausted"
+    }
   }
 }
