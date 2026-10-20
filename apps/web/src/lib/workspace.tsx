@@ -94,7 +94,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const [accessSettled, setAccessSettled] = useState(false);
     const [work, setWork] = useState<MyWork | null>(null);
     const [workVersion, setWorkVersion] = useState(0);
-    const signedIn = !!user;
+    // Until a required authenticator is set up (D-128) only My account
+    // answers; asking for access and work would just be refused (403). An
+    // enrolled person on an older session still asks: the refusal is a
+    // step-up, which prompts for a code (D-129).
+    const signedIn = !!user && !(user.mfaEnrolmentRequired && !user.mfaEnrolled);
 
     useEffect(() => {
         if (!signedIn) return;

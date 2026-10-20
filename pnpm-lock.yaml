@@ -264,6 +264,21 @@ importers:
         specifier: ^8.20.0
         version: 8.56.1(eslint@9.39.3(jiti@2.6.1))(typescript@5.9.3)
 
+  apps/e2e:
+    devDependencies:
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
+      '@types/node':
+        specifier: 22.19.12
+        version: 22.19.12
+      otplib:
+        specifier: 13.3.0
+        version: 13.3.0
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@microloan/shared':
@@ -301,10 +316,10 @@ importers:
         version: 18.0.14
       next:
         specifier: 16.3.8
-        version: 16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       next-intl:
         specifier: ^4.14.9
-        version: 4.14.9(@swc/helpers@0.5.23)(@types/react@19.2.14)(next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
+        version: 4.14.9(@swc/helpers@0.5.23)(@types/react@19.2.14)(next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       radix-ui:
         specifier: ^1.4.3
         version: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2127,6 +2142,11 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@playwright/test@1.63.0':
+    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@prisma/client@5.13.0':
     resolution: {integrity: sha512-uYdfpPncbZ/syJyiYBwGZS8Gt1PTNoErNYMuqHDa2r30rNSFtgTA/LXsSk55R7pdRTMi5pHkeP9B14K6nHmwkg==}
@@ -6450,6 +6470,16 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
@@ -9833,6 +9863,10 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
+  '@playwright/test@1.63.0':
+    dependencies:
+      playwright: 1.63.0
+
   '@prisma/client@5.13.0(prisma@5.13.0)':
     optionalDependencies:
       prisma: 5.13.0
@@ -11268,7 +11302,7 @@ snapshots:
 
   '@types/connect@3.4.36':
     dependencies:
-      '@types/node': 25.3.1
+      '@types/node': 22.19.12
 
   '@types/connect@3.4.38':
     dependencies:
@@ -11369,7 +11403,7 @@ snapshots:
 
   '@types/mysql@2.15.26':
     dependencies:
-      '@types/node': 25.3.1
+      '@types/node': 22.19.12
 
   '@types/node-schedule@2.1.8':
     dependencies:
@@ -11411,7 +11445,7 @@ snapshots:
 
   '@types/pg@8.6.1':
     dependencies:
-      '@types/node': 25.3.1
+      '@types/node': 22.19.12
       pg-protocol: 1.15.0
       pg-types: 2.2.0
 
@@ -11464,7 +11498,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 25.3.1
+      '@types/node': 22.19.12
 
   '@types/use-sync-external-store@0.0.6': {}
 
@@ -14357,7 +14391,7 @@ snapshots:
 
   next-intl-swc-plugin-extractor@4.14.9: {}
 
-  next-intl@4.14.9(@swc/helpers@0.5.23)(@types/react@19.2.14)(next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8):
+  next-intl@4.14.9(@swc/helpers@0.5.23)(@types/react@19.2.14)(next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8):
     dependencies:
       '@eloqnt/config': 0.1.1
       '@eloqnt/format-json': 0.1.0
@@ -14367,7 +14401,7 @@ snapshots:
       '@swc/core': 1.16.18(@swc/helpers@0.5.23)
       icu-minify: 4.14.9
       negotiator: 1.0.0
-      next: 16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      next: 16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       next-intl-swc-plugin-extractor: 4.14.9
       react: 19.2.8
       use-intl: 4.14.9(@types/react@19.2.14)(react@19.2.8)
@@ -14376,7 +14410,7 @@ snapshots:
     transitivePeerDependencies:
       - '@swc/helpers'
 
-  next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  next@16.3.8(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.34)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       '@next/env': 16.3.8
       '@swc/helpers': 0.5.23
@@ -14396,6 +14430,7 @@ snapshots:
       '@next/swc-win32-arm64-msvc': 16.3.8
       '@next/swc-win32-x64-msvc': 16.3.8
       '@opentelemetry/api': 1.9.1
+      '@playwright/test': 1.63.0
       sharp: 0.35.5(@types/node@20.19.34)
     transitivePeerDependencies:
       - '@babel/core'
@@ -14696,6 +14731,12 @@ snapshots:
   pkg-dir@4.2.0:
     dependencies:
       find-up: 4.1.0
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   pluralize@8.0.0: {}
 

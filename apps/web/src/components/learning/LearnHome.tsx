@@ -15,10 +15,15 @@ export function lessonStatus(p: LessonProgress | undefined): 'notStarted' | 'inP
     return p ? 'inProgress' : 'notStarted';
 }
 
+/** The lesson's status as an icon, with the words for screen readers (the icon alone says nothing to them). */
 export function StatusIcon({ status }: { status: ReturnType<typeof lessonStatus> }) {
-    if (status === 'completed') return <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" aria-hidden="true" />;
-    if (status === 'inProgress') return <CircleDot size={16} className="text-[#635BFF] flex-shrink-0" aria-hidden="true" />;
-    return <Circle size={16} className="text-[#C1C9D2] flex-shrink-0" aria-hidden="true" />;
+    const t = useTranslations('Learning.status');
+    const icon = status === 'completed'
+        ? <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" aria-hidden="true" />
+        : status === 'inProgress'
+            ? <CircleDot size={16} className="text-[#635BFF] flex-shrink-0" aria-hidden="true" />
+            : <Circle size={16} className="text-[#C1C9D2] flex-shrink-0" aria-hidden="true" />;
+    return <>{icon}<span className="sr-only">{t(status)}</span></>;
 }
 
 export function ProgressBar({ value, total, label }: { value: number; total: number; label: string }) {
