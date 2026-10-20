@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { learning } from '@microloan/shared';
 import { useLearning } from '@/lib/learning';
@@ -114,6 +114,7 @@ function TourOverlay({ active, setActive, onFinish, onClose }: {
     onClose: () => void;
 }) {
     const t = useTranslations('Learning.tour');
+    const english = useLocale() === 'en';
     const reduced = usePrefersReducedMotion();
     const { tour, index, direction, patient } = active;
     const step = tour.steps[index];
@@ -274,14 +275,15 @@ function TourOverlay({ active, setActive, onFinish, onClose }: {
                 <div key={`${tour.id}-${index}`} className={reduced ? '' : 'animate-in fade-in slide-in-from-bottom-1 duration-300'}>
                     <div className="flex items-start justify-between gap-3">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-[#635BFF]">
-                            {tour.title} · {t('stepOf', { step: index + 1, total: tour.steps.length })}
+                            <span lang="en">{tour.title}</span> · {t('stepOf', { step: index + 1, total: tour.steps.length })}
                         </p>
                         <button type="button" onClick={onClose} aria-label={t('skip')} title={t('skip')} className="text-[#697386] hover:text-[#1A1F36] -mt-1 -mr-1 p-1 rounded">
                             <X size={15} />
                         </button>
                     </div>
-                    <h2 id="tour-step-title" className="mt-1 text-[15px] font-bold">{step.title}</h2>
-                    <p id="tour-step-body" className="mt-1 text-[13px] leading-relaxed text-[#3C4257]">{searching ? t('looking') : step.body}</p>
+                    <h2 id="tour-step-title" lang="en" className="mt-1 text-[15px] font-bold">{step.title}</h2>
+                    <p id="tour-step-body" className="mt-1 text-[13px] leading-relaxed text-[#3C4257]" lang={searching ? undefined : 'en'}>{searching ? t('looking') : step.body}</p>
+                    {!english && <p className="mt-1 text-[11.5px] text-[#697386]">{t('englishNote')}</p>}
                     {step.action === 'click' && !searching && (
                         <p className="mt-2 text-[12px] font-semibold text-[#3F38D9] inline-flex items-center gap-1.5">
                             <span className={`inline-block w-2 h-2 rounded-full bg-[#635BFF] ${reduced ? '' : 'animate-pulse'}`} aria-hidden="true" />

@@ -140,7 +140,7 @@ export function TeamProgress() {
                                                         {detail[m.userId].map((l) => (
                                                             <li key={l.lessonId} className="flex items-center gap-2 text-[12.5px]">
                                                                 <StatusIcon status={lessonStatus(l)} />
-                                                                <span className="flex-1 min-w-0 truncate">{learning.LESSON_BY_ID[l.lessonId]?.title ?? l.lessonId}</span>
+                                                                <span className="flex-1 min-w-0 truncate" lang="en">{learning.LESSON_BY_ID[l.lessonId]?.title ?? l.lessonId}</span>
                                                                 <span className="text-[11.5px] text-[#697386] tabular-nums whitespace-nowrap">
                                                                     {l.quizBestScore !== null ? `${l.quizBestScore}/${l.quizTotal}` : '—'}
                                                                     {l.tourCompletedAt ? ` · ${tl('status.tourDone')}` : ''}
