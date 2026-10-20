@@ -32,12 +32,25 @@ const CREDIT_STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-    DRAFT: 'bg-slate-100 text-slate-500',
-    APPROVED: 'bg-indigo-100 text-indigo-700',
-    DISBURSED: 'bg-emerald-100 text-emerald-700 shadow-sm',
+    BOOKED: 'bg-indigo-100 text-indigo-700',
+    ACTIVE: 'bg-emerald-100 text-emerald-700 shadow-sm',
     CLOSED: 'bg-slate-200 text-slate-500',
-    DEFAULTED: 'bg-rose-100 text-rose-700',
+    WRITTEN_OFF: 'bg-rose-100 text-rose-700',
 };
+
+/** GET /lending/loans?borrowerId= — the customer's loans on the lending platform. */
+interface LendingLoan {
+    id: string;
+    reference: string;
+    status: string;
+    currency: string;
+    familyCode: string;
+    bookedPrincipal: string;
+    principalOutstanding: string;
+    daysPastDue: number;
+    disbursementDate: string | null;
+    maturityDate: string | null;
+}
 
 interface Borrower {
     id: string;
@@ -57,15 +70,8 @@ interface Borrower {
     branch?: { id: string; name: string; code: string | null } | null;
     monthlyIncome?: number | null;
     monthlyExpenses?: number | null;
-    loans?: {
-        id: string;
-        principal: number;
-        status: string;
-        annualInterestRate: number;
-        termMonths: number;
-        startDate: string;
-        interestMethod: string;
-    }[];
+    /** Loans of this customer in the original module, read in the legacy loan archive (D-154). */
+    legacyLoanCount?: number;
 }
 
 export default function BorrowerProfilePage() {
@@ -74,8 +80,9 @@ export default function BorrowerProfilePage() {
     const tc = useTranslations('Customers');
     const t = useTranslations('Borrowers.profile');
     const st = useTranslations('Status');
-    const { legacyCan } = useWorkspace();
+    const { legacyCan, can } = useWorkspace();
     const [borrower, setBorrower] = useState<Borrower | null>(null);
+    const [loans, setLoans] = useState<LendingLoan[]>([]);
     const [loading, setLoading] = useState(true);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [creditChecks, setCreditChecks] = useState<CreditCheck[]>([]);
@@ -87,12 +94,16 @@ export default function BorrowerProfilePage() {
         try {
             const res = await api.get(`/borrowers/${id}`);
             setBorrower(res.data);
+            if (can('loan.read')) {
+                const l = await api.get<{ data: LendingLoan[] }>('/lending/loans', { params: { borrowerId: id } }).catch(() => null);
+                setLoans(l?.data.data ?? []);
+            }
         } catch {
             showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, can]);
 
     const fetchCreditChecks = useCallback(async () => {
         try {
@@ -126,10 +137,10 @@ export default function BorrowerProfilePage() {
     if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">{t('loading')}</div>;
     if (!borrower) return <div className="text-center py-20 font-black text-rose-500">{t('notFound')}</div>;
 
-    const loans = borrower.loans ?? [];
-    const totalBorrowed = loans.reduce((s, l) => s + Number(l.principal), 0);
-    const activeLoans = loans.filter(l => l.status === 'DISBURSED').length;
+    const totalBorrowed = loans.reduce((s, l) => s + Number(l.bookedPrincipal), 0);
+    const activeLoans = loans.filter(l => l.status === 'ACTIVE').length;
     const closedLoans = loans.filter(l => l.status === 'CLOSED').length;
+    const legacyCount = borrower.legacyLoanCount ?? 0;
     // The badge shows the customer's recorded KYC status, never a fixed label.
     const kyc = borrower.kycStatus === 'VERIFIED'
         ? { cls: 'bg-emerald-100 text-emerald-700', icon: <UserCheck size={12} />, label: tc('kycBadge.VERIFIED') }
@@ -249,7 +260,7 @@ export default function BorrowerProfilePage() {
                     </div>
                     <div className="p-5 bg-indigo-50/50 rounded-3xl border border-indigo-100/20 text-center">
                         <p className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-1.5">{t('cumulativeDebt')}</p>
-                        <p className="text-2xl font-black text-indigo-600">${totalBorrowed.toLocaleString()}</p>
+                        <p className="text-2xl font-black text-indigo-600">{totalBorrowed.toLocaleString()}</p>
                     </div>
                 </div>
             </div>
@@ -268,12 +279,22 @@ export default function BorrowerProfilePage() {
                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tight">
                             <Activity size={22} className="text-indigo-600" /> {t('loanRegister')}
                         </h3>
-                        <Link href={`/${locale}/loans`}>
-                            <Button className="rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-950 text-white hover:bg-slate-800 h-10 px-6 gap-2">
-                                <Plus size={14} /> {t('originate')}
-                            </Button>
-                        </Link>
+                        {can('loan_application.create') && (
+                            <Link href={`/${locale}/lending/applications`}>
+                                <Button className="rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-950 text-white hover:bg-slate-800 h-10 px-6 gap-2">
+                                    <Plus size={14} /> {t('originate')}
+                                </Button>
+                            </Link>
+                        )}
                     </div>
+                    {legacyCount > 0 && (
+                        <p className="mb-6 text-[13px] text-slate-500">
+                            {t('legacyLoans', { count: legacyCount })}{' '}
+                            {can('legacy_loan.read') && (
+                                <Link href={`/${locale}/lending/legacy-archive?borrowerId=${id}`} className="font-semibold text-indigo-600 underline">{t('openLegacyArchive')}</Link>
+                            )}
+                        </p>
+                    )}
 
                     {loans.length === 0 ? (
                         <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
@@ -286,9 +307,9 @@ export default function BorrowerProfilePage() {
                                 <thead>
                                     <tr className="border-b border-slate-100">
                                         <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colPrincipal')}</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colRate')}</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colTerm')}</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">{t('colMethod')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colOutstanding')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colDaysPastDue')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">{t('colMaturity')}</th>
                                         <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colStatus')}</th>
                                         <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colAction')}</th>
                                     </tr>
@@ -297,19 +318,19 @@ export default function BorrowerProfilePage() {
                                     {loans.map(loan => (
                                         <tr key={loan.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="py-5">
-                                                <p className="text-base font-black text-slate-900 tracking-tight">${Number(loan.principal).toLocaleString()}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">{t('idLabel', { id: loan.id.slice(-6).toUpperCase() })}</p>
+                                                <p className="text-base font-black text-slate-900 tracking-tight">{Number(loan.bookedPrincipal).toLocaleString()} {loan.currency}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 font-mono">{loan.reference}</p>
                                             </td>
-                                            <td className="py-5 text-right font-black text-indigo-600 text-sm hidden md:table-cell">{loan.annualInterestRate}%</td>
-                                            <td className="py-5 text-right font-extrabold text-slate-700 text-sm hidden md:table-cell">{t('termMonths', { n: loan.termMonths })}</td>
-                                            <td className="py-5 text-right font-bold text-slate-400 text-[10px] uppercase hidden lg:table-cell">{loan.interestMethod}</td>
+                                            <td className="py-5 text-right font-black text-indigo-600 text-sm hidden md:table-cell">{Number(loan.principalOutstanding).toLocaleString()} {loan.currency}</td>
+                                            <td className="py-5 text-right font-extrabold text-slate-700 text-sm hidden md:table-cell">{loan.daysPastDue}</td>
+                                            <td className="py-5 text-right font-bold text-slate-400 text-[11px] hidden lg:table-cell">{loan.maturityDate ?? ''}</td>
                                             <td className="py-5 text-right">
                                                 <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${STATUS_STYLES[loan.status] || 'bg-gray-100 text-gray-600'}`}>
                                                     {st.has(loan.status) ? st(loan.status) : loan.status}
                                                 </span>
                                             </td>
                                             <td className="py-5 text-right">
-                                                <Link href={`/${locale}/loans/${loan.id}`}>
+                                                <Link href={`/${locale}/lending/loans/${loan.id}`}>
                                                     <div className="w-10 h-10 ml-auto rounded-xl bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white transition-all shadow-sm flex items-center justify-center border border-slate-100">
                                                         <Eye size={16} />
                                                     </div>

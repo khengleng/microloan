@@ -71,6 +71,8 @@ interface WorkspaceValue {
     /** Legacy (original app) permissions, from /auth/me while /me/access loads. */
     legacyCan: (permission: string) => boolean;
     legacyRole: string | null;
+    /** Loans in the legacy loan archive this person can read (D-154); null until known or without access. */
+    legacyLoans: number | null;
     isPlatform: boolean;
 }
 
@@ -82,6 +84,7 @@ const WorkspaceContext = createContext<WorkspaceValue>({
     can: () => false,
     legacyCan: () => false,
     legacyRole: null,
+    legacyLoans: null,
     isPlatform: false,
 });
 
@@ -94,6 +97,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const [accessSettled, setAccessSettled] = useState(false);
     const [work, setWork] = useState<MyWork | null>(null);
     const [workVersion, setWorkVersion] = useState(0);
+    const [legacyLoans, setLegacyLoans] = useState<number | null>(null);
     // Until a required authenticator is set up (D-128) only My account
     // answers; asking for access and work would just be refused (403). An
     // enrolled person on an older session still asks: the refusal is a
@@ -109,6 +113,19 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         );
         return () => { cancelled = true; };
     }, [signedIn]);
+
+    // The legacy loan archive is in the menu only while the organisation still
+    // has loans of the original module (D-154).
+    const archiveReader = !!access?.permissions.includes('legacy_loan.read');
+    useEffect(() => {
+        if (!signedIn || !archiveReader) return;
+        let cancelled = false;
+        api.get<{ total: number }>('/lending/legacy-archive/summary').then(
+            (r) => { if (!cancelled) setLegacyLoans(r.data.total); },
+            () => undefined,
+        );
+        return () => { cancelled = true; };
+    }, [signedIn, archiveReader]);
 
     useEffect(() => {
         if (!signedIn) return;
@@ -133,9 +150,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             can: (p) => perms.has(p),
             legacyCan: (p) => legacy.has(p),
             legacyRole: access?.legacy.role ?? user?.role ?? null,
+            legacyLoans: archiveReader ? legacyLoans : null,
             isPlatform: !!user?.isPlatform,
         };
-    }, [access, work, accessSettled, signedIn, user]);
+    }, [access, work, accessSettled, signedIn, user, archiveReader, legacyLoans]);
 
     return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

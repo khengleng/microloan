@@ -158,7 +158,13 @@ export class LegacyArchiveService {
 
   async list(
     actor: LendingActor,
-    q: { status?: string; q?: string; page?: number; limit?: number },
+    q: {
+      status?: string;
+      q?: string;
+      borrowerId?: string;
+      page?: number;
+      limit?: number;
+    },
   ) {
     const tenantId = requireTenant(actor);
     const scope = await this.scope(actor);
@@ -259,7 +265,10 @@ export class LegacyArchiveService {
   }
 
   /** The whole archive within the reader's scope as CSV (formula-safe cells). */
-  async exportCsv(actor: LendingActor, q: { status?: string; q?: string }) {
+  async exportCsv(
+    actor: LendingActor,
+    q: { status?: string; q?: string; borrowerId?: string },
+  ) {
     const tenantId = requireTenant(actor);
     const scope = await this.scope(actor);
     return this.lp.tenantTx(
@@ -317,7 +326,7 @@ export class LegacyArchiveService {
   private where(
     tenantId: string,
     scope: Prisma.LoanWhereInput,
-    q: { status?: string; q?: string },
+    q: { status?: string; q?: string; borrowerId?: string },
   ): Prisma.LoanWhereInput {
     const where: Prisma.LoanWhereInput = { tenantId, ...scope };
     const status = typeof q.status === 'string' ? q.status : '';
@@ -335,6 +344,8 @@ export class LegacyArchiveService {
       ].includes(status)
     )
       where.status = status as Prisma.LoanWhereInput['status'];
+    if (typeof q.borrowerId === 'string' && q.borrowerId)
+      where.borrowerId = q.borrowerId;
     const text = typeof q.q === 'string' ? q.q.trim().slice(0, 80) : '';
     if (text)
       where.OR = [

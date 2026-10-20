@@ -27,6 +27,7 @@ export class LegacyArchiveController {
     return this.archive.list(actor(req), {
       status: text(q.status),
       q: text(q.q),
+      borrowerId: text(q.borrowerId),
       page: Number(q.page) || undefined,
       limit: Number(q.limit) || undefined,
     });
@@ -42,6 +43,7 @@ export class LegacyArchiveController {
     const csv = await this.archive.exportCsv(actor(req), {
       status: text(q.status),
       q: text(q.q),
+      borrowerId: text(q.borrowerId),
     });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
