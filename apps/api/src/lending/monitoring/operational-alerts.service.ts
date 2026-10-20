@@ -343,12 +343,19 @@ export class OperationalAlertService {
           where: { id: tenantId },
           select: { name: true },
         }),
-        this.settings.get(tenantId),
+        // Settings in force that no longer validate must not silence the
+        // tenant's alerts: the operator is still told.
+        this.settings.get(tenantId).catch((e: Error) => {
+          this.logger.error(
+            `Alerts for tenant ${tenantId}: lending settings unreadable, e-mailing the operator only — ${e.message}`,
+          );
+          return null;
+        }),
       ]);
       return this.reconcile(
         tenantId,
         tenant?.name ?? tenantId,
-        settings.operations.alertEmails,
+        settings?.operations.alertEmails ?? [],
         findings,
         now,
         reminderMs,

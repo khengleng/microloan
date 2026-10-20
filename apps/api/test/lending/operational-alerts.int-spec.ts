@@ -287,6 +287,32 @@ d('Operational alerts (integration)', () => {
     ).toBe(403);
   });
 
+  it('one instance per check slot: the platform-scoped claim is taken once, and old claims are pruned', async () => {
+    const {
+      JobClaimService,
+      PLATFORM_JOB_SCOPE,
+    } = require('../../src/prisma/job-claim.service');
+    const {
+      ALERT_MONITOR_JOB,
+    } = require('../../src/lending/monitoring/operational-alerts.service');
+    const claims = f.app.get(JobClaimService);
+    const slot = `test-slot-${Date.now()}`;
+    expect(await claims.once(PLATFORM_JOB_SCOPE, ALERT_MONITOR_JOB, slot)).toBe(
+      true,
+    );
+    expect(await claims.once(PLATFORM_JOB_SCOPE, ALERT_MONITOR_JOB, slot)).toBe(
+      false,
+    );
+    const later = new Date(Date.now() + 60_000);
+    expect(
+      await claims.prune(PLATFORM_JOB_SCOPE, ALERT_MONITOR_JOB, later),
+    ).toBeGreaterThanOrEqual(1);
+    expect(await claims.once(PLATFORM_JOB_SCOPE, ALERT_MONITOR_JOB, slot)).toBe(
+      true,
+    );
+    await claims.prune(PLATFORM_JOB_SCOPE, ALERT_MONITOR_JOB, later);
+  });
+
   it('platform alerts (no tenant) exist in system context only', async () => {
     const row = await f.system(() =>
       f.prisma.operationalAlert.create({
