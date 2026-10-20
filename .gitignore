@@ -9,3 +9,8 @@ dist
 
 # Lending load-test harness state (template manifest)
 .lending-load
+
+# Build output, editor/OS files and local agent worktrees
+*.tsbuildinfo
+**/.DS_Store
+.claude/
