@@ -1,0 +1,750 @@
+{
+  "description": "Intentional literals for scripts/i18n-literals.mjs: { file, text (exact scanner text, or \"*\" for the whole file), reason }.",
+  "entries": [
+    {
+      "file": "apps/web/src/components/lending/products/configSchema.ts",
+      "text": "*",
+      "reason": "English fallback labels/hints; ConfigField/ConfigEditor render LendingProducts.config.*, and src/messages.test.mjs fails if any field or step lacks an en or km message."
+    },
+    {
+      "file": "apps/web/src/app/[locale]/(app)/app-shell.tsx",
+      "text": "MicroLoan",
+      "reason": "Brand name (fallback when the organisation has no name, and the breadcrumb root)."
+    },
+    {
+      "file": "apps/web/src/app/[locale]/page.tsx",
+      "text": "MicroLoan.",
+      "reason": "Brand name in the copyright line."
+    },
+    {
+      "file": "apps/web/src/app/layout.tsx",
+      "text": "MicroLoan OS",
+      "reason": "Default document metadata (brand name and tagline) for the root layout shared with the English-only public site."
+    },
+    {
+      "file": "apps/web/src/app/layout.tsx",
+      "text": "Modern Microfinance Operating System",
+      "reason": "Default document metadata (brand name and tagline) for the root layout shared with the English-only public site."
+    },
+    {
+      "file": "apps/web/src/app/not-found.tsx",
+      "text": "Page not found",
+      "reason": "404 outside [locale] and (site): no locale is known, the document is lang=\"en\"."
+    },
+    {
+      "file": "apps/web/src/app/not-found.tsx",
+      "text": "Go to sign in",
+      "reason": "404 outside [locale] and (site): no locale is known, the document is lang=\"en\"."
+    },
+    {
+      "file": "apps/web/src/components/PaymentInstruments.tsx",
+      "text": "ABA / Bakong",
+      "reason": "Sample placeholder made of payment network brand names."
+    },
+    {
+      "file": "apps/web/src/components/ProductModal.tsx",
+      "text": "A+, GOV",
+      "reason": "Sample credit-rating codes in a placeholder."
+    },
+    {
+      "file": "apps/web/src/components/auth/google-sign-in-button.tsx",
+      "text": "load failed",
+      "reason": "Internal Error in the script loader; caught and only sets status \"unavailable\", never shown."
+    },
+    {
+      "file": "apps/web/src/components/auth/google-sign-in-button.tsx",
+      "text": "Could not load Google sign-in.",
+      "reason": "Internal Error in the script loader; caught and only sets status \"unavailable\", never shown."
+    },
+    {
+      "file": "apps/web/src/components/auth/locale-switch.tsx",
+      "text": "English",
+      "reason": "Language endonym: each language is named in its own script."
+    },
+    {
+      "file": "apps/web/src/components/brand-mark.tsx",
+      "text": "MicroLoan",
+      "reason": "Brand name (logo alt text and wordmark)."
+    },
+    {
+      "file": "apps/web/src/components/learning/Explainer.tsx",
+      "text": "EN | KM",
+      "reason": "Miniature of the EN | KM language switch in an animated screen mock-up (language codes)."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Catalogue",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Products",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Policy library",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Simulator",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Scorecards",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Scorecard monitoring",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Workflows",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Applications",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Loans",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Facilities",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Trade finance",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Syndication",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Counterparties",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Income assessments",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Cards",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Groups",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Collections",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Recovery",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Unidentified payments",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Payment channels",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Restructures",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Relief programmes",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Documents",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Accounting",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Period close",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Regulatory returns",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Combined ledger",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Migration",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Webhooks",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Operations",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "AML & compliance",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Audit",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "Access & policy",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/access/policyModel.ts",
+      "text": "not equals",
+      "reason": "POLICY_OPERATORS label is not rendered; ConditionEditor renders LendingAccess.condition.ops.<op>."
+    },
+    {
+      "file": "apps/web/src/components/lending/access/policyModel.ts",
+      "text": "in list",
+      "reason": "POLICY_OPERATORS label is not rendered; ConditionEditor renders LendingAccess.condition.ops.<op>."
+    },
+    {
+      "file": "apps/web/src/components/lending/access/policyModel.ts",
+      "text": "not in list",
+      "reason": "POLICY_OPERATORS label is not rendered; ConditionEditor renders LendingAccess.condition.ops.<op>."
+    },
+    {
+      "file": "apps/web/src/components/lending/channels/types.ts",
+      "text": "Mobile banking",
+      "reason": "English fallback; channels render LendingChannels.channel.<code> (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/channels/types.ts",
+      "text": "QR (KHQR)",
+      "reason": "English fallback; channels render LendingChannels.channel.<code> (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/channels/types.ts",
+      "text": "Wallet",
+      "reason": "English fallback; channels render LendingChannels.channel.<code> (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/channels/types.ts",
+      "text": "Agent network",
+      "reason": "English fallback; channels render LendingChannels.channel.<code> (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/institutional/CounterpartyViews.tsx",
+      "text": "Bank",
+      "reason": "COUNTERPARTY_TYPES label is not rendered; the views render LendingCounterparties.type.<code>."
+    },
+    {
+      "file": "apps/web/src/components/lending/institutional/CounterpartyViews.tsx",
+      "text": "Municipality",
+      "reason": "COUNTERPARTY_TYPES label is not rendered; the views render LendingCounterparties.type.<code>."
+    },
+    {
+      "file": "apps/web/src/components/lending/institutional/CounterpartyViews.tsx",
+      "text": "Sovereign",
+      "reason": "COUNTERPARTY_TYPES label is not rendered; the views render LendingCounterparties.type.<code>."
+    },
+    {
+      "file": "apps/web/src/components/lending/institutional/CounterpartyViews.tsx",
+      "text": "Development institution",
+      "reason": "COUNTERPARTY_TYPES label is not rendered; the views render LendingCounterparties.type.<code>."
+    },
+    {
+      "file": "apps/web/src/components/lending/operations/ImpairmentTab.tsx",
+      "text": "Performing",
+      "reason": "Starter ECL policy JSON (data the user edits and saves), not UI copy."
+    },
+    {
+      "file": "apps/web/src/components/lending/operations/ImpairmentTab.tsx",
+      "text": "Underperforming",
+      "reason": "Starter ECL policy JSON (data the user edits and saves), not UI copy."
+    },
+    {
+      "file": "apps/web/src/components/lending/operations/ImpairmentTab.tsx",
+      "text": "Non-performing",
+      "reason": "Starter ECL policy JSON (data the user edits and saves), not UI copy."
+    },
+    {
+      "file": "apps/web/src/components/lending/operations/LendingSettingsTab.tsx",
+      "text": "requireMfaForAdmins",
+      "reason": "Message key, rendered as t(`switches.${hint}`)."
+    },
+    {
+      "file": "apps/web/src/components/lending/operations/LendingSettingsTab.tsx",
+      "text": "allowLoanApplications",
+      "reason": "Message key, rendered as t(`switches.${hint}`)."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/PolicyDefinitionEditor.tsx",
+      "text": "{ \"$param\": \"name\" }",
+      "reason": "JSON syntax sample and a parameter identifier placeholder."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/PolicyDefinitionEditor.tsx",
+      "text": "lockInMonths",
+      "reason": "JSON syntax sample and a parameter identifier placeholder."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Prepayment & lock-in",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Late charges",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Payment allocation",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Non-accrual",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Lock-in: charge during the first months",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "3% of the amount repaid early until the lock-in ends; free afterwards.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Lock-in months",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Hard lock-in: refuse, then charge",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "No early repayment for the first months, then a declining charge.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Hard lock-in months",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Free prepayment",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Partial prepayment and early settlement allowed without a fee.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Rate on overdue with grace days",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "18% p.a. on overdue amounts after a grace period, capped per instalment.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Grace days",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Flat fee per late instalment",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "A fixed charge per instalment paid late.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Penalty first, excess held as advance",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "penalty > fee > tax > interest > principal; oldest due first.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Interest first, excess prepays",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "interest > principal > fee > tax > penalty; excess reduces principal now.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Non-accrual from N days past due",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Interest to suspense from the threshold; cured at 0 days past due.",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/policies/types.ts",
+      "text": "Days past due",
+      "reason": "English fallback; kinds render LendingPolicies.kind.<KIND>, templates LendingPolicies.templates.<KIND>.<n>."
+    },
+    {
+      "file": "apps/web/src/components/lending/portal/PaymentReliefSection.tsx",
+      "text": "Something went wrong. Please try again.",
+      "reason": "English fallback; ErrorLine renders t(error.local) from LendingPortal.relief.error.*."
+    },
+    {
+      "file": "apps/web/src/components/lending/regulatory/RegulatoryReturnsView.tsx",
+      "text": "Excel",
+      "reason": "File-format name on the export link."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Waive",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Defer, no capitalization",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Pay separately",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Capitalize",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Extend term",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/relief/treatments.ts",
+      "text": "Keep maturity",
+      "reason": "English fallback; rendered as LendingRelief.treatment|term.<code>.label (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Illness or injury",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Job loss",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Reduced income",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Business downturn",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Delayed or failed harvest",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Natural disaster",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Family event (death, birth, wedding…)",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Payments already overdue",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Other",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Temporary — expected to recover",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Persistent — long-term change",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Customer asked (staff recording)",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Collections referral",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/restructure/labels.ts",
+      "text": "Credit review",
+      "reason": "English fallback for useRestructureLabels; every code has LendingRestructure.options.<group>.<CODE> in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/ScorecardEditor.tsx",
+      "text": "{value}",
+      "reason": "Literal placeholder-token syntax users type into bin reasons."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/ScorecardEditor.tsx",
+      "text": "{percent}",
+      "reason": "Literal placeholder-token syntax users type into bin reasons."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/types.ts",
+      "text": "not enough data",
+      "reason": "Starter scorecard definition (user-editable data saved to the API) and an unrendered psiLabel fallback (rendered via Scoring.monitoring.psi.<key>)."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/types.ts",
+      "text": "Low risk",
+      "reason": "Starter scorecard definition (user-editable data saved to the API) and an unrendered psiLabel fallback (rendered via Scoring.monitoring.psi.<key>)."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/types.ts",
+      "text": "Medium risk",
+      "reason": "Starter scorecard definition (user-editable data saved to the API) and an unrendered psiLabel fallback (rendered via Scoring.monitoring.psi.<key>)."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/types.ts",
+      "text": "High risk",
+      "reason": "Starter scorecard definition (user-editable data saved to the API) and an unrendered psiLabel fallback (rendered via Scoring.monitoring.psi.<key>)."
+    },
+    {
+      "file": "apps/web/src/components/lending/scoring/types.ts",
+      "text": "Affordability (debt-service ratio)",
+      "reason": "Starter scorecard definition (user-editable data saved to the API) and an unrendered psiLabel fallback (rendered via Scoring.monitoring.psi.<key>)."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Branch cash",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Bank transfer",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Mobile money",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Agent",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Payroll deduction",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "Other",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "0–7 days",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "8–30 days",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/suspense/types.ts",
+      "text": "31+ days",
+      "reason": "English fallback; rendered as LendingSuspense.channel.<code> / LendingSuspense.view.age.<bucket>."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Notice of assignment (letter)",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Notice by email",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Debtor acknowledged in writing",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Approved in the buyer’s system",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Buyer’s signed confirmation",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Aval on the instrument",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Separate bank guarantee",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Commercial invoice",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Bill of lading / air waybill",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Packing list",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Insurance certificate",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Certificate of origin",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Customs declaration",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Export sales contract / purchase order",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Proforma invoice",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Export licence",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/trade/types.ts",
+      "text": "Letter of credit in the exporter’s favour",
+      "reason": "English fallback; rendered as LendingTrade.ack.*.methods.* / LendingTrade.doc.* (en and km)."
+    },
+    {
+      "file": "apps/web/src/components/lending/useAsync.ts",
+      "text": "Request failed",
+      "reason": "Shown only when the API sends no message at all; the hook has no translator. Follow-up: translate in ErrorBox."
+    },
+    {
+      "file": "apps/web/src/components/ui/confirm-dialog.tsx",
+      "text": "useConfirm must be used inside ConfirmProvider",
+      "reason": "Developer error thrown when the hook is used outside its provider."
+    },
+    {
+      "file": "apps/web/src/lib/server-api-url.ts",
+      "text": "API_URL (or NEXT_PUBLIC_API_URL) is required in production.",
+      "reason": "Server start-up configuration error (operators, logs)."
+    },
+    {
+      "file": "apps/web/src/lib/session-code-route.ts",
+      "text": "Your session has ended. Please sign in again.",
+      "reason": "Route-handler JSON error body, like the API's own (English) messages."
+    },
+    {
+      "file": "apps/web/src/lib/session-code-route.ts",
+      "text": "Gateway error",
+      "reason": "Route-handler JSON error body, like the API's own (English) messages."
+    }
+  ]
+}
