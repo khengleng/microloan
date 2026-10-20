@@ -34,5 +34,14 @@
     "owner": "platform-auth",
     "expiryDate": "2027-12-31",
     "productionImpact": "Protective validation only"
+  },
+  {
+    "mode": "hardcodes",
+    "file": "apps/api/test/lending/operational-alerts.int-spec.ts",
+    "pattern": "re_test_key",
+    "reason": "Fake provider key in an integration test; outbound email is stubbed and never reaches Resend.",
+    "owner": "platform",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "None; test-only value"
   }
 ]

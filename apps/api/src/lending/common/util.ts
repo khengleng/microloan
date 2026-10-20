@@ -136,3 +136,21 @@ export function newReference(prefix: string): string {
   const stamp = new Date().toISOString().slice(2, 10).replace(/-/g, '');
   return `${prefix}-${stamp}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
+
+/**
+ * The calendar date (YYYY-MM-DD) of an instant in a time zone; by default the
+ * zone end of day runs in (LENDING_EOD_TZ, as the EOD scheduler reads it).
+ */
+export function localDateIn(
+  at: Date,
+  timeZone = process.env.LENDING_EOD_TZ || 'Asia/Phnom_Penh',
+): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(at);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
