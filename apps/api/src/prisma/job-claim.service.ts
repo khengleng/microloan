@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { PrismaService } from './prisma.service';
+import { runAsTenant } from './tenant-context';
 
 /**
  * Durable, cross-instance claims on scheduled work (ScheduledJobClaim).
@@ -20,8 +21,9 @@ import { PrismaService } from './prisma.service';
  *   chat bot). Another instance takes over once a lease lapses.
  *
  * The claim is raw SQL (INSERT … ON CONFLICT), scoped by the tenant id it is
- * given; it runs outside a tenant transaction, where the row-level-security
- * policy admits system work.
+ * given. Each call declares that tenant (runAsTenant), so the database tenant
+ * wall admits the claim row whatever the caller's context — a cron loop runs
+ * as system, a shutdown hook with no context at all (D-142).
  */
 @Injectable()
 export class JobClaimService {
@@ -32,11 +34,14 @@ export class JobClaimService {
 
   /** Claim a run for good. True only for the first caller. */
   async once(tenantId: string, job: string, runKey: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = await runAsTenant(
+      tenantId,
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       INSERT INTO "ScheduledJobClaim" ("id", "tenantId", "job", "runKey", "holder", "claimedAt", "leaseUntil")
       VALUES (${randomUUID()}, ${tenantId}, ${job}, ${runKey}, ${this.holder}, ${new Date()}, NULL)
       ON CONFLICT ("tenantId", "job", "runKey") DO NOTHING
-      RETURNING "id"`;
+      RETURNING "id"`,
+    );
     return rows.length === 1;
   }
 
@@ -54,22 +59,28 @@ export class JobClaimService {
     // representation Prisma stores, whatever the session time zone.
     const now = new Date();
     const until = new Date(now.getTime() + ms);
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = await runAsTenant(
+      tenantId,
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       INSERT INTO "ScheduledJobClaim" ("id", "tenantId", "job", "runKey", "holder", "claimedAt", "leaseUntil")
       VALUES (${randomUUID()}, ${tenantId}, ${job}, ${runKey}, ${this.holder}, ${now}, ${until})
       ON CONFLICT ("tenantId", "job", "runKey") DO UPDATE
         SET "holder" = EXCLUDED."holder", "claimedAt" = EXCLUDED."claimedAt", "leaseUntil" = EXCLUDED."leaseUntil"
         WHERE "ScheduledJobClaim"."leaseUntil" IS NOT NULL
           AND ("ScheduledJobClaim"."leaseUntil" <= ${now} OR "ScheduledJobClaim"."holder" = EXCLUDED."holder")
-      RETURNING "id"`;
+      RETURNING "id"`,
+    );
     return rows.length === 1;
   }
 
   /** Give up a lease this instance holds (shutdown), so another can take it at once. */
   async release(tenantId: string, job: string, runKey: string): Promise<void> {
-    await this.prisma.$executeRaw`
+    await runAsTenant(
+      tenantId,
+      () => this.prisma.$executeRaw`
       UPDATE "ScheduledJobClaim" SET "leaseUntil" = ${new Date(0)}
       WHERE "tenantId" = ${tenantId} AND "job" = ${job} AND "runKey" = ${runKey}
-        AND "holder" = ${this.holder} AND "leaseUntil" IS NOT NULL`;
+        AND "holder" = ${this.holder} AND "leaseUntil" IS NOT NULL`,
+    );
   }
 }

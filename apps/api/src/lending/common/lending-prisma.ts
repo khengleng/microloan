@@ -8,11 +8,12 @@ export type Tx = Prisma.TransactionClient;
 /**
  * Tenant-scoped transactions for lending writes.
  *
- * Inside the transaction the tenant is declared to PostgreSQL
- * (`app.tenant_id`), which activates the row-level-security policies on the
- * financial tables — a second wall behind the Prisma tenant guard that also
- * covers raw SQL. The ambient Prisma tenant context is pinned to the same
- * tenant for the whole callback.
+ * The ambient tenant context is pinned to the tenant for the whole callback,
+ * and the transaction opens by declaring that tenant to PostgreSQL
+ * (`app.tenant_id`, transaction-local — PrismaService does it for every
+ * interactive transaction, see prisma/db-tenant-context.ts). Row-level
+ * security then admits only that tenant's rows — a second wall behind the
+ * Prisma tenant guard that also covers raw SQL.
  */
 @Injectable()
 export class LendingPrisma {
@@ -28,17 +29,11 @@ export class LendingPrisma {
   ): Promise<T> {
     try {
       return await runAsTenant(tenantId, () =>
-        this.prisma.$transaction(
-          async (tx) => {
-            await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-            return fn(tx);
-          },
-          {
-            isolationLevel: opts.isolationLevel,
-            timeout: opts.timeoutMs ?? 20_000,
-            maxWait: 10_000,
-          },
-        ),
+        this.prisma.$transaction((tx) => fn(tx), {
+          isolationLevel: opts.isolationLevel,
+          timeout: opts.timeoutMs ?? 20_000,
+          maxWait: 10_000,
+        }),
       );
     } catch (e) {
       // A lost race (unique version, serialization failure, deadlock) is a

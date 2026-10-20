@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { createHmac, randomBytes } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
 import type { Prisma } from '@microloan/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runAsSystem } from '../../prisma/tenant-context';
@@ -20,6 +18,11 @@ import { publicExplanation } from '../policy/decision';
 import { tenantResource } from '../policy/resources';
 import { decryptField, encryptField } from '../../common/field-crypto';
 import { operationalConfig } from '../../config/operational-config';
+import {
+  postToPublicEndpoint,
+  resolvePublicEndpoint,
+  UnsafeEndpointError,
+} from '../../common/outbound-http';
 
 type Json = Prisma.InputJsonValue;
 
@@ -74,28 +77,6 @@ const KNOWN = new Set(WEBHOOK_TOPICS.map((t) => t.topic));
 /** Retry, switch-off, timeout and batch limits: LENDING_WEBHOOK_* (operational-config.ts). */
 const limits = () => operationalConfig().webhooks;
 
-function privateAddress(ip: string): boolean {
-  if (isIP(ip) === 6) {
-    const v = ip.toLowerCase();
-    if (v === '::1' || v === '::') return true;
-    if (v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80'))
-      return true;
-    const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    return mapped ? privateAddress(mapped[1]) : false;
-  }
-  const [a, b] = ip.split('.').map(Number);
-  return (
-    a === 10 ||
-    a === 127 ||
-    a === 0 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    a >= 224
-  );
-}
-
 /** Sign a delivery the way receivers verify it: HMAC-SHA256 over "timestamp.body". */
 export function signWebhook(secret: string, timestamp: number, body: string) {
   return `v1=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
@@ -104,9 +85,11 @@ export function signWebhook(secret: string, timestamp: number, body: string) {
 /**
  * Webhooks: the organisation's own systems receive its lending events.
  *
- * - Endpoints are HTTPS URLs on the public internet; addresses on private,
- *   loopback or link-local networks are refused (no requests into our own
- *   network), checked when registered and again before each delivery.
+ * - Endpoints are HTTPS URLs on the public internet: only global unicast
+ *   addresses, in any spelling (common/outbound-http.ts, D-144). Checked when
+ *   registered and when activated; each delivery resolves the name once,
+ *   vets every answer and connects to that address only, so a DNS answer
+ *   that changes in between (rebinding) cannot redirect it (D-145).
  * - One administrator registers an endpoint; another activates it, since it
  *   sends customer and loan data outside the platform.
  * - Every event already goes through the transactional outbox; each message
@@ -141,8 +124,8 @@ export class WebhooksService {
     );
   }
 
-  /** Refuse anything but a public HTTPS endpoint. */
-  async checkUrl(raw: string) {
+  /** The URL's own rules: HTTPS (HTTP only in development), no credentials. */
+  private parseUrl(raw: string) {
     let url: URL;
     try {
       url = new URL(raw);
@@ -156,23 +139,27 @@ export class WebhooksService {
       throw new BadRequestException(
         'Put credentials in the signing secret, not the URL.',
       );
-    if (relaxed) return url;
-    const host = url.hostname.replace(/^\[|\]$/g, '');
-    const addresses = isIP(host)
-      ? [host]
-      : (await lookup(host, { all: true }).catch(() => [])).map(
-          (a) => a.address,
+    return url;
+  }
+
+  /** Refuse anything but a public HTTPS endpoint. */
+  async checkUrl(raw: string) {
+    const url = this.parseUrl(raw);
+    if (this.allowPrivate()) return url;
+    try {
+      await resolvePublicEndpoint(url);
+    } catch (e) {
+      if (e instanceof UnsafeEndpointError)
+        throw new BadRequestException(
+          e.message.replace(/^The endpoint/, 'Webhook endpoints'),
         );
-    if (!addresses.length)
-      throw new BadRequestException(`${host} does not resolve.`);
-    if (addresses.some(privateAddress))
-      throw new BadRequestException(
-        'Webhook endpoints must be on the public internet.',
-      );
+      throw e;
+    }
     return url;
   }
 
   private view<T extends { secret: string }>(e: T) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the view
     const { secret: _s, ...rest } = e;
     return rest;
   }
@@ -615,11 +602,11 @@ export class WebhooksService {
       let status: number | null = null;
       let error = '';
       try {
-        await this.checkUrl(e.url);
-        const res = await fetch(e.url, {
-          method: 'POST',
-          redirect: 'manual',
-          signal: AbortSignal.timeout(timeoutMs),
+        // One resolution, vetted, and the connection pinned to it; no
+        // redirect is followed.
+        const res = await postToPublicEndpoint(this.parseUrl(e.url), {
+          allowPrivate: this.allowPrivate(),
+          timeoutMs,
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': `${operationalConfig().platformName.replace(/[^A-Za-z0-9]/g, '')}-Webhooks/1`,

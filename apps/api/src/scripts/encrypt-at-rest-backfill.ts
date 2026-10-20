@@ -7,10 +7,14 @@
  */
 import { PrismaClient } from '@microloan/db';
 import { encryptField, isEncrypted, blindIndex } from '../common/field-crypto';
+import { withDatabaseTenantContext } from '../prisma/db-tenant-context';
+import { runAsSystem } from '../prisma/tenant-context';
 
 async function main() {
-  // Bare client (no PrismaService middleware) so we read/write raw values.
-  const prisma = new PrismaClient();
+  // No PrismaService middleware, so we read/write raw values — but with the
+  // database tenant context: it runs across every tenant as a declared system
+  // path, or row-level security would show it no rows at all (D-142).
+  const prisma = withDatabaseTenantContext(new PrismaClient());
   let users = 0;
   let tenants = 0;
   let kyc = 0;
@@ -83,7 +87,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch((e) => {
+runAsSystem('encrypt-at-rest backfill (all tenants)', main).catch((e) => {
   // eslint-disable-next-line no-console
   console.error(e);
   process.exit(1);

@@ -714,7 +714,9 @@ Note: **No outside provider is connected yet.** The yellow box "These
 sources require an integration" explains that no provider adapter ships
 with the system. An administrator can store a provider's endpoint and
 credentials (**Configure** → **Configure a provider**: **Source**,
-**Provider code**, **Endpoint** (https only), **Credentials** — stored
+**Provider code**, **Endpoint** (https only, on the public internet —
+internal and private addresses are refused when it is saved and when it is
+approved, as for webhooks), **Credentials** — stored
 encrypted and never shown again → **Submit for approval**), and a second
 administrator can **Approve** it. Even then, the source stays unusable
 until your IT team installs a connector for that provider. Until then,

@@ -16,6 +16,10 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { decryptField, encryptField } from '../../common/field-crypto';
+import {
+  resolvePublicEndpoint,
+  UnsafeEndpointError,
+} from '../../common/outbound-http';
 
 /**
  * External alternative-data providers (DECISIONS D-078): interfaces only.
@@ -49,6 +53,12 @@ export interface ProviderSubject {
 
 export interface ProviderConnection {
   providerCode: string;
+  /**
+   * Vetted when saved and when approved (public internet only, D-144). An
+   * adapter must still call it through common/outbound-http.ts
+   * (postToPublicEndpoint), which resolves once and pins the connection to
+   * the vetted address (D-145) — never with a bare fetch.
+   */
   endpointUrl: string;
   /** Decrypted only in memory, for the duration of one call. */
   credentials: string;
@@ -211,6 +221,7 @@ export class AltDataProvidersService {
       throw new BadRequestException(
         'Provider endpoints must use https and carry no credentials in the URL.',
       );
+    await this.assertPublic(url);
     return this.lp.tenantTx(tenantId, async (tx) => {
       const row = await tx.altDataProviderConfig.create({
         data: {
@@ -262,6 +273,8 @@ export class AltDataProvidersService {
         throw new ConflictException(
           `This configuration is ${row.status.toLowerCase()}.`,
         );
+      // Vetted again on approval: the name may resolve elsewhere by now.
+      if (body.approve) await this.assertPublic(new URL(row.endpointUrl));
       if (body.approve)
         await tx.altDataProviderConfig.updateMany({
           where: { tenantId, source: row.source, status: 'ACTIVE' },
@@ -294,6 +307,19 @@ export class AltDataProvidersService {
         }))!,
       );
     });
+  }
+
+  /** Provider endpoints must be on the public internet (D-144). */
+  private async assertPublic(url: URL) {
+    try {
+      await resolvePublicEndpoint(url);
+    } catch (e) {
+      if (e instanceof UnsafeEndpointError)
+        throw new BadRequestException(
+          e.message.replace(/^The endpoint/, 'Provider endpoints'),
+        );
+      throw e;
+    }
   }
 
   private view<T extends { credentials: string }>(r: T) {

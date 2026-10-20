@@ -15,9 +15,11 @@ import { getTenantContext, runAsSystem, TenantContext } from './tenant-context';
  * It is a backstop, not a replacement. Services should still scope explicitly
  * so that "not found" stays a 404 rather than surfacing here as a 403.
  *
- * KNOWN LIMIT: `$queryRaw` / `$executeRaw` bypass Prisma middleware entirely
- * and therefore bypass this guard. Raw SQL against tenant-owned tables must
- * scope by hand. `scripts/security-scan.mjs` is the place to add a lint for it.
+ * KNOWN LIMIT: `$queryRaw` / `$executeRaw` are not scoped by this guard (it
+ * only sees a model and its arguments). Raw SQL against tenant-owned tables
+ * should still scope by hand; behind it, row-level security admits only the
+ * declared tenant's rows to raw SQL too (db-tenant-context.ts,
+ * docs/security/RLS.md, D-141).
  */
 
 /** Models carrying their own `tenantId` column — scoped directly. */
@@ -327,15 +329,29 @@ type OwnershipDelegate = {
 
 /** Resolve a Prisma delegate by model name without widening to `any`. */
 function delegateFor(
-  prisma: PrismaClient,
+  prisma: PrismaClient | (() => PrismaClient),
   delegateName: string,
 ): OwnershipDelegate {
-  return (prisma as unknown as Record<string, OwnershipDelegate>)[delegateName];
+  // A function is resolved per call: the service hands the guard the client
+  // that carries the database tenant context, which exists only after the
+  // guard has been registered on the base client.
+  const client = typeof prisma === 'function' ? prisma() : prisma;
+  return (client as unknown as Record<string, OwnershipDelegate>)[delegateName];
 }
 
 /** Exposed for the coverage test: is this model classified by the guard at all? */
 export function isClassifiedModel(model: string): boolean {
   return isGuarded(model) || PLATFORM_CATALOGUE_MODELS.has(model);
+}
+
+/**
+ * Whether a model's table sits behind row-level security, so a query on it
+ * must carry the database tenant context (db-tenant-context.ts). The same
+ * set the guard walls off: every tenant-owned model, the tenant row itself
+ * and platform-only configuration.
+ */
+export function needsDatabaseContext(model: string): boolean {
+  return isGuarded(model);
 }
 
 function isGuarded(model: string): boolean {
@@ -418,7 +434,7 @@ const NESTED_WRITE_OPS = [
 ];
 
 export function createTenantGuardMiddleware(
-  prisma: PrismaClient,
+  prisma: PrismaClient | (() => PrismaClient),
   options: { mode: TenantGuardMode; logger?: Logger } = { mode: 'enforce' },
 ): Prisma.Middleware {
   const logger = options.logger ?? new Logger('TenantGuard');
