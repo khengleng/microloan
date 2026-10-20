@@ -95,7 +95,14 @@ export function KeyFactsCard({ appId, borrowerId, status, can, onChanged }: {
     return (
         <Card title={t('title')} subtitle={t('subtitle')}>
             {kfs.loading && !v ? <Spinner /> : kfs.error ? <ErrorBox error={kfs.error} /> : !v || v.statements.length === 0 ? (
-                <Empty>{approved ? t('noneApproved') : t('noneYet')}</Empty>
+                <div className="space-y-3">
+                    <Empty>{approved ? t('noneApproved') : t('noneYet')}</Empty>
+                    {/* The message asks for a statement to be generated: offer the button here too. */}
+                    {approved && v && (
+                        <Btn size="sm" variant="primary" onClick={generate} busy={busy === 'generate'} disabled={!gen.allowed} reason={gen.reason}>{t('generate')}</Btn>
+                    )}
+                    <ErrorBox error={error} onDismiss={clearError} />
+                </div>
             ) : (
                 <div className="space-y-3">
                     {cur && (
