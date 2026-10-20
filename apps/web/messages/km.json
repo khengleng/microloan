@@ -41,7 +41,7 @@
     "createAccount": "បង្កើតគណនី",
     "terms": "លក្ខខណ្ឌ",
     "privacy": "ឯកជនភាព",
-    "copyright": "© 2025 MicroLoan",
+    "copyright": "© {year} MicroLoan",
     "invalidCredentials": "អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ។",
     "connectError": "មិនអាចភ្ជាប់ទៅសេវាកម្មបានទេ។",
     "invalidCode": "លេខកូដផ្ទៀងផ្ទាត់មិនត្រឹមត្រូវ។",
@@ -140,7 +140,8 @@
     "export": "នាំចេញ",
     "active": "សកម្ម",
     "inactive": "អសកម្ម",
-    "to": "ដល់"
+    "to": "ដល់",
+    "confirm": "បញ្ជាក់"
   },
   "Dashboard": {
     "title": "ទិដ្ឋភាពទូទៅនៃផ្ទាំងគ្រប់គ្រង",

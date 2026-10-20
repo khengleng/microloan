@@ -186,13 +186,16 @@ export function Checkbox({ checked, onChange, label, disabled }: { checked: bool
 
 /* ── Tabs & disclosure ───────────────────────────────────────────────────── */
 
+/** Tab strip: announced as tabs, the selected one marked (aria-selected). */
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void }) {
     return (
-        <div className="flex flex-wrap gap-1 border-b border-[#E3E8EE]">
+        <div role="tablist" className="flex flex-wrap gap-1 border-b border-[#E3E8EE]">
             {tabs.map((t) => (
                 <button
                     key={t.value}
                     type="button"
+                    role="tab"
+                    aria-selected={value === t.value}
                     onClick={() => onChange(t.value)}
                     className={`px-3 py-2 text-[13px] font-semibold -mb-px border-b-2 transition-colors ${value === t.value ? 'border-[#635BFF] text-[#635BFF]' : 'border-transparent text-[#697386] hover:text-[#1A1F36]'}`}
                 >

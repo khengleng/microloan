@@ -41,7 +41,7 @@
     "createAccount": "Create account",
     "terms": "Terms",
     "privacy": "Privacy",
-    "copyright": "© 2025 MicroLoan",
+    "copyright": "© {year} MicroLoan",
     "invalidCredentials": "Invalid email or password.",
     "connectError": "Unable to connect to service.",
     "invalidCode": "Invalid verification code.",
@@ -140,7 +140,8 @@
     "export": "Export",
     "active": "Active",
     "inactive": "Inactive",
-    "to": "to"
+    "to": "to",
+    "confirm": "Confirm"
   },
   "Dashboard": {
     "title": "Dashboard Overview",
