@@ -178,7 +178,7 @@ d('Customers: KYC verification and branch (integration)', () => {
       const got = expectOk(await f.as('admin1').get(`/borrowers/${b.id}`));
       expect(got.branch.id).toBe(f.b2);
       expect(got.dateOfBirth).toMatch(/^1990-02-01/);
-      expect(got.loans).toEqual([]);
+      expect(got.legacyLoanCount).toBe(0);
     });
 
     it('refuses a branch-confined officer another branch', async () => {

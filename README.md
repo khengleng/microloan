@@ -9,16 +9,19 @@ application, query and database level.
 approvals, origination to closure, collections, accounting, reports,
 administration, and a guided demo) is in [`docs/user-guide/`](docs/user-guide/README.md).
 
-The repository contains two lending stacks that run side by side:
+The repository holds **one lending system** on a shared core:
 
 | | What it is | Where |
 |---|---|---|
-| **Core app** | The original Magic Money micro-lending operations app: borrowers, flat / reducing-balance loans, repayments, collections, reports, KYC, borrower portal, billing. | `apps/api/src/{borrowers,loans,repayments,…}`, legacy web pages |
+| **Core app** | Organisations, users and roles, branches, borrowers and KYC, authentication, billing, FX rates, the borrower portal and the Telegram bot. | `apps/api/src/{tenants,users,auth,borrowers,borrower-portal,bot,…}` |
 | **Configurable lending platform** | A product-configurable lending engine for consumer, microfinance, SME, mortgage and agricultural lending, with maker-checker product governance, RBAC + ABAC + feature flags, immutable double-entry accounting, and loan restructuring / hardship management. | `packages/shared/src/lending`, `apps/api/src/lending`, `apps/web/src/app/[locale]/(app)/lending` |
 
-They share tenants, users, branches, borrowers, authentication and the chart of
-accounts. They do not share loan records: loans created in one stack are
-serviced in that stack.
+The original loan module (flat / reducing-balance loans, repayments,
+provisioning, reports) is retired (DECISIONS D-153 – D-159): its screens, write
+routes and jobs are gone, its loans are read in the read-only **legacy loan
+archive** and moved to the lending platform with the loan-book migration. Its
+tables stay until every organisation's legacy book is migrated
+([LEGACY_RETIREMENT.md](docs/lending/LEGACY_RETIREMENT.md)).
 
 ---
 
@@ -28,7 +31,7 @@ serviced in that stack.
 * **API** (`apps/api`): NestJS 11, Prisma 5, PostgreSQL, JWT (HttpOnly cookies) with optional TOTP MFA and Google sign-in
 * **Web** (`apps/web`): Next.js 16 (App Router), React 19, Tailwind CSS 4, next-intl (English / Khmer)
 * **Database** (`packages/db`): PostgreSQL via Prisma; tenant isolation enforced by a Prisma middleware, composite tenant foreign keys and row-level security on lending tables
-* **Shared** (`packages/shared`): currency rules, legacy loan formulas, provisioning, scorecard, EIR — and the **lending engine** (decimal arithmetic, no floating point for money)
+* **Shared** (`packages/shared`): currency rules, scorecard, EIR — and the **lending engine** (decimal arithmetic, no floating point for money)
 
 ---
 
@@ -36,14 +39,13 @@ serviced in that stack.
 
 * **Organisations & users** — self-serve signup with plan payment by KHQR (confirmed by the platform operator), subscription plan tiers with quotas, users with roles, branch scoping, TOTP MFA, Google sign-in, password reset, audit log.
 * **Borrowers** — profiles with encrypted-at-rest PII (blind-indexed national ID and phone), manual KYC / AML status, KYC document review.
-* **Loan products & loans** — flat and reducing-balance products with credit-rating pricing policies, NBC interest-rate cap (18%), approval with maker-checker, disbursement with origination fees, write-off, restructuring, collateral, guarantors, interactions, documents (S3).
-* **Repayments** — idempotent posting, reversals, penalties (daily cron), payoff quotes, KHQR static payment QR per tenant / branch.
-* **Agreements** — key facts statement with EIR / total cost of credit and e-signature (hash-anchored).
-* **Risk & credit** — internal scorecard; Credit Bureau Cambodia (CBC) checks only once CBC credentials (`CBC_API_URL` / `CBC_API_KEY`) are configured — until then the check answers "CBC integration is not ready." and there is no sandbox.
-* **Finance** — dual currency (USD / KHR) with FX rates, general ledger with trial balance, NBC loan-loss provisioning runs, KPIs, portfolio-at-risk dashboard and reports, CSV / Excel exports.
-* **Collections** — overdue queue and promise-to-pay tracking.
-* **Borrower portal** — phone + OTP sign-in, loan view, e-KYC uploads, agreement signing.
-* **Telegram bot** — per-tenant bot for borrower notifications and reminders.
+* **Payment QR** — KHQR static payment QR per tenant / branch, shown in the borrower portal.
+* **Credit bureau** — Credit Bureau Cambodia (CBC) checks only once CBC credentials (`CBC_API_URL` / `CBC_API_KEY`) are configured — until then the check answers "CBC integration is not ready." and there is no sandbox.
+* **FX rates** — dual currency (USD / KHR); the lending reports, approval limits and payment channels convert with them.
+* **Reports, Performance and KPI dashboard** — on the lending book: loan portfolio with ageing and PAR, money received, performance ratios and the year's income and expense from the lending journal, CSV exports (D-156).
+* **Legacy loan archive** — the original module's loans, read-only, with CSV export and links to the loan-book migration (D-154).
+* **Borrower portal** — phone + OTP sign-in, the customer's lending loans with schedule, payments and statement, key facts acceptance, payment relief, document requests, e-KYC uploads.
+* **Telegram bot** — per-tenant bot: balances and products from the lending book, due-tomorrow reminders and late notices; applying by chat is paused (D-155).
 
 ---
 
@@ -253,10 +255,10 @@ The borrower portal adds restructure requests and proposal acceptance.
 * **Regulatory returns** — one monthly NBC-style return for the lending and
   legacy loans together (classification and provisioning, PAR, breakdowns,
   write-offs and recoveries, largest borrowers, rates against the cap),
-  generated from a closed month, reconciled to both ledgers, immutable and
+  generated from a closed month, reconciled to both ledgers (the legacy one
+  only while the legacy book is not empty, D-157), immutable and
   versioned, submitted under maker-checker, CSV and Excel export; a combined
-  trial balance of both journals; and a flag that closes the legacy book to
-  new business ([OPERATIONS.md](docs/lending/OPERATIONS.md)). Gender, sector
+  trial balance of both journals ([OPERATIONS.md](docs/lending/OPERATIONS.md)). Gender, sector
   and related-party data are not captured yet (DECISIONS D-045..D-049).
 * **Collateral on running loans** — revaluation and margin calls, more
   collateral, release after closure; combined LTV behind prior liens.
@@ -337,15 +339,15 @@ Measured against that design, the web app today:
 
 | Area | Status | Gap |
 |---|---|---|
-| Navigation | ✅ | Menus are computed from `GET /v1/me/access` (lending permissions) plus the legacy screens' own permissions, so each access role sees its own work and the lending section is hidden from people with no lending permission; lending sub-tabs follow the same rules; queue badges come from `/me/work` |
-| Home | ✅ | `/home` shows the person's queues from `GET /v1/me/work` (counts, oldest items, deep links, "you approve" / "needs MFA" / "above your limit"); the KPI dashboard stays in the menu for those who had it, and people without lending permissions still land on it |
-| Search | ✅ | `GET /v1/search` and a search box in the top bar (`/` or Ctrl/⌘-K): borrowers by name, phone or national ID (blind index), loans, legacy loans, applications, facilities, cards and restructure cases by reference, within the caller's tenant and scope |
+| Navigation | ✅ | Menus are computed from `GET /v1/me/access` (lending permissions) plus the shared screens' own permissions (borrowers, team, settings, FX, audit log), so each access role sees its own work; lending sub-tabs follow the same rules; queue badges come from `/me/work`; the legacy loan archive shows only while the organisation has legacy loans |
+| Home | ✅ | `/home` shows the person's queues from `GET /v1/me/work` (counts, oldest items, deep links, "you approve" / "needs MFA" / "above your limit") and links the KPI dashboard of the lending book |
+| Search | ✅ | `GET /v1/search` and a search box in the top bar (`/` or Ctrl/⌘-K): borrowers by name, phone or national ID (blind index), loans, applications, facilities, cards and restructure cases by reference, and legacy loans for readers of the legacy loan archive, within the caller's tenant and scope |
 | Explaining refusals | 🟡 | Lending applications, loans and product versions show the policy reason on disabled buttons; restructure cases, facilities and legacy pages do not; the browser treats unknown actions as allowed |
 | Scope, authority, MFA, delegation in the shell | ✅ | Top-bar chips for business date, scope, approval limit and sign-in strength; banners for "verify to approve" and delegated authority. No inline MFA step-up yet (the banner sends the person to sign in again) |
-| Duplicate screens | 🟡 | Two loan lists, collections, accounting, audit, products and team pages (legacy and lending); the legacy ones are now grouped and labelled "Legacy", and the legacy book can be closed to new business (`lending.legacy_loans.readonly`) |
+| Duplicate screens | ✅ | The original module's loan, repayment, collections, accounting, provisioning and product screens are gone (D-153); two audit views remain: the lending audit trail and the administration / sign-in audit log |
 | Phase 2 screens | ✅ | Facilities, groups, policy library, unidentified payments, relief programmes, operations, and the servicing panels on the loan screen |
 | Role management | 🟡 | `/users` assigns only legacy roles; access roles are assigned separately under Lending › Access |
-| Khmer | 🟡 | Legacy screens, the portal page, the new menu, lending sub-tabs, home queues, shell chips and search are translated; the lending, accounting, FX, provisioning, KPI and audit screens themselves are English only |
+| Khmer | 🟡 | Shared screens, the portal page, the new menu, lending sub-tabs, home queues, shell chips and search are translated; the lending, accounting, FX and audit screens themselves are English only (Reports, Performance and the legacy loan archive are translated) |
 | Borrower portal | 🟡 | Sign-in, loans, KHQR, documents, signing and relief acceptance work; one-time codes need an SMS provider; payment-holiday programmes are not offered |
 | Platform console | ✅ | Organisations, plan payments, plans, team and audit; platform flag rules are API-only |
 

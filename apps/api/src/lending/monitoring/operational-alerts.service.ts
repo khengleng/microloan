@@ -14,8 +14,12 @@ import {
   isEmailConfigured,
   sendEmailViaProvider,
 } from '../../notifications/notification.providers';
-import { localDate } from '../../loans/legacy-money';
-import { LendingActor, requireTenant, toLocalDate } from '../common/util';
+import {
+  LendingActor,
+  localDateIn,
+  requireTenant,
+  toLocalDate,
+} from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import {
@@ -179,7 +183,7 @@ export class OperationalAlertService {
     const cfg = operationalConfig().alerts;
     const p = this.prisma;
     return runAsTenant(tenantId, async () => {
-      const today = localDate(now);
+      const today = localDateIn(now);
       const hasLoans =
         (await p.loanAccount.count({ where: { tenantId, status: 'ACTIVE' } })) >
         0;

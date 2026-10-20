@@ -143,15 +143,16 @@ list. Each line is one reason; all of them must be cleared.
 separate rights. You may also be the maker, be above your limit, or be
 signed in without your code. See "First checks" above.
 
-**Why are there two "Loans" and two "Collections" menus?** Items marked
-**(original)** belong to the older loan module, which keeps its own loan
-records. New loans are normally created in the lending platform
-(**Origination › Applications**). See [21](21-original-loan-module.md).
+**Where did the "(original)" menu items go?** The original loan module
+is retired. New loans are created in **Origination › Applications**; its
+old loans are in **Finance › Legacy loan archive** (read-only) until they
+are moved with the loan-book migration. See [21](21-legacy-archive-and-migration.md).
 
-**Why do the KPI dashboard and Reports not show my new loans?** Those
-screens read the original loan module only. Use **Loans › Loan accounts**,
-**Finance › Ledger & reconciliation** and **Finance › Regulatory returns**
-for lending-platform loans ([15](15-reports-and-regulatory-returns.md)).
+**Why do the KPI dashboard and Reports not show a loan?** They show
+lending-platform loans you may see (your branches), as of the business
+date; a loan booked today appears once it is booked. Loans still in the
+original module are only in the legacy loan archive
+([15](15-reports-and-regulatory-returns.md)).
 
 **Can I delete a wrong payment?** No. Nothing financial is deleted; a
 second person reverses it, which leaves a full record

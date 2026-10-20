@@ -13,7 +13,7 @@ import type { Prisma } from '@microloan/db';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runAsSystem } from '../../prisma/tenant-context';
 import { decryptField } from '../../common/field-crypto';
-import { ownStorageKey } from '../../document-vault/document-vault.service';
+import { ownStorageKey } from './legacy-storage-key';
 import { LendingPrisma, Tx } from '../common/lending-prisma';
 import { AuditEventService } from '../common/audit-event.service';
 import { BusinessDateService } from '../common/business-date.service';

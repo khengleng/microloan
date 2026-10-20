@@ -676,12 +676,14 @@ export class LendingLoansController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pastDue') pastDue?: string,
+    @Query('borrowerId') borrowerId?: string,
   ) {
     return this.servicing.list(actor(req), {
       status,
       search,
       page: page ? Number(page) : 1,
       pastDue: pastDue === 'true' || pastDue === '1',
+      borrowerId: typeof borrowerId === 'string' ? borrowerId : undefined,
     });
   }
 

@@ -85,11 +85,15 @@ export class WorkspaceSearchService {
 
     const scope = async (p: string): Promise<Scope | null> =>
       this.policy.scopeFilter(actor, p);
-    const [loanScope, appScope, facilityScope] = await Promise.all([
-      scope('loan.read'),
-      scope('loan_application.read'),
-      scope('facility.read'),
-    ]);
+    const [loanScope, appScope, facilityScope, archiveScope] =
+      await Promise.all([
+        scope('loan.read'),
+        scope('loan_application.read'),
+        scope('facility.read'),
+        scope('legacy_loan.read'),
+      ]);
+    // Legacy loans: readers of the legacy loan archive (D-154), by branch.
+    const archiveBranches = branchScope(archiveScope);
     // Borrowers: anyone who can open their loans or applications (lending,
     // by branch), or the legacy customer list (own branch when they have one).
     const lendingBranches = mergeBranches(
@@ -383,15 +387,15 @@ export class WorkspaceSearchService {
           });
       }
 
-      // The legacy loan book: loans of matched borrowers, for users of the legacy screens.
-      if (legacyBranches && matchedIds.length) {
+      // The legacy loan archive: loans of matched borrowers, for its readers.
+      if (archiveBranches && matchedIds.length) {
         const rows = await tx.loan.findMany({
           where: {
             tenantId,
             borrowerId: { in: matchedIds },
-            ...(legacyBranches === 'ALL'
+            ...(archiveBranches === 'ALL'
               ? {}
-              : { branchId: { in: legacyBranches } }),
+              : { branchId: { in: archiveBranches } }),
           },
           select: {
             id: true,
@@ -408,10 +412,10 @@ export class WorkspaceSearchService {
             type: 'LEGACY_LOAN',
             id: r.id,
             title: `${name(r.borrowerId)} · ${r.principal.toString()} ${r.currency}`,
-            subtitle: 'Loan (original book)',
+            subtitle: 'Legacy loan archive',
             reference: null,
             status: r.status,
-            href: `/loans/${r.id}`,
+            href: `/lending/legacy-archive?loan=${r.id}`,
           });
       }
       return { query: q, results };

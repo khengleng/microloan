@@ -1,10 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthzService } from '../authz/authz.service';
-import { Permission } from '../authz/permission.enum';
-import type { JwtPayload } from '../auth/jwt.strategy';
 import { Prisma, JournalSource, Currency } from '@microloan/db';
-import { normalizeCurrency } from '@microloan/shared';
 import { DEFAULT_CHART_OF_ACCOUNTS } from './chart-of-accounts';
 
 // Both PrismaService (extends PrismaClient) and an interactive transaction
@@ -34,10 +30,7 @@ const CENTS = (n: number) => Math.round(n * 100) / 100;
 
 @Injectable()
 export class LedgerService {
-    constructor(
-        private readonly prisma: PrismaService,
-        private readonly authz: AuthzService,
-    ) { }
+    constructor(private readonly prisma: PrismaService) { }
 
     /**
      * Idempotently ensure a tenant has its default chart of accounts.
@@ -124,110 +117,5 @@ export class LedgerService {
             },
             include: { lines: true },
         });
-    }
-
-    // ── Read APIs (permission-guarded) ──────────────────────────────────────
-
-    async listAccounts(actor: JwtPayload) {
-        this.authz.assertPermission(actor, Permission.LEDGER_VIEW);
-        const tenantId = this.requireTenant(actor);
-        await this.ensureChartOfAccounts(tenantId);
-        return this.prisma.ledgerAccount.findMany({
-            where: { tenantId },
-            orderBy: { code: 'asc' },
-        });
-    }
-
-    async listJournal(
-        actor: JwtPayload,
-        opts: { from?: string; to?: string; source?: string; loanId?: string; page?: number; limit?: number } = {},
-    ) {
-        this.authz.assertPermission(actor, Permission.LEDGER_VIEW);
-        const tenantId = this.requireTenant(actor);
-        const page = Math.max(1, opts.page || 1);
-        const limit = Math.min(200, Math.max(1, opts.limit || 50));
-        const where: Prisma.JournalEntryWhereInput = { tenantId };
-        if (opts.source) where.source = opts.source as JournalSource;
-        if (opts.loanId) where.loanId = opts.loanId;
-        if (opts.from || opts.to) {
-            where.date = {};
-            if (opts.from) where.date.gte = new Date(opts.from);
-            if (opts.to) {
-                const end = new Date(opts.to);
-                end.setHours(23, 59, 59, 999);
-                where.date.lte = end;
-            }
-        }
-        const [data, total] = await Promise.all([
-            this.prisma.journalEntry.findMany({
-                where,
-                include: { lines: { include: { account: true } } },
-                orderBy: { date: 'desc' },
-                skip: (page - 1) * limit,
-                take: limit,
-            }),
-            this.prisma.journalEntry.count({ where }),
-        ]);
-        return { data, total, page, limit, pages: Math.ceil(total / limit) };
-    }
-
-    async trialBalance(actor: JwtPayload, opts: { from?: string; to?: string; currency?: string } = {}) {
-        this.authz.assertPermission(actor, Permission.LEDGER_VIEW);
-        const tenantId = this.requireTenant(actor);
-        await this.ensureChartOfAccounts(tenantId);
-
-        // A trial balance is per-currency — summing USD and KHR lines into one
-        // figure is meaningless. Scope to a single currency (default = tenant base).
-        const tenant = await this.prisma.tenant.findUnique({
-            where: { id: tenantId },
-            select: { baseCurrency: true },
-        });
-        const currency = normalizeCurrency(opts.currency, tenant?.baseCurrency as any);
-
-        const entryWhere: Prisma.JournalEntryWhereInput = { tenantId, currency: currency as unknown as Currency };
-        if (opts.from || opts.to) {
-            entryWhere.date = {};
-            if (opts.from) entryWhere.date.gte = new Date(opts.from);
-            if (opts.to) {
-                const end = new Date(opts.to);
-                end.setHours(23, 59, 59, 999);
-                entryWhere.date.lte = end;
-            }
-        }
-
-        const accounts = await this.prisma.ledgerAccount.findMany({
-            where: { tenantId },
-            orderBy: { code: 'asc' },
-        });
-        const grouped = await this.prisma.journalLine.groupBy({
-            by: ['accountId'],
-            where: { entry: entryWhere },
-            _sum: { debit: true, credit: true },
-        });
-        const sums = new Map(grouped.map((g) => [g.accountId, g._sum]));
-
-        let totalDebit = 0;
-        let totalCredit = 0;
-        const rows = accounts.map((a) => {
-            const s = sums.get(a.id);
-            const debit = CENTS(Number(s?.debit || 0));
-            const credit = CENTS(Number(s?.credit || 0));
-            totalDebit += debit;
-            totalCredit += credit;
-            return { code: a.code, name: a.name, type: a.type, debit, credit, balance: CENTS(debit - credit) };
-        });
-
-        return {
-            currency,
-            rows,
-            totals: { debit: CENTS(totalDebit), credit: CENTS(totalCredit), balanced: CENTS(totalDebit) === CENTS(totalCredit) },
-        };
-    }
-
-    private requireTenant(actor: JwtPayload): string {
-        if (!actor.tenantId) {
-            throw new NotFoundException('Ledger is scoped to a tenant.');
-        }
-        return actor.tenantId;
     }
 }

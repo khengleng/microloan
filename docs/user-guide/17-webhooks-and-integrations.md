@@ -225,11 +225,11 @@ If a mock is used on the live system, the action fails with a message like:
 
 Ask your IT team; there is nothing a user can do to get past it.
 
-### The Telegram bot (original loan module)
+### The Telegram bot
 
-Separately from the lending platform, the **original** loan module has a Telegram bot. An administrator connects it in **Administration › Settings**, under **Telegram Notifications** ("Receive alerts via your Telegram bot."), by pasting the **Bot Token**. A bot can be connected to only one organisation; otherwise you see "This Telegram bot is already connected to another organisation."
+Your organisation can run a Telegram bot for its customers. An administrator connects it in **Administration › Settings**, under **Telegram Notifications** ("Receive alerts via your Telegram bot."), by pasting the **Bot Token**. A bot can be connected to only one organisation; otherwise you see "This Telegram bot is already connected to another organisation."
 
-Borrowers link their Telegram chat by tapping **Share my phone number** in the bot; only their own number is accepted. Once linked, they receive disbursement alerts and late-payment notices for loans in the original module. This bot does **not** send notifications for loans in the lending platform. See [21-original-loan-module.md](21-original-loan-module.md).
+Borrowers link their Telegram chat by tapping **Share my phone number** in the bot; only their own number is accepted. Once linked, they can ask about their lending-platform loans (balance, amount overdue, next instalment) and the products on offer, and they receive a reminder the day before an instalment falls due and a notice when an instalment is overdue (counted on your business date). Applying for a loan in the chat is paused: the bot asks the customer to contact a loan officer. Loans still in the retired original module are not covered ([21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md)).
 
 ---
 

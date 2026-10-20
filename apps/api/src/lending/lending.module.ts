@@ -23,6 +23,10 @@ import { ServicingService } from './servicing/servicing.service';
 import { ReportingService } from './reporting/reporting.service';
 import { LendingOverviewService } from './reporting/overview.service';
 import { LendingOverviewController } from './reporting/overview.controller';
+import { LendingReportsService } from './reporting/reports.service';
+import { LendingReportsController } from './reporting/reports.controller';
+import { LegacyArchiveService } from './migration/legacy-archive.service';
+import { LegacyArchiveController } from './migration/legacy-archive.controller';
 import { PeriodCloseService } from './accounting/period-close.service';
 import { RegulatoryReserveService } from './accounting/regulatory-reserve.service';
 import { RegulatoryReturnService } from './reporting/regulatory-return.service';
@@ -138,13 +142,17 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
  * Configurable lending platform (modular monolith). Shares tenants, users,
  * borrowers, branches and the chart of accounts with the existing app; owns
  * products, origination, servicing, lending accounting and lending access
- * governance. The legacy /loans module is untouched and keeps working.
+ * governance. The original loan module's screens and write paths are gone
+ * (D-153); its loans are read in the legacy loan archive and moved here by
+ * the loan-book migration.
  */
 @Module({
   imports: [PrismaModule, LedgerModule],
   controllers: [
     PlatformOperationalAlertsController,
     LendingOverviewController,
+    LendingReportsController,
+    LegacyArchiveController,
     RestructuringController,
     RestructuringPortalController,
     KeyFactsPortalController,
@@ -188,6 +196,8 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
   providers: [
     ReportingService,
     LendingOverviewService,
+    LendingReportsService,
+    LegacyArchiveService,
     PeriodCloseService,
     RegulatoryReserveService,
     RegulatoryReturnService,

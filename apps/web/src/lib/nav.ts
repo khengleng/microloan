@@ -1,8 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-    AlertTriangle, BarChart2, BookOpenCheck, Boxes, Building, Calculator, CalendarCheck, ClipboardList, Coins,
-    CreditCard, FileStack, FileText, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
-    Network, PiggyBank, QrCode, Receipt, ScrollText, Settings, Shield, ShieldAlert, ShieldCheck, Ship, Siren, SlidersHorizontal,
+    Archive, BarChart2, BookOpenCheck, Boxes, Building, Calculator, CalendarCheck, ClipboardList, Coins,
+    CreditCard, FileStack, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
+    Network, PiggyBank, QrCode, ScrollText, Settings, Shield, ShieldAlert, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
     Globe2, GraduationCap, LineChart, CircleHelp, School,
 } from 'lucide-react';
@@ -10,9 +10,10 @@ import {
 /**
  * The workspace menu. An item appears when the person holds any of its
  * lending permissions (from GET /me/access), any of its legacy permissions
- * (the original screens' own API checks), or — for screens that were gated by
- * role name before — one of the legacy roles that saw it, so nobody loses a
- * page they had. A section appears when any of its items does.
+ * (the shared screens' own API checks: borrowers, team, settings), or — for
+ * screens that were gated by role name before — one of the legacy roles that
+ * saw it. A section appears when any of its items does. The original loan
+ * module's screens are gone (D-153); its loans are in the legacy loan archive.
  */
 export interface NavItem {
     /** Translation key under Workspace.nav. */
@@ -25,8 +26,11 @@ export interface NavItem {
     legacy?: string[];
     legacyRoles?: string[];
     /** Queue codes from GET /me/work whose counts make the badge. */
-    queues?: string[];    /** The item's data-tour id for guided tours. */
+    queues?: string[];
+    /** The item's data-tour id for guided tours. */
     tour?: 'nav-learn';
+    /** Shown only while the organisation still has loans in the original module (the legacy loan archive). */
+    whenLegacyLoans?: boolean;
 }
 
 export interface NavSection {
@@ -43,7 +47,7 @@ export const NAV: NavSection[] = [
         key: 'work',
         items: [
             { key: 'home', href: '/home', icon: Home, everyone: true },
-            { key: 'kpiDashboard', href: '/dashboard', icon: LayoutDashboard, legacy: ['CUSTOMER_VIEW'], legacyRoles: [...LEGACY_FINANCE, 'SALES'] },
+            { key: 'kpiDashboard', href: '/dashboard', icon: LayoutDashboard, lending: ['loan.read'] },
             { key: 'help', href: '/help', icon: CircleHelp, everyone: true },
             { key: 'learn', href: '/learn', icon: School, everyone: true, tour: 'nav-learn' },
         ],
@@ -63,11 +67,6 @@ export const NAV: NavSection[] = [
                 key: 'applications', href: '/lending/applications', icon: ClipboardList, lending: ['loan_application.read'],
                 queues: ['APPLICATIONS_DRAFT', 'APPLICATIONS_TO_RECOMMEND', 'APPLICATIONS_TO_APPROVE', 'APPLICATIONS_TO_BOOK'],
             },
-            {
-                key: 'legacyLoans', href: '/loans', icon: FileText,
-                legacy: ['LOAN_APPLICATION_CREATE', 'LOAN_APPLICATION_REVIEW', 'LOAN_APPROVE', 'LOAN_DISBURSE', 'CUSTOMER_VIEW'],
-                legacyRoles: [...LEGACY_FINANCE, 'SALES'],
-            },
         ],
     },
     {
@@ -86,14 +85,12 @@ export const NAV: NavSection[] = [
             { key: 'syndication', href: '/lending/syndication', icon: Network, lending: ['syndication.manage', 'syndication.approve'], queues: ['SYNDICATES_TO_APPROVE'] },
             { key: 'counterparties', href: '/lending/counterparties', icon: Globe2, lending: ['credit_decision.recommend', 'credit_decision.approve'] },
             { key: 'incomeAssessments', href: '/lending/income-contingent', icon: GraduationCap, lending: ['loan.rate_reset.apply', 'loan.repayment.reverse'] },
-            { key: 'repayments', href: '/repayments', icon: Receipt, legacy: ['LOAN_REPAYMENT_POST'], legacyRoles: LEGACY_FINANCE },
         ],
     },
     {
         key: 'collections',
         items: [
             { key: 'collections', href: '/lending/collections', icon: Siren, lending: ['loan.repayment.post', 'restructure.monitor', 'loan.recovery.post'], queues: ['COLLECTION_TASKS', 'SET_OFFS_TO_APPROVE'] },
-            { key: 'legacyCollections', href: '/collections', icon: AlertTriangle, legacy: ['LOAN_REPAYMENT_POST'], legacyRoles: LEGACY_FINANCE },
             {
                 key: 'restructures', href: '/lending/restructures', icon: LifeBuoy,
                 lending: ['restructure.request', 'restructure.assess', 'restructure.propose', 'restructure.approve', 'restructure.execute', 'restructure.monitor'],
@@ -113,17 +110,16 @@ export const NAV: NavSection[] = [
             { key: 'regulatoryReturns', href: '/lending/regulatory', icon: FileCheck2, lending: ['regulatory.prepare', 'regulatory.submit', 'accounting.read'], queues: ['RETURNS_TO_SUBMIT'] },
             { key: 'combinedLedger', href: '/lending/combined-ledger', icon: Scale, lending: ['accounting.read'] },
             { key: 'migration', href: '/lending/migration', icon: DatabaseZap, lending: ['loan.migration.manage', 'loan.migration.approve'], queues: ['MIGRATIONS_TO_APPROVE'] },
+            { key: 'legacyArchive', href: '/lending/legacy-archive', icon: Archive, lending: ['legacy_loan.read'], whenLegacyLoans: true },
             { key: 'webhooks', href: '/lending/webhooks', icon: Webhook, lending: ['access_policy.read'] },
             {
                 key: 'operations', href: '/lending/operations', icon: Wrench,
                 lending: ['servicing.batch.run', 'business_date.manage', 'rate_observation.manage', 'impairment.manage', 'impairment.approve'],
                 queues: ['IMPAIRMENT_TO_APPROVE'],
             },
-            { key: 'legacyAccounting', href: '/accounting', icon: Landmark, legacy: ['LEDGER_VIEW'], legacyRoles: LEGACY_FINANCE },
-            { key: 'provisioning', href: '/provisioning', icon: ShieldCheck, legacy: ['PROVISION_VIEW'], legacyRoles: LEGACY_FINANCE },
             { key: 'fxRates', href: '/fx', icon: Coins, legacy: ['FX_VIEW'], legacyRoles: LEGACY_FINANCE },
-            { key: 'reports', href: '/reports', icon: BarChart2, legacy: ['LEDGER_VIEW'], legacyRoles: LEGACY_FINANCE },
-            { key: 'kpi', href: '/kpi', icon: Gauge, legacy: ['LEDGER_VIEW'], legacyRoles: LEGACY_FINANCE },
+            { key: 'reports', href: '/reports', icon: BarChart2, lending: ['loan.read'] },
+            { key: 'kpi', href: '/kpi', icon: Gauge, lending: ['loan.read'] },
         ],
     },
     {
@@ -139,7 +135,6 @@ export const NAV: NavSection[] = [
             { key: 'catalogue', href: '/lending/catalogue', icon: LibraryBig, lending: ['loan_product.create', 'loan_product.approve'] },
             { key: 'workflows', href: '/lending/workflows', icon: Workflow, lending: ['workflow.manage', 'workflow.approve'], queues: ['WORKFLOWS_TO_APPROVE'] },
             { key: 'simulator', href: '/lending/simulator', icon: Calculator, lending: ['loan_product.read'] },
-            { key: 'legacyProducts', href: '/products', icon: SlidersHorizontal, legacy: ['CONFIG_UPDATE', 'LOAN_APPLICATION_CREATE', 'CUSTOMER_VIEW'], legacyRoles: [...LEGACY_FINANCE, 'SALES'] },
         ],
     },
     {
@@ -190,9 +185,12 @@ export interface NavSubject {
     can: (permission: string) => boolean;
     legacyCan: (permission: string) => boolean;
     legacyRole: string | null;
+    /** Loans in the legacy loan archive the person can read; null until known. */
+    legacyLoans?: number | null;
 }
 
 export function itemVisible(item: NavItem, s: NavSubject): boolean {
+    if (item.whenLegacyLoans && !(s.legacyLoans && s.legacyLoans > 0)) return false;
     if (item.everyone) return true;
     if (item.lending?.some((p) => s.can(p))) return true;
     if (item.legacy?.some((p) => s.legacyCan(p))) return true;

@@ -1,9 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect } from 'react';
 import { ArrowRight, LayoutDashboard, Lock, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useWorkspace, type WorkQueue } from '@/lib/workspace';
@@ -23,24 +22,18 @@ const KPI_ITEM = NAV[0].items.find((i) => i.href === '/dashboard')!;
 
 /**
  * Home: the person's own queues — what to approve, prepare and chase —
- * computed by GET /me/work. People with no lending permissions keep the KPI
- * dashboard as their landing page.
+ * computed by GET /me/work, with a link to the KPI dashboard of the lending
+ * book for those who can read it.
  */
 export function HomeView() {
     const t = useTranslations('Workspace.home');
     const tq = useTranslations('Workspace.queues');
     const { locale } = useParams();
-    const router = useRouter();
     const { user, loading: authLoading } = useAuth();
     const ws = useWorkspace();
     const { access, work, ready } = ws;
-    const legacyOnly = ready && !ws.isPlatform && !access?.hasLending;
 
-    useEffect(() => {
-        if (legacyOnly) router.replace(`/${locale}/dashboard`);
-    }, [legacyOnly, locale, router]);
-
-    if (authLoading || !ready || legacyOnly) return <Spinner />;
+    if (authLoading || !ready) return <Spinner />;
     const href = (p: string) => `/${locale}${p}`;
     const title = (q: WorkQueue) => (tq.has(q.code) ? tq(q.code) : q.title);
     const queues = work?.queues ?? [];

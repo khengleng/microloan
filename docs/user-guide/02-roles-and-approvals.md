@@ -195,7 +195,7 @@ The main switches:
 | `lending.group.joint_liability` | Group lending | **Off** |
 | `lending.pricing.floating_rate` | Floating rates and rate resets | **Off** |
 | `lending.integration.credit_bureau` | Live credit-bureau enquiries | **Off** |
-| `lending.legacy_loans.readonly` | Makes the original loan module read-only: no new loans, disbursements, repayments, settlements, reversals, write-offs, restructures, provisioning runs or late penalties | **On** |
+| `lending.legacy_loans.readonly` | No longer has an effect: the original loan module is retired and read-only whatever the flag says ([21](21-legacy-archive-and-migration.md)) | **On** |
 
 Good to know:
 

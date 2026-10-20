@@ -4,7 +4,7 @@ Who this is for: finance officers, risk / compliance reviewers who approve close
 
 This chapter covers the lending ledger (journal, trial balance and reconciliation), the ledger accounts the platform posts to, end of day and the business date, benchmark rates and holiday calendars, the impairment (loss allowance) policy, the lending settings, month-end and year-end close, the combined ledger, and the original accounting, provisioning and FX screens.
 
-Related chapters: [02 Roles and approvals](02-roles-and-approvals.md), [15 Reports and regulatory returns](15-reports-and-regulatory-returns.md), [16 Loan-book migration](16-loan-book-migration.md), [18 Tenant administration](18-tenant-administration.md), [21 Original loan module](21-original-loan-module.md).
+Related chapters: [02 Roles and approvals](02-roles-and-approvals.md), [15 Reports and regulatory returns](15-reports-and-regulatory-returns.md), [16 Loan-book migration](16-loan-book-migration.md), [18 Tenant administration](18-tenant-administration.md), [21 Legacy loan archive and migration](21-legacy-archive-and-migration.md).
 
 ## Where things are
 
@@ -16,15 +16,14 @@ All of these screens are in the **Finance** menu section.
 | **Finance › Period close** | Month-end and year-end close | Finance officer (prepares), Risk / compliance (approves) |
 | **Finance › Combined ledger** | One trial balance for both loan books | Anyone who can view lending journals |
 | **Finance › End of day & operations** | Business date, end-of-day batch, benchmark rates, holiday calendars, impairment policy, lending settings, integrations | Finance officer, Loan operations maker (batch), Risk / compliance (approvals), Tenant administrator (business date) |
-| **Finance › Accounting (original)** | Ledger of the original loan module | Original Finance / Accountant and administrator roles |
-| **Finance › Provisioning** | Loan-loss provisioning for the original loan module | Original Finance / Accountant and administrator roles |
-| **Finance › FX rates** | The organisation's exchange rates | Original Finance / Accountant and administrator roles |
+| **Finance › FX rates** | The organisation's exchange rates | Finance / Accountant and administrator account types |
+| **Finance › Legacy loan archive** | The retired original loan module's loans, read-only | Finance officer, Risk / compliance, Auditor — while the organisation still has such loans |
 
 You only see a menu item if your role allows it. See [02 Roles and approvals](02-roles-and-approvals.md).
 
 ### Key ideas in plain words
 
-- **Two loan books.** Loans booked on the lending platform (**Loans › Loan accounts**) post to the *lending ledger*. Loans in the original module (**Origination › Loans (original)**) post to the *original ledger*. Each book balances on its own. The **Combined ledger** shows both side by side.
+- **One loan book, one old journal.** Loans booked on the lending platform (**Loans › Loan accounts**) post to the *lending ledger*. The retired original loan module kept its own *original ledger*; nothing posts to it any more except the clearing entry when a loan is moved by a migration. The **Combined ledger** shows both side by side ([chapter 21](21-legacy-archive-and-migration.md)).
 - **Business date.** The platform's accounting date for your organisation. Every posting carries it. It does not follow the wall clock. It moves forward only, either automatically each night or when someone advances it (see [End of day](#end-of-day-and-the-business-date)).
 - **Maker-checker (four-eyes).** For close, impairment policy, lending settings, migration and regulatory submission, one person prepares and a *different* person approves. This guards against mistakes and fraud. If you try to approve your own work you see: "You cannot approve or complete an action you created or proposed".
 - **Period lock.** Once a month is closed, nothing can be posted with a date in that month (see [What "period locked" means](#what-period-locked-means)).
@@ -104,9 +103,9 @@ The platform posts to standard ledger account codes (for example 1000 cash, 1200
 There are two levels of account mapping:
 
 1. **Per product.** Each product version has an **Accounting** section ("Ledger account codes used when events post journals") listing the accounts its events post to: cash, loans receivable, interest income, write-off expense and so on. This is set by the product maker and approved by the product checker. See [04 Products and policies](04-products-and-policies.md).
-2. **Organisation-wide.** Accounts that do not belong to one product (cash, retained earnings, the regulatory reserve, migration clearing, FX position, unidentified receipts suspense, and the accounts used by the original loan module) are in the **Lending settings** tab described below.
+2. **Organisation-wide.** Accounts that do not belong to one product (cash, retained earnings, the regulatory reserve, migration clearing, FX position, unidentified receipts suspense, and the accounts the original loan module used) are in the **Lending settings** tab described below.
 
-To see the list of accounts, open **Finance › Accounting (original)** and the **Chart of Accounts** tab (columns **Code**, **Name**, **Type**, **Status**).
+To see the list of accounts, open **Finance › Ledger & reconciliation** and the **Chart of accounts** tab.
 
 Note: there is no screen to add or rename ledger accounts. Ask your system administrator / IT team. Any code you type in a product or in the lending settings must already exist, otherwise you see "Ledger account *code* is not in the chart of accounts."
 
@@ -251,7 +250,7 @@ The same statuses apply to **Lending settings** versions.
 
 If it is blocked: an invalid policy is refused with "The impairment policy is not valid." and a list of problems.
 
-Note: this policy covers lending-platform loans only. Loans in the original module are provisioned on **Finance › Provisioning** (below).
+Note: this policy covers lending-platform loans. The retired original module has no provisioning any more; its loans are moved to the lending platform with the loan-book migration ([chapter 21](21-legacy-archive-and-migration.md)).
 
 ---
 
@@ -380,7 +379,7 @@ A closed month accepts **no posting dated inside it** — repayments, reversals,
 
 The database refuses it a second time, so there is no way round it. Because postings carry the business date, normal work simply continues in the next month. You only meet this message when you back-date something (for example a repayment value date, or a reversal of an old transaction) into a closed month. A month whose reopening has been requested (**Reopen requested**) is still locked.
 
-The close covers the lending ledger only. The original loan module's ledger is not locked by it.
+The close covers the lending ledger only. The original loan module's ledger is not locked by it (nothing posts to it except migration clearing entries).
 
 ### Reopen a closed month
 
@@ -427,37 +426,9 @@ Loans receivable (1200) and the allowance (1300) are highlighted: these are what
 
 ---
 
-## Original accounting, provisioning and FX screens
+## FX rates screen
 
-These screens belong to the original loan module. See also [21 Original loan module](21-original-loan-module.md).
-
-### Accounting (original)
-
-Menu: **Finance › Accounting (original)**. Page title **Accounting**. Tabs:
-- **Chart of Accounts**: **Code**, **Name**, **Type**, **Status** (Active / Inactive).
-- **Trial Balance**: **Code**, **Name**, **Debit**, **Credit**, **Balance**, **Totals**, and a **Balanced** / **Unbalanced** badge.
-- **Journal**: the 25 most recent entries of the original ledger, each with its date, source, description, currency and lines.
-
-Read-only.
-
-Note: the **Trial Balance** tab shows every amount with a USD sign, even for KHR entries. Use the **Combined ledger**, which separates currencies, when you need KHR figures.
-
-### Provisioning (NBC loan-loss provisioning, original module)
-
-Menu: **Finance › Provisioning**. Page title **Loan-Loss Provisioning**.
-
-Each run classifies the original module's active loans (disbursed or defaulted) by days overdue into the regulatory classes from **Lending settings** (NBC classes by default), works out each loan's provision, and posts only the change since the previous run to the original ledger, per currency.
-
-To run provisioning (original Finance / Accountant or administrator role):
-1. Open **Finance › Provisioning**.
-2. Click **Run Provisioning**. A message shows the movement posted.
-3. The **Provisioning Runs** table lists each run (**Run Date**, **Loans**, **Total Provision**). Click a run to see **Run Detail**: **Borrower**, **Classification**, **Days Overdue**, **Outstanding**, **Rate**, **Provision**.
-
-Notes:
-- This covers the original module only. Lending-platform loans use the **Impairment policy** above.
-- There is no maker-checker on a provisioning run; it posts immediately.
-- Days overdue are counted from today's calendar date, not the business date.
-- The page subtitle mentions "expected credit loss", but the calculation is the regulatory class-rate method.
+The original module's **Accounting (original)** and **Provisioning** screens are gone ([chapter 21](21-legacy-archive-and-migration.md)): the original journal's balances are on the **Combined ledger**, and the chart of accounts is a tab of **Ledger & reconciliation**.
 
 ### FX rates
 
@@ -465,7 +436,7 @@ Menu: **Finance › FX rates**. Page title **Exchange Rates**.
 
 Rates are history: a new rate never overwrites an old one, and the latest rate effective on or before a date is the one used.
 
-To add a rate (original Finance / Accountant or administrator role; auditors can only view):
+To add a rate (Finance / Accountant or administrator account type; auditors can only view):
 1. In **Add Rate**, choose **From** and **To** (USD or KHR; they must differ).
 2. Enter **Rate** (units of "To" per one "From", e.g. 4100 for USD to KHR).
 3. Optionally set **Effective Date** (today if blank).
@@ -474,7 +445,7 @@ To add a rate (original Finance / Accountant or administrator role; auditors can
 What the rates are used for:
 - **Cross-currency approval limits.** When an approver's limit is in one currency and the loan is in another (for example a USD limit and a KHR loan), the amount is converted with this table. The rate must be no more than **3 days old** (by effective date). If no rate exists or it is older, the approval is refused with "The amount exceeds your approval authority". Keep a current USD/KHR rate here every business day if approvers have limits in one currency only. See [02 Roles and approvals](02-roles-and-approvals.md).
 - **Converting payments in another currency** into the loan's currency (see [07 Repayments and payments](07-repayments-and-payments.md)). If no rate is found you see "No *X*/*Y* rate is published for *date* … the payment cannot be converted."
-- Converting figures in the original module.
+- **Reports, Performance and the KPI dashboard** convert other currencies into your organisation's currency for their totals ([chapter 15](15-reports-and-regulatory-returns.md)).
 
 Note: a rate takes effect as soon as it is added. There is no second-person approval for FX rates, although the approval-limit rules call them "approved". Every addition is recorded in the audit log.
 

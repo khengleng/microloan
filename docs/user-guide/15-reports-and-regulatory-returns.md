@@ -2,13 +2,13 @@
 
 Who this is for: finance officers who prepare NBC returns and exports, risk / compliance reviewers who submit them, loan officers and collectors who print statements and send notices, and managers who read portfolio reports and dashboards.
 
-This chapter covers loan statements and closure letters, borrower notices, the monthly NBC regulatory return, the general-ledger and credit bureau files, the loan-book CSV, and the original **Reports**, **Performance** and **KPI dashboard** screens.
+This chapter covers loan statements and closure letters, borrower notices, the monthly NBC regulatory return, the general-ledger and credit bureau files, the loan-book CSV, and the **Reports**, **Performance** and **KPI dashboard** screens.
 
-Related chapters: [14 Accounting and period close](14-accounting-and-period-close.md), [07 Repayments and payments](07-repayments-and-payments.md), [09 Facilities](09-facilities.md), [11 Collections and recovery](11-collections-and-recovery.md), [21 Original loan module](21-original-loan-module.md).
+Related chapters: [14 Accounting and period close](14-accounting-and-period-close.md), [07 Repayments and payments](07-repayments-and-payments.md), [09 Facilities](09-facilities.md), [11 Collections and recovery](11-collections-and-recovery.md), [21 Legacy loan archive and migration](21-legacy-archive-and-migration.md).
 
 ## Which report covers which loans
 
-The platform has two loan books (see [chapter 14](14-accounting-and-period-close.md#key-ideas-in-plain-words)). Not every report covers both.
+All reports read the lending platform. Loans still in the retired original module are read in the legacy loan archive ([chapter 21](21-legacy-archive-and-migration.md)); only the regulatory return and the combined trial balance still include them.
 
 | Report or file | Where | Covers |
 |---|---|---|
@@ -20,9 +20,10 @@ The platform has two loan books (see [chapter 14](14-accounting-and-period-close
 | Loan-book CSV | **Loans › Loan accounts** | Lending platform |
 | Month-end snapshot (PAR, allowance) | **Finance › Period close** | Lending platform |
 | Combined trial balance | **Finance › Combined ledger** | Both books |
-| **Reports**, **Performance**, **KPI dashboard** | **Finance** and **Work** sections | Original module only |
+| **Reports**, **Performance**, **KPI dashboard** | **Finance** and **Work** sections | Lending platform |
+| Legacy loan archive and its CSV | **Finance › Legacy loan archive** | Original module (read-only) |
 
-Note: the **Reports**, **Performance** and **KPI dashboard** screens read only the original loan module. Loans booked on the lending platform do not appear in them. For lending-platform portfolio figures (PAR, classification, provision, breakdowns) use the regulatory return (its **Preview** works for any month) or the month-end snapshot on **Period close**.
+The NBC regulatory return includes the original module's loans only while some are left; once none is running and its old journal is cleared, the return covers the lending platform alone.
 
 ---
 
@@ -192,54 +193,47 @@ To download the lending loan book:
 
 You need the "Export loan data" permission. Without it the browser shows an error page instead of a file.
 
-For the original module's loans and repayments, use **Export** on **Origination › Loans (original)** and on **Loans › Repayments** (Excel files). See [21 Original loan module](21-original-loan-module.md).
+For the original module's loans, use **Export CSV** in **Finance › Legacy loan archive** ([chapter 21](21-legacy-archive-and-migration.md)). Lending loans and payments also export from **Finance › Reports** (below).
 
 ---
 
-## Reports (original module)
+## Reports
 
-Menu: **Finance › Reports**. Page title **Reports & Analytics**. Covers the original loan module only.
+Menu: **Finance › Reports**. Covers the lending platform's loans you may see (your branches), as of the business date. Amounts in another currency are converted to your organisation's currency with the FX rates; a currency with no rate is named in a warning and left out of the totals.
 
-Tabs: **Overview**, **Loan Portfolio**, **Collections**, **Borrowers**, **Risk**.
+Two tabs:
 
-To run a report:
-1. Pick a tab.
-2. Set filters: the two unlabelled date boxes (first = from, second = to), search ("Search borrower, loan ID..."), **All branches**, **All loan officers**, **All products**, **All statuses**, **All borrowers**, **All risk grades**, **All currencies** (only the filters relevant to the tab appear).
-3. Click **Apply Filters** (or **Reset Filters**).
-4. Click a column heading to sort; use the pager to move between pages.
-5. On every tab except **Overview**, click **Export CSV** or **Export Excel** to download what you filtered.
+**Loan portfolio**
+1. Set the filters: **Status** (default: booked and active loans), **Currency**, **Branch**, **Product**, **Days past due** (Current, 1–30, 31–60, 61–90, Over 90 days) and **Loan reference**.
+2. Click **Apply** (or **Reset**).
+3. Read the tiles — **Loans**, **Principal outstanding**, **Principal of loans in arrears**, **PAR 30** — the **By currency** table when there is more than one currency, and the loan list (reference, borrower, branch, product, status, principal outstanding, interest, days past due, maturity). Click a reference to open the loan.
 
-What each tab shows:
-- **Overview**: **Portfolio Outstanding**, **Active Loans**, **Total Borrowers**, **Monthly Collection**, **PAR 30**, **NPL Ratio**; disbursement and collection trends, risk breakdown, recent overdue loans.
-- **Loan Portfolio**: outstanding principal, disbursed amount, average rate, **PAR 1**, **PAR 7**, **PAR 30**, NPL amount; by product, branch and status; loan list.
-- **Collections**: total, principal, interest, penalty and overdue collected, collection rate, missed repayments; by branch, officer and payment method; repayment list.
-- **Borrowers**: totals, new this month, KYC completion, high-risk borrowers; by branch and occupation.
-- **Risk**: total exposure, overdue amount, write-off amount, **PAR 1/7/30**, NPL ratio, ageing distribution, top 10 high-risk loans, risk details with a recommended action.
+**Money received**
+1. Set **From**, **To** (default: the business month so far) and optionally **Currency**.
+2. Click **Apply**.
+3. Read the tiles — **Payments**, **Received** and the amount per currency — and the list of repayments, prepayments, settlements and recoveries with the split into **Principal**, **Interest** and **Fees, tax and penalties**, and the payment reference.
 
-Notes:
-- The **Risk** tab needs the original audit-view permission; other finance users see an error on that tab.
-- The **All currencies** filter offers USD only.
+**Export CSV** on either tab downloads what you filtered. You need the "Export loan data" permission; the button is hidden without it. Every export is recorded in the audit trail.
 
 ---
 
-## Performance (original module)
+## Performance
 
-Menu: **Finance › Performance**. Page title **Portfolio Performance**. Read-only. Covers the original loan module only.
+Menu: **Finance › Performance**. Covers the lending platform's loans you may see, as of the business date, in your organisation's currency.
 
-It shows **Gross portfolio** (with active loans), **Borrowers**, **Total disbursed**, **Total collected**, **PAR30** and **PAR90** (shown red above 5% and 3%), an ageing bar (**Current**, **1–30 days**, **31–60 days**, **61–90 days**, **90+ days**), and an income statement (**Interest income**, **Penalty income**, **Fee income**, **Provision expense**, **Write-off expense**, **Total income**, **Total expense**, **Net operating income**). "Ledger figures are organisation-wide and are not shown to branch users."
+It shows:
+- Tiles: **Principal outstanding** (with the number of active loans), **Borrowers with active loans**, **Disbursed to date**, **Collected to date**, **Written off to date**.
+- **Arrears ageing** — principal of active loans by days past due (**Current**, **1–30 days**, **31–60 days**, **61–90 days**, **Over 90 days**) with **PAR 30** and **PAR 90**.
+- **Key ratios** — **Collection rate** (paid against due on instalments due by the business date), **Allowance coverage** (loss allowance over principal outstanding), **Write-off rate** (written off over disbursed) and the **Loss allowance**.
+- **By currency** when there is more than one.
+- **Income and expense** — for people who can read the lending accounts (Finance officer, Risk / compliance, Auditor): the lending journal's income and expense accounts from 1 January to the business date, per currency, with the net. Others see a note instead.
 
----
-
-## KPI dashboard (original module)
-
-Menu: **Work › KPI dashboard**. Heading **Financial Dashboard**. Covers the original loan module only.
-
-It shows **Outstanding Principal**, **Active Borrowers**, **Active Loans**, **Due Next 7 Days**, a **Cash Flow** chart (**Collections** vs **Disbursements**), **Quick Actions** (**Create New Loan**, **Add Borrower**, **Record Repayment**, **View Reports**) and a **Monthly Summary** for the last 30 days.
-
-Note: some figures on this screen are placeholders, not your data. The "vs last month" changes on the top tiles (+12.5%, +3, +2) and the **Attention Required** count ("4 accounts are overdue…") are fixed text. Do not rely on them; use **Reports** or **Performance** instead.
+Days past due come from the last end of day ([chapter 14](14-accounting-and-period-close.md)).
 
 ---
 
-## NBC provisioning for the original module
+## KPI dashboard
 
-The original module's loans are graded on the same short- and long-term classes (by start date plus term months). See **Finance › Provisioning** in [chapter 14](14-accounting-and-period-close.md#provisioning-nbc-loan-loss-provisioning-original-module).
+Menu: **Work › KPI dashboard**. Heading **Financial Dashboard**. Covers the lending platform's loans you may see.
+
+It shows **Outstanding Principal** (with how much of it is overdue), **Borrowers with active loans**, **Active Loans** (with how many are overdue), what falls due in the next days, a **Cash Flow** chart of collections and disbursements by month, **Quick Actions** (**New application (lending)**, **Add Borrower**, **View Reports**), an overdue alert linking to **Collections & relief › Collections**, and the month so far (collected this month and last month, disbursed this month, upcoming collections). If your organisation still has loans in the original module and you can read the archive, a note links to **Finance › Legacy loan archive**.

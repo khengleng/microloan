@@ -407,6 +407,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
     category: 'Data',
   },
   {
+    code: 'legacy_loan.read',
+    description:
+      'View and export the legacy loan archive (loans of the original loan module, read-only)',
+    category: 'Data',
+  },
+  {
     code: 'audit.read',
     description: 'Read the audit trail',
     category: 'Audit',
@@ -914,6 +920,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan_data.export',
       'accounting.period.close',
       'loan.migration.manage',
+      'legacy_loan.read',
       'regulatory.prepare',
     ],
   },
@@ -941,6 +948,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'tenant_settings.approve',
       'accounting.period.approve',
       'loan.migration.approve',
+      'legacy_loan.read',
       'regulatory.submit',
       'feature_flag.read',
       'access_policy.read',
@@ -960,6 +968,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       ...READ_ALL,
       'audit.read',
       'accounting.read',
+      'legacy_loan.read',
       'feature_flag.read',
       'access_policy.read',
     ],
@@ -1243,7 +1252,7 @@ export const FLAG_DEFINITIONS: FlagDefinition[] = [
   {
     key: 'lending.legacy_loans.readonly',
     description:
-      'The original (legacy) loan module is read-only: no new loans, disbursements, repayments, settlements, reversals, write-offs, restructures, provisioning runs or late penalties. Reading, exports, statements and the loan-book migration continue. On by default; a tenant opts out with a TENANT rule switching it off (two administrators).',
+      'No longer has an effect (D-153): the original (legacy) loan module has no write paths, screens or jobs any more, whatever this flag says. Its loans are read in the legacy loan archive and moved with the loan-book migration. Kept until the legacy tables are dropped (phase 2 of the retirement).',
     category: 'Consolidation',
     sensitive: true,
     defaultEnabled: true,

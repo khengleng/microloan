@@ -939,6 +939,8 @@ export const ACTIONS: ActionDefinition[] = [
   A('document.upload_own', 'CUSTOMER_DOCUMENT', 'DOCUMENT'),
   A('servicing.batch.run', 'TENANT', 'SERVICING_MONEY'),
   A('loan_data.export', 'TENANT', 'READ'),
+  // The legacy loan archive (D-154): read-only, within the reader's branch scope.
+  A('legacy_loan.read', 'TENANT', 'READ'),
   A('accounting.read', 'TENANT', 'READ'),
   A('business_date.manage', 'TENANT', 'CONFIG'),
   A('rate_observation.manage', 'TENANT', 'CONFIG'),

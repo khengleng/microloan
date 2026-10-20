@@ -22,8 +22,7 @@ describe('LedgerService.postEntry (double-entry invariant)', () => {
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'e1', ...data })),
       },
     };
-    const authz: any = {};
-    service = new LedgerService(prisma, authz);
+    service = new LedgerService(prisma);
   });
 
   it('rejects an unbalanced entry', async () => {

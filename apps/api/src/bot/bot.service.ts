@@ -1,33 +1,37 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Markup, Telegraf, Telegram } from 'telegraf';
 import OpenAI from 'openai';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoansService } from '../loans/loans.service';
-import { InterestMethod, formatCurrency, Currency as SharedCurrency } from '@microloan/shared';
+import { lending } from '@microloan/shared';
 import { decryptField, blindIndex } from '../common/field-crypto';
 import { SystemContext, TenantScopedByArg } from '../prisma/tenant-context';
 import { phoneCandidates, verifiedOwnPhone } from './telegram-link';
 import { JobClaimService } from '../prisma/job-claim.service';
 import { operationalConfig } from '../config/operational-config';
-import { LEGACY_TIME_ZONE } from '../loans/legacy-money';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 
-/** The system principal a chat-made application is recorded under (D-132). */
-const TELEGRAM_BOT_PRINCIPAL = { code: 'TELEGRAM_BOT', label: 'Telegram bot' } as const;
+/** The tenant's local time zone for the daily customer notices (as the end-of-day jobs). */
+const JOB_TIME_ZONE = process.env.LENDING_EOD_TZ || 'Asia/Phnom_Penh';
+
+/**
+ * What the chat says when a customer asks to apply (D-155): the chat
+ * application wrote loans into the original module, which has no write paths
+ * any more; applying is done with a loan officer until a chat application
+ * on the lending platform exists.
+ */
+export const CHAT_APPLICATIONS_PAUSED =
+    'Applying for a loan in this chat is paused. Please contact your loan officer or visit a branch to apply.';
 
 /** How long one instance's claim to poll a tenant's bot lasts; renewed every third of it. */
 const POLLING_LEASE_MS = 90_000;
 
-const systemPrompt = (platformName: string) => `You are a highly efficient and friendly loan AI assistant for ${platformName}. 
+const systemPrompt = (platformName: string) => `You are a friendly loan assistant for ${platformName}.
 Your goals:
-1. BEFORE offering a loan or starting an application, ALWAYS call \`get_loan_products\` to see what loan types are available (e.g., Daily, Weekly, Mortgage).
-2. Ask the user which product they want, and state the rules (min/max terms, interest rate).
-3. Collect info to originate loans: Principal ($), Term (months), and the chosen productId. Never ask for or accept a phone number in chat — the customer's identity comes only from the phone number they share with the "Share my phone number" button.
-4. Help users check their pending loan balance and next due dates using \`check_loan_balance\`.
-
-Have a natural conversation. You can ask for info or answer questions about their account.
-Use the \`originate_loan\` function to submit applications, and \`check_loan_balance\` to check their existing account info. Interpret the JSON returned by check_loan_balance and explain it in a user-friendly way.
+1. Help customers check their loan balance, what they owe and when the next instalment is due, using \`check_loan_balance\`. Interpret the JSON it returns and explain it in plain words.
+2. Tell customers which loan products the lender offers, using \`get_loan_products\`.
+3. If a customer wants to apply for a loan, explain that applications are made with a loan officer or at a branch; never collect application details in the chat.
+Never ask for or accept a phone number in chat — the customer's identity comes only from the phone number they share with the "Share my phone number" button.
 `;
 
 /**
@@ -56,8 +60,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     constructor(
         private readonly prisma: PrismaService,
-        @Inject(forwardRef(() => LoansService))
-        private readonly loansService: LoansService,
         private readonly claims: JobClaimService,
         private readonly tenantSettings: TenantSettingsService,
     ) { }
@@ -154,7 +156,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
         bot.start((ctx) => {
             ctx.reply(
-                `Welcome to ${platformName}! To see your loans or apply, first tap "Share my phone number" below so we can confirm who you are.`,
+                `Welcome to ${platformName}! To see your loans, first tap "Share my phone number" below so we can confirm who you are.`,
                 shareContact,
             );
         });
@@ -194,7 +196,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             type: 'function' as const,
                             function: {
                                 name: 'originate_loan',
-                                description: `Creates a DRAFT loan in the ${platformName} system`,
+                                description: `Asks to apply for a loan with ${platformName}`,
                                 parameters: {
                                     type: 'object',
                                     properties: {
@@ -210,7 +212,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             type: 'function',
                             function: {
                                 name: 'check_loan_balance',
-                                description: 'Checks the user\'s current active loan balance.',
+                                description: 'Checks the customer\'s loans: balance, amount overdue and the next instalment.',
                                 parameters: { type: 'object', properties: {} }
                             }
                         },
@@ -218,7 +220,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                             type: 'function',
                             function: {
                                 name: 'get_loan_products',
-                                description: 'Fetches the list of active loan products.',
+                                description: 'Lists the loan products the lender currently offers.',
                                 parameters: { type: 'object', properties: {} }
                             }
                         }
@@ -228,12 +230,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                 const choice = response.choices[0];
                 if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
                     const toolCall: any = choice.message.tool_calls[0];
-                    const args = toolCall.function?.arguments ? JSON.parse(toolCall.function.arguments) : {};
 
                     let resultContent = '';
                     const functionName = toolCall.function?.name;
                     if (functionName === 'originate_loan') {
-                        resultContent = await this.handleOriginateLoan(tenantId, chatId, args);
+                        resultContent = await this.handleOriginateLoan(tenantId);
                     } else if (functionName === 'check_loan_balance') {
                         resultContent = await this.checkLoanBalance(tenantId, chatId);
                     } else if (functionName === 'get_loan_products') {
@@ -285,68 +286,20 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * A loan application from the chat (D-132). Off unless the tenant turned
-     * on `telegramBot.allowLoanApplications`. Recorded by the system principal
-     * "Telegram bot" — never under a member of staff's identity — and only
-     * when the amount and term fit the product's limits for the rate offered.
+     * A loan application from the chat (D-132). Until D-155 it created a loan
+     * in the original module, which has no write paths any more. The tool is
+     * still offered only where the tenant turned on
+     * `telegramBot.allowLoanApplications`, and it answers that applying in
+     * the chat is paused: nothing is recorded.
      */
     @TenantScopedByArg(0)
-    async handleOriginateLoan(tenantId: string, chatId: number, args: any): Promise<string> {
+    async handleOriginateLoan(tenantId: string): Promise<string> {
         if (!(await this.loanApplicationsAllowed(tenantId))) {
             return JSON.stringify({
                 error: 'Loan applications by chat are not available. Please contact a loan officer to apply.',
             });
         }
-
-        // The applicant is the borrower this chat was linked to by a verified
-        // contact share — never whoever the conversation claims to be.
-        const borrower = await this.prisma.borrower.findFirst({
-            where: { telegramChatId: chatId.toString(), tenantId },
-        });
-        if (!borrower) {
-            return JSON.stringify({
-                error: 'This chat is not linked to a customer yet. Ask the user to tap "Share my phone number" (send /start to show the button). New customers must register with a loan officer first.',
-            });
-        }
-
-        const principal = Number(args?.principal);
-        const termMonths = Number(args?.termMonths);
-        if (!Number.isFinite(principal) || principal <= 0) {
-            return JSON.stringify({ error: 'The amount must be a positive number.' });
-        }
-        if (!Number.isInteger(termMonths) || termMonths <= 0) {
-            return JSON.stringify({ error: 'The term must be a whole number of months.' });
-        }
-
-        const product = await this.prisma.loanProduct.findFirst({
-            where: { id: typeof args?.productId === 'string' ? args.productId : '', tenantId, isActive: true },
-            include: { policies: true },
-        });
-        if (!product) return JSON.stringify({ error: 'That loan product is not available.' });
-
-        const policy = product.policies.find(p => p.creditRating === 'GOOD') || product.policies[0];
-        if (!policy) return JSON.stringify({ error: 'That loan product has no rate set up yet.' });
-
-        const limitError = productLimitError(policy, principal, termMonths);
-        if (limitError) return JSON.stringify({ error: limitError });
-
-        try {
-            await this.loansService.createFromChannel(tenantId, TELEGRAM_BOT_PRINCIPAL, {
-                borrowerId: borrower.id,
-                principal,
-                annualInterestRate: Number(policy.interestRate),
-                termMonths,
-                startDate: new Date().toISOString(),
-                interestMethod: product.interestMethod as InterestMethod,
-                productId: product.id,
-                currency: product.currency,
-                creditRatingApplied: policy.creditRating,
-            } as any);
-        } catch (err) {
-            this.logger.warn(`Telegram application refused for tenant ${tenantId}: ${(err as Error).message}`);
-            return JSON.stringify({ error: 'The application could not be recorded. Please contact a loan officer.' });
-        }
-        return JSON.stringify({ ok: true, message: 'Application submitted for review.' });
+        return JSON.stringify({ error: CHAT_APPLICATIONS_PAUSED });
     }
 
     /**
@@ -376,38 +329,79 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         return `Thanks ${borrower.firstName}, your number is verified. You can now ask about your loans or apply.`;
     }
 
+    /** The lending products with an active version: name, family and default rate. */
     @TenantScopedByArg(0)
     async getLoanProducts(tenantId: string): Promise<string> {
-        const products = await this.prisma.loanProduct.findMany({
-            where: { isActive: true, tenantId },
-            include: { policies: true }
+        const products = await this.prisma.lendingProduct.findMany({
+            where: { tenantId, versions: { some: { status: 'ACTIVE' } } },
+            select: {
+                name: true,
+                familyCode: true,
+                versions: {
+                    where: { status: 'ACTIVE' },
+                    orderBy: { version: 'desc' },
+                    take: 1,
+                    select: { pricing: { select: { defaultAnnualRate: true, interestMethod: true } } },
+                },
+            },
+            orderBy: { name: 'asc' },
         });
-        return JSON.stringify(products);
+        return JSON.stringify(
+            products.map((p) => {
+                const pricing = p.versions[0]?.pricing;
+                return {
+                    name: p.name,
+                    family: p.familyCode,
+                    annualRatePct: pricing?.defaultAnnualRate
+                        ? lending.D(pricing.defaultAnnualRate.toString()).times(100).toDecimalPlaces(2).toString()
+                        : null,
+                    interestMethod: pricing?.interestMethod ?? null,
+                };
+            }),
+        );
     }
 
+    /** The linked customer's lending loans: balance, overdue and the next instalment. */
     @TenantScopedByArg(0)
     async checkLoanBalance(tenantId: string, chatId: number): Promise<string> {
         const borrower = await this.prisma.borrower.findFirst({
             where: { telegramChatId: chatId.toString(), tenantId },
-            include: { loans: { include: { schedules: { orderBy: { dueDate: 'asc' } } } } }
+            select: { id: true },
         });
-
-        if (!borrower || borrower.loans.length === 0) {
-            return JSON.stringify({ error: "Unable to find an active account or loan for you." });
+        if (!borrower) {
+            return JSON.stringify({ error: 'Unable to find an active account or loan for you.' });
         }
-
-        const accountSummary = borrower.loans.map(l => {
-            const nextPayment = l.schedules.find(s => !s.isPaid);
-            return {
-                id: l.id,
-                status: l.status,
-                principalAmount: Number(l.principal),
-                nextPaymentAmount: nextPayment ? Number(nextPayment.totalAmount) : null,
-                nextPaymentDueDate: nextPayment ? nextPayment.dueDate : null,
-            };
+        const loans = await this.prisma.loanAccount.findMany({
+            where: { tenantId, borrowerId: borrower.id, status: { in: ['BOOKED', 'ACTIVE'] } },
+            orderBy: { createdAt: 'asc' },
+            select: {
+                reference: true,
+                status: true,
+                currency: true,
+                bookedPrincipal: true,
+                principalOutstanding: true,
+                interestReceivable: true,
+                feesReceivable: true,
+                penaltyReceivable: true,
+                daysPastDue: true,
+                instalments: {
+                    where: { status: 'DUE' },
+                    orderBy: { dueDate: 'asc' },
+                    select: INSTALMENT_OWED,
+                },
+            },
         });
+        if (!loans.length) {
+            return JSON.stringify({ error: 'Unable to find an active account or loan for you.' });
+        }
+        const businessDate = await this.businessDate(tenantId);
+        return JSON.stringify({ loans: loans.map((l) => loanSummary(l, businessDate)) });
+    }
 
-        return JSON.stringify({ loans: accountSummary });
+    /** The tenant's business date (YYYY-MM-DD); its calendar date until finance has set one. */
+    private async businessDate(tenantId: string): Promise<string> {
+        const row = await this.prisma.tenantBusinessDate.findUnique({ where: { tenantId } });
+        return row ? toDay(row.businessDate) : new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
     }
 
     @TenantScopedByArg(0)
@@ -419,39 +413,100 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Daily (LEGACY_LATE_ALERT_CRON, default 10:00). Every instance runs the
-     * cron; each tenant's alerts are claimed once per day, so a borrower gets
-     * one notice, not one per instance.
+     * Daily (LATE_ALERT_CRON, default 10:00; it replaces LEGACY_LATE_ALERT_CRON):
+     * a notice to every linked customer whose lending loan has an
+     * instalment unpaid on or before the tenant's business date. Every
+     * instance runs the cron; each tenant's notices are claimed once per day,
+     * so a customer gets one notice, not one per instance.
      */
-    @Cron(process.env.LEGACY_LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM, { timeZone: LEGACY_TIME_ZONE })
-    @SystemContext('cron: scans overdue loans across all tenants')
+    @Cron(process.env.LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM, { timeZone: JOB_TIME_ZONE })
+    @SystemContext('cron: scans overdue lending loans of tenants with a bot')
     async sendLatePaymentAlerts() {
         if (!this.enabled) return;
-        this.logger.log('Running daily late payment checks across all tenants...');
-        const lateSchedules = await this.prisma.repaymentSchedule.findMany({
-            where: { isPaid: false, dueDate: { lt: new Date() } },
-            include: { loan: { include: { borrower: true, tenant: true } } }
+        await this.forEachBotTenant('lending.late-payment-alerts', async (tenantId, telegram, businessDate) => {
+            const due = { status: 'DUE', dueDate: { lte: dayStart(businessDate) } };
+            const loans = await this.prisma.loanAccount.findMany({
+                where: { tenantId, status: 'ACTIVE', instalments: { some: due } },
+                select: {
+                    reference: true,
+                    currency: true,
+                    borrowerId: true,
+                    instalments: { where: due, orderBy: { dueDate: 'asc' }, select: INSTALMENT_OWED },
+                },
+            });
+            for (const l of loans) {
+                const open = l.instalments.filter((i) => owedOn(i).gt(0));
+                if (!open.length) continue;
+                const owed = open.reduce((t, i) => t.plus(owedOn(i)), lending.D(0));
+                await this.notify(tenantId, telegram, l.borrowerId, (name) =>
+                    `⚠️ **LATE PAYMENT NOTICE** ⚠️\n\nDear ${name},\n**${owed.toFixed(2)} ${l.currency}** on loan ${l.reference} is overdue (since ${toDay(open[0].dueDate)}).\n\nPlease pay as soon as possible.`,
+                );
+            }
         });
+    }
 
+    /**
+     * Daily (REMINDER_CRON, default 8:00; it replaces LEGACY_REMINDER_CRON):
+     * a reminder to every linked customer with a lending instalment due the
+     * day after the business date. Claimed once per tenant and day.
+     */
+    @Cron(process.env.REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM, { timeZone: JOB_TIME_ZONE })
+    @SystemContext('cron: scans lending instalments due tomorrow of tenants with a bot')
+    async sendDueReminders() {
+        if (!this.enabled) return;
+        await this.forEachBotTenant('lending.due-tomorrow-reminders', async (tenantId, telegram, businessDate) => {
+            const lines = await this.prisma.scheduleInstalment.findMany({
+                where: {
+                    tenantId,
+                    status: 'DUE',
+                    dueDate: dayStart(lending.addDays(businessDate, 1)),
+                    loanAccount: { status: 'ACTIVE' },
+                },
+                select: { ...INSTALMENT_OWED, loanAccount: { select: { reference: true, currency: true, borrowerId: true } } },
+            });
+            for (const i of lines) {
+                const owed = owedOn(i);
+                if (owed.lte(0)) continue;
+                await this.notify(tenantId, telegram, i.loanAccount.borrowerId, (name) =>
+                    `🔔 **Payment Reminder**\n\nDear ${name},\nYour instalment of **${owed.toFixed(2)} ${i.loanAccount.currency}** on loan ${i.loanAccount.reference} is due tomorrow (${toDay(i.dueDate)}).\n\nPlease pay on time to avoid late charges. Thank you!`,
+                );
+            }
+        });
+    }
+
+    /** Run a daily notice job for each tenant with a bot whose run this instance claimed. */
+    private async forEachBotTenant(
+        job: string,
+        run: (tenantId: string, telegram: Telegram, businessDate: string) => Promise<void>,
+    ) {
+        const tenants = await this.prisma.tenant.findMany({
+            where: { telegramBotToken: { not: null } },
+            select: { id: true },
+        });
         const runKey = new Date().toISOString().slice(0, 10);
-        const senders = new Map<string, Telegram | null>();
-        for (const schedule of lateSchedules) {
-            const tenantId = schedule.loan.tenantId;
-            if (!senders.has(tenantId)) {
-                const mine = await this.claims.once(tenantId, 'legacy.late-payment-alerts', runKey);
-                senders.set(tenantId, mine ? await this.sender(tenantId) : null);
+        for (const { id: tenantId } of tenants) {
+            try {
+                if (!(await this.claims.once(tenantId, job, runKey))) continue;
+                const telegram = await this.sender(tenantId);
+                if (!telegram) continue;
+                await run(tenantId, telegram, await this.businessDate(tenantId));
+            } catch (e) {
+                this.logger.error(`${job} failed for tenant ${tenantId}`, e);
             }
-            const telegram = senders.get(tenantId);
-            const borrower = schedule.loan.borrower;
-            if (telegram && borrower.telegramChatId) {
-                try {
-                    const amount = formatCurrency(Number(schedule.totalAmount), schedule.loan.currency as unknown as SharedCurrency);
-                    const msg = `⚠️ **LATE PAYMENT NOTICE** ⚠️\n\nDear ${borrower.firstName},\nYour payment of **${amount}** was due on ${new Date(schedule.dueDate).toLocaleDateString()}.\n\nPlease pay as soon as possible.`;
-                    await telegram.sendMessage(borrower.telegramChatId, msg, { parse_mode: 'Markdown' });
-                } catch (e) {
-                    this.logger.error(`Failed to alert ${borrower.id} via bot ${tenantId}`, e);
-                }
-            }
+        }
+    }
+
+    /** Message a borrower linked to a chat; a failure is logged, never thrown. */
+    private async notify(tenantId: string, telegram: Telegram, borrowerId: string, text: (firstName: string) => string) {
+        const borrower = await this.prisma.borrower.findFirst({
+            where: { id: borrowerId, tenantId, telegramChatId: { not: null } },
+            select: { id: true, firstName: true, telegramChatId: true },
+        });
+        if (!borrower?.telegramChatId) return;
+        try {
+            await telegram.sendMessage(borrower.telegramChatId, text(borrower.firstName), { parse_mode: 'Markdown' });
+        } catch (e) {
+            this.logger.error(`Failed to notify ${borrower.id} via bot ${tenantId}`, e);
         }
     }
 
@@ -465,23 +520,93 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 }
 
-/**
- * Why an amount or term falls outside the product's limits for the rate
- * offered, or null when it fits. Exported for its unit test.
- */
-export function productLimitError(
-    policy: { minPrincipal?: unknown; maxPrincipal?: unknown; minTermMonths?: number | null; maxTermMonths?: number | null },
-    principal: number,
-    termMonths: number,
-): string | null {
-    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
-    const minP = num(policy.minPrincipal);
-    const maxP = num(policy.maxPrincipal);
-    if (minP !== null && principal < minP) return `The smallest amount for this product is ${minP}.`;
-    if (maxP !== null && principal > maxP) return `The largest amount for this product is ${maxP}.`;
-    if (policy.minTermMonths != null && termMonths < policy.minTermMonths)
-        return `The shortest term for this product is ${policy.minTermMonths} months.`;
-    if (policy.maxTermMonths != null && termMonths > policy.maxTermMonths)
-        return `The longest term for this product is ${policy.maxTermMonths} months.`;
-    return null;
+/** The instalment fields that make up what is still owed on it. */
+const INSTALMENT_OWED = {
+    dueDate: true,
+    principalDue: true,
+    interestDue: true,
+    feeDue: true,
+    taxDue: true,
+    penaltyDue: true,
+    principalPaid: true,
+    interestPaid: true,
+    feePaid: true,
+    taxPaid: true,
+    penaltyPaid: true,
+} as const;
+
+type Amount = { toString(): string } | string | number;
+
+export interface OwedLine {
+    dueDate: Date;
+    principalDue: Amount;
+    interestDue: Amount;
+    feeDue: Amount;
+    taxDue: Amount;
+    penaltyDue: Amount;
+    principalPaid: Amount;
+    interestPaid: Amount;
+    feePaid: Amount;
+    taxPaid: Amount;
+    penaltyPaid: Amount;
+}
+
+const D = (v: Amount) => lending.D(v.toString());
+
+/** Due less paid on one instalment, every component. */
+export function owedOn(i: OwedLine) {
+    return D(i.principalDue)
+        .plus(D(i.interestDue))
+        .plus(D(i.feeDue))
+        .plus(D(i.taxDue))
+        .plus(D(i.penaltyDue))
+        .minus(D(i.principalPaid))
+        .minus(D(i.interestPaid))
+        .minus(D(i.feePaid))
+        .minus(D(i.taxPaid))
+        .minus(D(i.penaltyPaid));
+}
+
+/** What the chat tells a customer about one loan on the business date. Exported for its unit test. */
+export function loanSummary(
+    l: {
+        reference: string;
+        status: string;
+        currency: string;
+        bookedPrincipal: Amount;
+        principalOutstanding: Amount;
+        interestReceivable: Amount;
+        feesReceivable: Amount;
+        penaltyReceivable: Amount;
+        daysPastDue: number;
+        instalments: OwedLine[];
+    },
+    businessDate: string,
+) {
+    const open = l.instalments.filter((i) => owedOn(i).gt(0));
+    const overdue = open.filter((i) => toDay(i.dueDate) <= businessDate);
+    const next = open.find((i) => toDay(i.dueDate) > businessDate);
+    return {
+        reference: l.reference,
+        status: l.status,
+        currency: l.currency,
+        amountBorrowed: D(l.bookedPrincipal).toFixed(2),
+        balance: D(l.principalOutstanding)
+            .plus(D(l.interestReceivable))
+            .plus(D(l.feesReceivable))
+            .plus(D(l.penaltyReceivable))
+            .toFixed(2),
+        daysPastDue: l.daysPastDue,
+        amountOverdue: overdue.reduce((t, i) => t.plus(owedOn(i)), lending.D(0)).toFixed(2),
+        nextPaymentAmount: next ? owedOn(next).toFixed(2) : null,
+        nextPaymentDueDate: next ? toDay(next.dueDate) : null,
+    };
+}
+
+function toDay(d: Date): string {
+    return d.toISOString().slice(0, 10);
+}
+
+function dayStart(day: string): Date {
+    return new Date(`${day}T00:00:00.000Z`);
 }

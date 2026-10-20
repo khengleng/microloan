@@ -17,32 +17,17 @@ import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { BorrowersModule } from './borrowers/borrowers.module';
-import { LoansModule } from './loans/loans.module';
-import { LegacyLoanGateModule } from './loans/legacy-loan-gate';
-import { RepaymentsModule } from './repayments/repayments.module';
 import { AuditModule } from './audit/audit.module';
-import { ReportsModule } from './reports/reports.module';
 import { BotModule } from './bot/bot.module';
-import { LoanProductsModule } from './loan-products/loan-products.module';
 import { HealthModule } from './health/health.module';
 import { BillingModule } from './billing/billing.module';
 import { PlanTiersModule } from './plan-tiers/plan-tiers.module';
-import { DocumentVaultModule } from './document-vault/document-vault.module';
-import { PenaltyCronModule } from './penalty-cron/penalty-cron.module';
-import { ExportsModule } from './exports/exports.module';
-import { ReminderModule } from './reminder/reminder.module';
 import { AuthzModule } from './authz/authz.module';
-import { LedgerModule } from './ledger/ledger.module';
-import { ProvisioningModule } from './provisioning/provisioning.module';
 import { CreditBureauModule } from './credit-bureau/credit-bureau.module';
 import { FxModule } from './fx/fx.module';
-import { CollectionsModule } from './collections/collections.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentInstrumentsModule } from './payment-instruments/payment-instruments.module';
 import { BorrowerPortalModule } from './borrower-portal/borrower-portal.module';
-import { AgreementsModule } from './agreements/agreements.module';
-import { RiskModule } from './risk/risk.module';
-import { KpiModule } from './kpi/kpi.module';
 import { LendingModule } from './lending/lending.module';
 import { LendingActionGuard } from './lending/policy/lending-action.guard';
 import { throttlerOptions } from './common/throttler-options';
@@ -68,30 +53,15 @@ import { TenantSettingsModule } from './tenant-settings/tenant-settings.service'
     UsersModule,
     AuthModule,
     BorrowersModule,
-    LegacyLoanGateModule,
-    LoansModule,
-    RepaymentsModule,
     AuditModule,
-    ReportsModule,
     BotModule,
-    LoanProductsModule,
     HealthModule,
     BillingModule,
-    DocumentVaultModule,
-    PenaltyCronModule,
-    ExportsModule,
-    ReminderModule,
     AuthzModule,
-    LedgerModule,
-    ProvisioningModule,
     CreditBureauModule,
     FxModule,
-    CollectionsModule,
     NotificationsModule,
     PaymentInstrumentsModule,
-    AgreementsModule,
-    RiskModule,
-    KpiModule,
     BorrowerPortalModule,
     LendingModule,
   ],

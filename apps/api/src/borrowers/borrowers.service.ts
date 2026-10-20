@@ -82,24 +82,15 @@ export class BorrowersService {
       where: this.authz.scopeWhere(actor, { id }),
       include: {
         branch: { select: { id: true, name: true, code: true } },
-        loans: {
-          select: {
-            id: true,
-            principal: true,
-            status: true,
-            annualInterestRate: true,
-            termMonths: true,
-            startDate: true,
-            interestMethod: true,
-            currency: true,
-          },
-          orderBy: { startDate: 'desc' },
-        },
+        // Loans of the original module are read in the legacy loan archive
+        // (D-154); the customer page lists the lending loans itself.
+        _count: { select: { loans: true } },
       },
     });
     if (!b) throw new NotFoundException('Borrower not found');
     this.authz.assertBranchAccess(actor, b.branchId);
-    return b;
+    const { _count, ...borrower } = b;
+    return { ...borrower, legacyLoanCount: _count.loans };
   }
 
   /**

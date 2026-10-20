@@ -29,13 +29,6 @@ export class PaymentInstrumentsController {
     return this.service.list(user);
   }
 
-  @Roles('ADMIN', 'OPERATOR', 'FINANCE', 'CX', 'TENANT_ADMIN', 'ACCOUNTANT', 'LOAN_OFFICER', 'BRANCH_MANAGER', 'CUSTOMER_SUPPORT')
-  @RequirePermissions(Permission.CUSTOMER_VIEW)
-  @Get('for-loan/:loanId')
-  forLoan(@CurrentUser() user: JwtPayload, @Param('loanId') loanId: string) {
-    return this.service.resolveForLoan(user, loanId);
-  }
-
   /** The organisation's branches, to pin a collection QR to one of them. */
   @Roles('ADMIN', 'TENANT_ADMIN')
   @RequirePermissions(Permission.CONFIG_UPDATE)
