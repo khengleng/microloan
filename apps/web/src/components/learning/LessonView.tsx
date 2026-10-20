@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -111,6 +111,27 @@ export function LessonView({ lessonId }: { lessonId: string }) {
     );
 }
 
+const noSubscribe = () => () => undefined;
+
+/**
+ * False on the server and while React hydrates the page, true once it has
+ * (and true at once when the lesson is rendered on the client).
+ *
+ * The quiz radios are server-rendered without a `name` and disabled until
+ * then. The lesson is streamed inside a Suspense boundary, so for a moment
+ * the document holds a second, hidden server copy of the quiz (React's
+ * streamed segment, `<div hidden id="S:0">`) next to the one React renders.
+ * When a controlled radio changes, React looks up every radio with the same
+ * `name` in the document and throws on one it does not manage — minified
+ * React error #90 ("mixing React and non-React radio inputs"), which crashed
+ * the page when an answer was ticked straight after it loaded. Without a
+ * name on the server markup there is nothing for that lookup to find, and
+ * disabled inputs cannot be ticked behind React's back before it takes over.
+ */
+function useHydrated(): boolean {
+    return useSyncExternalStore(noSubscribe, () => true, () => false);
+}
+
 function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: number | null; attempts: number }) {
     const t = useTranslations('Learning.quiz');
     const { enabled, record } = useLearning();
@@ -119,6 +140,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
     const [result, setResult] = useState<QuizResult | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(false);
+    const hydrated = useHydrated();
     const complete = answers.every((a) => a !== null);
 
     const submit = async () => {
@@ -153,7 +175,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
                     const right = result ? chosen === q.answer : null;
                     return (
                         <li key={q.id}>
-                            <fieldset disabled={!!result || busy}>
+                            <fieldset disabled={!hydrated || !!result || busy} aria-busy={!hydrated || undefined}>
                                 <legend className="text-[14px] font-semibold text-[#1A1F36]">{qi + 1}. <span lang="en">{q.prompt}</span></legend>
                                 <div className="mt-2 grid gap-1.5">
                                     {q.options.map((o, oi) => {
@@ -163,7 +185,7 @@ function Quiz({ lesson, best, attempts }: { lesson: learning.Lesson; best: numbe
                                             <label key={oi} className={`flex items-start gap-2 rounded border px-3 py-2 text-[13.5px] cursor-pointer motion-safe:transition-colors ${isAnswer ? 'border-emerald-300 bg-emerald-50' : isWrongPick ? 'border-red-300 bg-red-50' : chosen === oi ? 'border-[#635BFF] bg-[#F0F5FF]' : 'border-[#E3E8EE] hover:bg-[#F6F8FA]'}`}>
                                                 <input
                                                     type="radio"
-                                                    name={`q-${q.id}`}
+                                                    name={hydrated ? `q-${q.id}` : undefined}
                                                     className="mt-0.5 accent-[#635BFF]"
                                                     checked={chosen === oi}
                                                     onChange={() => setAnswers((a) => a.map((x, i) => (i === qi ? oi : x)))}
