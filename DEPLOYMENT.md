@@ -53,9 +53,56 @@ feat/*  ──PR──▶  main  ──▶  Railway deploys main (api + web)
 | `lint` | lending only | lending files the change adds or modifies must lint clean (`scripts/lint-changed-lending.mjs`); the whole-repo lint (`lint:check`, never `--fix`) runs informationally — about 4,000 legacy prettier errors remain |
 | `web-build` | yes | `pnpm --filter web build` |
 | `lending-tests` | yes | typecheck, engine and API unit tests, lending integration suite against a database built exactly like production (below) |
+| `browser-e2e` | yes | the web portal in Chromium (Playwright, `apps/e2e`) against a full stack built by `scripts/e2e-stack.mjs`: sign-in and authenticator enrolment, step-up, the loan journey from new borrower to repayment, guided tours, Help, AML, scorecards, My account, English and Khmer. About 6–8 minutes; the report, traces and server logs are uploaded when it fails. See [Browser tests](#browser-tests) |
 
 Node 22 everywhere: `.nvmrc`, `engines.node` (`>=22 <23`) and CI read the same
 version. Railway's builder also honours them.
+
+### Browser tests
+
+`apps/e2e` drives the real web app in Chromium with Playwright
+(`@playwright/test` 1.63.0). It has its own workspace package so the browser
+tooling stays out of the web build. To run it locally:
+
+```bash
+pnpm install
+pnpm --filter e2e exec playwright install chromium   # once
+node scripts/e2e-stack.mjs up      # ~1–3 min: DB, API :3031, web :3030, demo data
+pnpm --filter e2e test             # the suite (~1 min); report: pnpm --filter e2e report
+node scripts/e2e-stack.mjs down    # stop the API and web
+```
+
+`scripts/e2e-stack.mjs up` never touches ports 3000/3001 or the `microloan`
+database. It **wipes and rebuilds** `E2E_DATABASE_URL` (default
+`postgresql://postgres@localhost:5432/microloan_e2e_browser`; the name must
+contain `e2e`, `test` or `ci`) the production way — `ops/db/app-role.sql`,
+then `prisma migrate deploy` — and runs the API as the RLS-bound role
+`lending_app_e2e` with `NODE_ENV=test` (no schedulers, no Redis), throwaway
+JWT secrets and encryption keys generated into `apps/e2e/.stack/secrets.json`,
+documents in `apps/e2e/.stack/documents`, a 4-hour access token and MFA
+window (a run reuses one session per account). It then waits for the
+catalogue sync, runs `pnpm demo:lending` with a generated `DEMO_PASSWORD`
+(or yours) and switches the four `qa.*` accounts' authenticators off, as on
+the hosted demo. Logs: `apps/e2e/.stack/api.log`, `web.log`.
+
+* After fixing the app: `node scripts/e2e-stack.mjs restart api|web|all`
+  rebuilds and restarts one service on the same database
+  (`E2E_SKIP_BUILD=1` to skip the build).
+* Every run first resets the `qa.*` accounts (authenticator off, learning
+  progress cleared, demo accounts unlocked); the `setup` project then signs
+  each in, enrols an authenticator through **My account** (the code is
+  computed from the key shown next to the QR code) and saves the session for
+  the other tests.
+* The API allows **10 sign-ins per account per 15 minutes**; a full run uses
+  two for `qa.checker`. After about five runs in a row, `restart api` resets
+  the (in-memory) budget. To re-run one spec without signing in again:
+  `E2E_KEEP_SESSIONS=1 pnpm --filter e2e exec playwright test --no-deps tests/help.spec.ts`.
+* A test fails on any `console.error`, uncaught page error or React
+  hydration error, and on a raw message key (`LendingServicing.x`) or
+  `MISSING_MESSAGE` on the page; a test that expects a refused request
+  allows that one error explicitly. UI strings are looked up in
+  `apps/web/messages/*.json`, so a translation change does not break a test.
+* `E2E_BASE_URL` points the suite at another web origin.
 
 ## Service configuration
 
