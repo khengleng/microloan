@@ -1,5 +1,6 @@
 import { Controller, Get, Put, Body, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { runAsSystem } from '../prisma/tenant-context';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -77,8 +78,12 @@ export class SettingsController {
         // tenant would let this one receive that tenant's customers' messages.
         const botTokenHash = data.telegramBotToken ? blindIndex(data.telegramBotToken) : null;
         if (botTokenHash) {
-            const taken = await this.prisma.$queryRaw<{ id: string }[]>`
-                SELECT id FROM "Tenant" WHERE "telegramBotTokenHash" = ${botTokenHash} AND id <> ${user.tenantId}`;
+            // Every other organisation must be searched, which the database
+            // tenant wall hides from a tenant principal: a declared system
+            // look-up that answers only "taken or not" (D-142).
+            const taken = await runAsSystem('telegram bot token uniqueness across organisations', () =>
+                this.prisma.$queryRaw<{ id: string }[]>`
+                SELECT id FROM "Tenant" WHERE "telegramBotTokenHash" = ${botTokenHash} AND id <> ${user.tenantId}`);
             if (taken.length) throw new ConflictException('This Telegram bot is already connected to another organisation.');
         }
 

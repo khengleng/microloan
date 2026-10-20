@@ -1125,7 +1125,8 @@ d('Tenant wall (integration)', () => {
       ),
     ).rejects.toThrow(/row-level security/);
 
-    // Every tenant-owned lending, access and configuration table is covered.
+    // Every table with a tenantId is covered — the core app's tables too
+    // since D-141 (database-wall.int-spec.ts tests them).
     const uncovered: { relname: string }[] = await f.prisma.$queryRawUnsafe(`
       SELECT c.relname FROM pg_class c
         JOIN information_schema.columns col
@@ -1133,43 +1134,7 @@ d('Tenant wall (integration)', () => {
        WHERE c.relkind = 'r'
          AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
        ORDER BY 1`);
-    const legacy = new Set([
-      // The legacy core app's tables: guarded by the Prisma tenant guard;
-      // row-level security for them is tracked in docs/security/TENANT_ISOLATION.md.
-      'AuditEvent',
-      'AuditLog',
-      'Borrower',
-      'BorrowerOtp',
-      'Branch',
-      'Collateral',
-      'CreditCheck',
-      'CreditScore',
-      'Document',
-      'ExchangeRate',
-      'FederatedIdentity',
-      'Guarantor',
-      'JournalEntry',
-      'JournalLine',
-      'KycDocument',
-      'LedgerAccount',
-      'Loan',
-      'LoanAgreement',
-      'LoanProduct',
-      'LoanProvision',
-      'LoanRestructure',
-      'PasswordResetToken',
-      'PaymentInstrument',
-      'PlanPayment',
-      'PromiseToPay',
-      'ProvisionRun',
-      'RefreshToken',
-      'Repayment',
-      'RepaymentSchedule',
-      'User',
-    ]);
-    expect(
-      uncovered.map((r) => r.relname).filter((t) => !legacy.has(t)),
-    ).toEqual([]);
+    expect(uncovered.map((r) => r.relname)).toEqual([]);
   });
 
   it('a staff token whose tenant claim is swapped cannot reach the victim', async () => {

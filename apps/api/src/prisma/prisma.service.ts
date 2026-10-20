@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { PrismaClient } from '@microloan/db';
 import { encryptField, decryptField, isEncrypted, blindIndex } from '../common/field-crypto';
 import { createTenantGuardMiddleware, TenantGuardMode } from './tenant-guard';
+import { withDatabaseTenantContext } from './db-tenant-context';
 
 // Model fields encrypted at rest on write, with optional deterministic blind
 // index columns for exact-match lookup / uniqueness. Reads are decrypted
@@ -44,7 +45,15 @@ export class PrismaService
 {
   private readonly logger = new Logger(PrismaService.name);
 
-  async onModuleInit() {
+  /**
+   * Nest receives the *extended* client from this constructor, not the bare
+   * one: every query made through it carries the database tenant context
+   * (db-tenant-context.ts), which the row-level-security policies require —
+   * without it no tenant-owned row is visible. The middlewares are registered
+   * on the bare client first; an extended client shares them.
+   */
+  constructor() {
+    super();
     // ── Tenant wall ─────────────────────────────────────────────────────────
     // Registered FIRST so it is the outermost middleware: a cross-tenant query
     // is rejected before any encryption work is done on its payload.
@@ -61,11 +70,13 @@ export class PrismaService
     }
     if (guardMode === 'warn') {
       this.logger.warn(
-        'TENANT_GUARD_MODE=warn — cross-tenant isolation is NOT enforced at the database layer.',
+        'TENANT_GUARD_MODE=warn — cross-tenant isolation is NOT enforced by the Prisma guard.',
       );
     }
-    this.$use(createTenantGuardMiddleware(this, { mode: guardMode, logger: this.logger }));
-    await this.checkRowLevelSecurityRole();
+    // The guard's own ownership look-ups go through the extended client, so
+    // they carry the (system) database context like any other query.
+    let extended: PrismaClient = this;
+    this.$use(createTenantGuardMiddleware(() => extended, { mode: guardMode, logger: this.logger }));
 
     this.$use(async (params, next) => {
       // ── Write: encrypt configured fields + populate blind-index hashes ──────
@@ -100,6 +111,14 @@ export class PrismaService
       return decryptDeep(result);
     });
 
+    extended = withDatabaseTenantContext(this) as unknown as PrismaClient;
+    // Returning an object from a constructor makes it the instance: the
+    // extended client inherits this class's methods through its prototype.
+    return extended as unknown as PrismaService;
+  }
+
+  async onModuleInit() {
+    await this.checkRowLevelSecurityRole();
     await this.$connect();
   }
 

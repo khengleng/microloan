@@ -659,6 +659,9 @@ model Collateral {
   idNumber    String? // e.g., Land title number or license plate
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Row-level security reaches the tenant through the loan (D-141).
+  @@index([loanId])
 }
 
 model Guarantor {
@@ -671,6 +674,8 @@ model Guarantor {
   relation  String? // e.g., "SPOUSE", "PARENT", "COLLEAGUE"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([loanId])
 }
 
 model LoanInteraction {
@@ -682,6 +687,8 @@ model LoanInteraction {
   notes     String
   type      String   @default("NOTE") // NOTE, CALL, VISIT, SYSTEM
   createdAt DateTime @default(now())
+
+  @@index([loanId])
 }
 
 model RepaymentSchedule {
@@ -702,6 +709,8 @@ model RepaymentSchedule {
   penaltyLastAppliedAt DateTime? // Guard: ensures penalty is applied at most once per day
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+
+  @@index([loanId])
 }
 
 model Repayment {
@@ -762,6 +771,9 @@ model Document {
   content   String   @db.Text // Base64 content or public URL
   type      String // e.g., "application/pdf", "image/png", or "url"
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([loanId])
 }
 
 // ── Feature #1: Multi-currency FX rates ─────────────────────────────────────
