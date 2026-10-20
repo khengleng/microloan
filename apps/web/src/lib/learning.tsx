@@ -49,7 +49,8 @@ const LearningContext = createContext<LearningValue>({
  */
 export function LearningProvider({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
-    const enabled = !!user && !user.isPlatform && !!user.tenantId;
+    // Not while a required authenticator is still to be set up (only My account answers then).
+    const enabled = !!user && !user.isPlatform && !!user.tenantId && !(user.mfaEnrolmentRequired && !user.mfaEnrolled);
     const [progress, setProgress] = useState<Record<string, LessonProgress> | null>(null);
     const [tick, setTick] = useState(0);
 
