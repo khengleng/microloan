@@ -174,7 +174,13 @@ export class ServicingService {
 
   async list(
     actor: LendingActor,
-    q: { status?: string; search?: string; page?: number; pastDue?: boolean },
+    q: {
+      status?: string;
+      search?: string;
+      page?: number;
+      pastDue?: boolean;
+      borrowerId?: string;
+    },
   ) {
     const tenantId = requireTenant(actor);
     const scope = await this.policy.scopeFilter(actor, 'loan.read');
@@ -184,6 +190,8 @@ export class ServicingService {
       ...(scope as Prisma.LoanAccountWhereInput),
     };
     if (q.status) where.status = q.status;
+    // One customer's loans (the borrower page).
+    if (q.borrowerId) where.borrowerId = q.borrowerId;
     if (q.search) where.reference = { contains: q.search, mode: 'insensitive' };
     // The collections list: only loans in arrears, worst first, paged here
     // rather than by walking the whole book in the browser.

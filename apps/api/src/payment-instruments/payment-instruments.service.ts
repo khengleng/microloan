@@ -200,34 +200,6 @@ export class PaymentInstrumentsService {
     return { success: true };
   }
 
-  /**
-   * Resolve the QR to display for a given loan: prefer an active instrument
-   * bound to the loan's branch, else the tenant default, else any active one.
-   */
-  async resolveForLoan(actor: JwtPayload, loanId: string) {
-    this.authz.assertPermission(actor, Permission.CUSTOMER_VIEW);
-    const loan = await this.prisma.loan.findFirst({
-      where: this.authz.scopeWhere(actor, { id: loanId }),
-      select: { id: true, branchId: true, tenantId: true, currency: true },
-    });
-    if (!loan) throw new NotFoundException('Loan not found');
-    this.authz.assertBranchAccess(actor, loan.branchId);
-
-    const active = await this.prisma.paymentInstrument.findMany({
-      where: { tenantId: loan.tenantId, isActive: true },
-      include: { branch: { select: { id: true, name: true } } },
-    });
-    if (active.length === 0) return null;
-
-    const pick =
-      active.find((i) => i.branchId && i.branchId === loan.branchId) ||
-      active.find((i) => i.isDefault) ||
-      active.find((i) => !i.branchId) ||
-      active[0];
-
-    return this.withRender(pick);
-  }
-
   /** Borrower-portal facing: the tenant's default active collection QR. */
   async resolveForTenant(tenantId: string) {
     const active = await this.prisma.paymentInstrument.findMany({

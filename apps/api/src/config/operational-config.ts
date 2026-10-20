@@ -243,16 +243,6 @@ export function operationalConfig(env: NodeJS.ProcessEnv = process.env) {
         env,
       ),
     },
-    /**
-     * Longest a legacy provisioning run's transaction may take (it reads the
-     * book and posts under one per-tenant lock, D-101).
-     */
-    legacyProvisioningTimeoutMs: envInt(
-      'LEGACY_PROVISIONING_TX_TIMEOUT_MS',
-      120_000,
-      { min: 5_000, max: 3_600_000 },
-      env,
-    ),
     /** How long the readiness probe waits for the database. */
     readinessDbTimeoutMs: envInt(
       'READINESS_DB_TIMEOUT_MS',

@@ -3,12 +3,7 @@ import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
 import { LendingPrisma, Tx } from '../common/lending-prisma';
 import { BusinessDateService } from '../common/business-date.service';
-import {
-  D,
-  LendingActor,
-  fromLocalDate,
-  requireTenant,
-} from '../common/util';
+import { D, LendingActor, fromLocalDate, requireTenant } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 
 type Dec = ReturnType<typeof D>;
@@ -304,21 +299,8 @@ export class LendingOverviewService {
   }
 
   /** Latest rate per pair effective on or before the business date. */
-  private async rates(tx: Tx, tenantId: string, businessDate: string) {
-    const rows = await tx.exchangeRate.findMany({
-      where: {
-        tenantId,
-        effectiveDate: { lt: fromLocalDate(lending.addDays(businessDate, 1)) },
-      },
-      orderBy: { effectiveDate: 'desc' },
-      take: 500,
-    });
-    const map = new Map<string, Dec>();
-    for (const r of rows) {
-      const k = `${r.fromCurrency}->${r.toCurrency}`;
-      if (!map.has(k) && D(r.rate).gt(0)) map.set(k, D(r.rate));
-    }
-    return map;
+  private rates(tx: Tx, tenantId: string, businessDate: string) {
+    return reportingRates(tx, tenantId, businessDate);
   }
 
   private empty(
@@ -345,11 +327,50 @@ export class LendingOverviewService {
       },
       byCurrency: [] as CurrencyFigures[],
       unconverted: [] as string[],
-      trend: [] as { month: string; collections: string; disbursements: string }[],
+      trend: [] as {
+        month: string;
+        collections: string;
+        disbursements: string;
+      }[],
     };
   }
 }
 
 function money(d: Dec): string {
   return d.toFixed(2);
+}
+
+/** Latest FX rate per currency pair effective on or before the business date (the tenant's FX table). */
+export async function reportingRates(
+  tx: Tx,
+  tenantId: string,
+  businessDate: string,
+): Promise<Map<string, Dec>> {
+  const rows = await tx.exchangeRate.findMany({
+    where: {
+      tenantId,
+      effectiveDate: { lt: fromLocalDate(lending.addDays(businessDate, 1)) },
+    },
+    orderBy: { effectiveDate: 'desc' },
+    take: 500,
+  });
+  const map = new Map<string, Dec>();
+  for (const r of rows) {
+    const k = `${r.fromCurrency}->${r.toCurrency}`;
+    if (!map.has(k) && D(r.rate).gt(0)) map.set(k, D(r.rate));
+  }
+  return map;
+}
+
+/** The rate that turns `currency` into `reporting`, direct or inverted; null when none is configured. */
+export function rateTo(
+  rates: Map<string, Dec>,
+  currency: string,
+  reporting: string,
+): Dec | null {
+  if (currency === reporting) return D(1);
+  const direct = rates.get(`${currency}->${reporting}`);
+  if (direct) return direct;
+  const inverse = rates.get(`${reporting}->${currency}`);
+  return inverse ? D(1).div(inverse) : null;
 }

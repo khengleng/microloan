@@ -30,7 +30,7 @@ import { TenantSettingsService } from '../../tenant-settings/tenant-settings.ser
 import { operationalConfig } from '../../config/operational-config';
 import { LedgerService } from '../../ledger/ledger.service';
 import { blindIndex } from '../../common/field-crypto';
-import { lockLegacyLoan } from '../../loans/legacy-money';
+import { lockLegacyLoan } from './legacy-lock';
 
 type Json = Prisma.InputJsonValue;
 

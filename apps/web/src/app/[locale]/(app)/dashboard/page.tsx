@@ -11,10 +11,7 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { Activity, Wallet, Users, PiggyBank, ArrowUpRight, BarChart2, Plus, AlertTriangle, Archive } from 'lucide-react';
-import { LoanModal } from '@/components/LoanModal';
-import { useLegacyStatus } from '@/components/LegacyBanner';
 import { BorrowerModal } from '@/components/BorrowerModal';
-import { RepaymentModal } from '@/components/RepaymentModal';
 import { useRouter, useParams } from 'next/navigation';
 
 /** GET /lending/overview — the lending book, in the tenant's reporting currency. */
@@ -46,22 +43,6 @@ interface LendingOverview {
     trend: { month: string; collections: string; disbursements: string }[];
 }
 
-/** GET /reports/dashboard — the original (legacy) loans module only. */
-interface LegacyOverview {
-    currency: string;
-    kpis: {
-        totalPortfolioOutstanding?: number;
-        totalBorrowers?: number;
-        activeLoans?: number;
-        monthlyCollection?: number;
-    };
-    charts: {
-        disbursementTrend?: { month: string; amount: number }[];
-        collectionTrend?: { month: string; amount: number }[];
-    };
-    pagination?: { total: number };
-}
-
 type ChartPoint = { name: string; collections: number; disbursements: number };
 
 /** Recharts tooltip; module-level so it is not re-created on every render. */
@@ -91,18 +72,13 @@ export default function DashboardPage() {
     const t = useTranslations('Dashboard');
     const o = useTranslations('Overview');
     const { user } = useAuth(); // from AuthProvider — no extra /auth/me call
-    const { ready, can, legacyCan } = useWorkspace();
+    const { ready, can, legacyCan, legacyLoans } = useWorkspace();
     const [lend, setLend] = useState<LendingOverview | null>(null);
-    const [legacyData, setLegacyData] = useState<LegacyOverview | null>(null);
     const [failed, setFailed] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
-    const legacy = useLegacyStatus();
     const [isBorrowerModalOpen, setIsBorrowerModalOpen] = useState(false);
-    const [isRepaymentModalOpen, setIsRepaymentModalOpen] = useState(false);
 
     const canLending = can('loan.read');
-    const canLegacy = legacyCan('CUSTOMER_VIEW');
 
     useEffect(() => {
         // Guard: Platform staff have no microfinance data — redirect to platform view
@@ -114,45 +90,24 @@ export default function DashboardPage() {
         if (!user || !ready) return;
         let cancelled = false;
         (async () => {
-            const [l, g] = await Promise.allSettled([
-                canLending ? api.get<LendingOverview>('/lending/overview') : Promise.resolve(null),
-                canLegacy ? api.get<LegacyOverview>('/reports/dashboard', { params: { limit: 1 } }) : Promise.resolve(null),
-            ]);
+            const l = canLending ? await api.get<LendingOverview>('/lending/overview').then((r) => r.data, () => undefined) : null;
             if (cancelled) return;
-            setLend(l.status === 'fulfilled' && l.value ? l.value.data : null);
-            setLegacyData(g.status === 'fulfilled' && g.value ? g.value.data : null);
-            setFailed(l.status === 'rejected' || g.status === 'rejected');
+            setLend(l ?? null);
+            setFailed(l === undefined);
             setLoading(false);
         })();
         return () => { cancelled = true; };
-    }, [user, locale, ready, canLending, canLegacy]);
+    }, [user, locale, ready, canLending]);
 
-    const cur = lend?.reportingCurrency ?? legacyData?.currency;
+    const cur = lend?.reportingCurrency;
     const fmt = (v: number | string | undefined, c = cur) => money(v ?? 0, c);
+    const overdueTotal = lend?.totals.overdueLoans ?? 0;
 
-    // The original module's figures are shown only when it still holds a book.
-    const legacyBook = legacyData && ((legacyData.kpis.activeLoans ?? 0) > 0 || (legacyData.kpis.totalPortfolioOutstanding ?? 0) > 0)
-        ? legacyData : null;
-    const legacyOverdue = legacyBook?.pagination?.total ?? 0;
-    const lendingOverdue = lend?.totals.overdueLoans ?? 0;
-    const overdueTotal = lendingOverdue + legacyOverdue;
-
-    // Chart: the lending book's last months; the original module's trend only when lending is not visible.
+    // Chart: the lending book's last months.
     const chartData: ChartPoint[] = lend
         ? lend.trend.map((p) => ({ name: p.month, collections: Number(p.collections), disbursements: Number(p.disbursements) }))
-        : legacyData
-            ? (() => {
-                const m = new Map<string, ChartPoint>();
-                for (const p of legacyData.charts.collectionTrend ?? []) m.set(p.month, { name: p.month, collections: p.amount, disbursements: 0 });
-                for (const p of legacyData.charts.disbursementTrend ?? []) {
-                    const e = m.get(p.month) ?? { name: p.month, collections: 0, disbursements: 0 };
-                    e.disbursements = p.amount;
-                    m.set(p.month, e);
-                }
-                return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
-            })()
-            : [];
-    const chartCurrency = lend ? lend.reportingCurrency : legacyData?.currency;
+        : [];
+    const chartCurrency = lend?.reportingCurrency;
     const chartHasMoney = chartData.some((p) => p.collections || p.disbursements);
 
     if (loading) return (
@@ -169,19 +124,12 @@ export default function DashboardPage() {
         { label: o('borrowersWithActiveLoans'), value: lend.totals.borrowers.toLocaleString(), note: null, icon: Users },
         { label: t('activeLoans'), value: lend.totals.activeLoans.toLocaleString(), note: o('overdueLoans', { count: lend.totals.overdueLoans }), icon: BarChart2 },
         { label: o('dueNextDays', { days: lend.dueWindowDays }), value: fmt(lend.totals.dueNextDays), note: t('requiresCollection'), icon: PiggyBank },
-    ] : legacyData ? [
-        { label: t('outstandingPrincipal'), value: fmt(legacyData.kpis.totalPortfolioOutstanding), note: null, icon: Wallet },
-        { label: o('borrowersOnFile'), value: (legacyData.kpis.totalBorrowers ?? 0).toLocaleString(), note: null, icon: Users },
-        { label: t('activeLoans'), value: (legacyData.kpis.activeLoans ?? 0).toLocaleString(), note: o('overdueLoans', { count: legacyOverdue }), icon: BarChart2 },
     ] : [];
 
     const quickActions = [
-        ...(legacy?.readonly
-            ? (can('loan_application.create') ? [{ label: o('newApplication'), icon: Plus, action: () => router.push(`/${locale}/lending/applications`) }] : [])
-            : (legacyCan('LOAN_APPLICATION_CREATE') ? [{ label: t('createNewLoan'), icon: Plus, action: () => setIsLoanModalOpen(true) }] : [])),
+        ...(can('loan_application.create') ? [{ label: o('newApplication'), icon: Plus, action: () => router.push(`/${locale}/lending/applications`) }] : []),
         ...(legacyCan('CUSTOMER_CREATE') ? [{ label: t('addBorrower'), icon: Users, action: () => setIsBorrowerModalOpen(true) }] : []),
-        ...(legacyCan('LOAN_REPAYMENT_POST') ? [{ label: t('recordRepayment'), icon: PiggyBank, action: () => setIsRepaymentModalOpen(true) }] : []),
-        ...(canLegacy ? [{ label: t('viewReports'), icon: BarChart2, action: () => router.push(`/${locale}/reports`) }] : []),
+        ...(canLending ? [{ label: t('viewReports'), icon: BarChart2, action: () => router.push(`/${locale}/reports`) }] : []),
     ];
 
     return (
@@ -194,17 +142,12 @@ export default function DashboardPage() {
                         {lend ? o('asOf', { date: lend.businessDate, currency: lend.reportingCurrency }) : t('subtitle')}
                     </p>
                 </div>
-                {!legacy?.readonly && legacyCan('LOAN_APPLICATION_CREATE') && (
-                    <button onClick={() => setIsLoanModalOpen(true)} className="tv-button gap-1.5 text-[12px]">
-                        <Plus size={14} /> {t('newLoan')}
-                    </button>
-                )}
             </div>
 
             {failed && (
                 <div role="alert" className="tv-card p-3 text-[13px] text-[#ef5350]">{o('loadFailed')}</div>
             )}
-            {!lend && !legacyData && !failed && (
+            {!lend && !failed && (
                 <div className="tv-card p-4 text-[13px] text-muted-foreground">{o('noAccess')}</div>
             )}
             {lend && lend.unconverted.length > 0 && (
@@ -220,9 +163,6 @@ export default function DashboardPage() {
             {/* Metric Cards */}
             {metrics.length > 0 && (
                 <>
-                    {!lend && legacyData && (
-                        <p className="text-[12px] text-muted-foreground">{o('legacyOnly')}</p>
-                    )}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         {metrics.map((m, i) => (
                             <div key={i} className="tv-card p-4">
@@ -246,7 +186,7 @@ export default function DashboardPage() {
                         <div>
                             <h3 className="text-[14px] font-bold text-foreground">{t('cashFlow')}</h3>
                             <p className="text-[12px] text-muted-foreground">
-                                {lend ? o('trendLending', { currency: lend.reportingCurrency }) : legacyData ? o('trendLegacy', { currency: legacyData.currency }) : t('inflowVsDisbursements')}
+                                {lend ? o('trendLending', { currency: lend.reportingCurrency }) : t('inflowVsDisbursements')}
                             </p>
                         </div>
                         <div className="flex items-center gap-4 text-[12px]">
@@ -313,7 +253,7 @@ export default function DashboardPage() {
                     )}
 
                     {/* Overdue: the real count, linked to where it is worked */}
-                    {(lend || legacyBook) && (
+                    {lend && (
                         <div className={`tv-card ${overdueTotal > 0 ? 'border-l-2 border-l-[#ef5350]' : ''}`}>
                             <div className="p-4">
                                 {overdueTotal > 0 ? (
@@ -325,18 +265,9 @@ export default function DashboardPage() {
                                         <p className="text-[13px] text-foreground mb-3 leading-relaxed">
                                             {o('overdueAlert', { count: overdueTotal })}
                                         </p>
-                                        <div className="space-y-2">
-                                            {lendingOverdue > 0 && (
-                                                <Link href={`/${locale}/lending/collections`} className="block w-full text-center py-2 text-[12px] font-bold border border-[#ef5350] text-[#ef5350] rounded hover:bg-[#ef5350]/10 transition-colors">
-                                                    {o('reviewLendingOverdue', { count: lendingOverdue })}
-                                                </Link>
-                                            )}
-                                            {legacyOverdue > 0 && (
-                                                <Link href={`/${locale}/collections`} className="block w-full text-center py-2 text-[12px] font-bold border border-[#ef5350] text-[#ef5350] rounded hover:bg-[#ef5350]/10 transition-colors">
-                                                    {o('reviewLegacyOverdue', { count: legacyOverdue })}
-                                                </Link>
-                                            )}
-                                        </div>
+                                        <Link href={`/${locale}/lending/collections`} className="block w-full text-center py-2 text-[12px] font-bold border border-[#ef5350] text-[#ef5350] rounded hover:bg-[#ef5350]/10 transition-colors">
+                                            {o('reviewLendingOverdue', { count: overdueTotal })}
+                                        </Link>
                                     </>
                                 ) : (
                                     <p className="text-[13px] text-muted-foreground">{o('noOverdue')}</p>
@@ -396,45 +327,22 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            {/* The original loans module, while it still holds a book */}
-            {lend && legacyBook && (
-                <div className="tv-card">
-                    <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-                        <Archive size={14} className="text-muted-foreground" />
-                        <h3 className="text-[14px] font-bold text-foreground">{o('legacyHeading')}</h3>
-                        <span className="text-[12px] text-muted-foreground">{o('legacyNote')}</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border">
-                        {[
-                            { label: t('outstandingPrincipal'), value: money(legacyBook.kpis.totalPortfolioOutstanding ?? 0, legacyBook.currency) },
-                            { label: t('activeLoans'), value: (legacyBook.kpis.activeLoans ?? 0).toLocaleString() },
-                            { label: o('overdueLoansLabel'), value: legacyOverdue.toLocaleString() },
-                            { label: o('collectedAllTime'), value: money(legacyBook.kpis.monthlyCollection ?? 0, legacyBook.currency) },
-                        ].map((s, i) => (
-                            <div key={i} className="px-5 py-4">
-                                <div className="text-[12px] text-muted-foreground mb-1.5">{s.label}</div>
-                                <div className="text-[18px] font-bold text-foreground">{s.value}</div>
-                            </div>
-                        ))}
-                    </div>
+            {/* Loans still in the original module: read them in the archive and move them across (D-154) */}
+            {can('legacy_loan.read') && (legacyLoans ?? 0) > 0 && (
+                <div role="status" className="tv-card p-4 text-[13px] flex items-start gap-2">
+                    <Archive size={15} className="text-muted-foreground mt-0.5 shrink-0" />
+                    <span>
+                        {o('legacyArchiveNote', { count: legacyLoans ?? 0 })}{' '}
+                        <Link href={`/${locale}/lending/legacy-archive`} className="underline font-semibold">{o('openLegacyArchive')}</Link>
+                    </span>
                 </div>
             )}
 
-            <LoanModal
-                open={isLoanModalOpen}
-                onOpenChange={setIsLoanModalOpen}
-                onSuccess={() => { setIsLoanModalOpen(false); }}
-            />
             <BorrowerModal
                 open={isBorrowerModalOpen}
                 onOpenChange={setIsBorrowerModalOpen}
                 onSuccess={() => setIsBorrowerModalOpen(false)}
                 borrower={null}
-            />
-            <RepaymentModal
-                open={isRepaymentModalOpen}
-                onOpenChange={setIsRepaymentModalOpen}
-                onSuccess={() => setIsRepaymentModalOpen(false)}
             />
         </div>
     );

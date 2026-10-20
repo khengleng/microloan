@@ -181,7 +181,7 @@ If it is blocked:
 
 ### Legacy loans
 
-Loans in the original module (**Origination › Loans (original)**) have their own **Early settlement** panel on the loan page: click **Get payoff quote**, check **Principal**, **Interest due**, **Penalties**, **Future interest waived** and **Payoff today**, then **Settle $X and close**. See [21-original-loan-module.md](21-original-loan-module.md).
+Loans still in the retired original module cannot be settled there any more. Move them to the lending platform with the loan-book migration and settle them on the loan account. See [21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md).
 
 ---
 
@@ -417,9 +417,9 @@ To set up the collection QR (administrators):
 1. Open **Administration › Settings** and find **Collection QR**.
 2. Click **Add QR**. Enter a **Label** (for example "ABA Main"), **Bank**, **Currency**, **Account name**, **Account number**.
 3. Paste the **KHQR / QR payload** string from your bank, or use **…or upload a QR image** (max 1 MB).
-4. Tick **Use as the default collection QR** if it should appear on loans, then **Save**.
+4. Tick **Use as the default collection QR** if it should appear in the borrower portal, then **Save**.
 
-Where it appears: on loan pages in the original module (**Pay via QR** panel, "Scan with any Bakong/bank app to repay this loan.") and in the borrower portal. It does not appear on the **Loans › Loan accounts** loan screen. See [21-original-loan-module.md](21-original-loan-module.md).
+Where it appears: in the borrower portal (**Pay via QR**). It does not appear on the **Loans › Loan accounts** loan screen. See [21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md).
 
 ---
 
@@ -428,4 +428,4 @@ Where it appears: on loan pages in the original module (**Pay via QR** panel, "S
 - **Negotiated settlement**, **Fee waiver**, **Payment holiday**, **Rate resets**, **Request restructure**, **Refinance** and reversing a payment - see [08-servicing-changes.md](08-servicing-changes.md).
 - **Guarantor / set-off** (appears when the loan is overdue), **Propose write-off**, **Record recovery** - see [11-collections-and-recovery.md](11-collections-and-recovery.md).
 - **Borrower notices** (reminders before a due date and overdue notices) are on **Collections & relief › Collections** - see [15-reports-and-regulatory-returns.md](15-reports-and-regulatory-returns.md).
-- The original **Loans › Repayments** screen - see [21-original-loan-module.md](21-original-loan-module.md).
+- Money received over a period, with CSV export: **Finance › Reports › Money received** - see [15-reports-and-regulatory-returns.md](15-reports-and-regulatory-returns.md).

@@ -43,24 +43,24 @@ export class TenantsService {
                     select: {
                         users: true,
                         borrowers: true,
-                        loans: true,
-                        repayments: true,
                     }
                 }
             },
             orderBy: { createdAt: 'desc' },
         });
 
-        // Fast grouped aggregation for financial performance
+        // Fast grouped aggregation for financial performance: the lending
+        // book (D-155) — principal of running loans and money received.
         const [loanStats, repaymentStats] = await Promise.all([
-            this.prisma.loan.groupBy({
+            this.prisma.loanAccount.groupBy({
                 by: ['tenantId'],
-                _sum: { principal: true },
-                where: { status: 'DISBURSED' }
+                _sum: { bookedPrincipal: true },
+                where: { status: 'ACTIVE' }
             }),
-            this.prisma.repayment.groupBy({
+            this.prisma.financialEvent.groupBy({
                 by: ['tenantId'],
-                _sum: { amount: true }
+                _sum: { amount: true },
+                where: { type: { in: ['REPAYMENT', 'PREPAYMENT', 'SETTLEMENT'] }, status: 'POSTED' }
             })
         ]);
 
@@ -70,7 +70,7 @@ export class TenantsService {
             return {
                 ...t,
                 performance: {
-                    disbursed: Number(l?._sum?.principal || 0),
+                    disbursed: Number(l?._sum?.bookedPrincipal || 0),
                     collected: Number(r?._sum?.amount || 0),
                 }
             };
@@ -380,9 +380,12 @@ export class TenantsService {
             this.prisma.tenant.count({ where: { status: 'ACTIVE' } }),
             this.prisma.tenant.count({ where: { status: 'SUSPENDED' } }),
             this.prisma.borrower.count(),
-            this.prisma.loan.count(),
-            this.prisma.loan.count({ where: { status: 'DISBURSED' } }),
-            this.prisma.repayment.aggregate({ _sum: { amount: true } }),
+            this.prisma.loanAccount.count(),
+            this.prisma.loanAccount.count({ where: { status: 'ACTIVE' } }),
+            this.prisma.financialEvent.aggregate({
+                _sum: { amount: true },
+                where: { type: { in: ['REPAYMENT', 'PREPAYMENT', 'SETTLEMENT'] }, status: 'POSTED' },
+            }),
         ]);
 
         return {

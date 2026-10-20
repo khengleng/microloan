@@ -42,11 +42,6 @@
       "reason": "Sample placeholder made of payment network brand names."
     },
     {
-      "file": "apps/web/src/components/ProductModal.tsx",
-      "text": "A+, GOV",
-      "reason": "Sample credit-rating codes in a placeholder."
-    },
-    {
       "file": "apps/web/src/components/auth/google-sign-in-button.tsx",
       "text": "load failed",
       "reason": "Internal Error in the script loader; caught and only sets status \"unavailable\", never shown."

@@ -270,40 +270,6 @@ export async function grant(
   });
 }
 
-/**
- * Opt a tenant out of the legacy freeze (D-097): an ACTIVE TENANT rule that
- * switches `lending.legacy_loans.readonly` off, as two administrators would
- * approve it (fixture shortcut; the approval flow is tested in
- * legacy-freeze.int-spec). Returns the rule id.
- */
-export async function openLegacyBook(
-  f: Fixture,
-  tenantId: string,
-): Promise<string> {
-  return f.system(async () => {
-    const rule = await f.prisma.flagRule.create({
-      data: {
-        tenantId,
-        flagKey: 'lending.legacy_loans.readonly',
-        scopeType: 'TENANT',
-        enabled: false,
-        status: 'ACTIVE',
-      },
-    });
-    return rule.id as string;
-  });
-}
-
-/** Undo openLegacyBook: the tenant falls back to the frozen default. */
-export async function closeLegacyBook(f: Fixture, ruleId: string) {
-  await f.system(() =>
-    f.prisma.flagRule.update({
-      where: { id: ruleId },
-      data: { status: 'SUPERSEDED' },
-    }),
-  );
-}
-
 export async function authority(
   f: Fixture,
   tenantId: string,

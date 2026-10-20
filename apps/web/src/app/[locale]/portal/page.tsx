@@ -7,14 +7,13 @@ import {
     Loader2, LogOut, FileText, QrCode, ShieldCheck, ShieldAlert,
     ShieldQuestion, Upload, Wallet, CalendarClock,
 } from 'lucide-react';
-import { KeyFactsAgreement } from '@/components/KeyFactsAgreement';
 import { PaymentReliefSection } from '@/components/lending/portal/PaymentReliefSection';
 import { PortalDocumentsSection } from '@/components/lending/portal/PortalDocumentsSection';
 import { PortalKeyFactsSection } from '@/components/lending/portal/PortalKeyFactsSection';
 
 type Me = { firstName: string; lastName: string; organization: string | null; kycStatus: string };
 type Loan = {
-    id: string; principal: number; status: string; currency: string;
+    id: string; reference: string; principal: number; status: string; currency: string;
     outstanding: number; nextDueDate: string | null; nextDueAmount: number | null;
 };
 type Qr = { label: string; bankName?: string; accountName?: string; accountNumber?: string; qrRendered?: string | null } | null;
@@ -118,7 +117,7 @@ export default function BorrowerPortalPage() {
                     {loans.map(l => (
                         <div key={l.id} className="bg-white border border-border rounded-md p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs text-muted-foreground">{t('principal')}</span>
+                                <span className="text-xs text-muted-foreground">{t('principal')} · <span className="font-mono">{l.reference}</span></span>
                                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">{l.status}</span>
                             </div>
                             <p className="text-xl font-bold text-foreground">{l.currency} {l.principal.toLocaleString()}</p>
@@ -140,12 +139,6 @@ export default function BorrowerPortalPage() {
                                 className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-primary hover:underline">
                                 <FileText size={14} /> {t('downloadStatement')}
                             </a>
-                            <div className="mt-3">
-                                <KeyFactsAgreement
-                                    keyFactsPath={`/borrower/loans/${l.id}/key-facts`}
-                                    signPath={`/borrower/loans/${l.id}/sign`}
-                                />
-                            </div>
                         </div>
                     ))}
                 </section>

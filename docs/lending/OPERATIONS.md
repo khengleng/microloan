@@ -354,43 +354,52 @@ API: `GET /v1/lending/regulatory/returns?year=`, `GET …/preview?year=&month=`,
 lending journals side by side per account and currency, with the combined
 balance and whether each book, and the two together, balance.
 
-**The legacy book is read-only (D-097).** The flag
-`lending.legacy_loans.readonly` is **on by default** for every tenant. While
-it is on, the original module moves no money: it refuses new loans,
-disbursements, repayments, early settlements, repayment reversals,
-write-offs, restructures and legacy provisioning runs with
-`409 LEGACY_LOANS_READONLY` (the body names the `operation` and links to
-Lending › Loans and Lending › Migration), and the late-penalty job skips the
-tenant. Reading loans, schedules, repayments and receipts, payoff quotes,
-exports, statements, the combined ledger and the loan-book migration
-(Lending › Migration) all continue. Legacy screens hide every money button and
-show a banner pointing to Lending › Loans and Lending › Migration
-(`GET /v1/loans/legacy-status` returns `readonly` and `frozenOperations`). The
-original screens stay in the menu, labelled "(original)"; nothing is deleted.
+**The original loan module is retired (D-153 – D-159).** Its screens, write
+routes and jobs are gone; the API answers 404 for them. What remains, all
+read-only, is listed in [LEGACY_RETIREMENT.md](LEGACY_RETIREMENT.md):
 
-The way out is to migrate running legacy loans to the lending platform. A
-tenant that must keep collecting in the original module meanwhile opts out
-with a **TENANT rule switching the flag off** (Lending › Access & policy ›
-Flags; one administrator proposes, a second approves). Remove the rule to
-freeze the book again. Existing databases are moved to the new default by
-migration `20261019003100_legacy_freeze`; a tenant rule created earlier is
-kept.
+* **Legacy loan archive** (Lending › Finance › Legacy loan archive,
+  `GET /v1/lending/legacy-archive/summary`, `…/loans[?status=&q=&borrowerId=&page=&limit=]`,
+  `…/loans/:id`, `…/export.csv`; permission `legacy_loan.read` — Finance
+  officer, Risk / compliance, Auditor — within the reader's branches). In the
+  menu only while the organisation still has a legacy loan. Each loan shows
+  whether the migration file can carry it, or where it went.
+* The **loan-book migration**'s legacy export and the closing of a migrated
+  legacy loan (below).
+* The **regulatory return** reads the legacy book as described above while it
+  is not empty; once no legacy loan is running, nothing was posted to the
+  legacy journal since the month began and the legacy receivable and
+  allowance accounts are zero at the month end, the return skips it (D-157).
+* The **combined ledger**.
 
-For a tenant that opted out, the legacy money operations are safe to run
-concurrently (D-098 – D-104): each locks the loan row and re-reads it inside
-its transaction and allocates in exact decimals; disbursement and write-off
-move the status at most once; a write-off uses the provision held for the
-loan (shortfall to write-off expense 5100, any excess released to provision
-expense) and the next provisioning run does not release it again;
-provisioning runs and write-offs of a tenant are serialised by an advisory
-lock (`LEGACY_PROVISIONING_TX_TIMEOUT_MS`, default 120 000, bounds a run); only
-the latest repayment of a loan can be reversed, and reversing a settlement
-makes its waived interest owed again. The legacy jobs (penalties, reminders,
-late alerts, promise reviews) run in `LENDING_EOD_TZ` (Asia/Phnom_Penh); an
-instalment is late from the calendar day after its due date, only
-instalments with principal or interest unpaid are charged, and one
-instalment's penalty stops at `legacyServicing.penaltyCapRate` (lending
-settings, default 0.25) × its principal + interest.
+The flag `lending.legacy_loans.readonly` no longer has an effect. A tenant
+that had switched it off can no longer collect in the original module: move
+running loans with the migration. Legacy loans past maturity (no instalment
+after the business date) are not in the migration file and pending or
+approved legacy applications cannot be paid out; they wait in the archive for
+a decision (D-158). Dropping the legacy tables is phase 2 (D-159), not done.
+
+**Reports on the lending book (D-156).** `GET /v1/lending/reports/portfolio`
+(filters `status`, `currency`, `branchId`, `productId`, `band`, `q`, paging),
+`GET …/receipts?from=&to=&currency=` (posted repayments, prepayments,
+settlements and recoveries by value date, split by allocation),
+`GET …/performance` (ageing, PAR 30/90, collection rate, allowance coverage,
+write-off rate, disbursed / collected / written off to date, and — for
+`accounting.read` — the lending journal's income and expense for the year to
+the business date by account), all within the caller's `loan.read` scope;
+`GET …/portfolio.csv` and `…/receipts.csv` need `loan_data.export` and are
+audited. The web Reports, Performance and KPI dashboard pages use them.
+
+**Borrower portal and Telegram bot (D-155).** The portal lists the customer's
+lending loans (`/v1/borrower/loans[/:id[/statement]]`). The bot answers
+balances and products from the lending book and sends due-tomorrow reminders
+(`REMINDER_CRON`, default 08:00) and late notices (`LATE_ALERT_CRON`, default
+10:00) in `LENDING_EOD_TZ` from lending instalments at the tenant's business
+date, claimed once per tenant and day. Applying by chat is paused.
+`LEGACY_PENALTY_CRON`, `LEGACY_REMINDER_CRON`,
+`LEGACY_UPCOMING_REMINDER_CRON`, `LEGACY_LATE_ALERT_CRON`,
+`COLLECTIONS_PTP_REVIEW_CRON` and `LEGACY_PROVISIONING_TX_TIMEOUT_MS` are no
+longer read; remove them from deployments.
 
 ## Taking over a loan book (migration)
 
@@ -421,7 +430,9 @@ the cut-over date.
 
 Loans still in the legacy module are exported as a migration file at the
 business date (`GET /v1/lending/migrations/legacy-export.csv?productCode=…`,
-also on the Migration page): review it, then load it like any other file.
+also on the Migration page and the legacy loan archive): review it, then load
+it like any other file. Loans with no instalment after the business date are
+left out (D-158).
 When such a loan is posted it is closed in the legacy module and its legacy
 principal (account 1200) is cleared against migration clearing (3900) in the
 legacy ledger, so the combined books hold it once.
@@ -1219,7 +1230,7 @@ party — the borrower, the active members of a group (the frozen
 of workflow steps. The error carries `blockedBy` (layer `AML`) and the
 capability map (`GET /lending/access/capabilities/{APPLICATION|LOAN_ACCOUNT}/:id`)
 adds the same layer to the gated actions. Cards and BNPL purchases are gated
-at booking only. Legacy (`/loans`) origination is frozen (D-097) and not gated.
+at booking only. The original module's origination is gone (D-153).
 
 **Status.** `POST /lending/aml/customers/:id/status` — `FLAGGED` at once
 (`aml.screen`); `CLEAR` screens the customer afresh (committed even if the

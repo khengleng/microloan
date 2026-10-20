@@ -12,7 +12,7 @@ This chapter covers everything under the **Products** menu section:
 | **Products › Workflows** | Which origination checks run and how many approvers an amount needs. |
 | **Products › Simulator** | Price a loan and see its repayment schedule against any product version, without booking anything. |
 
-The menu item **Products › Products (original)** belongs to the older loan module and is described in [21-original-loan-module.md](21-original-loan-module.md).
+The original loan module's **Products (original)** screen is gone; all products are made here ([21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md)).
 
 ---
 

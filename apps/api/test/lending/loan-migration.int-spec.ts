@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call -- integration fixtures: fixture rows come from the untyped API responses. */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- integration fixtures: fixture rows come from the untyped API responses; the ledger service is required after the app boots. */
 /**
  * Taking over a loan book from another system (OPS-1): load and check a
  * migration file, control totals, maker-checker posting, opening balances
@@ -262,6 +262,20 @@ d('Loan-book migration (integration)', () => {
       .filter((l: any) => l.account.code === '1200')
       .reduce((t: number, l: any) => t + Number(l.debit) - Number(l.credit), 0);
     expect(receivable).toBe(0);
+    // The legacy loan archive (D-154) shows where it went.
+    const archived = expectOk(
+      await f
+        .as('finance')
+        .get(`/lending/legacy-archive/loans/${legacyLoanId}`),
+    );
+    expect(archived.status).toBe('CLOSED');
+    const account = expectOk(
+      await f
+        .as('finance')
+        .get(`/lending/loans/${archived.migratedTo.loanAccountId}`),
+    );
+    expect(archived.migratedTo.reference).toBe(account.account.reference);
+    expect(archived.migratable).toBe(false);
     await reconcile();
   });
 

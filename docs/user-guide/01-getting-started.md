@@ -27,7 +27,7 @@ To sign in:
 
 What happens next:
 
-- Staff of a lending organisation land on **Home** (your work queues, section 8). If you have no lending-platform role, you land on the **KPI dashboard** instead.
+- Staff of a lending organisation land on **Home** (your work queues, section 8).
 - The platform operator (super-admin) lands on **Organisations** (see [20-platform-administration.md](20-platform-administration.md)).
 
 If it is blocked:
@@ -161,7 +161,7 @@ In Khmer, the portal uses the Kantumruy Pro typeface for Khmer text, slightly la
 - The top shows your organisation's name.
 - The menu is grouped into sections: **Work**, **Customers**, **Origination**, **Loans**, **Collections & relief**, **Finance**, **Products**, **Risk & audit**, **Administration**. You only see the sections and items your roles allow — two colleagues may see different menus.
 - A number on a menu item is how many items are waiting for **you** in that area (for example applications to approve). It refreshes every minute.
-- Items marked **(original)** are the older loan module; see [21-original-loan-module.md](21-original-loan-module.md).
+- **Finance › Legacy loan archive** appears only while your organisation still has loans from the retired original loan module; see [21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md).
 - The bottom shows your name (from your email) and your roles. Hover over the roles to see them all.
 - **Sign out** ends your session.
 
@@ -237,7 +237,7 @@ If you have no lending-platform role, no chips are shown.
 
 ## 10. Searching
 
-The search box in the top bar finds borrowers, loan accounts, applications, facilities, cards, restructure cases and loans in the original module.
+The search box in the top bar finds borrowers, loan accounts, applications, facilities, cards and restructure cases, and — for readers of the legacy loan archive — loans of the retired original module.
 
 To search:
 

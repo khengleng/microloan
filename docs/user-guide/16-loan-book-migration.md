@@ -4,7 +4,7 @@ Who this is for: finance officers who load and check a loan book taken over from
 
 Migration moves **running loans** onto the lending platform as at a **cut-over date**. You load a CSV file with one row per loan; the platform checks every row, rebuilds each remaining schedule, and compares the totals with the old system's own closing report. Nothing is posted until a second person approves. Once posted, the loans are serviced on the platform like any other loan: repayments, end of day, collections, statements.
 
-Related chapters: [14 Accounting and period close](14-accounting-and-period-close.md), [21 Original loan module](21-original-loan-module.md), [04 Products and policies](04-products-and-policies.md), [02 Roles and approvals](02-roles-and-approvals.md).
+Related chapters: [14 Accounting and period close](14-accounting-and-period-close.md), [21 Legacy loan archive and migration](21-legacy-archive-and-migration.md), [04 Products and policies](04-products-and-policies.md), [02 Roles and approvals](02-roles-and-approvals.md).
 
 ## Before you start
 
@@ -61,18 +61,18 @@ Amounts: digits with up to 4 decimals, no thousands separators. Dates: YYYY-MM-D
 
 ### Moving loans from the original module
 
-If the loans are in the platform's own original module (**Origination › Loans (original)**), you do not need to build the file by hand.
+If the loans are in the platform's own retired original module (listed in **Finance › Legacy loan archive**), you do not need to build the file by hand.
 
 To export the original module's loans as a migration file:
 1. In **1 · File**, find the box **Moving loans from the legacy module?**
 2. Type the platform product code the loans should be serviced under in **Product code to use**.
 3. Click **Export as a file**. You get `legacy-loans-migration.csv`.
 
-The file contains every original-module loan with status DISBURSED or DEFAULTED that still has instalments after the business date, as at the business date. Their external IDs start with `LEGACY-`. Defaulted loans are marked non-accrual. Loans with nothing left to fall due are left out: settle or restructure them in the original module first.
+The file contains every original-module loan with status DISBURSED or DEFAULTED that still has instalments after the business date, as at the business date. Their external IDs start with `LEGACY-`. Defaulted loans are marked non-accrual. Loans with nothing left to fall due are left out; they stay in the legacy loan archive until your organisation decides how to close them ([chapter 21](21-legacy-archive-and-migration.md)).
 
 Review the file, then load it like any other (below). When such a loan is posted, it is **closed in the original module** and its principal there (account 1200) is moved to migration clearing (3900) in the original ledger, so the combined books hold it once.
 
-The original module is read-only by default (feature flag `lending.legacy_loans.readonly`): it refuses new loans, disbursements, repayments, settlements, reversals, write-offs, restructures and provisioning runs, so running loans are migrated here and serviced on the platform. Migration itself is never blocked. An organisation that must keep collecting in the original module meanwhile switches the flag off (proposed by one administrator, approved by another, in **Risk & audit › Access & policy**). See [21 Original loan module](21-original-loan-module.md).
+The original module is retired: nothing can be paid, settled or written off there any more, so running loans are migrated here and serviced on the platform. The file is also offered in **Finance › Legacy loan archive**, which shows for each legacy loan whether it can be migrated and, once migrated, the lending loan it became. See [21 Legacy loan archive and migration](21-legacy-archive-and-migration.md).
 
 ## Load and check a file (Finance officer)
 

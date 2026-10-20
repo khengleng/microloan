@@ -156,26 +156,20 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'users/:userId': 'user',
       ':resourceType/:id': 'loanAccount',
     };
+    // The legacy loan archive (D-154) reads the original module's loans.
+    if (path.includes('/lending/legacy-archive/') && p === 'loans/:id')
+      return 'loan';
     if (p === 'policies/:id') return access ? 'policyVersion' : 'lendingPolicy';
     if (p === 'policies/:versionId') return 'policyVersion';
     return table[p] ?? null;
   }
   const table: Record<string, string> = {
-    'loan/:loanId': 'loan',
-    'loans/:id': 'loan',
-    'loans/:loanId': 'loan',
-    'for-loan/:loanId': 'loan',
-    'upload/:loanId': 'loan',
+    // The borrower portal's loans are lending loans (D-155).
+    'loans/:id': 'loanAccount',
     'borrowers/:id': 'borrower',
     'borrower/:borrowerId': 'borrower',
     'kyc/:borrowerId': 'borrower',
-    'promises/:promiseId': 'promiseToPay',
-    'download/:documentId': 'document',
-    'documents/:documentId': 'document',
-    'loan-products/:id': 'loanProduct',
     'payment-instruments/:id': 'paymentInstrument',
-    'runs/:id': 'provisionRun',
-    'repayments/:id': 'repayment',
     'users/:id': 'user',
     'tenants/:id': 'tenant',
     'plan-payments/:paymentId': 'planPayment',
@@ -235,19 +229,9 @@ function bodyFor(method: string, path: string): Record<string, unknown> {
     [/\/status$/, { status: 'ACTIVE', reason: 'wall test' }],
     [/drawdowns$/, { amount: '10.00' }],
     // Legacy class-validator DTOs.
-    [/^PATCH .*promises\/:promiseId$/, { status: 'KEPT' }],
     [/^PATCH .*users\/:id\/password$/, { password: 'Wall-Test-Password-123!' }],
     [/^PUT .*users\/:id\/role$/, { role: 'LOAN_OFFICER' }],
-    [
-      /agreements\/loan\/:loanId\/sign$/,
-      { acceptTerms: true, signatureName: 'Wall Test' },
-    ],
     [/kyc\/:borrowerId\/verify$/, { status: 'VERIFIED' }],
-    [/loans\/:id\/interactions$/, { notes: 'wall test' }],
-    [
-      /risk\/loan\/:loanId\/restructure$/,
-      { newTermMonths: 12, reason: 'wall test' },
-    ],
     [
       /^POST \/v1\/fx\/rates$/,
       { fromCurrency: 'USD', toCurrency: 'KHR', rate: 4100 },
@@ -881,16 +865,6 @@ d('Tenant wall (integration)', () => {
       ],
       [
         'POST',
-        '/v1/loans',
-        {
-          borrowerId: victimBorrower,
-          productId: victimProduct,
-          principal: 1000,
-        },
-      ],
-      ['POST', '/v1/repayments', { loanId: victimLoan, amount: 10 }],
-      [
-        'POST',
         '/v1/users',
         {
           email: 'wall@test.local',
@@ -900,39 +874,6 @@ d('Tenant wall (integration)', () => {
         },
       ],
     ];
-    // A document on the attacker's own loan pointing at the victim's file.
-    const ownLoan = await f.system(async () => {
-      const lp = await f.prisma.loanProduct.create({
-        data: {
-          tenantId: attacker,
-          name: 'Attacker product',
-          interestMethod: 'FLAT',
-        },
-      });
-      return f.prisma.loan.create({
-        data: {
-          tenantId: attacker,
-          borrowerId: ownBorrower,
-          productId: lp.id,
-          branchId: f.b3,
-          principal: '100',
-          annualInterestRate: '12',
-          termMonths: 3,
-          interestMethod: 'FLAT',
-          startDate: new Date(Date.UTC(2026, 0, 5)),
-        },
-      });
-    });
-    const victimLegacyLoan = await victimId('loan');
-    cases.push([
-      'POST',
-      `/v1/loans/${ownLoan.id}/documents`,
-      {
-        name: 'x.pdf',
-        type: 'application/pdf',
-        content: `tenants/${f.t1}/loans/${victimLegacyLoan}/1_victim.pdf`,
-      },
-    ]);
     // DOC-1: a document filed for the attacker's own customer may not be
     // linked to the victim's application or loan, nor ask for its documents.
     const victimApplication = await victimId('application');

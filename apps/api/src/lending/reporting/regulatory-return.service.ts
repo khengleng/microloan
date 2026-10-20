@@ -473,6 +473,22 @@ export class RegulatoryReturnService {
     const legacyAcc = (await this.settings.get(tenantId, tx)).accounting.legacy;
     const RECEIVABLE = legacyAcc.loansReceivable;
     const ALLOWANCE = legacyAcc.loanLossAllowance;
+    // Once the legacy book is empty the return no longer reads the legacy
+    // ledger (D-157): no legacy loan open, nothing posted to the legacy
+    // journal since the month began, and nothing left on its receivable or
+    // allowance accounts at the month end.
+    if (
+      await this.legacyBookEmpty(tx, tenantId, start, endExclusive, [
+        RECEIVABLE,
+        ALLOWANCE,
+      ])
+    )
+      return {
+        positions: [] as LoanPosition[],
+        ledger: [] as LedgerFact[],
+        movements: [] as Movement[],
+        warnings: [] as string[],
+      };
     const entries = await tx.journalEntry.findMany({
       where: { tenantId, date: { lt: endExclusive } },
       select: {
@@ -737,6 +753,35 @@ export class RegulatoryReturnService {
         `${m.count} legacy loan(s) moved to the lending platform still carry ${m.principal.toString()} ${currency} of principal on the legacy ledger; they are reported once, under the lending platform, and shown as a reconciling item. Clear them from the legacy ledger against migration clearing (3900).`,
     );
     return { positions, ledger, movements, warnings };
+  }
+
+  /** True when the legacy book has nothing left to report for the month (D-157). */
+  private async legacyBookEmpty(
+    tx: Tx,
+    tenantId: string,
+    start: Date,
+    endExclusive: Date,
+    accounts: string[],
+  ): Promise<boolean> {
+    const [open, recent, balances] = await Promise.all([
+      tx.loan.count({
+        where: { tenantId, status: { in: ['DISBURSED', 'DEFAULTED'] } },
+      }),
+      tx.journalEntry.count({ where: { tenantId, date: { gte: start } } }),
+      tx.journalLine.groupBy({
+        by: ['accountId'],
+        where: {
+          entry: { tenantId, date: { lt: endExclusive } },
+          account: { code: { in: accounts } },
+        },
+        _sum: { debit: true, credit: true },
+      }),
+    ]);
+    return (
+      open === 0 &&
+      recent === 0 &&
+      balances.every((b) => D(b._sum.debit).minus(D(b._sum.credit)).isZero())
+    );
   }
 
   private async build(
