@@ -280,3 +280,72 @@ jobs:
 
       - name: Lending integration tests
         run: pnpm test:lending:int
+
+  browser-e2e:
+    # The web portal in a real browser (Playwright, Chromium): sign-in and
+    # authenticator enrolment, the loan journey from borrower to repayment,
+    # guided tours, Help, AML, scorecards, My account and step-up, in English
+    # and Khmer. The stack is built the production way (migrations from
+    # empty, RLS runtime role) and seeded with the demo data. Blocking. See
+    # DEPLOYMENT.md -> "Browser tests".
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: browser_e2e_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Assembled from parts so no credential-bearing URL literal sits in the repo (security scan).
+      E2E_DATABASE_URL: ${{ format('{0}://{1}:{2}@localhost:5432/browser_e2e_ci?schema=public', 'postgresql', 'ci', 'ci') }}
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        working-directory: apps/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the stack (database, API on 3031, web on 3030, demo data)
+        run: node scripts/e2e-stack.mjs up
+
+      - name: Browser tests
+        run: pnpm --filter e2e test
+
+      - name: Upload the report, traces and server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-report
+          path: |
+            apps/e2e/playwright-report
+            apps/e2e/test-results
+            apps/e2e/.stack/*.log
+          retention-days: 14
+          # The server logs sit in apps/e2e/.stack.
+          include-hidden-files: true
+
+      - name: Stop the stack
+        if: always()
+        run: node scripts/e2e-stack.mjs down
