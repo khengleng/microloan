@@ -7,10 +7,8 @@ import {
   Fixture,
   TEST_DB,
   bootstrap,
-  borrower,
   expectOk,
   grant,
-  openLegacyBook,
 } from './harness';
 import { standardRoles } from './setup';
 
@@ -23,8 +21,6 @@ d('Tenant lending settings and job claims (integration)', () => {
     f = await bootstrap();
     await standardRoles(f);
     await grant(f, f.t1, 'nobody', 'RISK_COMPLIANCE');
-    // The legacy penalty job skips a read-only book (D-097); this tenant opted out.
-    await openLegacyBook(f, f.t1);
   }, 90_000);
   afterAll(async () => f?.app.close());
 
@@ -185,94 +181,6 @@ d('Tenant lending settings and job claims (integration)', () => {
         }),
       ),
     ).rejects.toThrow();
-  });
-
-  /** A disbursed legacy loan whose first instalment is `overdueDays` past due. */
-  async function overdueLegacyLoan(overdueDays: number) {
-    return f.system(async () => {
-      const b = await borrower(f, f.t1, f.b1);
-      const product = await f.prisma.loanProduct.create({
-        data: {
-          tenantId: f.t1,
-          name: `Penalty test ${overdueDays}`,
-          interestMethod: 'FLAT',
-        },
-      });
-      const day = 86_400_000;
-      const loan = await f.prisma.loan.create({
-        data: {
-          tenantId: f.t1,
-          borrowerId: b.id,
-          productId: product.id,
-          branchId: f.b1,
-          principal: '1000',
-          annualInterestRate: '12',
-          termMonths: 1,
-          interestMethod: 'FLAT',
-          startDate: new Date(Date.now() - (overdueDays + 30) * day),
-          status: 'DISBURSED',
-        },
-      });
-      const schedule = await f.prisma.repaymentSchedule.create({
-        data: {
-          loanId: loan.id,
-          installmentNumber: 1,
-          dueDate: new Date(Date.now() - overdueDays * day),
-          principalAmount: '1000',
-          interestAmount: '10',
-          totalAmount: '1010',
-          outstandingPrincipal: '0',
-        },
-      });
-      return { loanId: loan.id as string, scheduleId: schedule.id as string };
-    });
-  }
-
-  it("two instances running the legacy penalty job charge a penalty once; the DEFAULTED threshold is the lender's", async () => {
-    const {
-      PenaltyCronService,
-    } = require('../../src/penalty-cron/penalty-cron.service');
-    const job = f.app.get(PenaltyCronService);
-    const first = await overdueLegacyLoan(40);
-    await Promise.all([job.applyLatePenalties(), job.applyLatePenalties()]);
-    const after = await f.system(() =>
-      f.prisma.repaymentSchedule.findUnique({
-        where: { id: first.scheduleId },
-      }),
-    );
-    const rate = await f.system(() =>
-      f.prisma.tenant.findUnique({
-        where: { id: f.t1 },
-        select: { penaltyRatePerDay: true },
-      }),
-    );
-    expect(Number(after.penaltyAmount)).toBe(Number(rate.penaltyRatePerDay));
-    expect(Number(after.totalAmount)).toBe(
-      1010 + Number(rate.penaltyRatePerDay),
-    );
-    // 40 days overdue > the default 30: DEFAULTED.
-    const loan = await f.system(() =>
-      f.prisma.loan.findUnique({ where: { id: first.loanId } }),
-    );
-    expect(loan.status).toBe('DEFAULTED');
-
-    // With the lender's threshold at 60 days, a 40-day arrear is not a default.
-    const v = expectOk(
-      await f.as('finance').post('/lending/ops/settings', {
-        settings: { legacyServicing: { defaultAfterDaysOverdue: 60 } },
-      }),
-    );
-    expectOk(
-      await f
-        .as('nobody')
-        .post(`/lending/ops/settings/${v.id}/decision`, { approve: true }),
-    );
-    const second = await overdueLegacyLoan(40);
-    await job.applyLatePenalties();
-    const loan2 = await f.system(() =>
-      f.prisma.loan.findUnique({ where: { id: second.loanId } }),
-    );
-    expect(loan2.status).toBe('DISBURSED');
   });
 
   it('a job run is claimed by exactly one caller, even concurrently and across instances', async () => {

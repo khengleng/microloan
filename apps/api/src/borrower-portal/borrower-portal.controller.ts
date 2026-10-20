@@ -9,7 +9,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { ClientIp } from '../common/client-ip';
 import { ThrottleIdentity } from '../common/user-aware-throttler.guard';
 import { BorrowerAuthService } from './borrower-auth.service';
 import { BorrowerPortalService } from './borrower-portal.service';
@@ -21,7 +20,6 @@ import {
   VerifyOtpDto,
   UploadKycDto,
 } from './dto/borrower-auth.dto';
-import { SignAgreementDto } from '../agreements/dto/sign-agreement.dto';
 import {
   AnyAuthenticated,
   BorrowerRoute,
@@ -58,6 +56,8 @@ export class BorrowerPortalController {
   }
 
   // ── Authenticated borrower portal ─────────────────────────────────────────
+  // Loans are the customer's lending-platform loans (D-155). The key facts
+  // statement and its acceptance are under /lending/portal/key-facts.
   @UseGuards(BorrowerJwtGuard)
   @Get('me')
   me(@CurrentBorrower() b: BorrowerSession) {
@@ -90,23 +90,6 @@ export class BorrowerPortalController {
       'Content-Length': pdf.length,
     });
     res.send(pdf);
-  }
-
-  @UseGuards(BorrowerJwtGuard)
-  @Get('loans/:id/key-facts')
-  keyFacts(@CurrentBorrower() b: BorrowerSession, @Param('id') id: string) {
-    return this.portal.keyFacts(b, id);
-  }
-
-  @UseGuards(BorrowerJwtGuard)
-  @Post('loans/:id/sign')
-  sign(
-    @CurrentBorrower() b: BorrowerSession,
-    @Param('id') id: string,
-    @Body() dto: SignAgreementDto,
-    @ClientIp() ip: string,
-  ) {
-    return this.portal.signAgreement(b, id, dto, ip);
   }
 
   @UseGuards(BorrowerJwtGuard)

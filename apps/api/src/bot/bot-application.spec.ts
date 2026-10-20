@@ -1,66 +1,65 @@
-// The bot imports telegraf/openai; only the pure limit check and the gate are exercised here.
+// The bot imports telegraf/openai; only the pure helpers and the application gate are exercised here.
 jest.mock('otplib', () => ({ verify: jest.fn(), generateSecret: jest.fn() }));
 
-import { BotService, productLimitError } from './bot.service';
+import { BotService, CHAT_APPLICATIONS_PAUSED, loanSummary } from './bot.service';
 
-describe('Telegram loan applications (D-132)', () => {
-  it('checks the amount and term against the product limits', () => {
-    const policy = { minPrincipal: '100', maxPrincipal: '5000', minTermMonths: 3, maxTermMonths: 24 };
-    expect(productLimitError(policy, 50, 12)).toMatch(/smallest amount/);
-    expect(productLimitError(policy, 6000, 12)).toMatch(/largest amount/);
-    expect(productLimitError(policy, 1000, 1)).toMatch(/shortest term/);
-    expect(productLimitError(policy, 1000, 36)).toMatch(/longest term/);
-    expect(productLimitError(policy, 1000, 12)).toBeNull();
-    expect(productLimitError({}, 1, 1)).toBeNull();
-  });
+const day = (offset: number) => new Date(Date.UTC(2030, 0, 1 + offset));
+const line = (offset: number, due: string, paid = '0') => ({
+  dueDate: day(offset),
+  principalDue: due,
+  interestDue: '0',
+  feeDue: '0',
+  taxDue: '0',
+  penaltyDue: '0',
+  principalPaid: paid,
+  interestPaid: '0',
+  feePaid: '0',
+  taxPaid: '0',
+  penaltyPaid: '0',
+});
 
+describe('Telegram bot on the lending platform (D-155)', () => {
   function bot(allow: boolean) {
-    const prisma: any = {
-      borrower: { findFirst: jest.fn(async () => ({ id: 'b1', branchId: null })) },
-      loanProduct: {
-        findFirst: jest.fn(async () => ({
-          id: 'p1', interestMethod: 'FLAT', currency: 'USD',
-          policies: [{ creditRating: 'GOOD', interestRate: '12', minPrincipal: '100', maxPrincipal: '1000', minTermMonths: 3, maxTermMonths: 12 }],
-        })),
-      },
-      user: { findFirst: jest.fn() },
-    };
-    const loans: any = { create: jest.fn(), createFromChannel: jest.fn(async () => ({ id: 'l1' })) };
+    const prisma: any = { borrower: { findFirst: jest.fn() }, loanAccount: { findMany: jest.fn() } };
     const settings: any = { get: jest.fn(async () => ({ telegramBot: { allowLoanApplications: allow } })) };
-    const svc = new BotService(prisma, loans, {} as any, settings);
-    return { svc, prisma, loans };
+    return { svc: new BotService(prisma, {} as any, settings), prisma };
   }
 
-  it('is off unless the tenant turned it on', async () => {
-    const { svc, loans } = bot(false);
-    const res = JSON.parse(await svc.handleOriginateLoan('t1', 42, { principal: 500, termMonths: 6, productId: 'p1' }));
+  it('applications by chat are off unless the tenant turned them on', async () => {
+    const { svc } = bot(false);
+    const res = JSON.parse(await svc.handleOriginateLoan('t1'));
     expect(res.error).toMatch(/not available/);
-    expect(loans.createFromChannel).not.toHaveBeenCalled();
   });
 
-  it('records the application under the Telegram bot principal, never a staff account', async () => {
-    const { svc, loans, prisma } = bot(true);
-    const res = JSON.parse(await svc.handleOriginateLoan('t1', 42, { principal: 500, termMonths: 6, productId: 'p1' }));
-    expect(res.ok).toBe(true);
-    expect(loans.create).not.toHaveBeenCalled();
-    expect(prisma.user.findFirst).not.toHaveBeenCalled();
-    expect(loans.createFromChannel).toHaveBeenCalledWith(
-      't1',
-      { code: 'TELEGRAM_BOT', label: 'Telegram bot' },
-      expect.objectContaining({ borrowerId: 'b1', principal: 500, termMonths: 6 }),
+  it('with the setting on, the chat says applying is paused and records nothing', async () => {
+    const { svc, prisma } = bot(true);
+    const res = JSON.parse(await svc.handleOriginateLoan('t1'));
+    expect(res.error).toBe(CHAT_APPLICATIONS_PAUSED);
+    expect(prisma.borrower.findFirst).not.toHaveBeenCalled();
+    expect(prisma.loanAccount.findMany).not.toHaveBeenCalled();
+  });
+
+  it('summarises a lending loan: balance, overdue on the business date and the next instalment', () => {
+    const s = loanSummary(
+      {
+        reference: 'LN-1',
+        status: 'ACTIVE',
+        currency: 'USD',
+        bookedPrincipal: '1000',
+        principalOutstanding: '700',
+        interestReceivable: '12.5',
+        feesReceivable: '0',
+        penaltyReceivable: '2.5',
+        daysPastDue: 3,
+        instalments: [line(-40, '100', '100'), line(-3, '100', '40'), line(27, '100')],
+      },
+      day(0).toISOString().slice(0, 10),
     );
-  });
-
-  it('refuses an amount outside the product limits', async () => {
-    const { svc, loans } = bot(true);
-    const res = JSON.parse(await svc.handleOriginateLoan('t1', 42, { principal: 50_000, termMonths: 6, productId: 'p1' }));
-    expect(res.error).toMatch(/largest amount/);
-    expect(loans.createFromChannel).not.toHaveBeenCalled();
-  });
-
-  it('refuses a non-integer term', async () => {
-    const { svc } = bot(true);
-    const res = JSON.parse(await svc.handleOriginateLoan('t1', 42, { principal: 500, termMonths: 2.5, productId: 'p1' }));
-    expect(res.error).toMatch(/whole number/);
+    expect(s).toMatchObject({
+      balance: '715.00',
+      amountOverdue: '60.00',
+      nextPaymentAmount: '100.00',
+      nextPaymentDueDate: day(27).toISOString().slice(0, 10),
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { ownStorageKey, storagePrefix } from './document-vault.service';
+import { ownStorageKey, storagePrefix } from './legacy-storage-key';
 
 describe('document storage keys (tenant wall)', () => {
   const doc = (content: string) => ({ tenantId: 'tA', loanId: 'L1', content });
