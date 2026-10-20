@@ -413,13 +413,13 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Daily (LATE_ALERT_CRON, default 10:00; LEGACY_LATE_ALERT_CRON is still
-     * read): a notice to every linked customer whose lending loan has an
+     * Daily (LATE_ALERT_CRON, default 10:00; it replaces LEGACY_LATE_ALERT_CRON):
+     * a notice to every linked customer whose lending loan has an
      * instalment unpaid on or before the tenant's business date. Every
      * instance runs the cron; each tenant's notices are claimed once per day,
      * so a customer gets one notice, not one per instance.
      */
-    @Cron(process.env.LATE_ALERT_CRON || process.env.LEGACY_LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM, { timeZone: JOB_TIME_ZONE })
+    @Cron(process.env.LATE_ALERT_CRON || CronExpression.EVERY_DAY_AT_10AM, { timeZone: JOB_TIME_ZONE })
     @SystemContext('cron: scans overdue lending loans of tenants with a bot')
     async sendLatePaymentAlerts() {
         if (!this.enabled) return;
@@ -446,11 +446,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Daily (REMINDER_CRON, default 8:00; LEGACY_REMINDER_CRON is still read):
+     * Daily (REMINDER_CRON, default 8:00; it replaces LEGACY_REMINDER_CRON):
      * a reminder to every linked customer with a lending instalment due the
      * day after the business date. Claimed once per tenant and day.
      */
-    @Cron(process.env.REMINDER_CRON || process.env.LEGACY_REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM, { timeZone: JOB_TIME_ZONE })
+    @Cron(process.env.REMINDER_CRON || CronExpression.EVERY_DAY_AT_8AM, { timeZone: JOB_TIME_ZONE })
     @SystemContext('cron: scans lending instalments due tomorrow of tenants with a bot')
     async sendDueReminders() {
         if (!this.enabled) return;

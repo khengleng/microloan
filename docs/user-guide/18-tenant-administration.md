@@ -327,6 +327,6 @@ Your organisation's own operating parameters: the regulatory loan classes and pr
 Two settings concern access rather than accounting:
 
 - **Administrators must use an authenticator** (`security.requireMfaForAdmins`, default **on**). Turning it off lets organisation administrators work without an authenticator. Leave it on unless a regulator or auditor has agreed otherwise.
-- **Customers may apply for loans in the Telegram bot** (`telegramBot.allowLoanApplications`, default **off**). When on, a customer whose chat is linked (by sharing their phone number) can apply through the bot. The application is recorded by **Telegram bot**, never under a staff member's name, and is refused if the amount or term is outside the product's limits for the rate offered. It lands as a pending application in the original loan module for a loan officer to review; while the original loan book is read-only it is refused.
+- **Customers may apply for loans in the Telegram bot** (`telegramBot.allowLoanApplications`, default **off**). When on, a customer whose chat is linked (by sharing their phone number) can apply through the bot. The application is recorded by **Telegram bot**, never under a staff member's name, and is refused if the amount or term is outside the product's limits for the rate offered. Applying by chat is **paused** since the original loan module was retired: with the setting on, the bot tells the customer to contact a loan officer and records nothing.
 
 Details are in [14-accounting-and-period-close.md](14-accounting-and-period-close.md).

@@ -40,8 +40,9 @@ chapters for your role (see the table below). To practise safely, follow the
 **Finance, reporting and control**
 
 - 14 [Accounting and period close](14-accounting-and-period-close.md) — ledger and reconciliation, account mapping, end of day, business date, impairment, month-end and year-end close.
-- 15 [Reports and regulatory returns](15-reports-and-regulatory-returns.md) — statements, notices, NBC returns, exports, portfolio and PAR reports.
+- 15 [Reports and regulatory returns](15-reports-and-regulatory-returns.md) — statements, notices, NBC returns, exports, Reports, Performance and the KPI dashboard (portfolio, money received, ageing and PAR).
 - 16 [Loan-book migration](16-loan-book-migration.md) — bringing loans over from a legacy system.
+- 21 [Legacy loan archive and migration](21-legacy-archive-and-migration.md) — the retired original loan module: where its work is done now, the read-only legacy loan archive, moving running loans to the lending platform, the borrower portal and the collection QR.
 - 19 [Audit trail](19-audit-trail.md).
 
 **Administration**
@@ -49,7 +50,6 @@ chapters for your role (see the table below). To practise safely, follow the
 - 17 [Webhooks and integrations](17-webhooks-and-integrations.md).
 - 18 [Tenant administration](18-tenant-administration.md) — team members, settings, access and policy, feature flags, lending settings.
 - 20 [Platform administration](20-platform-administration.md) — for the platform operator (super-admin) only.
-- 21 [The original loan module](21-original-loan-module.md) — the screens marked "(original)".
 
 **Help**
 
@@ -69,17 +69,17 @@ Then:
 
 | Your role (as shown in Access & policy) | Main chapters | Also useful |
 |---|---|---|
-| Relationship officer / loan officer | 03, 05, 10, 07 | 24 (consent and alternative data), 06, 08, 11, 13, 21 |
+| Relationship officer / loan officer | 03, 05, 10, 07 | 24 (consent and alternative data), 06, 08, 11, 13 |
 | Credit analyst | 05, 24, 03, 13 | 08, 10, 12 |
 | Credit approver | 05, 02 | 24, 08, 12, 13 |
 | Loan operations maker | 06, 07, 08 | 05, 09, 11, 12, 13 |
 | Loan operations checker | 06, 07, 08 | 02, 09, 11, 12 |
 | Collections officer | 11, 07 | 08, 13 |
 | Restructure committee | 08 | 02, 11 |
-| Finance officer | 14, 15, 07 | 16, 09, 12 |
+| Finance officer | 14, 15, 07 | 16, 21, 09, 12 |
 | Product maker / product checker | 04 | 24 (Scoring step), 02, 12, 09 |
-| Risk / compliance reviewer | 02, 15, 19, 24 | 04, 14, 11 |
-| Auditor | 19, 15 | 02, 14, 24 |
+| Risk / compliance reviewer | 02, 15, 19, 24 | 04, 14, 11, 21 |
+| Auditor | 19, 15 | 02, 14, 21, 24 |
 | Tenant administrator | 18, 02, 17 | 01, 16, 19 |
 | Platform super-admin | 20 | 01 |
 

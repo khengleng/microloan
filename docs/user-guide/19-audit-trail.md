@@ -7,7 +7,7 @@ The portal keeps two records:
 | Screen | Menu | What it records | Who can open it |
 |---|---|---|---|
 | **Audit explorer** | **Risk & audit › Audit trail** | Every lending-platform action and every access decision (allowed or refused), with the reasons and the configuration in force at the time. | Tenant administrator, Risk / compliance reviewer, Auditor (anyone with the audit-read permission). |
-| **Audit Log** | **Risk & audit › Audit log** | Security and account events (sign-ins, failed sign-ins, lockouts, authenticator setup, user creation and suspension, password resets) and changes made in the original module. | ADMIN accounts and accounts with the original "audit view" permission. |
+| **Audit Log** | **Risk & audit › Audit log** | Security and account events (sign-ins, failed sign-ins, lockouts, authenticator setup, user creation and suspension, password resets), changes to users and settings, and the past changes made in the retired original loan module. | ADMIN accounts and accounts with the "audit view" permission. |
 
 Neither screen lets anyone change or delete entries.
 

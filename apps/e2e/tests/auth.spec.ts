@@ -75,7 +75,11 @@ test.describe('signed in', () => {
   // Main pages: each must render its title without console errors, uncaught
   // errors or hydration mismatches (the fixture fails the test on any).
   const PAGES: [string, string][] = [
-    ['/en/home', 'Financial Dashboard'],
+    ['/en/home', 'My work'],
+    ['/en/dashboard', 'Financial Dashboard'],
+    ['/en/reports', 'Reports'],
+    ['/en/kpi', 'Performance'],
+    ['/en/lending/legacy-archive', 'Legacy loan archive'],
     ['/en/borrowers', 'Borrowers'],
     ['/en/lending/applications', 'Applications'],
     ['/en/lending/loans', 'Loan accounts'],

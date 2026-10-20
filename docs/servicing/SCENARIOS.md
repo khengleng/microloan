@@ -152,9 +152,11 @@ Figures are asserted to the cent unless marked otherwise.
 
 **S31 due-date change and extension (UC-47, UC-48).** 6,000, two paid; restructure (consent, assessment, proposal of 16 instalments from 20 April, committee approval, signed acceptance, execution): 16 instalments all on the 20th, lower instalment, `isRestructured`. Two paid on the 20th, then settled.
 
-### Legacy core app — `e2e/legacy.int-spec.ts`
+### Legacy core app — retired
 
-**S32 legacy loan, borrower creation to `POST /repayments/settlements` (UC-31, UC-59, UC-72).** Borrower created and KYC-verified through the API; `POST /loans` (3,000, 12% flat, 3 months, started 40 days ago, with collateral and a guarantor) by the officer (D-QA-01); the officer cannot approve; approved by one administrator, who cannot also disburse; disbursed by another; instalments 1,030 × 3; journals balanced. A promise to pay today, the instalment paid (1,000 principal, 30 interest), the daily review marks the promise `KEPT`. Payoff quote: principal 2,000, future interest 60 waived; a different amount refused; paying the quote closes the loan, once (idempotent replay returns the same repayment).
+*Removed with the original loan module (D-153); its loans are read in the legacy loan archive (`legacy-retirement.int-spec.ts`).*
+
+**S32 (historical) legacy loan, borrower creation to `POST /repayments/settlements` (UC-31, UC-59, UC-72).** Borrower created and KYC-verified through the API; `POST /loans` (3,000, 12% flat, 3 months, started 40 days ago, with collateral and a guarantor) by the officer (D-QA-01); the officer cannot approve; approved by one administrator, who cannot also disburse; disbursed by another; instalments 1,030 × 3; journals balanced. A promise to pay today, the instalment paid (1,000 principal, 30 interest), the daily review marks the promise `KEPT`. Payoff quote: principal 2,000, future interest 60 waived; a different amount refused; paying the quote closes the loan, once (idempotent replay returns the same repayment).
 
 ### Loan-type coverage — `e2e/catalogue.int-spec.ts`
 

@@ -58,10 +58,13 @@ principal — they cannot read borrower data or approve transactions.
 | Loan operations checker | disbursement approval/execution, reversals, write-off approval, restructure execution |
 | Collections officer | servicing reads, repayments, restructure requests and monitoring |
 | Restructure committee | restructure approval with waivers, rate concessions and principal forgiveness |
-| Finance officer | accounting, business date, rates, batch, exports |
-| Risk / compliance reviewer | read across lending, audit, simulator, exports |
-| Auditor | read-only including the audit trail |
+| Finance officer | accounting, business date, rates, batch, exports, the legacy loan archive |
+| Risk / compliance reviewer | read across lending, audit, simulator, exports, the legacy loan archive |
+| Auditor | read-only including the audit trail and the legacy loan archive |
 | Integration service account | template for service-account scopes |
+
+`legacy_loan.read` (D-154) opens the read-only legacy loan archive of the
+original module's loans, within the holder's branches; it gates nothing else.
 
 Assigning a **sensitive** role (any financial or approve permission, or
 `access_policy.manage`) is a maker-checker change: it stays `PENDING` until a

@@ -87,9 +87,9 @@ Open a borrower from the list (**View**). The page shows:
 
 - **Documents** — opens the customer's document library (see [Customer document library](#the-customer-document-library)).
 - **Modify Profile** — edits the borrower.
-- Phone, **National ID / Passport**, **Registered Residence**, **Branch**, **Date of birth**, ID type, occupation, AML screening, and loan counts from the original loan module.
+- Phone, **National ID / Passport**, **Registered Residence**, **Branch**, **Date of birth**, ID type, occupation, AML screening, and counts of the customer's lending loans.
 - **Identity Verification (KYC)** — the identity documents (uploaded by the customer in the borrower portal or filed by staff in the document library) and the KYC decision (see below).
-- **System Loan Register** — loans made in the **original** loan module only. Loans made through **Origination › Applications** are not listed here; find them in **Loans › Loan accounts**. The **Originate Engagement** button opens the original loan module, not a new application.
+- **System Loan Register** — the customer's loans on the lending platform (reference, amount, outstanding, days past due, maturity); **View** opens the loan account. **Originate Engagement** opens **Origination › Applications**. If the customer still has loans in the retired original module, a line says how many, with a link to the legacy loan archive ([21](21-legacy-archive-and-migration.md)).
 - **Credit Bureau (CBC)** — bureau checks (see [Credit checks](#credit-checks)).
 
 The label next to the name shows the customer's KYC status: **Identity verified**, **Identity not verified** or **Identity rejected**, plus a red **Flagged** label when AML screening flagged them.

@@ -16,6 +16,9 @@ const PAGES: [string, string][] = [
   ['/km/lending/aml', 'Workspace.nav.aml'],
   ['/km/lending/scorecards', 'Scoring.scorecards.title'],
   ['/km/lending/scorecard-monitoring', 'Scoring.monitoring.title'],
+  ['/km/reports', 'Workspace.nav.reports'],
+  ['/km/kpi', 'Workspace.nav.kpi'],
+  ['/km/lending/legacy-archive', 'Workspace.nav.legacyArchive'],
   ['/km/learn', 'Learning.title'],
   ['/km/account', 'Account.title'],
 ];

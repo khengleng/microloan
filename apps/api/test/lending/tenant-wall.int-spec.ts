@@ -164,6 +164,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
     return table[p] ?? null;
   }
   const table: Record<string, string> = {
+    // The borrower portal's loans are lending loans (D-155).
+    'loans/:id': 'loanAccount',
     'borrowers/:id': 'borrower',
     'borrower/:borrowerId': 'borrower',
     'kyc/:borrowerId': 'borrower',

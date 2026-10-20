@@ -405,7 +405,7 @@ Prisma pool, stops scheduled jobs).
   cannot exhaust another's budget and one account cannot be hammered from many
   addresses.
 - **Several api instances** are supported: outbox and webhook deliveries,
-  legacy reminders and penalties, and Telegram polling are claimed in
+  the Telegram reminders and late notices, and Telegram polling are claimed in
   PostgreSQL; rate limits share Redis. Customer documents need S3 (or one
   volume every instance mounts) — today they are on the single api's `/data`
   volume.

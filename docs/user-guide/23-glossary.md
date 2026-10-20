@@ -26,7 +26,8 @@ portal and in this guide, in alphabetical order.
 | **Champion / challenger** | The champion is the scorecard that drives a product's credit decisions. A challenger is a second scorecard scored silently on the same data, stored for comparison, that never affects a decision. |
 | **Characteristic** | One item a scorecard looks at (for example affordability or age), cut into bands that each give points and a reason. |
 | **Collection stage / collections ladder** | The escalation steps a product defines for overdue loans (reminder, call, visit, notice, legal review) according to days past due. Each step can create a task for a collector. |
-| **Combined ledger** | Both loan books (the original module and the lending platform) shown side by side. |
+| **Combined ledger** | The retired original module's journal and the lending journal shown side by side. |
+| **Legacy loan archive** | Read-only list of the retired original loan module's loans, with CSV export and links to the loan-book migration. |
 | **Conditions precedent** | Things that must be done before a loan can be paid out or a restructure executed (for example a signed mortgage). Each is satisfied with evidence or waived by someone with authority. |
 | **Consent (alternative data)** | The customer's permission to use one data source for credit assessment, recorded with its purpose, method and expiry. It must be in force each time the data is captured, verified or used; withdrawing it stops future use. |
 | **Control totals** | The count of loans and total principal per currency from the old system, used to prove a migration file is complete. |
