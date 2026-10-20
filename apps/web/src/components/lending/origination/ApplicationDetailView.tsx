@@ -77,6 +77,7 @@ function fmtBytes(n: number | undefined): string {
 
 export function ApplicationDetailView({ id }: { id: string }) {
     const tr = useTranslations('LendingOrigination');
+    const tw = useTranslations('Workspace.nav');
     const href = useLendingHref();
     const { showToast } = useToast();
     const confirm = useConfirm();
@@ -91,7 +92,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
     const a = app.data;
     if (!a) {
         return (
-            <LendingShell title={tr('detail.loadingTitle')} back={{ href: '/lending/applications', label: 'Applications' }}>
+            <LendingShell title={tr('detail.loadingTitle')} back={{ href: '/lending/applications', label: tw('applications') }}>
                 {app.error ? <ErrorBox error={app.error} /> : <Spinner />}
             </LendingShell>
         );
@@ -138,7 +139,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
         <LendingShell
             title={<span className="flex items-center gap-2">{a.reference} <StatusBadge status={a.status} /></span>}
             subtitle={`${fullName(a.borrower)} · ${a.product ? `${a.product.name} (${a.product.code})` : a.productId}${a.productVersion ? ` · v${a.productVersion.version}` : ''}`}
-            back={{ href: '/lending/applications', label: 'Applications' }}
+            back={{ href: '/lending/applications', label: tw('applications') }}
             actions={<Btn variant="ghost" onClick={() => { app.reload(); caps.reload(); }}>{tr('common.refresh')}</Btn>}
         >
             {app.error && <ErrorBox error={app.error} />}

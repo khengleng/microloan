@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { AlertTriangle, Trash2, Ban, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from './button';
 
 interface ConfirmOptions {
@@ -19,6 +20,7 @@ interface ConfirmContextType {
 const ConfirmContext = createContext<ConfirmContextType | null>(null);
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+    const t = useTranslations('Common');
     const [state, setState] = useState<(ConfirmOptions & {
         resolve: (v: boolean) => void;
     }) | null>(null);
@@ -64,7 +66,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                                 )}
                                 <p className="text-sm text-slate-500 leading-relaxed">{state.message}</p>
                             </div>
-                            <button onClick={handleCancel} className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
+                            <button onClick={handleCancel} aria-label={t('close')} className="text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0">
                                 <X size={18} />
                             </button>
                         </div>
@@ -74,13 +76,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                                 onClick={handleCancel}
                                 className="text-slate-600"
                             >
-                                {state.cancelLabel || 'Cancel'}
+                                {state.cancelLabel || t('cancel')}
                             </Button>
                             <Button
                                 onClick={handleConfirm}
                                 className={v.btn}
                             >
-                                {state.confirmLabel || 'Confirm'}
+                                {state.confirmLabel || t('confirm')}
                             </Button>
                         </div>
                     </div>

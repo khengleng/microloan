@@ -21,6 +21,8 @@ export function FacilityTypeLabel({ type }: { type: string }) {
 
 export function FacilitiesList() {
     const t = useTranslations('LendingFacilities.list');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const [status, setStatus] = useState('');
     const [type, setType] = useState('');
@@ -33,7 +35,7 @@ export function FacilitiesList() {
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     return (
-        <LendingShell title="Facilities" subtitle="Revolving lines, overdrafts and staged drawdown facilities.">
+        <LendingShell title={tw('facilities')} subtitle={tp('facilities')}>
             <Card
                 title={t('title')}
                 subtitle={data ? t('count', { count: total }) : undefined}

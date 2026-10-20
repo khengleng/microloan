@@ -1,13 +1,16 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import { LendingShell } from '@/components/lending/LendingShell';
 import { HolidayProgrammes } from '@/components/lending/relief/HolidayProgrammes';
 
 export default function LendingReliefPage() {
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     return (
         <LendingShell
-            title="Payment-holiday programmes"
-            subtitle="Published relief offers: who qualifies, for how long, and who pays the interest that arises."
+            title={tw('relief')}
+            subtitle={tp('relief')}
         >
             <HolidayProgrammes />
         </LendingShell>

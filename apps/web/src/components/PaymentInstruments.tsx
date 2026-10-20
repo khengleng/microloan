@@ -202,7 +202,7 @@ export function PaymentInstruments() {
                                     <label className={labelCls}>{t('orUploadImage')}</label>
                                     <input type="file" accept="image/*" className="text-xs" onChange={e => onFile(e.target.files?.[0])} />
                                     {form.qrImage && !form.qrPayload && (
-                                        <img src={form.qrImage} alt="QR preview" className="w-20 h-20 mt-2 rounded border border-border object-contain bg-white" />
+                                        <img src={form.qrImage} alt={t('qrPreviewAlt')} className="w-20 h-20 mt-2 rounded border border-border object-contain bg-white" />
                                     )}
                                 </div>
                                 {branches.length > 0 && (

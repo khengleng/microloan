@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 
 /** A colleague as GET /me/people returns them (own organisation only). */
@@ -130,8 +131,9 @@ export function UserPicker({ value, onChange, placeholder, className = '' }: {
  */
 export function Person({ id, fallback, className = '' }: { id: string | null | undefined; fallback?: string; className?: string }) {
     const people = usePeople([id]);
+    const t = useTranslations('LendingShared.people');
     if (!id) return <span className={`text-[#AAB7C4] ${className}`}>—</span>;
     const p = people.get(id);
-    if (p) return <span className={className} title={p.active ? p.email : `${p.email} (inactive)`}>{p.email}</span>;
+    if (p) return <span className={className} title={p.active ? p.email : t('inactive', { email: p.email })}>{p.email}</span>;
     return <span className={`font-mono text-[12px] ${className}`} title={id}>{fallback ?? (UUID.test(id) ? id.slice(0, 8) : id)}</span>;
 }

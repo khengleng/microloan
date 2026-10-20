@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { RepaymentModal } from '@/components/RepaymentModal';
 import { LoanPaymentQr } from '@/components/LoanPaymentQr';
 import { EarlySettlementPanel } from '@/components/EarlySettlementPanel';
@@ -75,6 +76,10 @@ export default function LoanDetailsPage() {
     const router = useRouter();
     const { showToast } = useToast();
     const confirm = useConfirm();
+    const t = useTranslations('LoanDetails');
+    const tl = useTranslations('Loans');
+    const tc = useTranslations('Common');
+    const ts = useTranslations('Status');
     const [loan, setLoan] = useState<Loan | null>(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,7 +92,7 @@ export default function LoanDetailsPage() {
         setLoading(true);
         api.get(`/loans/${id}`)
             .then(res => setLoan(res.data))
-            .catch(() => showToast('Failed to load loan', 'error'))
+            .catch(() => showToast(t('loadFailed'), 'error'))
             .finally(() => setLoading(false));
     }, [id]);
 
@@ -108,66 +113,66 @@ export default function LoanDetailsPage() {
     const handleApprove = async () => {
         clarityEvent('loan_approve_attempt');
         const ok = await confirm({
-            title: 'Approve Loan Application',
-            message: 'This loan will be marked as APPROVED. The loan officer can then disburse funds.',
-            confirmLabel: 'Approve',
+            title: t('approveTitle'),
+            message: t('approveMessage'),
+            confirmLabel: t('approve'),
             variant: 'default',
         });
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'APPROVED' });
             clarityEvent('loan_approve_success');
-            showToast('Loan approved', 'success');
+            showToast(t('approved'), 'success');
             fetchLoan();
         } catch {
             clarityEvent('loan_approve_failed');
-            showToast('Failed to approve loan', 'error');
+            showToast(t('approveFailed'), 'error');
         }
     };
 
     const handleReject = async () => {
         if (!rejectionReason.trim()) {
-            showToast('Please provide a reason for rejection', 'error');
+            showToast(t('rejectReasonRequired'), 'error');
             return;
         }
         clarityEvent('loan_reject_attempt');
         const ok = await confirm({
-            title: 'Reject Loan Application',
-            message: `Reason: "${rejectionReason}". This cannot be undone.`,
-            confirmLabel: 'Reject',
+            title: t('rejectTitle'),
+            message: t('rejectMessage', { reason: rejectionReason }),
+            confirmLabel: t('reject'),
             variant: 'danger',
         });
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'REJECTED', reason: rejectionReason });
             clarityEvent('loan_reject_success');
-            showToast('Application rejected', 'success');
+            showToast(t('rejected'), 'success');
             setShowRejectInput(false);
             setRejectionReason('');
             fetchLoan();
         } catch {
             clarityEvent('loan_reject_failed');
-            showToast('Failed to reject loan', 'error');
+            showToast(t('rejectFailed'), 'error');
         }
     };
 
     const handleDisburse = async () => {
         clarityEvent('loan_disburse_attempt');
         const ok = await confirm({
-            title: 'Disburse Loan',
-            message: 'This will activate the repayment schedule. The borrower will receive the funds.',
-            confirmLabel: 'Disburse Funds',
+            title: t('disburseTitle'),
+            message: t('disburseMessage'),
+            confirmLabel: t('disburseFunds'),
             variant: 'warning',
         });
         if (!ok) return;
         try {
             await api.put(`/loans/${id}/status`, { status: 'DISBURSED' });
             clarityEvent('loan_disburse_success');
-            showToast('Loan disbursed successfully', 'success');
+            showToast(t('disbursed'), 'success');
             fetchLoan();
         } catch {
             clarityEvent('loan_disburse_failed');
-            showToast('Failed to disburse loan', 'error');
+            showToast(t('disburseFailed'), 'error');
         }
     };
 
@@ -175,12 +180,12 @@ export default function LoanDetailsPage() {
         if (!newNote.trim()) return;
         setSubmittingNote(true);
         try {
-            await api.post(`/loans/${id}/interactions`, { notes: newNote, title: 'Follow-up Note', type: 'NOTE' });
+            await api.post(`/loans/${id}/interactions`, { notes: newNote, title: t('followUpNoteTitle'), type: 'NOTE' });
             setNewNote('');
-            showToast('Note added', 'success');
+            showToast(t('noteAdded'), 'success');
             fetchLoan();
         } catch {
-            showToast('Failed to add note', 'error');
+            showToast(t('noteFailed'), 'error');
         } finally {
             setSubmittingNote(false);
         }
@@ -188,12 +193,12 @@ export default function LoanDetailsPage() {
 
     if (loading) return (
         <div className="flex h-64 items-center justify-center text-muted-foreground text-sm gap-2">
-            <Loader2 size={16} className="animate-spin" /> Loading loan details...
+            <Loader2 size={16} className="animate-spin" /> {t('loadingDetails')}
         </div>
     );
     if (!loan) return (
         <div className="text-center py-20">
-            <p className="text-sm font-medium text-destructive">Loan not found</p>
+            <p className="text-sm font-medium text-destructive">{t('notFound')}</p>
         </div>
     );
 
@@ -217,12 +222,12 @@ export default function LoanDetailsPage() {
                     </Link>
                     <div>
                         <div className="flex items-center gap-2.5">
-                            <h1 className="text-xl font-bold text-foreground">Loan #{loan.id.slice(-6).toUpperCase()}</h1>
-                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Legacy</span>
-                            <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>{loan.status}</span>
+                            <h1 className="text-xl font-bold text-foreground">{t('heading', { ref: loan.id.slice(-6).toUpperCase() })}</h1>
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">{t('legacyBadge')}</span>
+                            <span className={STATUS_BADGE[loan.status] || 'badge-neutral'}>{ts.has(loan.status) ? ts(loan.status) : loan.status}</span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                            Borrower:{' '}
+                            {t('borrowerLabel')}{' '}
                             <Link href={`/${locale}/borrowers/${loan.borrower.id}`} className="text-primary font-semibold hover:underline">
                                 {loan.borrower.firstName} {loan.borrower.lastName}
                             </Link>
@@ -239,30 +244,30 @@ export default function LoanDetailsPage() {
                                     <input
                                         type="text"
                                         data-clarity-mask="true"
-                                        placeholder="Reason for rejection..."
+                                        placeholder={t('rejectReasonPlaceholder')}
                                         value={rejectionReason}
                                         onChange={e => setRejectionReason(e.target.value)}
                                         className="h-9 px-3 border border-border rounded text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 w-56"
                                         autoFocus
                                     />
-                                    <button onClick={handleReject} className="btn-danger">Confirm</button>
-                                    <button onClick={() => setShowRejectInput(false)} className="btn-ghost">Cancel</button>
+                                    <button onClick={handleReject} className="btn-danger">{t('confirm')}</button>
+                                    <button onClick={() => setShowRejectInput(false)} className="btn-ghost">{tc('cancel')}</button>
                                 </div>
                             ) : legacyCan('LOAN_REJECT') && (
                                 <button onClick={() => setShowRejectInput(true)} className="btn-ghost text-destructive border-destructive/30 hover:bg-destructive/10">
-                                    Reject
+                                    {t('reject')}
                                 </button>
                             )}
                             {legacyCan('LOAN_APPROVE') && (
                             <button onClick={handleApprove} className="btn-primary">
-                                <CheckCircle size={14} /> Approve
+                                <CheckCircle size={14} /> {t('approve')}
                             </button>
                             )}
                         </>
                     )}
                     {loan.status === 'APPROVED' && legacy && !legacy.readonly && legacyCan('LOAN_DISBURSE') && (
                         <button onClick={handleDisburse} className="btn-primary bg-[#006644] hover:bg-[#004d33]">
-                            <Wallet size={14} /> Disburse Funds
+                            <Wallet size={14} /> {t('disburseFunds')}
                         </button>
                     )}
                     {loan.status === 'DISBURSED' && legacy && !legacy.readonly && legacyCan('LOAN_REPAYMENT_POST') && (
@@ -270,7 +275,7 @@ export default function LoanDetailsPage() {
                             clarityEvent('repayment_modal_open_from_loan');
                             setIsModalOpen(true);
                         }} className="btn-primary">
-                            <Plus size={14} /> Post Payment
+                            <Plus size={14} /> {t('postPayment')}
                         </button>
                     )}
                 </div>
@@ -286,44 +291,44 @@ export default function LoanDetailsPage() {
                     <div className="bg-white border border-border rounded-md">
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                             <Wallet size={14} className="text-primary" />
-                            <h3 className="text-sm font-bold text-foreground">Loan Summary</h3>
+                            <h3 className="text-sm font-bold text-foreground">{t('summaryTitle')}</h3>
                         </div>
                         <div className="px-4 py-4 space-y-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">Principal</span>
+                                <span className="text-xs text-muted-foreground">{t('principal')}</span>
                                 <span className="text-lg font-bold text-foreground">{money(loan.principal, loan.currency)}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">Annual Rate</span>
+                                <span className="text-xs text-muted-foreground">{t('annualRate')}</span>
                                 <span className="text-sm font-semibold text-foreground">{loan.annualInterestRate}%</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">Term</span>
-                                <span className="text-sm font-semibold text-foreground">{loan.termMonths} months</span>
+                                <span className="text-xs text-muted-foreground">{t('term')}</span>
+                                <span className="text-sm font-semibold text-foreground">{t('termMonths', { n: loan.termMonths })}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">Method</span>
-                                <span className="badge-neutral text-[11px]">{loan.interestMethod}</span>
+                                <span className="text-xs text-muted-foreground">{t('method')}</span>
+                                <span className="badge-neutral text-[11px]">{loan.interestMethod === 'FLAT' ? tl('flat') : loan.interestMethod === 'REDUCING_BALANCE' ? tl('reducing_balance') : loan.interestMethod}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">Start Date</span>
+                                <span className="text-xs text-muted-foreground">{t('startDate')}</span>
                                 <span className="text-sm text-muted-foreground">{new Date(loan.startDate).toLocaleDateString()}</span>
                             </div>
 
                             {loan.status === 'DISBURSED' && (
                                 <div className="pt-3 border-t border-border space-y-2">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-muted-foreground">Total Paid</span>
+                                        <span className="text-xs text-muted-foreground">{t('totalPaid')}</span>
                                         <span className="text-sm font-bold text-[#006644]">{money(totalPaid, loan.currency)}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-muted-foreground">Remaining Principal</span>
+                                        <span className="text-xs text-muted-foreground">{t('remainingPrincipal')}</span>
                                         <span className="text-sm font-bold text-foreground">{money(Math.max(0, remaining), loan.currency)}</span>
                                     </div>
                                     <div className="pt-1">
                                         <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                                            <span>Progress</span>
-                                            <span>{paidCount}/{loan.schedules.length} installments</span>
+                                            <span>{t('progress')}</span>
+                                            <span>{t('installmentsProgress', { paid: paidCount, total: loan.schedules.length })}</span>
                                         </div>
                                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                                             <div
@@ -331,7 +336,7 @@ export default function LoanDetailsPage() {
                                                 style={{ width: `${progressPct}%` }}
                                             />
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1 text-right">{progressPct}% complete</p>
+                                        <p className="text-xs text-muted-foreground mt-1 text-right">{t('percentComplete', { pct: progressPct })}</p>
                                     </div>
                                 </div>
                             )}
@@ -359,11 +364,11 @@ export default function LoanDetailsPage() {
                     <div className="bg-white border border-border rounded-md">
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                             <ShieldCheck size={14} className="text-[#974F0C]" />
-                            <h3 className="text-sm font-bold text-foreground">Security & Collateral</h3>
+                            <h3 className="text-sm font-bold text-foreground">{t('collateralTitle')}</h3>
                         </div>
                         <div className="px-4 py-4">
                             {loan.collaterals?.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">No collateral registered.</p>
+                                <p className="text-sm text-muted-foreground">{t('noCollateral')}</p>
                             ) : (
                                 <div className="space-y-3">
                                     {loan.collaterals?.map((c, idx) => (
@@ -389,7 +394,7 @@ export default function LoanDetailsPage() {
                         <div className="bg-white border border-border rounded-md">
                             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                                 <ShieldCheck size={14} className="text-primary" />
-                                <h3 className="text-sm font-bold text-foreground">Guarantors</h3>
+                                <h3 className="text-sm font-bold text-foreground">{t('guarantors')}</h3>
                             </div>
                             <div className="px-4 py-4 space-y-3">
                                 {loan.guarantors.map((g, idx) => (
@@ -409,19 +414,19 @@ export default function LoanDetailsPage() {
                     <div className="bg-white border border-border rounded-md overflow-hidden">
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
                             <Calendar size={14} className="text-primary" />
-                            <h3 className="text-sm font-bold text-foreground">Repayment Schedule</h3>
-                            <span className="ml-auto text-xs text-muted-foreground">{paidCount}/{loan.schedules.length} paid</span>
+                            <h3 className="text-sm font-bold text-foreground">{t('schedule')}</h3>
+                            <span className="ml-auto text-xs text-muted-foreground">{t('paidCount', { paid: paidCount, total: loan.schedules.length })}</span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-border">
                                 <thead className="bg-muted/30">
                                     <tr>
                                         <th className="table-header px-4 py-2.5 text-left">#</th>
-                                        <th className="table-header px-4 py-2.5 text-left">Due Date</th>
-                                        <th className="table-header px-4 py-2.5 text-right">Principal</th>
-                                        <th className="table-header px-4 py-2.5 text-right">Interest</th>
-                                        <th className="table-header px-4 py-2.5 text-right">Total</th>
-                                        <th className="table-header px-4 py-2.5 text-right">Status</th>
+                                        <th className="table-header px-4 py-2.5 text-left">{t('due_date')}</th>
+                                        <th className="table-header px-4 py-2.5 text-right">{t('principal')}</th>
+                                        <th className="table-header px-4 py-2.5 text-right">{t('interest')}</th>
+                                        <th className="table-header px-4 py-2.5 text-right">{t('total')}</th>
+                                        <th className="table-header px-4 py-2.5 text-right">{t('status')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
@@ -436,10 +441,10 @@ export default function LoanDetailsPage() {
                                                 <td className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">{money(item.totalAmount, loan.currency)}</td>
                                                 <td className="px-4 py-2.5 text-right">
                                                     {item.isPaid
-                                                        ? <span className="badge-success text-[11px]">Paid</span>
+                                                        ? <span className="badge-success text-[11px]">{ts('PAID')}</span>
                                                         : isOverdue
-                                                            ? <span className="badge-danger text-[11px]">Overdue</span>
-                                                            : <span className="badge-neutral text-[11px]">Pending</span>
+                                                            ? <span className="badge-danger text-[11px]">{ts('OVERDUE')}</span>
+                                                            : <span className="badge-neutral text-[11px]">{ts('PENDING')}</span>
                                                     }
                                                 </td>
                                             </tr>
@@ -454,13 +459,13 @@ export default function LoanDetailsPage() {
                     <div className="bg-white border border-border rounded-md flex flex-col" style={{ minHeight: 360 }}>
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0">
                             <MessageSquare size={14} className="text-primary" />
-                            <h3 className="text-sm font-bold text-foreground">Collection Logs & Activity</h3>
+                            <h3 className="text-sm font-bold text-foreground">{t('activityTitle')}</h3>
                         </div>
                         <div className="flex-1 overflow-y-auto divide-y divide-border">
                             {loan.interactions?.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2">
                                     <AlertCircle size={28} strokeWidth={1.5} className="opacity-30" />
-                                    <p className="text-xs text-muted-foreground">No activity recorded yet.</p>
+                                    <p className="text-xs text-muted-foreground">{t('noActivity')}</p>
                                 </div>
                             ) : (
                                 loan.interactions?.map((it, idx) => (
@@ -477,7 +482,7 @@ export default function LoanDetailsPage() {
                         </div>
                         <div className="flex gap-2 p-3 border-t border-border flex-shrink-0">
                             <input
-                                placeholder="Add a follow-up note..."
+                                placeholder={t('notePlaceholder')}
                                 value={newNote}
                                 onChange={e => setNewNote(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleAddNote()}

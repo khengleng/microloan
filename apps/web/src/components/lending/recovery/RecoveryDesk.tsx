@@ -20,6 +20,7 @@ import type { RecoveryDeskView } from './types';
 export function RecoveryDesk() {
     const t = useTranslations('LendingRecovery.desk');
     const tt = useTranslations('LendingRecovery.task');
+    const tw = useTranslations('Workspace.nav');
     const href = useLendingHref();
     const desk = useApi<RecoveryDeskView>('/lending/recovery');
     const d = desk.data;
@@ -31,7 +32,7 @@ export function RecoveryDesk() {
 
     return (
         <LendingShell
-            title="Recovery"
+            title={tw('recovery')}
             subtitle={d ? t('businessDate', { date: d.businessDate }) : t('subtitle')}
             actions={<Btn variant="ghost" onClick={desk.reload}>{t('refresh')}</Btn>}
         >

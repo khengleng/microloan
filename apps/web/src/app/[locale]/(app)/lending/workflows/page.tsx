@@ -142,6 +142,8 @@ export default function WorkflowsPage() {
     const { can, access } = useWorkspace();
     const t = useTranslations('Governance.workflow');
     const tw = useTranslations('LendingWorkflows');
+    const tn = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const me = access?.principal.id;
     const canApprove = can('workflow.approve');
 
@@ -151,7 +153,7 @@ export default function WorkflowsPage() {
     };
 
     return (
-        <LendingShell title="Workflows" subtitle="Origination workflows: optional checks and amount-based approval levels.">
+        <LendingShell title={tn('workflows')} subtitle={tp('workflows')}>
             {loading && !data ? <Spinner /> : error ? <ErrorBox error={error} /> : data && (
                 <>
                     <Notice tone="info">{tw('phaseNotice')}</Notice>

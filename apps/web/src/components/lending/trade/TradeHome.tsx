@@ -22,9 +22,11 @@ type Tab = 'lc' | 'receivables' | 'loans';
  */
 export function TradeHome() {
     const t = useTranslations('LendingTrade.home');
+    const tn = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const [tab, setTab] = useState<Tab>('lc');
     return (
-        <LendingShell title="Trade finance" subtitle="Letters of credit, receivables programmes and import / export loans.">
+        <LendingShell title={tn('trade')} subtitle={tp('trade')}>
             <Tabs<Tab>
                 tabs={[
                     { value: 'lc', label: t('tabLc') },

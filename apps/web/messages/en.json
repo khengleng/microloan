@@ -64,7 +64,9 @@
     "passwordsNoMatch": "Passwords do not match.",
     "invalidLink": "This reset link is invalid or has expired.",
     "or": "or",
-    "language": "Language"
+    "language": "Language",
+    "googleNoCredential": "Google did not return a credential. Try again.",
+    "googleFailed": "Google sign-in failed."
   },
   "Borrowers": {
     "title": "Borrowers",
@@ -99,7 +101,84 @@
     "loadFailed": "Failed to load borrowers",
     "deleted": "Borrower deleted",
     "deleteFailed": "Failed to delete borrower",
-    "saved": "Borrower saved"
+    "saved": "Borrower saved",
+    "crossCheck": {
+      "failed": "Failed to perform credit check",
+      "title": "Borrower Credit Check",
+      "description": "Check this borrower’s prior activity within your organization. Cross-lender obligations are checked through the Credit Bureau (CBC).",
+      "idNumber": "ID Number",
+      "idPlaceholder": "Enter ID number",
+      "phone": "Phone Number",
+      "phonePlaceholder": "Enter phone",
+      "verify": "Verify Borrower Reliability",
+      "resultsTitle": "Results — Your Organization",
+      "noActivity": "No prior activity in your organization.",
+      "noLoans": "This borrower has no recorded loans with you.",
+      "yourOrg": "Your Organization",
+      "loanRecords": "{count, plural, one {# Loan Record} other {# Loan Records}}"
+    },
+    "profile": {
+      "loadFailed": "Failed to load borrower profile",
+      "creditCheckSubmitted": "Credit check submitted",
+      "creditCheckFailed": "Failed to run credit check",
+      "loading": "Loading Profile...",
+      "notFound": "Borrower not found.",
+      "title": "Client Digital ID",
+      "subtitle": "Enterprise profile for credit verification and history",
+      "documents": "Documents",
+      "alternativeData": "Alternative data",
+      "modifyProfile": "Modify Profile",
+      "phoneNumber": "Phone Number",
+      "nationalIdPassport": "National ID / Passport",
+      "residence": "Registered Residence",
+      "originated": "Originated in system {date}",
+      "historicalCount": "Historical Count",
+      "loansUnit": "{count, plural, one {Loan} other {Loans}}",
+      "activePortfolios": "Active Portfolios",
+      "closedRecords": "Closed Records",
+      "cumulativeDebt": "Cumulative debt",
+      "loanRegister": "System Loan Register",
+      "originate": "Originate Engagement",
+      "noLoans": "Zero historical engagements found.",
+      "colPrincipal": "Principal Asset",
+      "colRate": "Rate Engine",
+      "colTerm": "Term (M)",
+      "colMethod": "Logic",
+      "colStatus": "Market Status",
+      "colAction": "Action",
+      "idLabel": "ID: {id}",
+      "termMonths": "{n}m",
+      "creditBureau": "Credit Bureau (CBC)",
+      "runCreditCheck": "Run Credit Check",
+      "noCreditChecks": "No credit checks on record.",
+      "colDate": "Date",
+      "colProvider": "Provider",
+      "colCheckStatus": "Status",
+      "colScore": "Score",
+      "colGrade": "Grade",
+      "colSummary": "Summary",
+      "updated": "Borrower updated"
+    },
+    "list": {
+      "range": "{from}–{to} of {total, number}"
+    },
+    "modal": {
+      "editTitle": "Edit Borrower",
+      "editDesc": "Update borrower information.",
+      "createDesc": "Enter the borrower's details to register them.",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "phone": "Phone Number",
+      "idNumber": "National ID / Passport",
+      "idNumberPlaceholder": "ID number",
+      "address": "Address",
+      "addressPlaceholder": "Street, City",
+      "monthlyIncome": "Monthly Income (USD)",
+      "monthlyExpenses": "Monthly Expenses (USD)",
+      "saving": "Saving...",
+      "saveChanges": "Save Changes",
+      "addBorrower": "Add Borrower"
+    }
   },
   "Collections": {
     "title": "Collections",
@@ -121,7 +200,10 @@
     "recordPayment": "Record Payment",
     "view": "View",
     "loadFailed": "Failed to load overdue loans",
-    "paymentRecorded": "Payment recorded successfully"
+    "paymentRecorded": "Payment recorded successfully",
+    "list": {
+      "daysLate": "{n}d"
+    }
   },
   "Common": {
     "save": "Save",
@@ -140,7 +222,9 @@
     "export": "Export",
     "active": "Active",
     "inactive": "Inactive",
-    "to": "to"
+    "to": "to",
+    "confirm": "Confirm",
+    "close": "Close"
   },
   "Dashboard": {
     "title": "Dashboard Overview",
@@ -206,7 +290,9 @@
     "step3Body": "Add branches, staff and loan products, then onboard borrowers and disburse.",
     "step3Title": "Start lending",
     "unlimited": "Unlimited",
-    "users": "users"
+    "users": "users",
+    "navTerms": "Terms",
+    "navPrivacy": "Privacy"
   },
   "Index": {
     "title": "Welcome to Magic Money",
@@ -223,7 +309,92 @@
     "interest": "Interest",
     "total": "Total",
     "balance": "Balance",
-    "status": "Status"
+    "status": "Status",
+    "loadFailed": "Failed to load loan",
+    "approveTitle": "Approve Loan Application",
+    "approveMessage": "This loan will be marked as APPROVED. The loan officer can then disburse funds.",
+    "approve": "Approve",
+    "approved": "Loan approved",
+    "approveFailed": "Failed to approve loan",
+    "rejectReasonRequired": "Please provide a reason for rejection",
+    "rejectTitle": "Reject Loan Application",
+    "rejectMessage": "Reason: \"{reason}\". This cannot be undone.",
+    "reject": "Reject",
+    "rejected": "Application rejected",
+    "rejectFailed": "Failed to reject loan",
+    "disburseTitle": "Disburse Loan",
+    "disburseMessage": "This will activate the repayment schedule. The borrower will receive the funds.",
+    "disburseFunds": "Disburse Funds",
+    "disbursed": "Loan disbursed successfully",
+    "disburseFailed": "Failed to disburse loan",
+    "followUpNoteTitle": "Follow-up Note",
+    "noteAdded": "Note added",
+    "noteFailed": "Failed to add note",
+    "loadingDetails": "Loading loan details...",
+    "notFound": "Loan not found",
+    "heading": "Loan #{ref}",
+    "legacyBadge": "Legacy",
+    "borrowerLabel": "Borrower:",
+    "rejectReasonPlaceholder": "Reason for rejection...",
+    "confirm": "Confirm",
+    "postPayment": "Post Payment",
+    "summaryTitle": "Loan Summary",
+    "annualRate": "Annual Rate",
+    "term": "Term",
+    "termMonths": "{n, plural, one {# month} other {# months}}",
+    "method": "Method",
+    "startDate": "Start Date",
+    "totalPaid": "Total Paid",
+    "remainingPrincipal": "Remaining Principal",
+    "progress": "Progress",
+    "installmentsProgress": "{paid}/{total} installments",
+    "percentComplete": "{pct}% complete",
+    "collateralTitle": "Security & Collateral",
+    "noCollateral": "No collateral registered.",
+    "guarantors": "Guarantors",
+    "paidCount": "{paid}/{total} paid",
+    "activityTitle": "Collection Logs & Activity",
+    "noActivity": "No activity recorded yet.",
+    "notePlaceholder": "Add a follow-up note...",
+    "settlement": {
+      "title": "Early settlement",
+      "getQuote": "Get payoff quote",
+      "confirmTitle": "Settle loan early",
+      "confirmMessage": "Receive {amount} and close the loan? {waived} of future interest is waived.",
+      "confirmLabel": "Settle",
+      "settled": "Loan settled and closed",
+      "principal": "Principal",
+      "interestDue": "Interest due",
+      "penalties": "Penalties",
+      "futureInterestWaived": "Future interest waived",
+      "payoffToday": "Payoff today",
+      "settleButton": "Settle {amount} and close"
+    },
+    "risk": {
+      "title": "Risk & Decision",
+      "rescore": "Re-score",
+      "runScorecard": "Run scorecard",
+      "loading": "Loading…",
+      "empty": "No scorecard yet. Run one to get a grade, decision and recommended rate.",
+      "grade": "Grade {grade}",
+      "dsr": "DSR {pct}%",
+      "recommendedRate": "Recommended rate {rate}%",
+      "noPolicyRate": "No policy rate for grade",
+      "decisions": {
+        "APPROVE": "Approve",
+        "REFER": "Refer",
+        "DECLINE": "Decline"
+      },
+      "scoreFailed": "Could not score this loan",
+      "rescheduled": "Loan rescheduled: {count, plural, one {# new installment} other {# new installments}} on {rate}%",
+      "restructureFailed": "Restructure failed",
+      "restructureOpen": "Restructure / reschedule…",
+      "restructureHint": "Reschedules the outstanding principal onto new terms. Marks the loan restructured.",
+      "newTermPlaceholder": "New term (months)",
+      "newRatePlaceholder": "New rate % (optional)",
+      "reasonPlaceholder": "Reason",
+      "apply": "Apply"
+    }
   },
   "Loans": {
     "title": "Loans",
@@ -265,7 +436,40 @@
     "loadFailed": "Failed to load loans",
     "exported": "Loans exported",
     "exportFailed": "Failed to export",
-    "created": "Loan created"
+    "created": "Loan created",
+    "legacyBadge": "Legacy",
+    "rangeOf": "{from}–{to} of {total}",
+    "modal": {
+      "description": "Fill in the details to originate a new loan for a borrower.",
+      "noPermission": "You do not have permission to create loans. Contact your administrator.",
+      "loadFailed": "Failed to load loan form data. Please try again.",
+      "createFailed": "Failed to create loan",
+      "close": "Close",
+      "selectBorrower": "Select borrower...",
+      "product": "Loan Product",
+      "optional": "(optional)",
+      "manualParams": "Manual / custom parameters",
+      "principalUsd": "Principal (USD)",
+      "annualRate": "Annual Interest Rate (%)",
+      "termMonths": "Term (months)",
+      "flatRate": "Flat Rate",
+      "collaterals": "Collaterals",
+      "noCollaterals": "No collaterals added.",
+      "collateralTypes": {
+        "LAND_TITLE": "Land Title",
+        "VEHICLE": "Vehicle",
+        "GOLD": "Gold",
+        "ID_CARD": "ID Card",
+        "OTHER": "Other"
+      },
+      "valueUsd": "Value (USD)",
+      "guarantors": "Guarantors",
+      "noGuarantors": "No guarantors added.",
+      "fullName": "Full name",
+      "phone": "Phone",
+      "creating": "Creating...",
+      "create": "Create Loan"
+    }
   },
   "Nav": {
     "dashboard": "Dashboard",
@@ -323,7 +527,8 @@
     "qrRequired": "Provide a QR payload string or upload a QR image.",
     "imageTooLarge": "Image is too large (max 1 MB).",
     "payViaQr": "Pay via QR",
-    "qrScanHint": "Scan with any Bakong/bank app to repay this loan. QR payments are not matched automatically: record the repayment once the money has arrived."
+    "qrScanHint": "Scan with any Bakong/bank app to repay this loan. QR payments are not matched automatically: record the repayment once the money has arrived.",
+    "qrPreviewAlt": "QR preview"
   },
   "Portal": {
     "loginTitle": "Borrower Portal",
@@ -380,7 +585,35 @@
     "deleteConfirm": "Delete",
     "deleted": "Product deleted",
     "deleteFailed": "Failed to delete product (it may be in use by existing loans)",
-    "infoNote": "Changes to product availability or policy terms will only apply to future loan originations. Existing active loans will continue under their original terms."
+    "infoNote": "Changes to product availability or policy terms will only apply to future loan originations. Existing active loans will continue under their original terms.",
+    "modal": {
+      "saveFailed": "An error occurred while saving.",
+      "editTitle": "Configure Product Engine",
+      "createTitle": "Engine New Credit Product",
+      "description": "Architect the automated financial logic and credit limit matrices for your organization.",
+      "errorPrefix": "Logic Failure: {error}",
+      "name": "Product Descriptor",
+      "namePlaceholder": "e.g. Enterprise Daily Liquidity",
+      "summary": "Strategic Summary",
+      "summaryPlaceholder": "Short description for internal ops",
+      "method": "Calculation Engine",
+      "methodFlat": "Flat Logical Rate",
+      "methodReducing": "Reducing Balance Engine",
+      "activeToggle": "Deployment Status (Active)",
+      "riskMatrices": "Credit Risk Matrices",
+      "addPolicy": "Add Policy",
+      "noPolicies": "Provision at least one risk tier to activate this product.",
+      "riskTier": "Risk Tier",
+      "ratePct": "Rate %",
+      "termRange": "Term (Min-Max)",
+      "principalRange": "Principal (Min-Max) $",
+      "dismiss": "Dismiss",
+      "saving": "Committing Logic...",
+      "submit": "Deploy Product Engine"
+    },
+    "list": {
+      "termRange": "{min}m – {max}m"
+    }
   },
   "Register": {
     "adminEmail": "Admin email",
@@ -419,7 +652,27 @@
     "title": "Create your account",
     "unavailable": "Unavailable",
     "unlimited": "Unlimited",
-    "users": "users"
+    "users": "users",
+    "privacyPolicy": "Privacy Policy",
+    "journeyProgress": "Progress",
+    "paymentStatus": {
+      "title": "Activation status",
+      "notFound": "Payment reference not found.",
+      "loadFailed": "Could not load payment status.",
+      "orgOnPlan": "<strong>{org}</strong> on the {plan} plan.",
+      "confirmed": "Payment confirmed — your workspace is active. You can sign in now.",
+      "refresh": "Refresh"
+    },
+    "paymentPanel": {
+      "statusPending": "Awaiting payment",
+      "statusConfirmed": "Payment confirmed",
+      "statusRejected": "Payment rejected",
+      "statusExpired": "QR expired",
+      "qrAlt": "KHQR payment code for {currency} {amount}",
+      "reference": "Payment reference",
+      "referenceHint": "Include this reference with your transfer. Save it — it is how you check your activation status before you can sign in.",
+      "checkStatus": "Check activation status"
+    }
   },
   "Repayments": {
     "title": "Repayments",
@@ -452,7 +705,20 @@
     "loadFailed": "Failed to load repayments",
     "exported": "Repayments exported",
     "exportFailed": "Failed to export",
-    "recorded": "Repayment recorded"
+    "recorded": "Repayment recorded",
+    "rangeOf": "{from}–{to} of {total}",
+    "fromDate": "From date",
+    "toDate": "To date",
+    "modal": {
+      "title": "Record Repayment",
+      "description": "Post a payment against an active loan.",
+      "outstandingBalance": "Outstanding balance",
+      "selectLoan": "Select a loan...",
+      "amountUsd": "Amount (USD)",
+      "paymentDate": "Payment Date",
+      "posting": "Posting...",
+      "postFailed": "Failed to post repayment"
+    }
   },
   "Reports": {
     "title": "Reports & Analytics",
@@ -462,7 +728,165 @@
     "exportFail": "Failed to export report.",
     "export_loan_book": "Export Loan Book (CSV)",
     "export_repayments": "Export Repayments Ledger (CSV)",
-    "description": "Download your operational data for auditing and analysis."
+    "description": "Download your operational data for auditing and analysis.",
+    "analytics": {
+      "loadFailed": "Unable to load report data for selected filters.",
+      "tabs": {
+        "overview": "Overview",
+        "loanPortfolio": "Loan Portfolio",
+        "collections": "Collections",
+        "borrowers": "Borrowers",
+        "risk": "Risk"
+      },
+      "filters": {
+        "searchPlaceholder": "Search borrower, loan ID...",
+        "allBranches": "All branches",
+        "allOfficers": "All loan officers",
+        "allProducts": "All products",
+        "allStatuses": "All statuses",
+        "allBorrowers": "All borrowers",
+        "allRiskGrades": "All risk grades",
+        "allCurrencies": "All currencies",
+        "reset": "Reset Filters",
+        "apply": "Apply Filters",
+        "statuses": {
+          "PENDING": "Pending",
+          "APPROVED": "Approved",
+          "DISBURSED": "Disbursed",
+          "CLOSED": "Closed",
+          "DEFAULTED": "Defaulted",
+          "ON_TIME": "On Time",
+          "LATE": "Late",
+          "ACTIVE": "Active",
+          "INACTIVE": "Inactive"
+        },
+        "riskGrades": {
+          "Low": "Low",
+          "Medium": "Medium",
+          "High": "High",
+          "Critical": "Critical"
+        }
+      },
+      "export": {
+        "csv": "Export CSV",
+        "excel": "Export Excel"
+      },
+      "table": {
+        "asc": "ASC",
+        "desc": "DESC",
+        "noData": "No data for selected filters.",
+        "range": "{from}-{to} of {total}"
+      },
+      "chart": {
+        "noData": "No chart data for selected filters",
+        "series": {
+          "value": "Value",
+          "amount": "Amount",
+          "overdueAmount": "Overdue amount"
+        }
+      },
+      "tables": {
+        "recentOverdue": "Recent Overdue Loans",
+        "loanPortfolio": "Loan Portfolio Preview",
+        "collections": "Collections Preview",
+        "borrowers": "Borrowers Preview",
+        "risk": "Risk Details"
+      },
+      "kpi": {
+        "portfolioOutstanding": "Portfolio Outstanding",
+        "totalBorrowers": "Total Borrowers",
+        "activeLoans": "Active Loans",
+        "monthlyCollection": "Monthly Collection",
+        "par1": "PAR 1",
+        "par7": "PAR 7",
+        "par30": "PAR 30",
+        "nplRatio": "NPL Ratio",
+        "outstandingPrincipal": "Outstanding Principal",
+        "disbursedAmount": "Disbursed Amount",
+        "avgInterestRate": "Avg Interest Rate",
+        "nplAmount": "NPL Amount",
+        "portfolioAtRisk": "Portfolio At Risk",
+        "totalCollected": "Total Collected",
+        "principalCollected": "Principal Collected",
+        "interestCollected": "Interest Collected",
+        "penaltyCollected": "Penalty Collected",
+        "repayments": "Repayments",
+        "collectionRate": "Collection Rate",
+        "overdueCollected": "Overdue Collected",
+        "missedRepayments": "Missed Repayments",
+        "activeBorrowers": "Active Borrowers",
+        "newThisMonth": "New This Month",
+        "withActiveLoans": "With Active Loans",
+        "averageLoanSize": "Average Loan Size",
+        "highRiskBorrowers": "High Risk Borrowers",
+        "incompleteKyc": "Incomplete KYC",
+        "writeOffAmount": "Write-off Amount",
+        "overdueAmount": "Overdue Amount",
+        "totalExposure": "Total Exposure",
+        "highRiskExposure": "High-risk Exposure"
+      },
+      "charts": {
+        "disbursementTrend": "Disbursement Trend",
+        "collectionTrend": "Collection Trend",
+        "riskBreakdown": "Risk Breakdown",
+        "outstandingByStatus": "Outstanding by Status",
+        "parTrend": "PAR Trend",
+        "byProduct": "By Product",
+        "byBranch": "By Branch",
+        "principalVsInterest": "Principal vs Interest",
+        "statusBreakdown": "Status Breakdown",
+        "paymentMethod": "Payment Method",
+        "byLoanOfficer": "By Loan Officer",
+        "borrowerGrowth": "Borrower Growth",
+        "byOccupation": "By Occupation",
+        "kycCompletion": "KYC Completion",
+        "agingDistribution": "Aging Distribution",
+        "overdueByBranch": "Overdue by Branch",
+        "riskByProduct": "Risk by Product",
+        "topHighRiskLoans": "Top 10 High-risk Loans",
+        "loanStatusFunnel": "Loan Status Funnel"
+      },
+      "columns": {
+        "loanId": "Loan ID",
+        "borrower": "Borrower",
+        "borrowerName": "Borrower",
+        "branch": "Branch",
+        "outstandingBalance": "Outstanding",
+        "daysPastDue": "DPD",
+        "status": "Status",
+        "loanOfficer": "Loan Officer",
+        "product": "Product",
+        "principal": "Principal",
+        "interestRate": "Interest Rate",
+        "term": "Term",
+        "disbursementDate": "Disbursed On",
+        "maturityDate": "Maturity",
+        "riskGrade": "Risk Grade",
+        "repaymentId": "Repayment ID",
+        "collector": "Collector",
+        "paymentDate": "Payment Date",
+        "dueDate": "Due Date",
+        "amountPaid": "Amount Paid",
+        "principalPaid": "Principal",
+        "interestPaid": "Interest",
+        "penaltyPaid": "Penalty",
+        "paymentMethod": "Method",
+        "daysLate": "Days Late",
+        "borrowerId": "Borrower ID",
+        "name": "Name",
+        "phone": "Phone",
+        "idNumber": "ID Number",
+        "occupation": "Occupation",
+        "registrationDate": "Registered On",
+        "kycStatus": "KYC Status",
+        "activeLoanCount": "Active Loans",
+        "agingBucket": "Aging Bucket",
+        "overdueAmount": "Overdue",
+        "lastRepaymentDate": "Last Repayment",
+        "assignedOfficer": "Assigned Officer",
+        "recommendedAction": "Recommended Action"
+      }
+    }
   },
   "Settings": {
     "accessLevel": "Access Level",
@@ -522,7 +946,11 @@
     "tenantBillingDesc": "To upgrade, suspend, or change a tenant's subscription plan, go to Organizations, select the tenant, then Edit Org.",
     "title": "Settings",
     "upgradeEnterprise": "Upgrade to Enterprise",
-    "upgradePro": "Upgrade to PRO"
+    "upgradePro": "Upgrade to PRO",
+    "tenantPage": {
+      "saveFailed": "Failed to save: {message}",
+      "botTokenConfigured": "•••••••• (configured — enter a new token to replace)"
+    }
   },
   "Tenants": {
     "title": "Platform Governance",
@@ -633,7 +1061,25 @@
         "notApproved": "The purge has not been approved by a second super-administrator yet.",
         "generic": "That step could not be completed. Please try again."
       }
-    }
+    },
+    "actionFailed": "Operation failed",
+    "toastSuspended": "{name} has been suspended",
+    "suspendFailed": "Failed to suspend tenant",
+    "toastActivated": "{name} has been activated",
+    "activateFailed": "Failed to activate tenant",
+    "softDeleteTitle": "Soft-Delete \"{name}\"?",
+    "softDeleteMessage": "The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data.",
+    "softDeleteConfirm": "Soft-Delete",
+    "toastSoftDeleted": "{name} is now suspended and marked for erasure.",
+    "purgeFailed": "Purge operation failed",
+    "usersLoadFailed": "Failed to load tenant users",
+    "purgeUserTitle": "Purge Operator?",
+    "purgeUserMessage": "Are you sure you want to irreversibly purge {email}? This action cannot be undone.",
+    "purgeUserConfirm": "Purge",
+    "toastUserPurged": "User purged from environment",
+    "purgeUserFailed": "Failed to purge user",
+    "purgeOperator": "Purge Operator",
+    "statusAll": "All"
   },
   "Users": {
     "platformTeam": "Platform Team",
@@ -693,7 +1139,11 @@
       "approved": "{email} is now a super-administrator",
       "rejected": "Request for {email} rejected",
       "you": "you"
-    }
+    },
+    "resetPasswordPrompt": "Set a new password for {email} (minimum 12 characters).\nThey will be signed out of all sessions and must use the new password.",
+    "passwordTooShort": "Password must be at least 12 characters",
+    "suspendConfirm": "Suspend {email}'s access? They will no longer be able to log in.",
+    "reactivateBeforeRoleChange": "Reactivate the account before changing its role"
   },
   "Workspace": {
     "sections": {
@@ -965,7 +1415,8 @@
       "skip": "End tour",
       "skipStep": "Skip this step",
       "clickToContinue": "Click the highlighted item to continue",
-      "looking": "Looking for this on the page…"
+      "looking": "Looking for this on the page…",
+      "englishNote": "Tour text is in English for now; the buttons are translated."
     },
     "prompt": {
       "title": "New here? Take the two-minute tour",
@@ -1342,7 +1793,14 @@
       "colRole": "Role",
       "colBy": "By",
       "roleChallenger": "challenger (shadow)",
-      "roleChampion": "champion"
+      "roleChampion": "champion",
+      "knockouts": "Knock-outs",
+      "strategyReasons": "Strategy reasons",
+      "declinesBelow": "Declines below score {score}.",
+      "gradeLimit": "Grade limit",
+      "aboveGradeLimit": "— requested amount is above it",
+      "rateAddOn": "Rate add-on {bps} bps for this grade.",
+      "customerTold": "What the customer is told"
     },
     "monitoring": {
       "title": "Scorecard monitoring",
@@ -1526,7 +1984,8 @@
       "colRecordedVerified": "Recorded / verified",
       "ownVerify": "You captured this record; another officer must verify it.",
       "ownRecord": "You captured this record.",
-      "verify": "Verify"
+      "verify": "Verify",
+      "noConsentShort": "no consent"
     },
     "gradeRules": {
       "none": "No grade rules: every grade takes the outcome for grades without a rule.",
@@ -1803,7 +2262,19 @@
         "aml_ctr_thresholds_USD": "Cash transaction report threshold (USD)",
         "aml_ctr_thresholds_KHR": "Cash transaction report threshold (KHR)",
         "aml_ctr_cashChannels": "Cash transaction report: payment channels that are cash",
-        "aml_retentionYearsAfterRelationship": "AML records kept for this many years after the relationship ends"
+        "aml_retentionYearsAfterRelationship": "AML records kept for this many years after the relationship ends",
+        "consumerProtection_lenderLegalName": "Key facts statement: lender’s legal name (empty: the organisation name)",
+        "consumerProtection_licenceNumber": "Key facts statement: NBC licence number",
+        "consumerProtection_complaints_phone": "Complaints: phone",
+        "consumerProtection_complaints_email": "Complaints: email",
+        "consumerProtection_complaints_address": "Complaints: address",
+        "consumerProtection_regulatorContact": "Complaints: the regulator’s consumer-protection contact",
+        "consumerProtection_coolingOffDays": "Cooling-off: days after disbursement the customer may cancel (0 = no cooling-off)",
+        "consumerProtection_coolingOffChargesAccruedInterest": "Cooling-off: interest accrued to the cancellation date is payable",
+        "consumerProtection_coolingOffRefundsLenderFees": "Cooling-off: the lender’s upfront fees are refunded",
+        "affordability_maxLendersPerBorrower": "Affordability: most lenders a borrower may owe, counting this one (empty = no limit)",
+        "affordability_includeOwnLoans": "Affordability: count the borrower’s other loans with this lender in the debt-service ratio",
+        "affordability_includeFacilityMinimumPayments": "Affordability: count credit-line and card minimum payments in the debt-service ratio"
       },
       "switches": {
         "title": "Sign-in and Telegram",
@@ -2513,7 +2984,75 @@
     "mixedCurrencyNote": "Amounts here are added up as recorded and are not converted between currencies; if you lend in more than one currency, use Reports, which converts with your FX rates.",
     "journalCount": "{total} journal entries · page {page} of {pages}",
     "previousPage": "Previous page",
-    "nextPage": "Next page"
+    "nextPage": "Next page",
+    "ledgerPage": {
+      "loading": "Loading accounting data...",
+      "tabAccounts": "Chart of Accounts",
+      "tabTrialBalance": "Trial Balance",
+      "tabJournal": "Journal",
+      "title": "Accounting",
+      "subtitle": "General ledger, trial balance, and journal entries.",
+      "colCode": "Code",
+      "colName": "Name",
+      "colType": "Type",
+      "colStatus": "Status",
+      "noAccounts": "No accounts found.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "balanced": "Balanced",
+      "unbalanced": "Unbalanced",
+      "colDebit": "Debit",
+      "colCredit": "Credit",
+      "colBalance": "Balance",
+      "noData": "No data.",
+      "totals": "Totals",
+      "noJournalTitle": "No journal entries",
+      "noJournalBody": "Journal entries will appear here as transactions are posted.",
+      "colAccount": "Account"
+    },
+    "fxPage": {
+      "invalidRate": "Enter a valid rate greater than 0",
+      "added": "Exchange rate added",
+      "addFailed": "Failed to add exchange rate",
+      "loading": "Loading exchange rates...",
+      "title": "Exchange Rates",
+      "subtitle": "Manage currency conversion rates used across the ledger.",
+      "addRate": "Add Rate",
+      "from": "From",
+      "to": "To",
+      "rate": "Rate",
+      "effectiveDate": "Effective Date",
+      "noRates": "No exchange rates defined."
+    },
+    "provisioningPage": {
+      "loadDetailFailed": "Failed to load run detail",
+      "runFailed": "Failed to run provisioning",
+      "loading": "Loading provisioning runs...",
+      "title": "Loan-Loss Provisioning",
+      "subtitle": "Run and review expected credit loss provisioning.",
+      "running": "Running...",
+      "run": "Run Provisioning",
+      "runs": "Provisioning Runs",
+      "colRunDate": "Run Date",
+      "colLoans": "Loans",
+      "colTotalProvision": "Total Provision",
+      "noRuns": "No runs yet. Click “Run Provisioning” to start.",
+      "runDetail": "Run Detail",
+      "colBorrower": "Borrower",
+      "colClassification": "Classification",
+      "colDaysOverdue": "Days Overdue",
+      "colOutstanding": "Outstanding",
+      "colRate": "Rate",
+      "colProvision": "Provision",
+      "noProvisions": "No provisions in this run.",
+      "classes": {
+        "STANDARD": "Standard",
+        "SPECIAL_MENTION": "Special mention",
+        "SUBSTANDARD": "Substandard",
+        "DOUBTFUL": "Doubtful",
+        "LOSS": "Loss"
+      }
+    }
   },
   "Governance": {
     "covenant": {
@@ -2808,7 +3347,8 @@
         "subtitle": "Newest first. Expand a row for journal lines, allocation and components.",
         "empty": "No financial events yet.",
         "reversedNotice": "Reversed events stay in the history; each reversal is posted as its own compensating event."
-      }
+      },
+      "subtitle": "{product} · agreement v{version} · product version {status}"
     },
     "purchaseLinked": {
       "card": {
@@ -4801,6 +5341,10 @@
       "colFiled": "Filed",
       "details": "Details",
       "notice": "Business date {date}. Downloads use links that expire within minutes; each one is logged against your user."
+    },
+    "file": {
+      "tooLarge": "Files must be 3.5 MB or smaller.",
+      "unreadable": "Could not read the file."
     }
   },
   "LendingRestructure": {
@@ -6114,6 +6658,23 @@
       "expiresDays": "Expires in days (optional)",
       "expiresDaysHint": "Default 90, max 365",
       "required": "Name and at least one scope are required"
+    },
+    "page": {
+      "assignmentsTab": "Assignments",
+      "refresh": "Refresh"
+    },
+    "policyModel": {
+      "enterValue": "enter at least one value",
+      "wholeNumbers": "values must be whole numbers",
+      "decimals": "amounts must be decimals",
+      "valueRequired": "value required",
+      "wholeNumber": "must be a whole number",
+      "decimal": "must be a decimal, e.g. 10000.00",
+      "unnamedRule": "(unnamed rule)",
+      "badId": "{label}: id must be 2–40 chars of a-z, 0-9, _ or -",
+      "noAction": "{label}: choose at least one action",
+      "shortMessage": "{label}: message must be at least 3 characters",
+      "noCondition": "{label}: add at least one condition"
     }
   },
   "LendingProducts": {
@@ -6285,7 +6846,8 @@
           "label": "Facility: term out when availability ends"
         },
         "facility_tranches": {
-          "label": "Staged drawdown: tranches"
+          "label": "Staged drawdown: tranches",
+          "hint": "['{ code, label, shareOfLimit, availableAfterMonths, conditions: [codes] }']"
         },
         "group": {
           "label": "Group terms"
@@ -6333,7 +6895,8 @@
           "label": "Days from statement to due date"
         },
         "card_instalmentPlan": {
-          "label": "Instalment plans (UC-44)"
+          "label": "Instalment plans (UC-44)",
+          "hint": "'{ \"annualRate\": \"0.12\", \"minAmount\": \"200\", \"allowedMonths\": [3, 6, 12] }' or null"
         },
         "bnpl": {
           "label": "BNPL merchant settlement (LT-11)"
@@ -6402,7 +6965,8 @@
           "label": "Maximum annual rate"
         },
         "pricing_floating": {
-          "label": "Floating pricing (JSON or null)"
+          "label": "Floating pricing (JSON or null)",
+          "hint": "'{ benchmarkCode, margin, resetFrequency, floor, cap }'"
         },
         "pricing_rateConvention": {
           "label": "Rate convention"
@@ -6480,7 +7044,8 @@
           "label": "Promotion description"
         },
         "pricing_fees": {
-          "label": "Fees"
+          "label": "Fees",
+          "hint": "['{ code, name, calculation: PERCENT_OF_PRINCIPAL|FIXED, rate?, amount?, minAmount?, maxAmount?, treatment: DEDUCTED|FINANCED|SEPARATE, taxRate?, waivable }']"
         },
         "repayment_method": {
           "label": "Method"
@@ -6489,7 +7054,8 @@
           "label": "Frequency"
         },
         "repayment_customFrequency": {
-          "label": "Custom frequency (JSON or null)"
+          "label": "Custom frequency (JSON or null)",
+          "hint": "'{ unit: DAY|WEEK|MONTH, every }'"
         },
         "repayment_maxPrincipalGraceInstalments": {
           "label": "Max principal-grace instalments"
@@ -6501,7 +7067,8 @@
           "label": "Max balloon fraction"
         },
         "repayment_instalmentSteps": {
-          "label": "Stepped instalments"
+          "label": "Stepped instalments",
+          "hint": "null for level instalments, or ['{ instalments, multiplier }] — e.g. [{ \"instalments\": 6, \"multiplier\": \"0.5\" }'] for six half-size instalments first"
         },
         "repayment_allowIrregularFirstPeriod": {
           "label": "Allow irregular first period"
@@ -6550,7 +7117,8 @@
           "hint": "ACCRUED charges interest accrued to the payoff date; the others rebate precomputed interest"
         },
         "repayment_earlyRepaymentCharges": {
-          "label": "Lock-in tiers (early repayment charges)"
+          "label": "Lock-in tiers (early repayment charges)",
+          "hint": "'{ appliesTo: [PARTIAL_PREPAYMENT, EARLY_SETTLEMENT], basis: AMOUNT_REPAID|OUTSTANDING_PRINCIPAL, tiers: [{ untilMonth, action: CHARGE|REFUSE, rate?, fixed? }] }' — tiers replace the base fee while they apply"
         },
         "repayment_allocation_order": {
           "label": "Payment allocation order"
@@ -6586,7 +7154,8 @@
           "hint": "Time to repay or add collateral after a revaluation breaches max LTV"
         },
         "security_haircuts": {
-          "label": "Haircuts by collateral type"
+          "label": "Haircuts by collateral type",
+          "hint": "'{ \"LAND\": \"0.3\" }'"
         },
         "operations_workflowCode": {
           "label": "Workflow code",
@@ -6625,16 +7194,20 @@
           "label": "Payments"
         },
         "operations_requiredDocuments": {
-          "label": "Required documents"
+          "label": "Required documents",
+          "hint": "['{ code, label, stage: APPLICATION|APPROVAL|DISBURSEMENT, mandatory }']"
         },
         "operations_disbursementConditions": {
-          "label": "Disbursement conditions"
+          "label": "Disbursement conditions",
+          "hint": "['{ code, label }']"
         },
         "operations_delinquencyBuckets": {
-          "label": "Delinquency buckets"
+          "label": "Delinquency buckets",
+          "hint": "['{ code, label, minDpd, maxDpd|null }']"
         },
         "operations_collectionStages": {
-          "label": "Collection stages"
+          "label": "Collection stages",
+          "hint": "['{ code, label, fromDpd }']"
         },
         "restructuring_allowedOptions": {
           "label": "Allowed options"
@@ -6703,7 +7276,8 @@
           "label": "Refinance: borrower may pay a shortfall"
         },
         "policies": {
-          "label": "Policy menus"
+          "label": "Policy menus",
+          "hint": "'{ \"PREPAYMENT\": { \"defaultCode\": \"P-LOCK12\", \"menu\": [\"P-LOCK12\", \"P-NONE\"], \"parameterBounds\": { \"lockInMonths\": { \"min\": 6, \"max\": 18 } } } }' — kinds: PREPAYMENT, LATE_CHARGES, ALLOCATION, NON_ACCRUAL"
         },
         "scoring_championCode": {
           "label": "Champion scorecard code",
@@ -6991,6 +7565,9 @@
       "projected": "projected",
       "paid": "paid {amount}",
       "projectedNote": "Rows marked <b>projected</b> depend on a future rate observation and are not contractually fixed."
+    },
+    "people": {
+      "inactive": "{email} (inactive)"
     }
   },
   "LendingWorkflows": {
@@ -8385,7 +8962,10 @@
       "colCombined": "Combined balance",
       "colDebit": "Debit",
       "colCredit": "Credit",
-      "total": "Total"
+      "total": "Total",
+      "dr": "Dr",
+      "cr": "Cr",
+      "totalDrCr": "Dr {debit} / Cr {credit}"
     },
     "returns": {
       "noLoansInTable": "No {currency} loans in this table.",
@@ -8758,6 +9338,60 @@
       "colCode": "Code",
       "colLive": "Live",
       "open": "Open"
+    },
+    "templates": {
+      "PREPAYMENT": {
+        "0": {
+          "label": "Lock-in: charge during the first months",
+          "description": "3% of the amount repaid early until the lock-in ends; free afterwards.",
+          "params": {
+            "lockInMonths": "Lock-in months"
+          }
+        },
+        "1": {
+          "label": "Hard lock-in: refuse, then charge",
+          "description": "No early repayment for the first months, then a declining charge.",
+          "params": {
+            "lockInMonths": "Hard lock-in months"
+          }
+        },
+        "2": {
+          "label": "Free prepayment",
+          "description": "Partial prepayment and early settlement allowed without a fee."
+        }
+      },
+      "LATE_CHARGES": {
+        "0": {
+          "label": "Rate on overdue with grace days",
+          "description": "18% p.a. on overdue amounts after a grace period, capped per instalment.",
+          "params": {
+            "graceDays": "Grace days"
+          }
+        },
+        "1": {
+          "label": "Flat fee per late instalment",
+          "description": "A fixed charge per instalment paid late."
+        }
+      },
+      "ALLOCATION": {
+        "0": {
+          "label": "Penalty first, excess held as advance",
+          "description": "penalty > fee > tax > interest > principal; oldest due first."
+        },
+        "1": {
+          "label": "Interest first, excess prepays",
+          "description": "interest > principal > fee > tax > penalty; excess reduces principal now."
+        }
+      },
+      "NON_ACCRUAL": {
+        "0": {
+          "label": "Non-accrual from N days past due",
+          "description": "Interest to suspense from the threshold; cured at 0 days past due.",
+          "params": {
+            "fromDpd": "Days past due"
+          }
+        }
+      }
     }
   },
   "LendingProjects": {
@@ -9047,6 +9681,44 @@
     "audit": {
       "platformOperator": "Platform operator",
       "platformOperatorHint": "Done by a member of the platform team, not by a person in your organisation."
+    },
+    "auditLog": {
+      "loadFailed": "Failed to load audit logs",
+      "exported": "Audit log exported",
+      "exportFailed": "Export failed",
+      "title": "Audit Log",
+      "subtitle": "Immutable activity log for compliance and security.",
+      "exportCsv": "Export CSV",
+      "kpiTotal": "Total Events",
+      "kpiToday": "Today",
+      "kpiAuth": "Auth Events",
+      "kpiFailedLogins": "Failed Logins",
+      "filters": "Filters",
+      "searchPlaceholder": "Search by user, entity, action...",
+      "allActions": "All Actions",
+      "allTypes": "All Types",
+      "entity": {
+        "User": "User",
+        "Borrower": "Borrower",
+        "Loan": "Loan",
+        "Repayment": "Repayment",
+        "Document": "Document",
+        "Tenant": "Tenant",
+        "LoanProduct": "Loan product"
+      },
+      "fromDate": "From date",
+      "to": "to",
+      "toDate": "To date",
+      "eventCount": "{count, plural, one {# event} other {# events}}",
+      "loading": "Loading...",
+      "pageOf": "Page {page} of {pages}",
+      "noEvents": "No events found",
+      "noEventsHint": "Try adjusting your filters.",
+      "alert": "Alert",
+      "idLabel": "ID: {id}",
+      "previous": "Previous",
+      "range": "{from}–{to} of {total, number}",
+      "next": "Next"
     }
   },
   "Aml": {
@@ -9266,5 +9938,139 @@
       "reviewed": "Review recorded",
       "reported": "Recorded as reported to CAFIU"
     }
+  },
+  "Errors": {
+    "api": {
+      "badRequest": "The request contained invalid data. Please check your input and try again.",
+      "forbidden": "You don't have permission to do that. Contact your administrator if you believe this is a mistake.",
+      "notFound": "The requested record could not be found.",
+      "conflict": "A conflict occurred — this record may already exist.",
+      "tooManyRequests": "Too many requests. Please slow down and try again in a moment.",
+      "serverError": "Something went wrong on our end. Please try again shortly.",
+      "unavailable": "This service is temporarily unavailable. Please try again later."
+    }
+  },
+  "PlanTiers": {
+    "title": "Subscription plans",
+    "subtitle": "The tiers offered at signup. Prices here set the amount on each KHQR payment code, and the quotas here are what every organization on that plan is held to.",
+    "refresh": "Refresh",
+    "newPlan": "New plan",
+    "planKey": "Plan key",
+    "planKeyHint": "Letters, numbers and underscores. Stored on every organization on this plan and <strong>cannot be changed later</strong> — the display name can.",
+    "createPlan": "Create plan",
+    "plans": "Plans",
+    "empty": "No plans are defined, so nobody can sign up. Create at least one — a plan priced at 0 gives you a free tier.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "retired": "Retired",
+    "quotaSummary": "{users} users · {borrowers} borrowers · {products} products · {loans} loans",
+    "organizations": "{count, plural, one {# organization} other {# organizations}}",
+    "pricePerMonthValue": "{currency} {amount}/mo",
+    "free": "Free",
+    "retirePlan": "Retire plan",
+    "reenablePlan": "Re-enable plan",
+    "retire": "Retire",
+    "reenable": "Re-enable",
+    "deletePlan": "Delete plan",
+    "deleteBlocked": "Organizations are on this plan — retire it instead",
+    "unlimited": "Unlimited",
+    "quota": {
+      "maxUsers": "Users",
+      "maxBorrowers": "Borrowers",
+      "maxLoanProducts": "Loan products",
+      "maxLoans": "Loans"
+    },
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Professional",
+    "pricePerMonth": "Price / month",
+    "currency": "Currency",
+    "description": "Description",
+    "descriptionPlaceholder": "Shown on the signup page",
+    "formHint": "Leave a quota blank for unlimited. A price of 0 activates the workspace immediately; anything above 0 puts it behind the KHQR payment gate.",
+    "toastCreated": "Plan {name} created.",
+    "toastUpdated": "Plan updated.",
+    "toastRetired": "Plan retired.",
+    "toastReenabled": "Plan re-enabled.",
+    "toastDeleted": "Plan deleted.",
+    "retireTitle": "Retire {name}?",
+    "retireMessageInUse": "{count, plural, one {# organization} other {# organizations}} will keep this plan and its limits. It just stops being offered to new signups.",
+    "retireMessage": "It stops being offered to new signups. You can re-enable it at any time.",
+    "deleteTitle": "Delete {name}?",
+    "deleteMessage": "This cannot be undone. Retiring keeps the plan valid for existing customers — deleting does not."
+  },
+  "PlatformPayments": {
+    "title": "Platform payments",
+    "subtitle": "Configure the KHQR that signup payment codes are generated from, and approve transfers to activate new workspaces.",
+    "merchantQr": "Merchant QR",
+    "refresh": "Refresh",
+    "sourceUpload": "Source: uploaded QR",
+    "sourceEnv": "Source: environment variables",
+    "notConfigured": "No merchant QR configured. Paid plans are unavailable at signup until you upload one — only the FREE plan can be selected.",
+    "uploadLabel": "Upload your KHQR (PNG or JPEG)",
+    "uploadHint": "A screenshot of your Bakong merchant QR. Any amount on it is ignored — each plan gets its own code with the correct price.",
+    "payloadLabel": "…or paste the KHQR payload",
+    "readPayload": "Read payload",
+    "readFromImage": "Read from your image",
+    "readFromPayload": "Read from your payload",
+    "merchant": "Merchant",
+    "bakongAccount": "Bakong account",
+    "city": "City",
+    "useThisQr": "Use this QR",
+    "planCodes": "Plan payment codes",
+    "planCodesHint": "Exactly what a customer scans at signup — generated from your merchant QR with each plan's price embedded.",
+    "planQrAlt": "{plan} plan QR",
+    "pricePerMonthValue": "{currency} {amount}/mo",
+    "awaitingApproval": "Awaiting approval",
+    "awaitingApprovalHint": "New workspaces stay locked until you confirm the transfer landed. Match the reference against your bank statement before confirming.",
+    "noPending": "No payments waiting.",
+    "pendingLine": "{plan} · {currency} {amount} · ref <mono>{reference}</mono>",
+    "confirm": "Confirm",
+    "reject": "Reject",
+    "fileReadFailed": "Could not read that file.",
+    "toastSaved": "Payment QR saved — signup codes will be issued to {merchant}.",
+    "toastActivated": "{tenant} activated on {plan}.",
+    "toastRejected": "Payment rejected.",
+    "confirmTitle": "Confirm payment received?",
+    "rejectTitle": "Reject this payment?",
+    "confirmMessage": "This activates {tenant} on the {plan} plan. Only confirm once you have verified the transfer of {currency} {amount} with reference {reference}.",
+    "rejectMessage": "{tenant} will stay locked and unable to sign in."
+  },
+  "PortfolioKpi": {
+    "loadFailed": "Failed to load KPIs",
+    "loading": "Loading performance…",
+    "title": "Portfolio Performance",
+    "asOf": "As of {date}",
+    "buckets": {
+      "current": "Current",
+      "d1_30": "1–30 days",
+      "d31_60": "31–60 days",
+      "d61_90": "61–90 days",
+      "d90plus": "90+ days"
+    },
+    "grossPortfolio": "Gross portfolio",
+    "activeLoans": "{count, plural, one {# active loan} other {# active loans}}",
+    "borrowers": "Borrowers",
+    "totalDisbursed": "Total disbursed",
+    "totalCollected": "Total collected",
+    "parAging": "Portfolio at Risk (aging)",
+    "par30": "PAR30",
+    "par90": "PAR90",
+    "keyRatios": "Key ratios",
+    "interestYield": "Interest yield (to date)",
+    "collectionRate": "Collection rate",
+    "onTimeRepayment": "On-time repayment",
+    "provisionCoverage": "Provision coverage",
+    "writeOffRate": "Write-off rate",
+    "operatingResult": "Operating result (from GL)",
+    "branchHidden": "Ledger figures are organisation-wide and are not shown to branch users.",
+    "interestIncome": "Interest income",
+    "provisionExpense": "Provision expense",
+    "penaltyIncome": "Penalty income",
+    "writeOffExpense": "Write-off expense",
+    "feeIncome": "Fee income",
+    "totalIncome": "Total income",
+    "totalExpense": "Total expense",
+    "netOperatingIncome": "Net operating income",
+    "notes": "Notes"
   }
 }

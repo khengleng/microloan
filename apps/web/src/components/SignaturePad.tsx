@@ -2,10 +2,12 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { Eraser } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /** Minimal dependency-free canvas signature pad. Calls onChange with a PNG data
  *  URI while drawing, or '' when cleared. */
 export function SignaturePad({ onChange, label }: { onChange: (dataUrl: string) => void; label: string }) {
+    const tc = useTranslations('Common');
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const drawing = useRef(false);
     const [hasInk, setHasInk] = useState(false);
@@ -59,7 +61,7 @@ export function SignaturePad({ onChange, label }: { onChange: (dataUrl: string) 
             <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-foreground">{label}</span>
                 <button type="button" onClick={clear} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                    <Eraser size={12} /> Clear
+                    <Eraser size={12} /> {tc('clear')}
                 </button>
             </div>
             <canvas

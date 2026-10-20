@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Download, Play, Upload } from 'lucide-react';
@@ -25,6 +26,7 @@ function useMe() {
 /** The AML & compliance area: screening cases, watch lists, risk ratings, the cash transaction report and suspicious transaction referrals. */
 export function AmlView() {
     const { t } = useAmlText();
+    const tw = useTranslations('Workspace.nav');
     const { can } = useMe();
     const params = useSearchParams();
     const tabs: { value: Tab; label: string }[] = [
@@ -36,7 +38,7 @@ export function AmlView() {
     const wanted = params.get('tab') as Tab | null;
     const [tab, setTab] = useState<Tab>(wanted && tabs.some((x) => x.value === wanted) ? wanted : tabs[0]?.value ?? 'cases');
     return (
-        <LendingShell title="AML & compliance" subtitle={t('subtitle')}>
+        <LendingShell title={tw('aml')} subtitle={t('subtitle')}>
             {tabs.length === 0 ? <Empty>{t('noAccess')}</Empty> : (
                 <>
                     <Tabs tabs={tabs} value={tab} onChange={setTab} />

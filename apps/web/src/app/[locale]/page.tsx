@@ -202,10 +202,10 @@ export default function HomePage() {
                             {t('navPricing')}
                         </Link>
                         <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground">
-                            Terms
+                            {t('navTerms')}
                         </Link>
                         <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground">
-                            Privacy
+                            {t('navPrivacy')}
                         </Link>
                     </div>
                 </div>

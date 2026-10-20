@@ -79,6 +79,8 @@ function Deliveries({ id, canManage }: { id: string; canManage: Can }) {
 
 export function WebhooksView() {
     const t = useTranslations('LendingWebhooks');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const confirm = useConfirm();
     const { showToast } = useToast();
     const list = useApi<ListResponse>('/lending/webhooks');
@@ -106,7 +108,7 @@ export function WebhooksView() {
     };
 
     return (
-        <LendingShell title="Webhooks" subtitle="Send this organisation's lending events to its own systems — signed, retried, and activated by a second administrator.">
+        <LendingShell title={tw('webhooks')} subtitle={tp('webhooks')}>
             {list.error && <ErrorBox error={list.error} />}
             {!data ? <Spinner /> : (
                 <>

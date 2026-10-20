@@ -23,6 +23,7 @@ type Panel = { kind: 'receive'; code: string; label: string } | { kind: 'reject'
 export function TradeTransactionView({ loanId }: { loanId: string }) {
     const tt = useTranslations('LendingTrade.loan');
     const tdoc = useTranslations('LendingTrade.doc');
+    const tn = useTranslations('Workspace.nav');
     const href = useLendingHref();
     const confirm = useConfirm();
     const view = useApi<TradeLoanView>(`/lending/loans/${loanId}/trade`);
@@ -39,7 +40,7 @@ export function TradeTransactionView({ loanId }: { loanId: string }) {
 
     if (view.loading && !view.data) return <LendingShell title={tt('title')}><Spinner /></LendingShell>;
     if (view.error && !view.data)
-        return <LendingShell title={tt('title')} back={{ href: '/lending/trade', label: 'Trade finance' }}><ErrorBox error={view.error} /></LendingShell>;
+        return <LendingShell title={tt('title')} back={{ href: '/lending/trade', label: tn('trade') }}><ErrorBox error={view.error} /></LendingShell>;
     const d = view.data!;
     const ccy = d.loan.currency;
     const t = d.transaction;
@@ -83,7 +84,7 @@ export function TradeTransactionView({ loanId }: { loanId: string }) {
         <LendingShell
             title={`${importing ? tt('importLoan') : tt('exportLoan')} · ${d.loan.reference}`}
             subtitle={tt('subtitle')}
-            back={{ href: '/lending/trade', label: 'Trade finance' }}
+            back={{ href: '/lending/trade', label: tn('trade') }}
             actions={<Link href={href(`/lending/loans/${loanId}`)} className="text-[13px] font-semibold text-[#635BFF] hover:underline">{tt('loanLink')}</Link>}
         >
             {msg && <Notice tone="success">{msg}</Notice>}

@@ -6,6 +6,7 @@ import { Trash2, Loader2, Plus, ShieldCheck } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
 import { clarityEvent, claritySetTag } from "@/lib/clarity";
+import { useTranslations } from "next-intl";
 
 interface LoanModalProps {
     open: boolean;
@@ -24,6 +25,8 @@ const selectCls = `${fieldCls} appearance-none`;
 
 export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
     const { showToast } = useToast();
+    const t = useTranslations('Loans');
+    const tc = useTranslations('Common');
     const [loading, setLoading] = useState(false);
     const [borrowers, setBorrowers] = useState<Borrower[]>([]);
     const [products, setProducts] = useState<LoanProduct[]>([]);
@@ -53,9 +56,9 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                 .catch((err) => {
                     const status = err.response?.status;
                     if (status === 403) {
-                        setFetchError('You do not have permission to create loans. Contact your administrator.');
+                        setFetchError(t('modal.noPermission'));
                     } else {
-                        setFetchError('Failed to load loan form data. Please try again.');
+                        setFetchError(t('modal.loadFailed'));
                     }
                 });
         }
@@ -107,7 +110,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
             });
         } catch (error: any) {
             clarityEvent('loan_application_submit_failed');
-            const msg = error.response?.data?.message || 'Failed to create loan';
+            const msg = error.response?.data?.message || t('modal.createFailed');
             showToast(Array.isArray(msg) ? msg[0] : msg, 'error');
         } finally {
             setLoading(false);
@@ -136,14 +139,14 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white border border-border rounded-lg p-0 shadow-lg overflow-x-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border sticky top-0 bg-white z-10">
-                    <DialogTitle className="text-base font-bold text-foreground">New Loan</DialogTitle>
-                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">Fill in the details to originate a new loan for a borrower.</DialogDescription>
+                    <DialogTitle className="text-base font-bold text-foreground">{t('newLoan')}</DialogTitle>
+                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">{t('modal.description')}</DialogDescription>
                 </div>
 
                 {fetchError ? (
                     <div className="px-6 py-8 text-center space-y-3">
                         <p className="text-sm text-destructive font-medium">{fetchError}</p>
-                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost text-sm">Close</button>
+                        <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost text-sm">{t('modal.close')}</button>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit}>
@@ -151,19 +154,19 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {/* Borrower + Product */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="borrowerId" className={labelCls}>Borrower <span className="text-destructive">*</span></label>
+                                    <label htmlFor="borrowerId" className={labelCls}>{t('borrower')} <span className="text-destructive">*</span></label>
                                     <select id="borrowerId" data-clarity-mask="true" className={selectCls} value={formData.borrowerId} onChange={e => {
                                         setDirty(true);
                                         setFormData({ ...formData, borrowerId: e.target.value });
                                     }} required>
-                                        <option value="">Select borrower...</option>
+                                        <option value="">{t('modal.selectBorrower')}</option>
                                         {borrowers.map(b => <option key={b.id} value={b.id}>{b.firstName} {b.lastName}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label htmlFor="productId" className={labelCls}>Loan Product <span className="text-muted-foreground text-xs">(optional)</span></label>
+                                    <label htmlFor="productId" className={labelCls}>{t('modal.product')} <span className="text-muted-foreground text-xs">{t('modal.optional')}</span></label>
                                     <select id="productId" className={selectCls} value={formData.productId} onChange={e => handleProductChange(e.target.value)}>
-                                        <option value="">Manual / custom parameters</option>
+                                        <option value="">{t('modal.manualParams')}</option>
                                         {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                     </select>
                                 </div>
@@ -172,7 +175,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {/* Financial Parameters */}
                             <div className="p-4 bg-muted rounded border border-border grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label htmlFor="principal" className={labelCls}>Principal (USD) <span className="text-destructive">*</span></label>
+                                    <label htmlFor="principal" className={labelCls}>{t('modal.principalUsd')} <span className="text-destructive">*</span></label>
                                     <input id="principal" data-clarity-mask="true" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.principal} onChange={e => {
                                         setDirty(true);
                                         clarityEvent('loan_calculator_usage');
@@ -180,7 +183,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                     }} required />
                                 </div>
                                 <div>
-                                    <label htmlFor="annualInterestRate" className={labelCls}>Annual Interest Rate (%) <span className="text-destructive">*</span></label>
+                                    <label htmlFor="annualInterestRate" className={labelCls}>{t('modal.annualRate')} <span className="text-destructive">*</span></label>
                                     <input id="annualInterestRate" data-clarity-mask="true" type="number" step="0.01" min="0" className={fieldCls} placeholder="0.00" value={formData.annualInterestRate} onChange={e => {
                                         setDirty(true);
                                         clarityEvent('loan_calculator_usage');
@@ -188,7 +191,7 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                     }} required />
                                 </div>
                                 <div>
-                                    <label htmlFor="termMonths" className={labelCls}>Term (months) <span className="text-destructive">*</span></label>
+                                    <label htmlFor="termMonths" className={labelCls}>{t('modal.termMonths')} <span className="text-destructive">*</span></label>
                                     <input id="termMonths" data-clarity-mask="true" type="number" min="1" className={fieldCls} placeholder="12" value={formData.termMonths} onChange={e => {
                                         setDirty(true);
                                         clarityEvent('loan_calculator_usage');
@@ -200,21 +203,21 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {/* Schedule */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label htmlFor="startDate" className={labelCls}>Start Date <span className="text-destructive">*</span></label>
+                                    <label htmlFor="startDate" className={labelCls}>{t('start_date')} <span className="text-destructive">*</span></label>
                                     <input id="startDate" type="date" className={fieldCls} value={formData.startDate} onChange={e => {
                                         setDirty(true);
                                         setFormData({ ...formData, startDate: e.target.value });
                                     }} required />
                                 </div>
                                 <div>
-                                    <label htmlFor="interestMethod" className={labelCls}>Interest Method <span className="text-destructive">*</span></label>
+                                    <label htmlFor="interestMethod" className={labelCls}>{t('method')} <span className="text-destructive">*</span></label>
                                     <select id="interestMethod" className={selectCls} value={formData.interestMethod} onChange={e => {
                                         setDirty(true);
                                         clarityEvent('loan_calculator_usage');
                                         setFormData({ ...formData, interestMethod: e.target.value });
                                     }} required>
-                                        <option value="FLAT">Flat Rate</option>
-                                        <option value="REDUCING_BALANCE">Reducing Balance</option>
+                                        <option value="FLAT">{t('modal.flatRate')}</option>
+                                        <option value="REDUCING_BALANCE">{t('reducing_balance')}</option>
                                     </select>
                                 </div>
                             </div>
@@ -222,13 +225,13 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {/* Collaterals */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-semibold text-foreground">Collaterals</span>
+                                    <span className="text-sm font-semibold text-foreground">{t('modal.collaterals')}</span>
                                     <button type="button" onClick={addCollateral} className="btn-ghost text-xs px-3 py-1 h-auto">
-                                        <Plus size={13} /> Add
+                                        <Plus size={13} /> {tc('add')}
                                     </button>
                                 </div>
                                 {formData.collaterals.length === 0 && (
-                                    <p className="text-sm text-muted-foreground py-2">No collaterals added.</p>
+                                    <p className="text-sm text-muted-foreground py-2">{t('modal.noCollaterals')}</p>
                                 )}
                                 <div className="space-y-2">
                                     {formData.collaterals.map((c, i) => (
@@ -239,13 +242,13 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                                                 setDirty(true);
                                                 setFormData({ ...formData, collaterals: next });
                                             }}>
-                                                <option value="LAND_TITLE">Land Title</option>
-                                                <option value="VEHICLE">Vehicle</option>
-                                                <option value="GOLD">Gold</option>
-                                                <option value="ID_CARD">ID Card</option>
-                                                <option value="OTHER">Other</option>
+                                                <option value="LAND_TITLE">{t('modal.collateralTypes.LAND_TITLE')}</option>
+                                                <option value="VEHICLE">{t('modal.collateralTypes.VEHICLE')}</option>
+                                                <option value="GOLD">{t('modal.collateralTypes.GOLD')}</option>
+                                                <option value="ID_CARD">{t('modal.collateralTypes.ID_CARD')}</option>
+                                                <option value="OTHER">{t('modal.collateralTypes.OTHER')}</option>
                                             </select>
-                                            <input type="number" data-clarity-mask="true" placeholder="Value (USD)" className={`${fieldCls} flex-1`} value={c.value} onChange={e => {
+                                            <input type="number" data-clarity-mask="true" placeholder={t('modal.valueUsd')} className={`${fieldCls} flex-1`} value={c.value} onChange={e => {
                                                 const next = [...formData.collaterals]; next[i].value = e.target.value;
                                                 setDirty(true);
                                                 setFormData({ ...formData, collaterals: next });
@@ -265,24 +268,24 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
                             {/* Guarantors */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-semibold text-foreground">Guarantors</span>
+                                    <span className="text-sm font-semibold text-foreground">{t('modal.guarantors')}</span>
                                     <button type="button" onClick={addGuarantor} className="btn-ghost text-xs px-3 py-1 h-auto">
-                                        <Plus size={13} /> Add
+                                        <Plus size={13} /> {tc('add')}
                                     </button>
                                 </div>
                                 {formData.guarantors.length === 0 && (
-                                    <p className="text-sm text-muted-foreground py-2">No guarantors added.</p>
+                                    <p className="text-sm text-muted-foreground py-2">{t('modal.noGuarantors')}</p>
                                 )}
                                 <div className="space-y-2">
                                     {formData.guarantors.map((g, i) => (
                                         <div key={i} className="flex gap-2 items-center p-3 bg-muted rounded border border-border">
                                             <span className="text-xs text-muted-foreground w-5 text-center">{i + 1}</span>
-                                            <input data-clarity-mask="true" placeholder="Full name" className={`${fieldCls} flex-1`} value={g.name} onChange={e => {
+                                            <input data-clarity-mask="true" placeholder={t('modal.fullName')} className={`${fieldCls} flex-1`} value={g.name} onChange={e => {
                                                 const next = [...formData.guarantors]; next[i].name = e.target.value;
                                                 setDirty(true);
                                                 setFormData({ ...formData, guarantors: next });
                                             }} />
-                                            <input data-clarity-mask="true" placeholder="Phone" className={`${fieldCls} flex-1`} value={g.phone} onChange={e => {
+                                            <input data-clarity-mask="true" placeholder={t('modal.phone')} className={`${fieldCls} flex-1`} value={g.phone} onChange={e => {
                                                 const next = [...formData.guarantors]; next[i].phone = e.target.value;
                                                 setDirty(true);
                                                 setFormData({ ...formData, guarantors: next });
@@ -302,10 +305,10 @@ export function LoanModal({ open, onOpenChange, onSuccess }: LoanModalProps) {
 
                         {/* Footer */}
                         <div className="px-6 py-4 border-t border-border bg-muted/40 flex justify-end gap-2">
-                            <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">Cancel</button>
+                            <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">{tc('cancel')}</button>
                             <button type="submit" disabled={loading} className="btn-primary">
                                 {loading && <Loader2 size={14} className="animate-spin" />}
-                                {loading ? 'Creating...' : 'Create Loan'}
+                                {loading ? t('modal.creating') : t('modal.create')}
                             </button>
                         </div>
                     </form>

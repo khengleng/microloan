@@ -246,7 +246,7 @@ export default function BorrowersPage() {
                             <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
-                            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
+                            {t('list.range', { from: ((page - 1) * LIMIT) + 1, to: Math.min(page * LIMIT, meta.total), total: meta.total })}
                         </span>
                         <button
                             onClick={() => handlePageChange(Math.min(meta.pages, page + 1))}

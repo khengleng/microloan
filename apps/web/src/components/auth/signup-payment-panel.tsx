@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Check, Copy } from 'lucide-react';
 
 export type SignupPayment = {
@@ -14,11 +15,12 @@ export type SignupPayment = {
     expiresAt?: string;
 };
 
-const STATUS_COPY: Record<string, { label: string; tone: string }> = {
-    PENDING: { label: 'Awaiting payment', tone: 'text-[#f59e0b]' },
-    CONFIRMED: { label: 'Payment confirmed', tone: 'text-[#26a69a]' },
-    REJECTED: { label: 'Payment rejected', tone: 'text-destructive' },
-    EXPIRED: { label: 'QR expired', tone: 'text-destructive' },
+/** `labelKey` is under Register.paymentPanel in the messages. */
+const STATUS_COPY: Record<string, { labelKey: string; tone: string }> = {
+    PENDING: { labelKey: 'statusPending', tone: 'text-[#f59e0b]' },
+    CONFIRMED: { labelKey: 'statusConfirmed', tone: 'text-[#26a69a]' },
+    REJECTED: { labelKey: 'statusRejected', tone: 'text-destructive' },
+    EXPIRED: { labelKey: 'statusExpired', tone: 'text-destructive' },
 };
 
 /**
@@ -35,6 +37,7 @@ export function SignupPaymentPanel({
     payment: SignupPayment;
     locale: string;
 }) {
+    const t = useTranslations('Register.paymentPanel');
     const [copied, setCopied] = useState(false);
     const status = payment.status ?? 'PENDING';
     const statusCopy = STATUS_COPY[status] ?? STATUS_COPY.PENDING;
@@ -55,7 +58,7 @@ export function SignupPaymentPanel({
                 {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from our API, not a remote asset */}
                 <img
                     src={payment.qrImage}
-                    alt={`KHQR payment code for ${payment.currency} ${payment.amount}`}
+                    alt={t('qrAlt', { currency: payment.currency, amount: payment.amount })}
                     className="w-[220px] h-[220px] bg-white rounded p-2"
                 />
                 <div className="text-center">
@@ -63,14 +66,14 @@ export function SignupPaymentPanel({
                         {payment.currency} {payment.amount}
                     </div>
                     <div className={`text-[12px] font-semibold ${statusCopy.tone}`}>
-                        {statusCopy.label}
+                        {t(statusCopy.labelKey)}
                     </div>
                 </div>
             </div>
 
             <div>
                 <div className="text-[12px] font-semibold text-muted-foreground mb-1.5">
-                    Payment reference
+                    {t('reference')}
                 </div>
                 <button
                     type="button"
@@ -85,8 +88,7 @@ export function SignupPaymentPanel({
                     )}
                 </button>
                 <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-                    Include this reference with your transfer. Save it — it is how you
-                    check your activation status before you can sign in.
+                    {t('referenceHint')}
                 </p>
             </div>
 
@@ -94,7 +96,7 @@ export function SignupPaymentPanel({
                 href={`/${locale}/signup/payment/${payment.reference}`}
                 className="tv-button w-full h-10 text-[13px] flex items-center justify-center"
             >
-                Check activation status
+                {t('checkStatus')}
             </Link>
         </div>
     );

@@ -166,7 +166,7 @@ export default function ProductsPage() {
                                                             <td className="py-4 text-[14px] font-bold text-[#1A1F36]">{p.creditRating}</td>
                                                             <td className="py-4 text-right text-[14px] font-bold text-[#635BFF]">{p.interestRate}%</td>
                                                             <td className="py-4 text-right text-[13px] text-[#4F566B] font-medium">
-                                                                {p.minTermMonths || 0}m – {p.maxTermMonths || '∞'}m
+                                                                {t('list.termRange', { min: p.minTermMonths || 0, max: p.maxTermMonths || '∞' })}
                                                             </td>
                                                             <td className="py-4 text-right text-[13px] text-[#4F566B] font-medium">
                                                                 ${p.minPrincipal ? p.minPrincipal.toLocaleString() : '0'} – ${p.maxPrincipal ? p.maxPrincipal.toLocaleString() : '∞'}

@@ -48,6 +48,8 @@ function AgeChip({ days }: { days: number }) {
 export function SuspenseView() {
     const t = useTranslations('LendingSuspense.view');
     const tc = useTranslations('LendingSuspense.channel');
+    const tn = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const href = useLendingHref();
     const { showToast } = useToast();
     const [status, setStatus] = useState<Filter>('OPEN');
@@ -80,8 +82,8 @@ export function SuspenseView() {
 
     return (
         <LendingShell
-            title="Unidentified payments"
-            subtitle="Money received without an identifiable loan is held in suspense until it is matched to a loan or refunded to the payer."
+            title={tn('suspense')}
+            subtitle={tp('suspense')}
             actions={!recording && <Btn variant="primary" onClick={() => setRecording(true)}><Plus size={15} /> {t('recordReceipt')}</Btn>}
         >
             {recording && (

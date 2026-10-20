@@ -72,6 +72,8 @@ export default function BorrowerProfilePage() {
     const { id, locale } = useParams();
     const { showToast } = useToast();
     const tc = useTranslations('Customers');
+    const t = useTranslations('Borrowers.profile');
+    const st = useTranslations('Status');
     const { legacyCan } = useWorkspace();
     const [borrower, setBorrower] = useState<Borrower | null>(null);
     const [loading, setLoading] = useState(true);
@@ -86,7 +88,7 @@ export default function BorrowerProfilePage() {
             const res = await api.get(`/borrowers/${id}`);
             setBorrower(res.data);
         } catch {
-            showToast('Failed to load borrower profile', 'error');
+            showToast(t('loadFailed'), 'error');
         } finally {
             setLoading(false);
         }
@@ -106,13 +108,13 @@ export default function BorrowerProfilePage() {
         setCbcNotice(null);
         try {
             await api.post('/credit-checks', { borrowerId: id });
-            showToast('Credit check submitted', 'success');
+            showToast(t('creditCheckSubmitted'), 'success');
             fetchCreditChecks();
         } catch (err: any) {
             // 503 = integration not provisioned yet; surface the exact server message.
-            const msg = err?.response?.data?.message || 'Failed to run credit check';
+            const msg = err?.response?.data?.message || t('creditCheckFailed');
             setCbcNotice(msg);
-            if (err?.response?.status !== 503) showToast('Failed to run credit check', 'error');
+            if (err?.response?.status !== 503) showToast(t('creditCheckFailed'), 'error');
         } finally {
             setRunningCheck(false);
         }
@@ -121,8 +123,8 @@ export default function BorrowerProfilePage() {
     useEffect(() => { fetch(); }, [fetch]);
     useEffect(() => { fetchCreditChecks(); }, [fetchCreditChecks]);
 
-    if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">Loading Profile...</div>;
-    if (!borrower) return <div className="text-center py-20 font-black text-rose-500">Borrower not found.</div>;
+    if (loading) return <div className="flex h-64 items-center justify-center text-slate-400 font-black animate-pulse uppercase tracking-[0.2em]">{t('loading')}</div>;
+    if (!borrower) return <div className="text-center py-20 font-black text-rose-500">{t('notFound')}</div>;
 
     const loans = borrower.loans ?? [];
     const totalBorrowed = loans.reduce((s, l) => s + Number(l.principal), 0);
@@ -146,19 +148,19 @@ export default function BorrowerProfilePage() {
                         </div>
                     </Link>
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Client Digital ID</h1>
-                        <p className="text-slate-500 font-medium">Enterprise profile for credit verification and history</p>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('title')}</h1>
+                        <p className="text-slate-500 font-medium">{t('subtitle')}</p>
                     </div>
                 </div>
                 <div className="flex gap-3">
                     <Link href={`/${locale}/lending/customers/${id}/documents`}>
                         <Button variant="secondary" className="rounded-2xl font-bold px-6 h-12 shadow-sm">
-                            Documents
+                            {t('documents')}
                         </Button>
                     </Link>
                     <Link href={`/${locale}/lending/customers/${id}/alternative-data`}>
                         <Button variant="secondary" className="rounded-2xl font-bold px-6 h-12 shadow-sm">
-                            Alternative data
+                            {t('alternativeData')}
                         </Button>
                     </Link>
                 {legacyCan('CUSTOMER_UPDATE') && (
@@ -167,7 +169,7 @@ export default function BorrowerProfilePage() {
                         variant="secondary"
                         className="rounded-2xl font-bold px-8 h-12 shadow-sm"
                     >
-                        Modify Profile
+                        {t('modifyProfile')}
                     </Button>
                 )}
                 </div>
@@ -192,19 +194,19 @@ export default function BorrowerProfilePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8 mt-4">
                             {borrower.phone && (
                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('phoneNumber')}</p>
                                     <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><Phone size={14} className="text-indigo-500" />{borrower.phone}</p>
                                 </div>
                             )}
                             {borrower.idNumber && (
                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">National ID / Passport</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('nationalIdPassport')}</p>
                                     <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm"><CreditCard size={14} className="text-indigo-500" />{borrower.idNumber}</p>
                                 </div>
                             )}
                             {borrower.address && (
                                 <div className="space-y-1 lg:col-span-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registered Residence</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('residence')}</p>
                                     <p className="font-extrabold text-slate-800 flex items-center gap-1.5 text-sm truncate max-w-xs"><MapPin size={14} className="text-indigo-500" />{borrower.address}</p>
                                 </div>
                             )}
@@ -226,7 +228,7 @@ export default function BorrowerProfilePage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-1.5 mt-6 text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
-                            <Calendar size={12} /> Originated in system {new Date(borrower.createdAt).toLocaleDateString()}
+                            <Calendar size={12} /> {t('originated', { date: new Date(borrower.createdAt).toLocaleDateString() })}
                         </div>
                     </div>
                 </div>
@@ -234,19 +236,19 @@ export default function BorrowerProfilePage() {
                 {/* Performance Stats Overlay */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-slate-100/50">
                     <div className="p-5 bg-slate-50/50 rounded-3xl border border-slate-100/50 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Historical Count</p>
-                        <p className="text-2xl font-black text-slate-900">{loans.length} <span className="text-xs text-slate-300">Loans</span></p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t('historicalCount')}</p>
+                        <p className="text-2xl font-black text-slate-900">{loans.length} <span className="text-xs text-slate-300">{t('loansUnit', { count: loans.length })}</span></p>
                     </div>
                     <div className="p-5 bg-emerald-50/50 rounded-3xl border border-emerald-100/20 text-center">
-                        <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest mb-1.5">Active Portfolios</p>
+                        <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest mb-1.5">{t('activePortfolios')}</p>
                         <p className="text-2xl font-black text-emerald-700">{activeLoans}</p>
                     </div>
                     <div className="p-5 bg-slate-50/50 rounded-3xl border border-slate-100/50 text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Closed Records</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t('closedRecords')}</p>
                         <p className="text-2xl font-black text-slate-400">{closedLoans}</p>
                     </div>
                     <div className="p-5 bg-indigo-50/50 rounded-3xl border border-indigo-100/20 text-center">
-                        <p className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-1.5">CUMULATIVE DEBT</p>
+                        <p className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-1.5">{t('cumulativeDebt')}</p>
                         <p className="text-2xl font-black text-indigo-600">${totalBorrowed.toLocaleString()}</p>
                     </div>
                 </div>
@@ -264,11 +266,11 @@ export default function BorrowerProfilePage() {
                 <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
                     <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tight">
-                            <Activity size={22} className="text-indigo-600" /> System Loan Register
+                            <Activity size={22} className="text-indigo-600" /> {t('loanRegister')}
                         </h3>
                         <Link href={`/${locale}/loans`}>
                             <Button className="rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-950 text-white hover:bg-slate-800 h-10 px-6 gap-2">
-                                <Plus size={14} /> Originate Engagement
+                                <Plus size={14} /> {t('originate')}
                             </Button>
                         </Link>
                     </div>
@@ -276,19 +278,19 @@ export default function BorrowerProfilePage() {
                     {loans.length === 0 ? (
                         <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                             <FileText size={48} strokeWidth={1} className="mx-auto text-slate-300 mb-4" />
-                            <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">Zero historical engagements found.</p>
+                            <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">{t('noLoans')}</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto no-scrollbar">
                             <table className="w-full border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-100">
-                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Principal Asset</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Rate Engine</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Term (M)</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">Logic</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Market Status</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colPrincipal')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colRate')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colTerm')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">{t('colMethod')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colStatus')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colAction')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/50">
@@ -296,14 +298,14 @@ export default function BorrowerProfilePage() {
                                         <tr key={loan.id} className="group hover:bg-slate-50/50 transition-colors">
                                             <td className="py-5">
                                                 <p className="text-base font-black text-slate-900 tracking-tight">${Number(loan.principal).toLocaleString()}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">ID: {loan.id.slice(-6).toUpperCase()}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">{t('idLabel', { id: loan.id.slice(-6).toUpperCase() })}</p>
                                             </td>
                                             <td className="py-5 text-right font-black text-indigo-600 text-sm hidden md:table-cell">{loan.annualInterestRate}%</td>
-                                            <td className="py-5 text-right font-extrabold text-slate-700 text-sm hidden md:table-cell">{loan.termMonths}m</td>
+                                            <td className="py-5 text-right font-extrabold text-slate-700 text-sm hidden md:table-cell">{t('termMonths', { n: loan.termMonths })}</td>
                                             <td className="py-5 text-right font-bold text-slate-400 text-[10px] uppercase hidden lg:table-cell">{loan.interestMethod}</td>
                                             <td className="py-5 text-right">
                                                 <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${STATUS_STYLES[loan.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                    {loan.status}
+                                                    {st.has(loan.status) ? st(loan.status) : loan.status}
                                                 </span>
                                             </td>
                                             <td className="py-5 text-right">
@@ -324,14 +326,14 @@ export default function BorrowerProfilePage() {
                 <div className="glass p-8 rounded-[2.5rem] premium-shadow border-indigo-100/10">
                     <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
                         <h3 className="text-xl font-black text-slate-900 flex items-center gap-3 tracking-tight">
-                            <ShieldCheck size={22} className="text-indigo-600" /> Credit Bureau (CBC)
+                            <ShieldCheck size={22} className="text-indigo-600" /> {t('creditBureau')}
                         </h3>
                         <Button
                             onClick={handleRunCreditCheck}
                             disabled={runningCheck}
                             className="rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-950 text-white hover:bg-slate-800 h-10 px-6 gap-2 disabled:opacity-60"
                         >
-                            {runningCheck ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Run Credit Check
+                            {runningCheck ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} {t('runCreditCheck')}
                         </Button>
                     </div>
 
@@ -345,19 +347,19 @@ export default function BorrowerProfilePage() {
                     {creditChecks.length === 0 ? (
                         <div className="py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                             <ShieldCheck size={48} strokeWidth={1} className="mx-auto text-slate-300 mb-4" />
-                            <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">No credit checks on record.</p>
+                            <p className="text-slate-400 font-extrabold uppercase tracking-widest text-[10px]">{t('noCreditChecks')}</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto no-scrollbar">
                             <table className="w-full border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-100">
-                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">Provider</th>
-                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Score</th>
-                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Grade</th>
-                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">Summary</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colDate')}</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden md:table-cell">{t('colProvider')}</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colCheckStatus')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colScore')}</th>
+                                        <th className="text-right py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('colGrade')}</th>
+                                        <th className="text-left py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hidden lg:table-cell">{t('colSummary')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100/50">
@@ -367,7 +369,7 @@ export default function BorrowerProfilePage() {
                                             <td className="py-5 text-sm font-bold text-slate-500 hidden md:table-cell">{check.provider}</td>
                                             <td className="py-5">
                                                 <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${CREDIT_STATUS_STYLES[check.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                    {check.status}
+                                                    {st.has(check.status) ? st(check.status) : check.status}
                                                 </span>
                                             </td>
                                             <td className="py-5 text-right font-black text-indigo-600 text-sm">{check.score ?? '—'}</td>
@@ -385,7 +387,7 @@ export default function BorrowerProfilePage() {
             <BorrowerModal
                 open={isEditOpen}
                 onOpenChange={setIsEditOpen}
-                onSuccess={() => { fetch(); showToast('Borrower updated', 'success'); }}
+                onSuccess={() => { fetch(); showToast(t('updated'), 'success'); }}
                 borrower={borrower}
             />
         </div>

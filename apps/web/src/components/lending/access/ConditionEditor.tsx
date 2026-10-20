@@ -23,7 +23,8 @@ function valuePlaceholder(c: CompDraft, t: (key: string) => string): string {
 
 /** One comparison row: [NOT] attr op value. */
 function ComparisonRow({ c, onChange, onRemove }: { c: CompDraft; onChange: (c: CompDraft) => void; onRemove: () => void }) {
-    const err = compToCondition(c).error;
+    const tm = useTranslations('LendingAccess.policyModel');
+    const err = compToCondition(c, tm).error;
     const t = useTranslations('LendingAccess.condition');
     return (
         <div className="space-y-1">

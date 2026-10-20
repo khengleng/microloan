@@ -28,9 +28,11 @@ interface Retention { defaults: Record<string, number>; rules: { id: string; sco
 /** Documents across customers: the review queue (DOC-4), expiries (DOC-6) and retention rules (DOC-7). */
 export function DocumentsHub() {
     const t = useTranslations('LendingDocuments');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const [tab, setTab] = useState<Tab>('review');
     return (
-        <LendingShell title="Documents" subtitle="Customer documents awaiting review, expiring identity documents and retention rules.">
+        <LendingShell title={tw('documents')} subtitle={tp('documents')}>
             <Tabs<Tab> value={tab} onChange={setTab} tabs={[
                 { value: 'review', label: t('hub.tabReview') },
                 { value: 'expiry', label: t('hub.tabExpiry') },

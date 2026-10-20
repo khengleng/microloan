@@ -39,6 +39,7 @@ function lastActive(c: RestructureCase): string {
 
 export default function RestructureCasePage() {
     const t = useTranslations('LendingRestructure');
+    const tn = useTranslations('Workspace.nav');
     const L = useRestructureLabels();
     const { id } = useParams<{ id: string }>();
     const href = useLendingHref();
@@ -46,8 +47,8 @@ export default function RestructureCasePage() {
     const [tab, setTab] = useState<Tab>('overview');
     const [assessing, setAssessing] = useState(false);
 
-    if (loading && !c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: 'Restructures' }}><Spinner /></LendingShell>;
-    if (!c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: 'Restructures' }}><ErrorBox error={error ?? { message: t('detail.notFound') }} /></LendingShell>;
+    if (loading && !c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: tn('restructures') }}><Spinner /></LendingShell>;
+    if (!c) return <LendingShell title={t('detail.pageTitle')} back={{ href: '/lending/restructures', label: tn('restructures') }}><ErrorBox error={error ?? { message: t('detail.notFound') }} /></LendingShell>;
 
     const working = WORKING.includes(c.status);
     const assessments = c.assessments ?? [];
@@ -70,7 +71,7 @@ export default function RestructureCasePage() {
         <LendingShell
             title={<span className="flex items-center gap-3">{t.rich('detail.title', { reference: c.reference, ref: (ch) => <span className="font-mono">{ch}</span>, badge: () => <StatusBadge status={c.status} /> })}</span>}
             subtitle={<>{t.rich('detail.subtitle', { id: c.loanAccountId, link: (ch) => <Link href={href(`/lending/loans/${c.loanAccountId}`)} className="font-mono text-[#635BFF] hover:underline">{ch}</Link> })}</>}
-            back={{ href: '/lending/restructures', label: 'Restructures' }}
+            back={{ href: '/lending/restructures', label: tn('restructures') }}
             actions={<Btn onClick={reload} busy={loading}>{t('detail.refresh')}</Btn>}
         >
             {error && <ErrorBox error={error} />}

@@ -272,8 +272,10 @@ export default function LendingAccountingPage() {
     const [tab, setTab] = useState<'tb' | 'rec' | 'journal' | 'exports' | 'accounts'>('rec');
     const tg = useTranslations('Governance.coa');
     const t = useTranslations('LendingAccounting.tabs');
+    const tn = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     return (
-        <LendingShell title="Accounting reconciliation" subtitle="Lending sub-ledger journals, trial balance and sub-ledger-to-ledger reconciliation.">
+        <LendingShell title={tn('ledger')} subtitle={tp('ledger')}>
             <Tabs value={tab} onChange={setTab} tabs={[
                 { value: 'rec', label: t('rec') },
                 { value: 'tb', label: t('tb') },

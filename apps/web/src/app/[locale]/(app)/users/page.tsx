@@ -98,9 +98,9 @@ export default function UsersPage() {
     };
 
     const handleResetPassword = async (id: string, email: string) => {
-        const pw = window.prompt(`Set a new password for ${email} (minimum 12 characters).\nThey will be signed out of all sessions and must use the new password.`);
+        const pw = window.prompt(t('resetPasswordPrompt', { email }));
         if (pw === null) return; // cancelled
-        if (pw.length < 12) { showToast('Password must be at least 12 characters', 'error'); return; }
+        if (pw.length < 12) { showToast(t('passwordTooShort'), 'error'); return; }
         setResettingId(id);
         try {
             await api.patch(`/users/${id}/password`, { password: pw });
@@ -113,7 +113,7 @@ export default function UsersPage() {
     };
 
     const handleDelete = async (id: string, email: string) => {
-        if (!confirm(`Suspend ${email}'s access? They will no longer be able to log in.`)) return;
+        if (!confirm(t('suspendConfirm', { email }))) return;
         setDeletingId(id);
         try {
             await api.delete(`/users/${id}`);
@@ -269,7 +269,7 @@ export default function UsersPage() {
                                                     onChange={e => handleRoleChange(user.id, e.target.value)}
                                                     className={`appearance-none pl-4 pr-10 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] rounded-full border-0 cursor-pointer focus:outline-none focus:ring-4 focus:ring-white/50 transition-all ${ROLE_COLORS[user.role] || 'bg-slate-100 text-slate-400'}`}
                                                     disabled={user.role === 'ADMIN' || user.role === 'SUPERADMIN' || !user.isActive}
-                                                    title={!user.isActive ? 'Reactivate the account before changing its role' : undefined}
+                                                    title={!user.isActive ? t('reactivateBeforeRoleChange') : undefined}
                                                 >
                                                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>

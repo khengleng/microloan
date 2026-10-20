@@ -132,7 +132,7 @@ export default function LoansPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground flex items-center gap-2">{t('title')} <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Legacy</span></h1>
+                    <h1 className="text-xl font-bold text-foreground flex items-center gap-2">{t('title')} <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">{t('legacyBadge')}</span></h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
                         {meta ? t('totalCount', { count: meta.total.toLocaleString() }) : t('managePortfolio')}
                     </p>
@@ -268,7 +268,7 @@ export default function LoansPage() {
                             <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
-                            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
+                            {t('rangeOf', { from: ((page - 1) * LIMIT) + 1, to: Math.min(page * LIMIT, meta.total), total: meta.total.toLocaleString() })}
                         </span>
                         <button
                             onClick={() => handlePageChange(Math.min(meta.pages, page + 1))}

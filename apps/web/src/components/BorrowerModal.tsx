@@ -180,10 +180,10 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
                     <DialogTitle className="text-base font-bold text-foreground">
-                        {borrower ? 'Edit Borrower' : 'Add New Borrower'}
+                        {borrower ? t('modal.editTitle') : t('add_new')}
                     </DialogTitle>
                     <DialogDescription className="text-sm text-muted-foreground mt-0.5">
-                        {borrower ? 'Update borrower information.' : "Enter the borrower's details to register them."}
+                        {borrower ? t('modal.editDesc') : t('modal.createDesc')}
                     </DialogDescription>
                 </div>
 
@@ -192,14 +192,14 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                     <div className="px-6 py-5 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="firstName" className={labelCls}>First Name <span className="text-destructive">*</span></label>
+                                <label htmlFor="firstName" className={labelCls}>{t('modal.firstName')} <span className="text-destructive">*</span></label>
                                 <input id="firstName" data-tour="borrower-form-name" data-clarity-mask="true" className={fieldCls} value={formData.firstName} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, firstName: e.target.value });
                                 }} required />
                             </div>
                             <div>
-                                <label htmlFor="lastName" className={labelCls}>Last Name <span className="text-destructive">*</span></label>
+                                <label htmlFor="lastName" className={labelCls}>{t('modal.lastName')} <span className="text-destructive">*</span></label>
                                 <input id="lastName" data-clarity-mask="true" className={fieldCls} value={formData.lastName} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, lastName: e.target.value });
@@ -208,7 +208,7 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         </div>
 
                         <div>
-                            <label htmlFor="phone" className={labelCls}>Phone Number <span className="text-destructive">*</span></label>
+                            <label htmlFor="phone" className={labelCls}>{t('modal.phone')} <span className="text-destructive">*</span></label>
                             <input id="phone" data-tour="borrower-form-phone" type="tel" data-clarity-mask="true" className={fieldCls} placeholder="+855 ..." value={formData.phone} onChange={e => {
                                 setDirty(true);
                                 setFormData({ ...formData, phone: e.target.value });
@@ -216,16 +216,16 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         </div>
 
                         <div>
-                            <label htmlFor="idNumber" className={labelCls}>National ID / Passport <span className="text-destructive">*</span></label>
-                            <input id="idNumber" data-tour="borrower-form-id" data-clarity-mask="true" className={fieldCls} placeholder="ID number" value={formData.idNumber} onChange={e => {
+                            <label htmlFor="idNumber" className={labelCls}>{t('modal.idNumber')} <span className="text-destructive">*</span></label>
+                            <input id="idNumber" data-tour="borrower-form-id" data-clarity-mask="true" className={fieldCls} placeholder={t('modal.idNumberPlaceholder')} value={formData.idNumber} onChange={e => {
                                 setDirty(true);
                                 setFormData({ ...formData, idNumber: e.target.value });
                             }} required />
                         </div>
 
                         <div>
-                            <label htmlFor="address" className={labelCls}>Address <span className="text-destructive">*</span></label>
-                            <input id="address" data-clarity-mask="true" className={fieldCls} placeholder="Street, City" value={formData.address} onChange={e => {
+                            <label htmlFor="address" className={labelCls}>{t('modal.address')} <span className="text-destructive">*</span></label>
+                            <input id="address" data-clarity-mask="true" className={fieldCls} placeholder={t('modal.addressPlaceholder')} value={formData.address} onChange={e => {
                                 setDirty(true);
                                 setFormData({ ...formData, address: e.target.value });
                             }} required />
@@ -303,14 +303,14 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                         {/* Affordability inputs (feed the risk scorecard / DSR) */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="monthlyIncome" className={labelCls}>Monthly Income (USD)</label>
+                                <label htmlFor="monthlyIncome" className={labelCls}>{t('modal.monthlyIncome')}</label>
                                 <input id="monthlyIncome" data-tour="borrower-form-income" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyIncome} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, monthlyIncome: e.target.value });
                                 }} />
                             </div>
                             <div>
-                                <label htmlFor="monthlyExpenses" className={labelCls}>Monthly Expenses (USD)</label>
+                                <label htmlFor="monthlyExpenses" className={labelCls}>{t('modal.monthlyExpenses')}</label>
                                 <input id="monthlyExpenses" type="number" min="0" step="0.01" data-clarity-mask="true" className={fieldCls} placeholder="0.00" value={formData.monthlyExpenses} onChange={e => {
                                     setDirty(true);
                                     setFormData({ ...formData, monthlyExpenses: e.target.value });
@@ -329,11 +329,11 @@ export function BorrowerModal({ open, onOpenChange, onSuccess, borrower }: Borro
                     {/* Footer */}
                     <div className="px-6 py-4 border-t border-border bg-muted/40 flex justify-end gap-2">
                         <button type="button" onClick={() => onOpenChange(false)} className="btn-ghost">
-                            Cancel
+                            {t('cancel')}
                         </button>
                         <button type="submit" data-tour="borrower-form-save" disabled={loading} className="btn-primary">
                             {loading && <Loader2 size={14} className="animate-spin" />}
-                            {loading ? 'Saving...' : borrower ? 'Save Changes' : 'Add Borrower'}
+                            {loading ? t('modal.saving') : borrower ? t('modal.saveChanges') : t('modal.addBorrower')}
                         </button>
                     </div>
                 </form>

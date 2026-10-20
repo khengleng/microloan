@@ -39,6 +39,7 @@ const STATUS: Record<PortalRequest['status'], { cls: string }> = {
 
 export function PortalDocumentsSection() {
     const t = useTranslations('LendingPortal.documents');
+    const tf = useTranslations('LendingDocuments.file');
     const [requests, setRequests] = useState<PortalRequest[] | null>(null);
     const [docs, setDocs] = useState<PortalDocument[]>([]);
     const [busy, setBusy] = useState('');
@@ -55,7 +56,7 @@ export function PortalDocumentsSection() {
         setBusy(req.id);
         setError('');
         try {
-            const body = await readFile(file);
+            const body = await readFile(file, tf);
             await call(`/borrower/document-requests/${req.id}/upload`, body, (status) => t('somethingWrong', { status }));
             load();
         } catch (e) {

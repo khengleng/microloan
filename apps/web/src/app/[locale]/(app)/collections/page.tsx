@@ -154,7 +154,7 @@ export default function CollectionsPage() {
                                                 ${totalOverdue.toLocaleString()}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <span className={daysLate > 30 ? 'badge-danger' : 'badge-warning'}>{daysLate}d</span>
+                                                <span className={daysLate > 30 ? 'badge-danger' : 'badge-warning'}>{t('list.daysLate', { n: daysLate })}</span>
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">

@@ -49,6 +49,8 @@ function buildTerms(f: FormState): Terms {
 
 function Simulator() {
     const t = useTranslations('LendingSimulator');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const params = useSearchParams();
     const products = useApi<Product[]>('/lending/products');
     const [versionId, setVersionId] = useState(params.get('version') ?? '');
@@ -71,7 +73,7 @@ function Simulator() {
     };
 
     return (
-        <LendingShell title="Pricing & repayment simulator" subtitle="Price a loan against any product version. Side-effect free: nothing is booked.">
+        <LendingShell title={tw('simulator')} subtitle={tp('simulator')}>
             <Card title={t('terms')}>
                 {products.loading && !products.data ? <Spinner /> : (
                     <div className="space-y-4">
