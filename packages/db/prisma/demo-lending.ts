@@ -302,12 +302,14 @@ async function main() {
       data: { tenantId: t, scope: 'COUNTRY', countryCode: 'KH', currency: 'USD', amount: '80000000', reviewOn, status: 'ACTIVE', note: 'Demo country limit', proposedBy: users.analyst, decidedBy: users.approver2, decidedAt: new Date() },
     });
   await demoAml(t, users);
+  await demoAdminMfaOptional(t, users);
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
   console.log(`Demo tenant "${TENANT}" ready.`);
   console.log('  Scorecards STANDARD_RETAIL and THIN_FILE are in force; PL-STD runs THIN_FILE as a silent challenger, MF-IND scores thin-file borrowers on THIN_FILE.');
   console.log('  An impairment policy (NBC classes, REGULATORY mode) is in force: end of day provisions and month-end close is allowed.');
   console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
+  console.log('  Admin 2FA: this demo organisation does not require tenant admins to use an authenticator (lending settings), so the QA accounts sign in with a password. Real organisations keep the requirement.');
   console.log('  AML: every demo borrower is screened and cleared (LOW/MEDIUM risk); watch list DEMO_FICTIONAL holds two fictional names, and "Demo Exposed Official" has an open screening case (Risk & audit › AML & compliance).');
   if (created.size)
     console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
@@ -506,6 +508,28 @@ async function demoScoring(t: string, users: Record<string, string>) {
       await prisma.altDataRecord.update({ where: { id: rec.id }, data: { status: 'VERIFIED', verifiedBy: users.analyst, verifiedAt: new Date() } });
     }
   }
+}
+
+/**
+ * The demo organisation's QA accounts also hold the tenant-admin role and sign
+ * in with a password only, so the demo puts in force a lending-settings version
+ * (recorded by one admin, approved by the other) that turns off "tenant admins
+ * must use an authenticator" (D-128) for this organisation only. Platform
+ * super-admins and every other organisation keep the requirement. Idempotent:
+ * nothing is written when the active version already has it off.
+ */
+async function demoAdminMfaOptional(t: string, users: Record<string, string>) {
+  const active = await prisma.tenantLendingSettings.findFirst({ where: { tenantId: t, status: 'ACTIVE' }, orderBy: { version: 'desc' } });
+  const current = lending.tenantLendingSettingsSchema.parse(active?.settings ?? {});
+  if (!current.security.requireMfaForAdmins) return;
+  const next = lending.tenantLendingSettingsSchema.parse({ ...current, security: { ...current.security, requireMfaForAdmins: false } });
+  const last = await prisma.tenantLendingSettings.findFirst({ where: { tenantId: t }, orderBy: { version: 'desc' } });
+  await prisma.$transaction([
+    ...(active ? [prisma.tenantLendingSettings.update({ where: { id: active.id }, data: { status: 'RETIRED' } })] : []),
+    prisma.tenantLendingSettings.create({
+      data: { tenantId: t, version: (last?.version ?? 0) + 1, settings: next as never, status: 'ACTIVE', makerId: users.admin, checkerId: users.admin2, decidedAt: new Date(), reason: 'Demo: QA accounts sign in with a password only' },
+    }),
+  ]);
 }
 
 /**
