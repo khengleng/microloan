@@ -491,6 +491,83 @@ Details and the metric list: `docs/lending/OPERATIONS.md` → Monitoring.
   `LENDING_RECONCILIATION_JOB_DISABLED`, `LENDING_METRICS_REFRESH_DISABLED`,
   `READINESS_DB_TIMEOUT_MS` (2000).
 
+### E-mail alerts (DECISIONS D-150…D-152)
+
+Two layers, both through the Resend account the platform already uses for
+e-mail. No other service is needed.
+
+**1. Inside the API — the health monitor.** Every 10 minutes one API
+instance (it claims the time slot in `ScheduledJobClaim`) checks:
+
+| Alert (key) | Raised when | Severity |
+| --- | --- | --- |
+| End of day behind (`eod.stale`) | a tenant with active loans: the last end-of-day run (else the business date) lags today in Asia/Phnom_Penh by more than `ALERT_EOD_MAX_LAG_DAYS` (1) | critical |
+| End of day left accounts (`eod.failures`) | the last run recorded failed accounts (`TenantBusinessDate.lastBatchFailures`) | warning |
+| Month end not closed (`month_end.overdue`) | a month with postings, before the current one, is not closed `ALERT_MONTH_END_CLOSE_DAYS` (10) days into the next month | warning |
+| Outbox / webhooks backed up (`outbox.backlog`, `webhooks.backlog`) | the oldest pending message or delivery is older than `ALERT_BACKLOG_MAX_AGE_MINUTES` (30) | warning |
+| Reconciliation breaks (`reconciliation.breaks`) | the latest reconciliation run (six-hourly job) found differences | critical |
+| Scheduled jobs failed (`jobs.failed`) | a system job wrote a FAILURE to the tenant's audit trail in the last `ALERT_JOB_FAILURE_LOOKBACK_HOURS` (24) — e.g. one tenant's end of day failing while the others ran | critical for end of day, else warning |
+| Database (`database.unreachable`, `database.connections`, platform-wide) | the readiness probe's `SELECT 1` does not answer in `READINESS_DB_TIMEOUT_MS`, or connections reach `ALERT_DB_CONNECTIONS_PCT` (80) % of `max_connections` | critical / warning |
+
+An e-mail goes out when an alert **opens**, when it **resolves**, and as a
+**reminder** at most every `ALERT_REMINDER_HOURS` (6) while it stays open —
+never every 10 minutes. Open alerts also show on the platform home
+(Organisations page) and, for each lender, on Lending › End of day &
+operations. If the API or its database is completely down the monitor cannot
+run; that is what layer 2 is for.
+
+Set on the **api** service in Railway (Variables → New variable, then
+redeploy):
+
+| Variable | Value |
+| --- | --- |
+| `ALERT_EMAIL_TO` | the operator addresses, comma-separated, e.g. `ops@cambobia.com,oncall@cambobia.com` |
+| `RESEND_API_KEY`, `EMAIL_FROM` | already set in production (`EMAIL_FROM=contact@cambobia.com`); alerts use them |
+| optional | `ALERT_CHECK_INTERVAL_MINUTES` (10), `ALERT_REMINDER_HOURS` (6), `ALERT_EOD_MAX_LAG_DAYS` (1), `ALERT_MONTH_END_CLOSE_DAYS` (10), `ALERT_BACKLOG_MAX_AGE_MINUTES` (30), `ALERT_JOB_FAILURE_LOOKBACK_HOURS` (24), `ALERT_DB_CONNECTIONS_PCT` (80), `ALERT_MONITOR_DISABLED` (false) |
+
+```sh
+railway variables --service api --set "ALERT_EMAIL_TO=ops@cambobia.com"
+```
+
+Without `ALERT_EMAIL_TO` (or without `RESEND_API_KEY`) nothing is e-mailed:
+each notice is logged (`OperationalAlertService … not e-mailed`) and the
+platform home says so. A malformed address stops the API at boot. Each
+lender can add its own contacts in its lending settings
+(`operations.alertEmails`, maker-checker); they receive that lender's alerts
+only, in a separate e-mail from the operator's.
+
+**2. Outside — the GitHub uptime check** (`.github/workflows/uptime.yml`).
+Every 10 minutes GitHub Actions requests the web sign-in page and the API
+readiness probe (three attempts, 20 s apart, so a single slow answer is not
+an outage). When something is down it opens an issue labelled `uptime` and
+e-mails; while it stays down it comments and e-mails again at most every
+`UPTIME_REMIND_HOURS` (6); when everything answers it closes the issue and
+sends a "recovered" e-mail. It uses the built-in `GITHUB_TOKEN`
+(`issues: write`) and needs, under Settings → Secrets and variables →
+Actions:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `RESEND_API_KEY` | the Resend API key (the same one as the api service) |
+| Variable | `ALERT_EMAIL_TO` | recipients, comma-separated |
+| Variable | `ALERT_EMAIL_FROM` | sender on the verified domain, e.g. `contact@cambobia.com` |
+| Variable (optional) | `UPTIME_WEB_URL` | default `https://dbank.cambobia.com/en/login` |
+| Variable (optional) | `UPTIME_API_URL` | default `https://api-production-52b47.up.railway.app/v1/health/ready` |
+| Variable (optional) | `UPTIME_REMIND_HOURS` | default 6 |
+
+```sh
+gh secret set RESEND_API_KEY            # paste the key when asked
+gh variable set ALERT_EMAIL_TO --body "ops@cambobia.com"
+gh variable set ALERT_EMAIL_FROM --body "contact@cambobia.com"
+gh workflow run uptime.yml              # try it once
+```
+
+Without the secret or the recipients the workflow still opens and closes the
+issue (GitHub notifies the repository's watchers) and logs a warning. GitHub
+runs schedules from the default branch only, can start a run several minutes
+late, and pauses a schedule after 60 days without repository activity
+(re-enable it under Actions).
+
 ## End of day and the connection pool
 
 - End of day runs per tenant. A tenant whose run throws is logged, recorded in

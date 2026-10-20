@@ -33,7 +33,8 @@ AuditLog, …) had no RLS at all.
 Variants of the same rule:
 
 - **Tables with a nullable `tenantId`** (`User` — platform users, `AuditLog`
-  and `AuditEvent` — platform entries): the same policy; `NULL` never equals a
+  and `AuditEvent` — platform entries, `OperationalAlert` — platform-wide
+  alerts, D-150): the same policy; `NULL` never equals a
   tenant id, so those rows exist only in system context.
 - **`Tenant`**: `id = app.tenant_id`, or system.
 - **Tables without a `tenantId`** reach it through their parent:
