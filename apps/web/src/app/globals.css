@@ -329,3 +329,55 @@
   .guide-prose td { min-width: 8rem; }
   .guide-prose tr:last-child td { border-bottom: 0; }
 }
+
+/* ─────────────────────────────────────────
+   Khmer typography (:lang(km))
+   Unlayered on purpose, so these win over Tailwind's utility layer.
+   Text marked lang="en" inside a Khmer page (lesson and guide text) matches
+   :lang(en) instead and keeps the Latin rules.
+   ───────────────────────────────────────── */
+:root:lang(km) {
+  /* Arial first keeps Latin text (numbers, codes, names) on the existing font;
+     Arial has no Khmer glyphs, so Khmer falls through to Kantumruy Pro
+     (next/font, app/[locale]/layout.tsx) and then the OS Khmer fonts. */
+  --km-font-stack: Arial, Helvetica, var(--font-khmer), "Khmer UI", "Khmer Sangam MN", "Noto Sans Khmer", sans-serif;
+}
+
+:lang(km) body,
+:lang(km) .font-sans {
+  font-family: var(--km-font-stack);
+}
+:lang(km) body {
+  /* Khmer stacks vowels and subscript consonants above and below the line. */
+  line-height: 1.65;
+}
+
+/* The tiny sizes used for chips, table headers and captions are unreadable in
+   Khmer; nothing renders below 12px. */
+:lang(km) .text-\[9px\],
+:lang(km) .text-\[10px\],
+:lang(km) .text-\[10\.5px\],
+:lang(km) .text-\[11px\],
+:lang(km) .text-\[11\.5px\],
+:lang(km) .table-header {
+  font-size: 12px;
+}
+
+/* Tailwind's text-* sizes carry a Latin line-height; give Khmer room. */
+:lang(km) :is(.text-xs, .text-sm, .text-base, .text-lg, .text-\[9px\], .text-\[10px\], .text-\[10\.5px\], .text-\[11px\], .text-\[11\.5px\], .text-\[12px\], .text-\[12\.5px\], .text-\[13px\], .text-\[13\.5px\], .text-\[14px\]) {
+  line-height: 1.6;
+}
+:lang(km) :is(.leading-none, .leading-tight, .leading-snug) {
+  line-height: 1.4;
+}
+
+/* Letter-spacing pulls a consonant away from its stacked subscript, and Khmer
+   has no case (uppercase only distorts the Latin mixed in), so both are off.
+   Code inputs (font-mono, e.g. the OTP field) keep their spacing. */
+:lang(km) [class*="tracking-"]:not(.font-mono),
+:lang(km) .table-header {
+  letter-spacing: normal;
+}
+:lang(km) :is(.uppercase, .table-header) {
+  text-transform: none;
+}
