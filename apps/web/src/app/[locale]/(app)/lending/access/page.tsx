@@ -41,6 +41,9 @@ function AccessPageInner() {
     const tab: TabKey = isTab(raw) ? raw : 'roles';
     const { data, error, loading, reload } = useApi<AccessOverview>('/lending/access');
     const tg = useTranslations('Governance');
+    const ta = useTranslations('LendingAccess');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
 
     const setTab = (t: TabKey) => {
         const next = new URLSearchParams(params.toString());
@@ -52,15 +55,15 @@ function AccessPageInner() {
     const pendingPolicies = data?.policies.reduce((n, p) => n + p.versions.filter((v) => v.status === 'SUBMITTED').length, 0) ?? 0;
 
     const tabs: { value: TabKey; label: React.ReactNode }[] = [
-        { value: 'roles', label: 'Role matrix' },
-        { value: 'assignments', label: <span data-tour="access-tab-assignments">Assignments{pendingCount(data?.assignments.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
-        { value: 'delegations', label: <span data-tour="access-tab-delegations">Delegations{pendingCount(data?.delegations.filter((d) => d.status === 'PENDING').length ?? 0)}</span> },
-        { value: 'authorities', label: <span data-tour="access-tab-authorities">Approval authorities{pendingCount(data?.authorities.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
-        { value: 'policies', label: <>ABAC policies{pendingCount(pendingPolicies)}</> },
-        { value: 'flags', label: 'Feature flags' },
-        { value: 'service-accounts', label: 'Service accounts' },
+        { value: 'roles', label: ta('roles.matrixTitle') },
+        { value: 'assignments', label: <span data-tour="access-tab-assignments">{ta('page.assignmentsTab')}{pendingCount(data?.assignments.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
+        { value: 'delegations', label: <span data-tour="access-tab-delegations">{ta('delegations.title')}{pendingCount(data?.delegations.filter((d) => d.status === 'PENDING').length ?? 0)}</span> },
+        { value: 'authorities', label: <span data-tour="access-tab-authorities">{ta('authorities.title')}{pendingCount(data?.authorities.filter((a) => a.status === 'PENDING').length ?? 0)}</span> },
+        { value: 'policies', label: <>{ta('policies.title')}{pendingCount(pendingPolicies)}</> },
+        { value: 'flags', label: ta('flags.flagsTitle') },
+        { value: 'service-accounts', label: ta('serviceAccounts.title') },
         { value: 'branches', label: tg('branches.tab') },
-        { value: 'simulator', label: <span data-tour="access-tab-simulator">Policy simulator</span> },
+        { value: 'simulator', label: <span data-tour="access-tab-simulator">{ta('simulator.title')}</span> },
     ];
 
     // Service accounts load their own list and don't need the overview.
@@ -68,9 +71,9 @@ function AccessPageInner() {
 
     return (
         <LendingShell
-            title="Access & policy"
-            subtitle="Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled."
-            actions={<Btn size="sm" onClick={reload} busy={loading}><RefreshCw size={13} /> Refresh</Btn>}
+            title={tw('access')}
+            subtitle={tp('access')}
+            actions={<Btn size="sm" onClick={reload} busy={loading}><RefreshCw size={13} /> {ta('page.refresh')}</Btn>}
         >
             <Tabs tabs={tabs} value={tab} onChange={setTab} />
             {tab === 'service-accounts' && <ServiceAccountsTab />}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ResponsiveContainer,
@@ -32,6 +33,8 @@ export function ReportChartCard({
   xKey?: string;
   yKey?: string;
 }) {
+  const t = useTranslations('Reports.analytics.chart');
+  const seriesName = t.has(`series.${yKey}`) ? t(`series.${yKey}`) : yKey;
   return (
     <Card className="border-slate-200 shadow-sm">
       <CardHeader className="pb-0">
@@ -41,7 +44,7 @@ export function ReportChartCard({
         <div className="h-64">
           {!data?.length ? (
             <div className="h-full border border-dashed rounded-md flex items-center justify-center text-sm text-slate-400">
-              No chart data for selected filters
+              {t('noData')}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -51,7 +54,7 @@ export function ReportChartCard({
                   <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Line type="monotone" dataKey={yKey} stroke="#2563eb" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey={yKey} name={seriesName} stroke="#2563eb" strokeWidth={2} dot={false} />
                 </LineChart>
               ) : type === 'pie' ? (
                 <PieChart>
@@ -67,7 +70,7 @@ export function ReportChartCard({
                   <XAxis dataKey={xKey} tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey={yKey} fill="#2563eb" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey={yKey} name={seriesName} fill="#2563eb" radius={[4, 4, 0, 0]} />
                 </BarChart>
               )}
             </ResponsiveContainer>

@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /**
  * The signup journey, made visible.
@@ -29,11 +30,12 @@ export function SignupJourney({
     labels: Record<JourneyStep, string>;
     className?: string;
 }) {
+    const t = useTranslations('Register');
     const steps = ORDER.filter(s => includePayment || s !== 'payment');
     const currentIndex = steps.indexOf(current);
 
     return (
-        <ol className={`flex items-center gap-2 ${className}`} aria-label="Progress">
+        <ol className={`flex items-center gap-2 ${className}`} aria-label={t('journeyProgress')}>
             {steps.map((step, i) => {
                 const done = i < currentIndex;
                 const active = i === currentIndex;

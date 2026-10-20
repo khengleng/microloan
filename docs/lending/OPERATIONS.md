@@ -1267,6 +1267,25 @@ and refuse deletion (triggers); the legacy customer delete refuses a customer
 with AML records. `aml.retentionYearsAfterRelationship` (5) records the
 period; no purge job exists yet.
 
+## Web portal languages (DECISIONS D-146…D-148)
+
+- **Adding UI text:** put it in `apps/web/messages/en.json` and `km.json`
+  (same keys, 2-space indent). CI runs `node scripts/i18n-literals.mjs`,
+  which fails on any hard-coded user-facing string in `apps/web/src`; an
+  intentional literal (brand name, code sample, a fallback always replaced by
+  a message key) goes into `scripts/i18n-literals-allowlist.json` with a
+  reason. `pnpm --filter web test` checks both catalogues have the same keys
+  and arguments and that every message parses (ICU syntax: quote literal
+  braces as `'{'…'}'`).
+- **New namespace on a public page** (login, register, password reset,
+  signup, borrower portal): add it to that segment's list in
+  `apps/web/src/i18n-namespaces.ts`, or the web tests fail — those pages only
+  receive the namespaces listed there. The signed-in app receives all.
+- **Khmer font:** Kantumruy Pro, self-hosted at build time by next/font
+  (the build downloads it from Google Fonts once; nothing is fetched from
+  Google at runtime, so the CSP stays `font-src 'self'`).
+- Server messages (API validation errors) are still English.
+
 ## Known limitations
 
 * Not implemented: connected-party (group) exposure checks

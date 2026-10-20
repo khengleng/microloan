@@ -57,6 +57,9 @@ interface Stats {
 
 export default function TenantsPage() {
     const t = useTranslations('Tenants');
+    // The handlers below name their Tenant argument `t`, so they use this alias.
+    const tr = t;
+    const ts = useTranslations('Status');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const [stats, setStats] = useState<Stats | null>(null);
@@ -129,7 +132,7 @@ export default function TenantsPage() {
             setForm({ name: '', plan: defaultPlan, adminEmail: '', adminPassword: '' });
             fetchAll();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Operation failed', 'error');
+            showToast(err.response?.data?.message || tr('actionFailed'), 'error');
         } finally {
             setSub(false);
         }
@@ -138,18 +141,18 @@ export default function TenantsPage() {
     const handleSuspend = async (t: Tenant) => {
         try {
             await api.put(`/tenants/${t.id}/suspend`);
-            showToast(`${t.name} has been suspended`, 'success');
+            showToast(tr('toastSuspended', { name: t.name }), 'success');
             fetchAll();
-        } catch { showToast('Failed to suspend tenant', 'error'); }
+        } catch { showToast(tr('suspendFailed'), 'error'); }
         setMenu(null);
     };
 
     const handleActivate = async (t: Tenant) => {
         try {
             await api.put(`/tenants/${t.id}/activate`);
-            showToast(`${t.name} has been activated`, 'success');
+            showToast(tr('toastActivated', { name: t.name }), 'success');
             fetchAll();
-        } catch (err: any) { showToast(err.response?.data?.message || 'Failed to activate tenant', 'error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || tr('activateFailed'), 'error'); }
         setMenu(null);
     };
 
@@ -162,9 +165,9 @@ export default function TenantsPage() {
         }
 
         const ok = await confirm({
-            title: `Soft-Delete "${t.name}"?`,
-            message: 'The organization will be suspended and marked for erasure. You can still reactivate it later or perform a final purge to destroy the data.',
-            confirmLabel: 'Soft-Delete',
+            title: tr('softDeleteTitle', { name: t.name }),
+            message: tr('softDeleteMessage'),
+            confirmLabel: tr('softDeleteConfirm'),
             variant: 'danger',
         });
 
@@ -172,10 +175,10 @@ export default function TenantsPage() {
 
         try {
             await api.delete(`/tenants/${t.id}`);
-            showToast(`${t.name} is now suspended and marked for erasure.`, 'success');
+            showToast(tr('toastSoftDeleted', { name: t.name }), 'success');
             fetchAll();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Purge operation failed', 'error');
+            showToast(err.response?.data?.message || tr('purgeFailed'), 'error');
         }
         setMenu(null);
     };
@@ -195,7 +198,7 @@ export default function TenantsPage() {
             const res = await api.get(`/tenants/${t.id}/users`);
             setSelectedTenantUsers(res.data);
         } catch {
-            showToast('Failed to load tenant users', 'error');
+            showToast(tr('usersLoadFailed'), 'error');
         } finally {
             setLoadingUsers(false);
         }
@@ -204,18 +207,18 @@ export default function TenantsPage() {
 
     const handlePurgeUser = async (user: any) => {
         const ok = await confirm({
-            title: `Purge Operator?`,
-            message: `Are you sure you want to irreversibly purge ${user.email}? This action cannot be undone.`,
-            confirmLabel: 'Purge',
+            title: tr('purgeUserTitle'),
+            message: tr('purgeUserMessage', { email: user.email }),
+            confirmLabel: tr('purgeUserConfirm'),
             variant: 'danger',
         });
         if (!ok) return;
         try {
             await api.delete(`/users/${user.id}`);
-            showToast('User purged from environment', 'success');
+            showToast(tr('toastUserPurged'), 'success');
             handleViewUsers(viewingTenant!);
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to purge user', 'error');
+            showToast(err.response?.data?.message || tr('purgeUserFailed'), 'error');
         }
     };
 
@@ -304,7 +307,7 @@ export default function TenantsPage() {
                             onClick={() => setStatus(s)}
                             className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${statusFilter === s ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                            {s}
+                            {s === 'ALL' ? t('statusAll') : ts(s)}
                         </button>
                     ))}
                 </div>
@@ -353,7 +356,7 @@ export default function TenantsPage() {
                                         <h3 className="text-xl font-black text-slate-900 tracking-tight truncate max-w-[150px]">{tenant.name}</h3>
                                         <div className="flex flex-wrap gap-2 mt-1.5">
                                             <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm ${STATUS_COLORS[tenant.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                {tenant.status}
+                                                {ts.has(tenant.status) ? ts(tenant.status) : tenant.status}
                                             </span>
                                             {tenant.deletedAt && (
                                                 <span className="px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm bg-rose-500 text-white animate-pulse">
@@ -559,7 +562,7 @@ export default function TenantsPage() {
                                         <button
                                             onClick={() => handlePurgeUser(u)}
                                             className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors"
-                                            title="Purge Operator"
+                                            title={t('purgeOperator')}
                                         >
                                             <Trash2 size={16} />
                                         </button>

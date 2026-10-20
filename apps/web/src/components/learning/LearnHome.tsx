@@ -7,7 +7,7 @@ import { Award, CheckCircle2, ChevronRight, Circle, CircleDot, Compass, Users } 
 import { learning } from '@microloan/shared';
 import { useWorkspace } from '@/lib/workspace';
 import { pathProgress, useLearning, type LessonProgress } from '@/lib/learning';
-import { Spinner } from '@/components/lending/ui';
+import { Notice, Spinner } from '@/components/lending/ui';
 import { useTour } from './TourProvider';
 
 export function lessonStatus(p: LessonProgress | undefined): 'notStarted' | 'inProgress' | 'completed' {
@@ -69,6 +69,7 @@ export function LearnHome() {
                     )}
                 </div>
             </header>
+            {locale !== 'en' && <Notice>{t('englishNote')}</Notice>}
 
             {!enabled && <p className="text-[13px] rounded border border-amber-200 bg-amber-50 text-amber-900 px-4 py-2">{t('platformNote')}</p>}
 
@@ -88,7 +89,7 @@ export function LearnHome() {
                             <li key={p.id}>
                                 <Link href={`${base}/learn/certificate/${p.id}`} className="group flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 pl-1.5 pr-3 py-1 text-[13px] font-semibold text-emerald-900 hover:bg-emerald-100">
                                     <span className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center motion-safe:group-hover:rotate-12 motion-safe:transition-transform"><Award size={15} /></span>
-                                    {p.title}
+                                    <span lang="en">{p.title}</span>
                                 </Link>
                             </li>
                         ))}
@@ -99,7 +100,6 @@ export function LearnHome() {
             {suggested.length > 0 && <PathGroup title={t('yourPaths')} paths={suggested} progress={progress} base={base} open />}
             <PathGroup title={suggested.length ? t('otherPaths') : t('allPaths')} paths={others} progress={progress} base={base} open={!suggested.length} />
 
-            <p className="text-[12px] text-[#697386]">{t('englishNote')}</p>
         </div>
     );
 }
@@ -129,10 +129,10 @@ function PathGroup({ title, paths, progress, base, open }: {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <h3 className="text-[15px] font-bold text-[#1A1F36] flex items-center gap-2">
-                                            {p.title}
+                                            <span lang="en">{p.title}</span>
                                             {pp.completedAt && <Award size={15} className="text-emerald-600" aria-label={t('status.completed')} />}
                                         </h3>
-                                        <p className="text-[12.5px] text-[#697386]">{p.summary}</p>
+                                        <p lang="en" className="text-[12.5px] text-[#697386]">{p.summary}</p>
                                     </div>
                                     <ChevronRight size={16} className="mt-1 text-[#697386] motion-safe:transition-transform group-open:rotate-90 flex-shrink-0" aria-hidden="true" />
                                 </div>
@@ -150,8 +150,8 @@ function PathGroup({ title, paths, progress, base, open }: {
                                             <Link href={`${base}/learn/${id}?path=${p.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#F6F8FA]">
                                                 <StatusIcon status={st} />
                                                 <span className="flex-1 min-w-0">
-                                                    <span className="block text-[13.5px] font-semibold text-[#1A1F36] truncate">{i + 1}. {l.title}</span>
-                                                    <span className="block text-[12px] text-[#697386] truncate">{l.summary}</span>
+                                                    <span className="block text-[13.5px] font-semibold text-[#1A1F36] truncate">{i + 1}. <span lang="en">{l.title}</span></span>
+                                                    <span lang="en" className="block text-[12px] text-[#697386] truncate">{l.summary}</span>
                                                 </span>
                                                 <span className="text-[11.5px] text-[#697386] whitespace-nowrap">{t('minutes', { minutes: l.minutes })}</span>
                                             </Link>

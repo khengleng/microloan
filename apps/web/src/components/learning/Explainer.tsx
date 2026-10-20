@@ -55,8 +55,8 @@ export function Explainer({ explainer }: { explainer: learning.Explainer }) {
             </div>
             <figcaption className="border-t border-[#E3E8EE] px-4 py-3 sm:px-6">
                 <div aria-live="polite" className="min-h-[3.5rem]">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#635BFF]">{t('stageOf', { stage: stage + 1, total: n })} · {current.label}</p>
-                    <p className="mt-0.5 text-[14px] text-[#1A1F36]">{current.caption}</p>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#635BFF]">{t('stageOf', { stage: stage + 1, total: n })} · <span lang="en">{current.label}</span></p>
+                    <p lang="en" className="mt-0.5 text-[14px] text-[#1A1F36]">{current.caption}</p>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
                     <div className="flex gap-1.5" role="tablist" aria-label={t('stages')}>
@@ -115,7 +115,7 @@ function FlowView({ stages, stage, reduced }: { stages: learning.ExplainerStage[
                                 style={{ transform: i === stage ? 'scale(1.18)' : 'scale(1)', transition: ease(reduced, 400), boxShadow: i === stage ? '0 0 0 6px rgba(99,91,255,.15)' : 'none' }}>
                                 {i + 1}
                             </div>
-                            <span className={`mt-2 text-[11.5px] leading-tight ${i === stage ? 'font-bold text-[#1A1F36]' : 'text-[#697386]'}`}>{s.label}</span>
+                            <span lang="en" className={`mt-2 text-[11.5px] leading-tight ${i === stage ? 'font-bold text-[#1A1F36]' : 'text-[#697386]'}`}>{s.label}</span>
                         </div>
                     ))}
                 </div>
@@ -125,7 +125,7 @@ function FlowView({ stages, stage, reduced }: { stages: learning.ExplainerStage[
                 {stages.map((s, i) => (
                     <li key={i} className="flex items-center gap-3">
                         <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold ${i <= stage ? 'bg-[#635BFF] text-white' : 'bg-[#E3E8EE] text-[#697386]'}`} style={{ transition: ease(reduced, 400) }}>{i + 1}</span>
-                        <span className={`text-[13px] ${i === stage ? 'font-bold text-[#1A1F36]' : 'text-[#697386]'}`}>{s.label}</span>
+                        <span lang="en" className={`text-[13px] ${i === stage ? 'font-bold text-[#1A1F36]' : 'text-[#697386]'}`}>{s.label}</span>
                     </li>
                 ))}
             </ol>
@@ -151,7 +151,7 @@ function HandoffView({ ex, stage, reduced }: { ex: Extract<learning.Explainer, {
                 className="absolute top-14 sm:top-12 w-36 sm:w-44 rounded-md border border-[#C1C9D2] bg-white shadow-md px-3 py-2"
                 style={{ left: s.actor === 0 ? '0%' : 'calc(100% - 11rem)', transition: ease(reduced, 700) }}
             >
-                <div className="flex items-center gap-1.5 text-[#635BFF]"><FileText size={14} /><span className="text-[11px] font-bold uppercase tracking-wide">{s.label}</span></div>
+                <div className="flex items-center gap-1.5 text-[#635BFF]"><FileText size={14} /><span lang="en" className="text-[11px] font-bold uppercase tracking-wide">{s.label}</span></div>
                 <div className="mt-1.5 space-y-1" aria-hidden="true">
                     <div className="h-1.5 rounded bg-[#E3E8EE] w-full" />
                     <div className="h-1.5 rounded bg-[#E3E8EE] w-3/4" />
@@ -220,7 +220,7 @@ function AgeingView({ ex, stage, reduced }: { ex: Extract<learning.Explainer, { 
                     {ex.buckets.map((bk, i) => (
                         <div key={i} className="flex-1 flex items-center justify-center text-[10.5px] sm:text-[11.5px] font-semibold text-white text-center px-1 leading-tight"
                             style={{ background: colours[Math.min(i, colours.length - 1)], opacity: i <= idx ? 1 : 0.35, transition: ease(reduced, 400) }}>
-                            {bk.label}
+                            <span lang="en">{bk.label}</span>
                         </div>
                     ))}
                 </div>

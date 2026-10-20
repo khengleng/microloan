@@ -64,7 +64,7 @@ export function PolicyDefinitionEditor({ kind, value, onChange }: { kind: Policy
     const applyTemplate = () => {
         const tpl = templates[Number(templateIdx)];
         if (!tpl) return;
-        onChange({ rows: paramsToRows(tpl.parameters), bodyText: JSON.stringify(tpl.body, null, 2) });
+        onChange({ rows: paramsToRows(tpl.parameters).map((r) => (r.label ? { ...r, label: t(`templates.${kind}.${templateIdx}.params.${r.name}`) } : r)), bodyText: JSON.stringify(tpl.body, null, 2) });
     };
 
     const insertRef = (name: string) => {
@@ -124,8 +124,8 @@ export function PolicyDefinitionEditor({ kind, value, onChange }: { kind: Policy
 
             <div className="space-y-2">
                 <div className="flex flex-wrap items-end gap-2">
-                    <Field label={t('editor.template')} className="flex-1 min-w-[240px]" hint={templateIdx !== '' ? templates[Number(templateIdx)]?.description : t('editor.templateHint', { kind: t(`kindLower.${kind}`) })}>
-                        <SelectInput value={templateIdx} onChange={setTemplateIdx} placeholder={t('editor.chooseTemplate')} options={templates.map((tpl, i) => ({ value: String(i), label: tpl.label }))} />
+                    <Field label={t('editor.template')} className="flex-1 min-w-[240px]" hint={templateIdx !== '' ? (templates[Number(templateIdx)] ? t(`templates.${kind}.${templateIdx}.description`) : undefined) : t('editor.templateHint', { kind: t(`kindLower.${kind}`) })}>
+                        <SelectInput value={templateIdx} onChange={setTemplateIdx} placeholder={t('editor.chooseTemplate')} options={templates.map((_tpl, i) => ({ value: String(i), label: t(`templates.${kind}.${i}.label`) }))} />
                     </Field>
                     <Btn onClick={applyTemplate} disabled={templateIdx === ''} className="mb-[18px]"><Wand2 size={13} /> {t('editor.useTemplate')}</Btn>
                 </div>

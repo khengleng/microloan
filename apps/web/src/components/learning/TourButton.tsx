@@ -57,8 +57,8 @@ export function TourButton({ compact = false }: { compact?: boolean }) {
                             onClick={() => launch(tour.id)}
                             className="block w-full text-left px-3 py-2 hover:bg-[#F6F8FA]"
                         >
-                            <span className="block text-[13px] font-semibold text-[#1A1F36]">{tour.title}</span>
-                            <span className="block text-[12px] text-[#697386]">{tour.summary}</span>
+                            <span lang="en" className="block text-[13px] font-semibold text-[#1A1F36]">{tour.title}</span>
+                            <span lang="en" className="block text-[12px] text-[#697386]">{tour.summary}</span>
                         </button>
                     ))}
                 </div>

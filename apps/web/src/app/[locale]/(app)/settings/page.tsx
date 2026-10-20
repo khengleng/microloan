@@ -150,7 +150,7 @@ function TenantSettings() {
             await api.put('/settings', settings);
             showToast(t('saved'), 'success');
         } catch (err: any) {
-            showToast('Failed to save: ' + (err.response?.data?.message || err.message), 'error');
+            showToast(t('tenantPage.saveFailed', { message: err.response?.data?.message || err.message }), 'error');
         } finally {
             setSaving(false);
         }
@@ -212,7 +212,7 @@ function TenantSettings() {
                                     type="password"
                                     autoComplete="off"
                                     className={fieldCls}
-                                    placeholder={settings.telegramBotConfigured ? '•••••••• (configured — enter a new token to replace)' : t('botTokenPlaceholder')}
+                                    placeholder={settings.telegramBotConfigured ? t('tenantPage.botTokenConfigured') : t('botTokenPlaceholder')}
                                     value={settings.telegramBotToken || ''}
                                     onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
                                 />

@@ -42,6 +42,7 @@ export default function ProductVersionPage() {
     const { can, reload: reloadCaps } = useCapabilities('PRODUCT_VERSION', id);
     const { busy, error, run, clearError } = useAction();
     const t = useTranslations('LendingProducts.version');
+    const tn = useTranslations('Workspace.nav');
 
     const [draft, setDraft] = useState<ProductConfig | null>(null);
     const [summary, setSummary] = useState('');
@@ -51,7 +52,7 @@ export default function ProductVersionPage() {
     const refresh = () => { reload(); reloadCaps(); };
 
     if (loading && !v) return <LendingShell title={t('title')}><Spinner /></LendingShell>;
-    if (loadError || !v) return <LendingShell title={t('title')} back={{ href: '/lending/products', label: 'Products' }}><ErrorBox error={loadError} /></LendingShell>;
+    if (loadError || !v) return <LendingShell title={t('title')} back={{ href: '/lending/products', label: tn('lendingProducts') }}><ErrorBox error={loadError} /></LendingShell>;
 
     const productName = v.product?.name ?? t('product');
     const missing = v.missingCapabilities ?? [];
@@ -97,7 +98,7 @@ export default function ProductVersionPage() {
 
     return (
         <LendingShell
-            back={{ href: '/lending/products', label: 'Products' }}
+            back={{ href: '/lending/products', label: tn('lendingProducts') }}
             title={<span className="flex items-center gap-2">{productName} v{v.version} <StatusBadge status={v.status} /></span>}
             subtitle={<span className="font-mono text-[12px]">{v.product?.code} · {v.product?.familyCode} / {v.product?.templateCode}</span>}
             actions={<>

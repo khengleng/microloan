@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, ChevronsUpDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useContext } from 'react';
+import { useTranslations } from 'next-intl';
 import { ReportColumn } from './types';
 import { ReportCurrencyContext } from './KpiCard';
 import { money } from '@/lib/currency';
@@ -56,6 +57,8 @@ export function ReportDataTable({
 }) {
   const pages = Math.max(1, Math.ceil(total / limit));
   const currency = useContext(ReportCurrencyContext);
+  const t = useTranslations('Reports.analytics.table');
+  const tc = useTranslations('Common');
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -76,7 +79,7 @@ export function ReportDataTable({
                       >
                         {c.label}
                         <ChevronsUpDown size={12} className={sortBy === c.key ? 'text-blue-600' : ''} />
-                        {sortBy === c.key && <span className="text-[10px]">{sortOrder === 'asc' ? 'ASC' : 'DESC'}</span>}
+                        {sortBy === c.key && <span className="text-[10px]">{sortOrder === 'asc' ? t('asc') : t('desc')}</span>}
                       </button>
                     ) : c.label}
                   </th>
@@ -99,7 +102,7 @@ export function ReportDataTable({
               {!loading && !error && rows.length === 0 && (
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-12 text-center text-sm text-slate-500">
-                    No data for selected filters.
+                    {t('noData')}
                   </td>
                 </tr>
               )}
@@ -123,17 +126,17 @@ export function ReportDataTable({
             disabled={page <= 1}
             onClick={() => onPageChange(Math.max(1, page - 1))}
           >
-            <ChevronLeft size={14} /> Previous
+            <ChevronLeft size={14} /> {tc('previous')}
           </button>
           <span className="text-xs text-slate-500">
-            {total === 0 ? 0 : ((page - 1) * limit) + 1}-{Math.min(page * limit, total)} of {total.toLocaleString()}
+            {t('range', { from: total === 0 ? 0 : ((page - 1) * limit) + 1, to: Math.min(page * limit, total), total: total.toLocaleString() })}
           </span>
           <button
             className="btn-ghost text-sm disabled:opacity-50"
             disabled={page >= pages}
             onClick={() => onPageChange(Math.min(pages, page + 1))}
           >
-            Next <ChevronRight size={14} />
+            {tc('next')} <ChevronRight size={14} />
           </button>
         </div>
       </CardContent>

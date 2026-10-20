@@ -21,6 +21,7 @@ const fieldCls = "h-9 px-3 bg-white border border-[#E3E8EE] rounded text-sm text
 export default function FxRatesPage() {
     const { showToast } = useToast();
     const o = useTranslations('Overview');
+    const t = useTranslations('Overview.fxPage');
     const { legacyCan } = useWorkspace();
     const canManage = legacyCan('FX_MANAGE');
     const [rates, setRates] = useState<FxRate[]>([]);
@@ -46,7 +47,7 @@ export default function FxRatesPage() {
         e.preventDefault();
         const rateNum = Number(rate);
         if (!Number.isFinite(rateNum) || rateNum <= 0) {
-            showToast('Enter a valid rate greater than 0', 'error');
+            showToast(t('invalidRate'), 'error');
             return;
         }
         setSubmitting(true);
@@ -57,12 +58,12 @@ export default function FxRatesPage() {
                 rate: rateNum,
                 ...(effectiveDate ? { effectiveDate } : {}),
             });
-            showToast('Exchange rate added', 'success');
+            showToast(t('added'), 'success');
             setRate('');
             setEffectiveDate('');
             fetchRates();
         } catch {
-            showToast('Failed to add exchange rate', 'error');
+            showToast(t('addFailed'), 'error');
         } finally {
             setSubmitting(false);
         }
@@ -71,15 +72,15 @@ export default function FxRatesPage() {
     if (loading) return (
         <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
             <Loader2 className="animate-spin text-[#635BFF]" size={40} />
-            <p className="text-[#697386] font-medium">Loading exchange rates...</p>
+            <p className="text-[#697386] font-medium">{t('loading')}</p>
         </div>
     );
 
     return (
         <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
             <div>
-                <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Exchange Rates</h1>
-                <p className="text-[#697386] text-[14px]">Manage currency conversion rates used across the ledger.</p>
+                <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{t('title')}</h1>
+                <p className="text-[#697386] text-[14px]">{t('subtitle')}</p>
             </div>
 
             <div role="note" className="flex items-start gap-2 border border-[#E3E8EE] bg-[#F7FAFC] rounded-lg px-4 py-3 text-[13px] text-[#4F566B]">
@@ -90,26 +91,26 @@ export default function FxRatesPage() {
             {/* Add rate form */}
             {canManage && (
             <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm p-6">
-                <h2 className="text-[15px] font-bold text-[#1A1F36] mb-4 flex items-center gap-2"><Coins size={16} className="text-[#635BFF]" /> Add Rate</h2>
+                <h2 className="text-[15px] font-bold text-[#1A1F36] mb-4 flex items-center gap-2"><Coins size={16} className="text-[#635BFF]" /> {t('addRate')}</h2>
                 <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">From</label>
+                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">{t('from')}</label>
                         <select value={fromCurrency} onChange={e => setFromCurrency(e.target.value)} className={`${fieldCls} appearance-none`}>
                             {CURRENCY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">To</label>
+                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">{t('to')}</label>
                         <select value={toCurrency} onChange={e => setToCurrency(e.target.value)} className={`${fieldCls} appearance-none`}>
                             {CURRENCY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">Rate</label>
+                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">{t('rate')}</label>
                         <input type="number" step="any" min="0" value={rate} onChange={e => setRate(e.target.value)} placeholder="4100" className={`${fieldCls} w-36`} required />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">Effective Date</label>
+                        <label className="text-[11px] font-bold text-[#697386] uppercase tracking-wider">{t('effectiveDate')}</label>
                         <input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} className={fieldCls} />
                     </div>
                     <button
@@ -117,7 +118,7 @@ export default function FxRatesPage() {
                         disabled={submitting}
                         className="bg-[#635BFF] hover:bg-[#5D55EF] disabled:opacity-60 text-white text-[13px] font-semibold py-2 px-4 rounded shadow-sm transition-all flex items-center gap-2 h-9"
                     >
-                        {submitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add Rate
+                        {submitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {t('addRate')}
                     </button>
                 </form>
             </div>
@@ -129,15 +130,15 @@ export default function FxRatesPage() {
                     <table className="min-w-full border-collapse">
                         <thead>
                             <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">From</th>
-                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">To</th>
-                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Rate</th>
-                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Effective Date</th>
+                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('from')}</th>
+                                <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('to')}</th>
+                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('rate')}</th>
+                                <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('effectiveDate')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#F7FAFC]">
                             {rates.length === 0 ? (
-                                <tr><td colSpan={4} className="px-6 py-12 text-center text-[14px] text-[#697386]">No exchange rates defined.</td></tr>
+                                <tr><td colSpan={4} className="px-6 py-12 text-center text-[14px] text-[#697386]">{t('noRates')}</td></tr>
                             ) : rates.map(r => (
                                 <tr key={r.id} className="hover:bg-[#F7FAFC]/50 transition-colors">
                                     <td className="px-6 py-4 text-[14px] font-bold text-[#1A1F36]">{r.fromCurrency}</td>

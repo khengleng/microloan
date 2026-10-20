@@ -142,9 +142,11 @@ export default function CataloguePage() {
     const catalogue = useApi<Family[]>('/lending/catalogue');
     const matrix = useApi<CapabilityMatrix>(tab === 'matrix' ? '/lending/capability-matrix' : null);
     const tc = useTranslations('LendingCatalogue');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
 
     return (
-        <LendingShell title="Product catalogue" subtitle="Loan families and templates, and what the engine can actually do today.">
+        <LendingShell title={tw('catalogue')} subtitle={tp('catalogue')}>
             <Tabs value={tab} onChange={setTab} tabs={[{ value: 'families', label: tc('tabFamilies') }, { value: 'matrix', label: tc('tabMatrix') }]} />
             {tab === 'families' && (
                 catalogue.loading && !catalogue.data ? <Spinner /> : catalogue.error ? <ErrorBox error={catalogue.error} /> : <Families families={catalogue.data ?? []} />

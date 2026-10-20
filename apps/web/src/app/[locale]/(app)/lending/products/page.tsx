@@ -21,11 +21,13 @@ export default function LendingProductsPage() {
     const [creating, setCreating] = useState(false);
     const { data, error, loading } = useApi<Product[]>('/lending/products');
     const t = useTranslations('LendingProducts.list');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
 
     return (
         <LendingShell
-            title="Lending products"
-            subtitle="Versioned product configurations. Changes go through draft → submit → approve → activate (maker-checker)."
+            title={tw('lendingProducts')}
+            subtitle={tp('lendingProducts')}
             actions={!creating && <Btn data-tour="product-new" variant="primary" onClick={() => setCreating(true)}><Plus size={15} /> {t('newProduct')}</Btn>}
         >
             {creating && <NewProductWizard onClose={() => setCreating(false)} />}

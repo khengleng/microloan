@@ -23,6 +23,7 @@ type Act = 'submit' | 'approve' | 'reject' | 'retire';
 
 export function PolicyDetailView({ id, initialVersionId }: { id: string; initialVersionId?: string | null }) {
     const t = useTranslations('LendingPolicies');
+    const tn = useTranslations('Workspace.nav');
     const { showToast } = useToast();
     const confirm = useConfirm();
     const myId = useMyId();
@@ -34,8 +35,8 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
     const [reason, setReason] = useState('');
     const { can } = useWorkspace();
 
-    if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><Spinner /></LendingShell>;
-    if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: 'Policy library' }}><ErrorBox error={loadError} /></LendingShell>;
+    if (loading && !policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: tn('policies') }}><Spinner /></LendingShell>;
+    if (!policy) return <LendingShell title={t('detail.policy')} back={{ href: '/lending/policies', label: tn('policies') }}><ErrorBox error={loadError} /></LendingShell>;
 
     const versions = policy.versions;
     const selected = versions.find((v) => v.id === selectedId) ?? versions[0];
@@ -70,7 +71,7 @@ export function PolicyDetailView({ id, initialVersionId }: { id: string; initial
 
     return (
         <LendingShell
-            back={{ href: '/lending/policies', label: 'Policy library' }}
+            back={{ href: '/lending/policies', label: tn('policies') }}
             title={<span className="flex items-center gap-2"><span className="font-mono">{policy.code}</span> {policy.name}</span>}
             subtitle={<>{KIND_INFO[policy.kind] ? t(`kind.${policy.kind}`) : policy.kind} · {t.rich('detail.replaces', { path: () => <span className="font-mono text-[12px]">{KIND_INFO[policy.kind]?.path}</span> })}</>}
             actions={!adding && canDraft && (

@@ -60,6 +60,7 @@ export function KeyFactsCard({ appId, borrowerId, status, can, onChanged }: {
     onChanged: (msg: string) => void;
 }) {
     const t = useTranslations('LendingOrigination.keyFacts');
+    const tf = useTranslations('LendingDocuments.file');
     const kfs = useApi<KeyFactsView>(`/lending/applications/${appId}/key-facts`);
     const { busy, error, run, clearError } = useAction();
     const doc = useOpenStatement();
@@ -81,7 +82,7 @@ export function KeyFactsCard({ appId, borrowerId, status, can, onChanged }: {
     const accept = async () => {
         if (!cur || !file) return;
         const res = await run('accept', async () => {
-            const body = await readFile(file);
+            const body = await readFile(file, tf);
             const form = await api.post<{ id: string }>(`/lending/customers/${borrowerId}/documents`, {
                 category: 'AGREEMENT', typeCode: 'KEY_FACTS_SIGNED', title: t('signedFormTitle', { version: cur.version }), applicationId: appId, ...body,
             });

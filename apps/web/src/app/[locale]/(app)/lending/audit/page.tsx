@@ -50,6 +50,8 @@ function AuditDetail({ r }: { r: AuditRecord }) {
 export default function LendingAuditPage() {
     const t = useTranslations('LendingAudit');
     const ts = useTranslations('Status');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const [filters, setFilters] = useState(EMPTY);
     const [applied, setApplied] = useState(EMPTY);
     const [page, setPage] = useState(1);
@@ -58,7 +60,7 @@ export default function LendingAuditPage() {
     const set = (k: keyof typeof EMPTY) => (v: string) => setFilters((f) => ({ ...f, [k]: v }));
 
     return (
-        <LendingShell title="Audit explorer" subtitle="Every lending action and policy decision, with the configuration versions in force at the time.">
+        <LendingShell title={tw('auditTrail')} subtitle={tp('auditTrail')}>
             <Card>
                 <form className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end" onSubmit={(e) => { e.preventDefault(); setApplied(filters); setPage(1); }}>
                     <Field label={t('resourceType')}><SelectInput data-tour="audit-filter-resource-type" value={filters.resourceType} onChange={set('resourceType')} options={RESOURCE_TYPES} placeholder={t('any')} /></Field>

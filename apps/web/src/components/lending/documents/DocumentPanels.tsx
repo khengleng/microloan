@@ -43,7 +43,7 @@ export function UploadPanel({ borrowerId, applications, onClose, onDone }: {
     const submit = () =>
         run('upload', async () => {
             if (!file) throw new Error(t('upload.chooseFile'));
-            const body = await readFile(file);
+            const body = await readFile(file, (k) => t(`file.${k}`));
             await api.post(`/lending/customers/${borrowerId}/documents`, clean({ ...form, typeCode: form.typeCode.toUpperCase(), ...body }));
             showToast(t('upload.done'), 'success');
             onDone();
@@ -213,7 +213,7 @@ export function DocumentDetailPanel({ documentId, onChanged }: { documentId: str
                     <div className="flex justify-end">
                         <Btn variant="primary" busy={busy === 'replace'} disabled={!file}
                             onClick={() => run('replace', async () => {
-                                const body = await readFile(file!);
+                                const body = await readFile(file!, (k) => t(`file.${k}`));
                                 await api.post(`/lending/documents/${documentId}/versions`, clean({ ...body, note: reason, expiresOn: dates.expiresOn }));
                                 done(t('detail.replaced'));
                             })}>{t('detail.uploadNewVersion')}</Btn>

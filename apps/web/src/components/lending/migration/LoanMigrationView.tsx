@@ -291,13 +291,15 @@ function BatchPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
 
 export function LoanMigrationView() {
     const t = useTranslations('LendingMigration');
+    const tw = useTranslations('Workspace.nav');
+    const tp = useTranslations('LendingPages');
     const list = useApi<ListResponse>('/lending/migrations');
     const [selected, setSelected] = useState<string | null>(null);
     const data = list.data;
     const shown = selected ?? data?.batches[0]?.id ?? null;
 
     return (
-        <LendingShell title="Loan-book migration" subtitle="Take over running loans from another system: load, check against control totals, approve by a second person, post opening balances.">
+        <LendingShell title={tw('migration')} subtitle={tp('migration')}>
             {list.error && <ErrorBox error={list.error} />}
             {!data ? <Spinner /> : (
                 <>

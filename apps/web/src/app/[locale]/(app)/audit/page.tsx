@@ -46,6 +46,7 @@ function actorOf(log: AuditLog, platformLabel: string): { name: string; platform
 
 export default function AuditPage() {
     const ts = useTranslations('Security.audit');
+    const t = useTranslations('Security.auditLog');
     const { showToast } = useToast();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [meta, setMeta] = useState<Meta | null>(null);
@@ -81,7 +82,7 @@ export default function AuditPage() {
             const r = await api.get('/audit-logs', { params });
             setLogs(r.data.data);
             setMeta(r.data.meta);
-        } catch { showToast('Failed to load audit logs', 'error'); }
+        } catch { showToast(t('loadFailed'), 'error'); }
         finally { setLoading(false); }
     }, [action, entity, from, to, query]);
 
@@ -100,8 +101,8 @@ export default function AuditPage() {
             const a = document.createElement('a'); a.href = url;
             a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
             a.click(); window.URL.revokeObjectURL(url);
-            showToast('Audit log exported', 'success');
-        } catch { showToast('Export failed', 'error'); }
+            showToast(t('exported'), 'success');
+        } catch { showToast(t('exportFailed'), 'error'); }
     };
 
     const filtered = logs;
@@ -112,14 +113,14 @@ export default function AuditPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <Shield size={18} className="text-primary" /> Audit Log
+                        <Shield size={18} className="text-primary" /> {t('title')}
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Immutable activity log for compliance and security.</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <HelpLink chapter="19-audit-trail" anchor="2-audit-log-risk--audit--audit-log" />
                     <button onClick={handleExport} className="btn-ghost">
-                        <Download size={14} /> Export CSV
+                        <Download size={14} /> {t('exportCsv')}
                     </button>
                 </div>
             </div>
@@ -128,10 +129,10 @@ export default function AuditPage() {
             {summary && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                        { label: 'Total Events', value: summary.totalEvents.toLocaleString(), cls: 'text-foreground' },
-                        { label: 'Today', value: summary.today.toLocaleString(), cls: 'text-primary' },
-                        { label: 'Auth Events', value: summary.loginEvents.toLocaleString(), cls: 'text-foreground' },
-                        { label: 'Failed Logins', value: summary.failedLogins.toLocaleString(), cls: summary.failedLogins > 0 ? 'text-destructive' : 'text-foreground' },
+                        { label: t('kpiTotal'), value: summary.totalEvents.toLocaleString(), cls: 'text-foreground' },
+                        { label: t('kpiToday'), value: summary.today.toLocaleString(), cls: 'text-primary' },
+                        { label: t('kpiAuth'), value: summary.loginEvents.toLocaleString(), cls: 'text-foreground' },
+                        { label: t('kpiFailedLogins'), value: summary.failedLogins.toLocaleString(), cls: summary.failedLogins > 0 ? 'text-destructive' : 'text-foreground' },
                     ].map(kpi => (
                         <div key={kpi.label} className="bg-white border border-border rounded-md px-4 py-3">
                             <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
@@ -144,29 +145,29 @@ export default function AuditPage() {
             {/* Filters */}
             <div className="bg-white border border-border rounded-md p-4">
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-3">
-                    <Filter size={12} /> Filters
+                    <Filter size={12} /> {t('filters')}
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <div className="relative flex-1 min-w-[220px]">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                             type="text"
-                            placeholder="Search by user, entity, action..."
+                            placeholder={t('searchPlaceholder')}
                             className={`${fieldCls} w-full pl-8`}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
                     <select value={action} onChange={e => setAction(e.target.value)} className={`${fieldCls} appearance-none`}>
-                        {ACTIONS.map(a => <option key={a} value={a}>{a === 'All' ? 'All Actions' : a}</option>)}
+                        {ACTIONS.map(a => <option key={a} value={a}>{a === 'All' ? t('allActions') : a}</option>)}
                     </select>
                     <select value={entity} onChange={e => setEntity(e.target.value)} className={`${fieldCls} appearance-none`}>
-                        {ENTITIES.map(e => <option key={e} value={e}>{e === 'All' ? 'All Types' : e}</option>)}
+                        {ENTITIES.map(e => <option key={e} value={e}>{e === 'All' ? t('allTypes') : t(`entity.${e}`)}</option>)}
                     </select>
                     <div className="flex items-center gap-1.5">
-                        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={fieldCls} title="From date" />
-                        <span className="text-muted-foreground text-xs">to</span>
-                        <input type="date" value={to} onChange={e => setTo(e.target.value)} className={fieldCls} title="To date" />
+                        <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={fieldCls} title={t('fromDate')} />
+                        <span className="text-muted-foreground text-xs">{t('to')}</span>
+                        <input type="date" value={to} onChange={e => setTo(e.target.value)} className={fieldCls} title={t('toDate')} />
                     </div>
                 </div>
             </div>
@@ -175,10 +176,10 @@ export default function AuditPage() {
             <div className="bg-white border border-border rounded-md overflow-hidden">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/30">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {meta ? `${meta.total.toLocaleString()} events` : 'Loading...'}
+                        {meta ? t('eventCount', { count: meta.total }) : t('loading')}
                     </span>
                     {meta && meta.pages > 1 && (
-                        <span className="text-xs text-muted-foreground">Page {meta.page} of {meta.pages}</span>
+                        <span className="text-xs text-muted-foreground">{t('pageOf', { page: meta.page, pages: meta.pages })}</span>
                     )}
                 </div>
 
@@ -191,8 +192,8 @@ export default function AuditPage() {
                 ) : filtered.length === 0 ? (
                     <div className="py-20 text-center">
                         <Activity size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-                        <p className="text-sm font-medium text-foreground">No events found</p>
-                        <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters.</p>
+                        <p className="text-sm font-medium text-foreground">{t('noEvents')}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{t('noEventsHint')}</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-border">
@@ -217,7 +218,7 @@ export default function AuditPage() {
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className={`text-sm font-semibold ${am.color}`}>{evt}</span>
                                                 <span className="badge-neutral text-[11px]">{log.entity}</span>
-                                                {isAlert && <span className="badge-danger text-[11px]">Alert</span>}
+                                                {isAlert && <span className="badge-danger text-[11px]">{t('alert')}</span>}
                                             </div>
                                             <div className="flex gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
                                                 <span className="flex items-center gap-1">
@@ -231,7 +232,7 @@ export default function AuditPage() {
                                                     <Calendar size={11} /> {new Date(log.createdAt).toLocaleString()}
                                                 </span>
                                                 <span className="text-[11px] text-muted-foreground/60">
-                                                    ID: {log.entityId?.slice(0, 12)}
+                                                    {t('idLabel', { id: log.entityId?.slice(0, 12) ?? '' })}
                                                 </span>
                                             </div>
                                             {isExpanded && log.metadata && (
@@ -256,17 +257,17 @@ export default function AuditPage() {
                             disabled={page === 1}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            <ChevronLeft size={14} /> Previous
+                            <ChevronLeft size={14} /> {t('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
-                            {((page - 1) * meta.pageSize) + 1}–{Math.min(page * meta.pageSize, meta.total)} of {meta.total.toLocaleString()}
+                            {t('range', { from: ((page - 1) * meta.pageSize) + 1, to: Math.min(page * meta.pageSize, meta.total), total: meta.total })}
                         </span>
                         <button
                             onClick={() => { const p = Math.min(meta.pages, page + 1); setPage(p); fetchLogs(p); }}
                             disabled={page === meta.pages}
                             className="btn-ghost text-sm disabled:opacity-40"
                         >
-                            Next <ChevronRight size={14} />
+                            {t('next')} <ChevronRight size={14} />
                         </button>
                     </div>
                 )}

@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useWorkspace } from '@/lib/workspace';
 import { useLegacyFrozen } from '@/components/LegacyBanner';
+import { useTranslations } from 'next-intl';
 import { Gauge, Loader2, PlayCircle, RefreshCw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 
 type Factor = { key: string; label: string; points: number; max: number; detail: string };
@@ -21,6 +22,8 @@ const DECISION_STYLE: Record<string, { cls: string; icon: any }> = {
 
 export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loanId: string; loanStatus: string; onRestructured?: () => void }) {
     const { showToast } = useToast();
+    const t = useTranslations('LoanDetails.risk');
+    const tc = useTranslations('Common');
     const [latest, setLatest] = useState<Score | null>(null);
     const [loading, setLoading] = useState(true);
     const [running, setRunning] = useState(false);
@@ -46,7 +49,7 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
             const res = await api.post(`/risk/loan/${loanId}/score`);
             setLatest(res.data);
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Could not score this loan', 'error');
+            showToast(err.response?.data?.message || t('scoreFailed'), 'error');
         } finally { setRunning(false); }
     };
 
@@ -59,12 +62,12 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
                 newAnnualInterestRate: rform.newAnnualInterestRate ? Number(rform.newAnnualInterestRate) : undefined,
                 reason: rform.reason,
             });
-            showToast(`Loan rescheduled: ${res.data.newInstallmentCount} new installments on ${res.data.newRate}%`, 'success');
+            showToast(t('rescheduled', { count: res.data.newInstallmentCount, rate: res.data.newRate }), 'success');
             setShowRestruct(false);
             setRform({ newTermMonths: '', newAnnualInterestRate: '', reason: '' });
             onRestructured?.();
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Restructure failed', 'error');
+            showToast(err.response?.data?.message || t('restructureFailed'), 'error');
         } finally { setRestructuring(false); }
     };
 
@@ -75,19 +78,19 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                     <Gauge size={15} className="text-primary" />
-                    <h3 className="text-sm font-bold text-foreground">Risk & Decision</h3>
+                    <h3 className="text-sm font-bold text-foreground">{t('title')}</h3>
                 </div>
                 <button onClick={runScore} disabled={running} className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline disabled:opacity-50">
                     {running ? <Loader2 size={13} className="animate-spin" /> : latest ? <RefreshCw size={13} /> : <PlayCircle size={13} />}
-                    {latest ? 'Re-score' : 'Run scorecard'}
+                    {latest ? t('rescore') : t('runScorecard')}
                 </button>
             </div>
 
             <div className="px-4 py-4 space-y-3">
                 {loading ? (
-                    <div className="flex items-center text-muted-foreground text-sm"><Loader2 className="animate-spin mr-2" size={14} /> Loading…</div>
+                    <div className="flex items-center text-muted-foreground text-sm"><Loader2 className="animate-spin mr-2" size={14} /> {t('loading')}</div>
                 ) : !latest ? (
-                    <p className="text-sm text-muted-foreground">No scorecard yet. Run one to get a grade, decision and recommended rate.</p>
+                    <p className="text-sm text-muted-foreground">{t('empty')}</p>
                 ) : (
                     <>
                         <div className="flex items-center gap-3">
@@ -97,16 +100,16 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-foreground">Grade {latest.grade}</span>
+                                    <span className="text-sm font-bold text-foreground">{t('grade', { grade: latest.grade })}</span>
                                     {decisionStyle && (
                                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${decisionStyle.cls}`}>
-                                            {decisionStyle.icon} {latest.decision}
+                                            {decisionStyle.icon} {t.has(`decisions.${latest.decision}`) ? t(`decisions.${latest.decision}`) : latest.decision}
                                         </span>
                                     )}
                                 </div>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    {latest.dsr != null ? `DSR ${(latest.dsr * 100).toFixed(0)}% · ` : ''}
-                                    {latest.recommendedRate != null ? `Recommended rate ${latest.recommendedRate}%` : 'No policy rate for grade'}
+                                    {latest.dsr != null ? `${t('dsr', { pct: (latest.dsr * 100).toFixed(0) })} · ` : ''}
+                                    {latest.recommendedRate != null ? t('recommendedRate', { rate: latest.recommendedRate }) : t('noPolicyRate')}
                                 </p>
                             </div>
                         </div>
@@ -139,24 +142,24 @@ export function RiskDecisionPanel({ loanId, loanStatus, onRestructured }: { loan
                     <div className="pt-2 border-t border-border">
                         {!showRestruct ? (
                             <button onClick={() => setShowRestruct(true)} className="text-sm font-medium text-primary hover:underline">
-                                Restructure / reschedule…
+                                {t('restructureOpen')}
                             </button>
                         ) : (
                             <form onSubmit={submitRestructure} className="space-y-2 pt-1">
-                                <p className="text-xs text-muted-foreground">Reschedules the outstanding principal onto new terms. Marks the loan restructured.</p>
+                                <p className="text-xs text-muted-foreground">{t('restructureHint')}</p>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <input type="number" min="1" required placeholder="New term (months)" className="h-9 px-2 border border-border rounded text-sm"
+                                    <input type="number" min="1" required placeholder={t('newTermPlaceholder')} className="h-9 px-2 border border-border rounded text-sm"
                                         value={rform.newTermMonths} onChange={e => setRform({ ...rform, newTermMonths: e.target.value })} />
-                                    <input type="number" min="0" step="0.01" placeholder="New rate % (optional)" className="h-9 px-2 border border-border rounded text-sm"
+                                    <input type="number" min="0" step="0.01" placeholder={t('newRatePlaceholder')} className="h-9 px-2 border border-border rounded text-sm"
                                         value={rform.newAnnualInterestRate} onChange={e => setRform({ ...rform, newAnnualInterestRate: e.target.value })} />
                                 </div>
-                                <input required placeholder="Reason" className="w-full h-9 px-2 border border-border rounded text-sm"
+                                <input required placeholder={t('reasonPlaceholder')} className="w-full h-9 px-2 border border-border rounded text-sm"
                                     value={rform.reason} onChange={e => setRform({ ...rform, reason: e.target.value })} />
                                 <div className="flex gap-2">
                                     <button type="submit" disabled={restructuring} className="btn-primary text-sm">
-                                        {restructuring && <Loader2 size={13} className="animate-spin" />} Apply
+                                        {restructuring && <Loader2 size={13} className="animate-spin" />} {t('apply')}
                                     </button>
-                                    <button type="button" onClick={() => setShowRestruct(false)} className="text-sm text-muted-foreground px-3">Cancel</button>
+                                    <button type="button" onClick={() => setShowRestruct(false)} className="text-sm text-muted-foreground px-3">{tc('cancel')}</button>
                                 </div>
                             </form>
                         )}

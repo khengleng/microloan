@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Trash2, Package, ShieldCheck, Zap, ChevronDown, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
+import { useTranslations } from 'next-intl';
 
 interface LoanPolicy {
     id?: string;
@@ -24,6 +25,7 @@ interface ProductModalProps {
 }
 
 export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: ProductModalProps) {
+    const t = useTranslations('Products.modal');
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [interestMethod, setInterestMethod] = useState('FLAT');
@@ -102,7 +104,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
             onOpenChange(false);
         } catch (err: any) {
             console.error('Failed to save product', err);
-            setError(err.response?.data?.message || 'An error occurred while saving.');
+            setError(err.response?.data?.message || t('saveFailed'));
         } finally {
             setLoading(false);
         }
@@ -114,42 +116,42 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                 <div className="p-8 space-y-8">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                            <Package className="text-indigo-600" size={28} /> {productToEdit ? 'Configure Product Engine' : 'Engine New Credit Product'}
+                            <Package className="text-indigo-600" size={28} /> {productToEdit ? t('editTitle') : t('createTitle')}
                         </DialogTitle>
                         <DialogDescription className="text-slate-500 font-medium">
-                            Architect the automated financial logic and credit limit matrices for your organization.
+                            {t('description')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleSubmit} className="space-y-8">
                         {error && (
                             <div className="bg-rose-50 border border-rose-100/50 text-rose-600 p-4 rounded-2xl text-[11px] font-black uppercase tracking-widest animate-in shake duration-500">
-                                Logic Failure: {error}
+                                {t('errorPrefix', { error })}
                             </div>
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Product Descriptor</Label>
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('name')}</Label>
                                 <Input
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="e.g. Enterprise Daily Liquidity"
+                                    placeholder={t('namePlaceholder')}
                                     className="h-12 rounded-xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-4"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Strategic Summary</Label>
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('summary')}</Label>
                                 <Input
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Short description for internal ops"
+                                    placeholder={t('summaryPlaceholder')}
                                     className="h-12 rounded-xl border-slate-200/50 focus:ring-4 focus:ring-indigo-500/10 font-bold px-4"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Calculation Engine</Label>
+                                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('method')}</Label>
                                 <div className="relative">
                                     <select
                                         required
@@ -157,8 +159,8 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                                         value={interestMethod}
                                         onChange={(e) => setInterestMethod(e.target.value)}
                                     >
-                                        <option value="FLAT">Flat Logical Rate</option>
-                                        <option value="REDUCING_BALANCE">Reducing Balance Engine</option>
+                                        <option value="FLAT">{t('methodFlat')}</option>
+                                        <option value="REDUCING_BALANCE">{t('methodReducing')}</option>
                                     </select>
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                                 </div>
@@ -175,7 +177,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                                         <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-500/10 transition-all peer-checked:bg-emerald-500" />
                                         <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-5 shadow-sm" />
                                     </div>
-                                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors">Deployment Status (Active)</span>
+                                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-900 transition-colors">{t('activeToggle')}</span>
                                 </label>
                             </div>
                         </div>
@@ -183,24 +185,24 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                         <div className="mt-6">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                    <ShieldCheck size={16} className="text-indigo-600" /> Credit Risk Matrices
+                                    <ShieldCheck size={16} className="text-indigo-600" /> {t('riskMatrices')}
                                 </h3>
                                 <Button type="button" size="sm" variant="secondary" onClick={handleAddPolicy} className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-4 gap-2">
-                                    <Plus size={14} /> Add Policy
+                                    <Plus size={14} /> {t('addPolicy')}
                                 </Button>
                             </div>
 
                             {policies.length === 0 ? (
                                 <div className="text-center p-12 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl">
                                     <Zap size={32} className="mx-auto text-slate-300 mb-3" strokeWidth={1} />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Provision at least one risk tier to activate this product.</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{t('noPolicies')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
                                     {policies.map((policy, idx) => (
                                         <div key={idx} className="grid grid-cols-1 lg:grid-cols-6 gap-4 p-5 glass bg-white/50 rounded-2xl border border-slate-100/50 items-center animate-in slide-in-from-right-2 duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
                                             <div className="space-y-2">
-                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Risk Tier</Label>
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">{t('riskTier')}</Label>
                                                 <Input
                                                     required
                                                     className="h-10 text-xs font-black uppercase tracking-widest rounded-xl border-slate-200/50"
@@ -210,7 +212,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Rate %</Label>
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">{t('ratePct')}</Label>
                                                 <Input
                                                     required
                                                     type="number"
@@ -221,7 +223,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                                                 />
                                             </div>
                                             <div className="lg:col-span-1 space-y-2">
-                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Term (Min-Max)</Label>
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">{t('termRange')}</Label>
                                                 <div className="flex gap-2 items-center">
                                                     <Input
                                                         type="number"
@@ -240,7 +242,7 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
                                                 </div>
                                             </div>
                                             <div className="lg:col-span-2 space-y-2">
-                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">Principal (Min-Max) $</Label>
+                                                <Label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block pl-1">{t('principalRange')}</Label>
                                                 <div className="flex gap-2 items-center">
                                                     <Input
                                                         type="number"
@@ -271,11 +273,11 @@ export function ProductModal({ open, onOpenChange, onSuccess, productToEdit }: P
 
                         <div className="flex justify-end gap-3 pt-6 border-t border-slate-100/50">
                             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-12 px-6">
-                                Dismiss
+                                {t('dismiss')}
                             </Button>
                             <Button type="submit" disabled={loading} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest h-12 px-8 shadow-lg shadow-indigo-600/20">
                                 {loading && <Loader2 className="animate-spin mr-2" size={16} />}
-                                {loading ? 'Commiting Logic...' : 'Deploy Product Engine'}
+                                {loading ? t('saving') : t('submit')}
                             </Button>
                         </div>
                     </form>

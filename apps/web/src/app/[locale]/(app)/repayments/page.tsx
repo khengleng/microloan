@@ -197,7 +197,7 @@ export default function RepaymentsPage() {
                             value={dateFrom}
                             onChange={e => { setDateFrom(e.target.value); handleDateChange(e.target.value, dateTo); }}
                             className="h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-                            title="From date"
+                            title={t('fromDate')}
                         />
                         <span className="text-xs text-muted-foreground">{t('to')}</span>
                         <input
@@ -205,7 +205,7 @@ export default function RepaymentsPage() {
                             value={dateTo}
                             onChange={e => { setDateTo(e.target.value); handleDateChange(dateFrom, e.target.value); }}
                             className="h-9 px-3 bg-white border border-border rounded text-sm text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-                            title="To date"
+                            title={t('toDate')}
                         />
                         {(dateFrom || dateTo) && (
                             <button
@@ -300,7 +300,7 @@ export default function RepaymentsPage() {
                             <ChevronLeft size={14} /> {tc('previous')}
                         </button>
                         <span className="text-xs text-muted-foreground">
-                            {((page - 1) * LIMIT) + 1}–{Math.min(page * LIMIT, meta.total)} of {meta.total.toLocaleString()}
+                            {t('rangeOf', { from: ((page - 1) * LIMIT) + 1, to: Math.min(page * LIMIT, meta.total), total: meta.total.toLocaleString() })}
                         </span>
                         <button
                             onClick={() => handlePageChange(Math.min(meta.pages, page + 1))}

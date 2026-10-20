@@ -57,6 +57,7 @@ export default function AccountingPage() {
     const [trialBalance, setTrialBalance] = useState<TrialBalance | null>(null);
     const [journal, setJournal] = useState<JournalEntry[]>([]);
     const o = useTranslations('Overview');
+    const t = useTranslations('Overview.ledgerPage');
     // Trial balance currency: '' = the tenant's base currency (the API default).
     const [tbCurrency, setTbCurrency] = useState('');
     const [journalPage, setJournalPage] = useState(1);
@@ -96,21 +97,21 @@ export default function AccountingPage() {
     if (loading) return (
         <div className="flex flex-col h-[60vh] items-center justify-center space-y-4">
             <Loader2 className="animate-spin text-[#635BFF]" size={40} />
-            <p className="text-[#697386] font-medium">Loading accounting data...</p>
+            <p className="text-[#697386] font-medium">{t('loading')}</p>
         </div>
     );
 
     const tabs: { key: Tab; label: string; Icon: any }[] = [
-        { key: 'accounts', label: 'Chart of Accounts', Icon: ListTree },
-        { key: 'trial-balance', label: 'Trial Balance', Icon: Scale },
-        { key: 'journal', label: 'Journal', Icon: BookOpen },
+        { key: 'accounts', label: t('tabAccounts'), Icon: ListTree },
+        { key: 'trial-balance', label: t('tabTrialBalance'), Icon: Scale },
+        { key: 'journal', label: t('tabJournal'), Icon: BookOpen },
     ];
 
     return (
         <div className="max-w-[1200px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
             <div>
-                <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">Accounting</h1>
-                <p className="text-[#697386] text-[14px]">General ledger, trial balance, and journal entries.</p>
+                <h1 className="text-2xl font-bold text-[#1A1F36] tracking-tight">{t('title')}</h1>
+                <p className="text-[#697386] text-[14px]">{t('subtitle')}</p>
             </div>
 
             {/* Tabs */}
@@ -135,15 +136,15 @@ export default function AccountingPage() {
                         <table className="min-w-full border-collapse">
                             <thead>
                                 <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Code</th>
-                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Name</th>
-                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Type</th>
-                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Status</th>
+                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colCode')}</th>
+                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colName')}</th>
+                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colType')}</th>
+                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colStatus')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#F7FAFC]">
                                 {accounts.length === 0 ? (
-                                    <tr><td colSpan={4} className="px-6 py-12 text-center text-[14px] text-[#697386]">No accounts found.</td></tr>
+                                    <tr><td colSpan={4} className="px-6 py-12 text-center text-[14px] text-[#697386]">{t('noAccounts')}</td></tr>
                                 ) : accounts.map(a => (
                                     <tr key={a.id} className="hover:bg-[#F7FAFC]/50 transition-colors">
                                         <td className="px-6 py-4 text-[13px] font-bold text-[#635BFF] font-mono">{a.code}</td>
@@ -151,9 +152,9 @@ export default function AccountingPage() {
                                         <td className="px-6 py-4 text-[12px] font-bold text-[#4F566B] uppercase tracking-wider">{a.type}</td>
                                         <td className="px-6 py-4 text-right">
                                             {a.isActive ? (
-                                                <span className="px-2 py-0.5 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[11px] font-bold">Active</span>
+                                                <span className="px-2 py-0.5 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[11px] font-bold">{t('active')}</span>
                                             ) : (
-                                                <span className="px-2 py-0.5 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[11px] font-bold">Inactive</span>
+                                                <span className="px-2 py-0.5 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[11px] font-bold">{t('inactive')}</span>
                                             )}
                                         </td>
                                     </tr>
@@ -168,7 +169,7 @@ export default function AccountingPage() {
                 <div className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between px-6 py-4 border-b border-[#E3E8EE]">
                         <div className="flex items-center gap-3">
-                            <h2 className="text-[15px] font-bold text-[#1A1F36]">Trial Balance</h2>
+                            <h2 className="text-[15px] font-bold text-[#1A1F36]">{t('tabTrialBalance')}</h2>
                             <label className="flex items-center gap-1.5 text-[12px] text-[#697386]">
                                 {o('currency')}
                                 <select value={tbCurrency || trialBalance.currency} onChange={(e) => setTbCurrency(e.target.value)} className="h-8 px-2 bg-white border border-[#E3E8EE] rounded text-[12px]">
@@ -177,25 +178,25 @@ export default function AccountingPage() {
                             </label>
                         </div>
                         {trialBalance.totals.balanced ? (
-                            <span className="px-3 py-1 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[12px] font-bold">Balanced</span>
+                            <span className="px-3 py-1 rounded bg-[#E6F9F1] text-[#3ECF8E] text-[12px] font-bold">{t('balanced')}</span>
                         ) : (
-                            <span className="px-3 py-1 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[12px] font-bold">Unbalanced</span>
+                            <span className="px-3 py-1 rounded bg-[#FFF0F0] text-[#FF5D5D] text-[12px] font-bold">{t('unbalanced')}</span>
                         )}
                     </div>
                     <div className="overflow-x-auto no-scrollbar">
                         <table className="min-w-full border-collapse">
                             <thead>
                                 <tr className="border-b border-[#E3E8EE] bg-[#F7FAFC]">
-                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Code</th>
-                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Name</th>
-                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Debit</th>
-                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Credit</th>
-                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Balance</th>
+                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colCode')}</th>
+                                    <th className="text-left px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colName')}</th>
+                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colDebit')}</th>
+                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colCredit')}</th>
+                                    <th className="text-right px-6 py-3 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colBalance')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#F7FAFC]">
                                 {trialBalance.rows.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-6 py-12 text-center text-[14px] text-[#697386]">No data.</td></tr>
+                                    <tr><td colSpan={5} className="px-6 py-12 text-center text-[14px] text-[#697386]">{t('noData')}</td></tr>
                                 ) : trialBalance.rows.map(r => (
                                     <tr key={r.code} className="hover:bg-[#F7FAFC]/50 transition-colors">
                                         <td className="px-6 py-4 text-[13px] font-bold text-[#635BFF] font-mono">{r.code}</td>
@@ -208,7 +209,7 @@ export default function AccountingPage() {
                             </tbody>
                             <tfoot>
                                 <tr className="border-t-2 border-[#E3E8EE] bg-[#F7FAFC]">
-                                    <td className="px-6 py-4 text-[12px] font-bold text-[#1A1F36] uppercase tracking-wider" colSpan={2}>Totals</td>
+                                    <td className="px-6 py-4 text-[12px] font-bold text-[#1A1F36] uppercase tracking-wider" colSpan={2}>{t('totals')}</td>
                                     <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.debit, trialBalance.currency)}</td>
                                     <td className="px-6 py-4 text-right text-[13px] font-bold text-[#1A1F36]">{money(trialBalance.totals.credit, trialBalance.currency)}</td>
                                     <td className="px-6 py-4"></td>
@@ -237,8 +238,8 @@ export default function AccountingPage() {
                             <div className="w-16 h-16 bg-[#F7FAFC] text-[#AAB7C4] rounded-full flex items-center justify-center mx-auto mb-4">
                                 <BookOpen size={32} />
                             </div>
-                            <h2 className="text-[18px] font-bold text-[#1A1F36]">No journal entries</h2>
-                            <p className="text-[#697386] text-[14px] mt-1">Journal entries will appear here as transactions are posted.</p>
+                            <h2 className="text-[18px] font-bold text-[#1A1F36]">{t('noJournalTitle')}</h2>
+                            <p className="text-[#697386] text-[14px] mt-1">{t('noJournalBody')}</p>
                         </div>
                     ) : journal.map(entry => (
                         <div key={entry.id} className="bg-white border border-[#E3E8EE] rounded-lg shadow-sm overflow-hidden">
@@ -254,9 +255,9 @@ export default function AccountingPage() {
                                 <table className="min-w-full border-collapse">
                                     <thead>
                                         <tr className="border-b border-[#F7FAFC]">
-                                            <th className="text-left px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Account</th>
-                                            <th className="text-right px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Debit</th>
-                                            <th className="text-right px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">Credit</th>
+                                            <th className="text-left px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colAccount')}</th>
+                                            <th className="text-right px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colDebit')}</th>
+                                            <th className="text-right px-6 py-2.5 text-[11px] font-bold text-[#AAB7C4] uppercase tracking-wider">{t('colCredit')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#F7FAFC]">

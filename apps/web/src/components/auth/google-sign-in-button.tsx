@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Google Identity Services button.
@@ -104,6 +105,7 @@ export function GoogleSignInButton({
     locale,
     dividerLabel,
 }: GoogleSignInButtonProps) {
+    const t = useTranslations('Auth');
     const containerRef = useRef<HTMLDivElement>(null);
     const [clientId, setClientId] = useState<string | null>(null);
     const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
@@ -142,14 +144,14 @@ export function GoogleSignInButton({
 
     const handleCredential = useCallback((response: GoogleCredentialResponse) => {
         if (!response.credential) {
-            setError('Google did not return a credential. Try again.');
+            setError(t('googleNoCredential'));
             return;
         }
         setError('');
         void Promise.resolve(handlerRef.current(response.credential)).catch((err: unknown) => {
-            setError(err instanceof Error ? err.message : 'Google sign-in failed.');
+            setError(err instanceof Error ? err.message : t('googleFailed'));
         });
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         if (!clientId || !containerRef.current) return;

@@ -74,12 +74,13 @@ export function LoanDetailView({ id }: { id: string }) {
     const coolingOff = useApi<CoolingOffStatus>(`/lending/loans/${id}/cooling-off`);
     const ts = useTranslations('Servicing.loan');
     const tl = useTranslations('LendingServicing.loanDetail');
+    const tw = useTranslations('Workspace.nav');
     const [panel, setPanel] = useState<Panel | null>(null);
 
     const d = loan.data;
     if (!d) {
         return (
-            <LendingShell title={tl('loadingTitle')} back={{ href: '/lending/loans', label: 'Loans' }}>
+            <LendingShell title={tl('loadingTitle')} back={{ href: '/lending/loans', label: tw('loanAccounts') }}>
                 {loan.error ? <ErrorBox error={loan.error} /> : <Spinner />}
             </LendingShell>
         );
@@ -129,8 +130,8 @@ export function LoanDetailView({ id }: { id: string }) {
     return (
         <LendingShell
             title={<span className="flex items-center gap-2">{acc.reference} <StatusBadge status={acc.status} /> {acc.isRestructured && <RestructuredBadge />}</span>}
-            subtitle={`${d.productCode} · agreement v${d.agreementVersion} · product version ${d.productVersionStatus}`}
-            back={{ href: '/lending/loans', label: 'Loans' }}
+            subtitle={tl('subtitle', { product: d.productCode, version: d.agreementVersion, status: d.productVersionStatus })}
+            back={{ href: '/lending/loans', label: tw('loanAccounts') }}
             actions={<Btn variant="ghost" onClick={() => { loan.reload(); caps.reload(); }}>{tl('refresh')}</Btn>}
         >
             {loan.error && <ErrorBox error={loan.error} />}

@@ -21,6 +21,8 @@ type PaymentView = SignupPayment & { plan: string; organizationName: string; sta
  */
 export default function SignupPaymentStatusPage() {
     const t = useTranslations('Register');
+    const tAuth = useTranslations('Auth');
+    const tc = useTranslations('Common');
     const { locale, reference } = useParams();
     const [payment, setPayment] = useState<PaymentView | null>(null);
     const [error, setError] = useState('');
@@ -32,14 +34,14 @@ export default function SignupPaymentStatusPage() {
         try {
             const res = await fetch(`/api/proxy/auth/signup/payment/${reference}`);
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.message || 'Payment reference not found.');
+            if (!res.ok) throw new Error(data?.message || t('paymentStatus.notFound'));
             setPayment(data);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Could not load payment status.');
+            setError(err instanceof Error ? err.message : t('paymentStatus.loadFailed'));
         } finally {
             setLoading(false);
         }
-    }, [reference]);
+    }, [reference, t]);
 
     useEffect(() => {
         void load();
@@ -60,11 +62,11 @@ export default function SignupPaymentStatusPage() {
                         labels={{ details: t('stepDetails'), payment: t('stepPayment'), active: t('stepActive') }}
                         className="mb-6"
                     />
-                    <h1 className="text-[18px] font-bold text-foreground mb-1">Activation status</h1>
+                    <h1 className="text-[18px] font-bold text-foreground mb-1">{t('paymentStatus.title')}</h1>
 
                     {loading && (
                         <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-8 justify-center">
-                            <Loader2 size={14} className="animate-spin" /> Loading...
+                            <Loader2 size={14} className="animate-spin" /> {tc('loading')}
                         </div>
                     )}
 
@@ -77,20 +79,23 @@ export default function SignupPaymentStatusPage() {
                     {!loading && payment && (
                         <>
                             <p className="text-[13px] text-muted-foreground mb-6">
-                                <strong className="text-foreground">{payment.organizationName}</strong> on the{' '}
-                                {payment.plan} plan.
+                                {t.rich('paymentStatus.orgOnPlan', {
+                                    org: payment.organizationName,
+                                    plan: payment.plan,
+                                    strong: chunks => <strong className="text-foreground">{chunks}</strong>,
+                                })}
                             </p>
 
                             {payment.status === 'CONFIRMED' ? (
                                 <div className="space-y-4">
                                     <div className="text-[13px] text-foreground bg-[#26a69a]/10 border border-[#26a69a]/20 px-3 py-3 rounded">
-                                        Payment confirmed — your workspace is active. You can sign in now.
+                                        {t('paymentStatus.confirmed')}
                                     </div>
                                     <Link
                                         href={`/${locale}/login`}
                                         className="tv-button w-full h-10 text-[13px] flex items-center justify-center"
                                     >
-                                        Sign in
+                                        {t('signIn')}
                                     </Link>
                                 </div>
                             ) : (
@@ -102,7 +107,7 @@ export default function SignupPaymentStatusPage() {
                                 onClick={() => void load()}
                                 className="w-full h-10 mt-3 text-[13px] flex items-center justify-center gap-2 border border-border rounded text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
                             >
-                                <RefreshCw size={13} /> Refresh
+                                <RefreshCw size={13} /> {t('paymentStatus.refresh')}
                             </button>
                         </>
                     )}
@@ -110,7 +115,7 @@ export default function SignupPaymentStatusPage() {
 
                 <p className="text-center text-[13px] text-muted-foreground mt-5">
                     <Link href={`/${locale}/login`} className="text-primary hover:text-primary/80 font-semibold transition-colors">
-                        Back to sign in
+                        {tAuth('backToSignIn')}
                     </Link>
                 </p>
             </div>

@@ -38,6 +38,9 @@ export interface RuleDraft {
     message: string;
 }
 
+/** Translator for the validation messages below (messages namespace "LendingAccess.policyModel"). */
+export type PolicyText = (key: string, values?: Record<string, string | number>) => string;
+
 let seq = 0;
 export function nextKey(): string {
     seq += 1;
@@ -57,50 +60,50 @@ export const ACTION_RE = /^[a-z_.]+(\.\*)?$/;
 
 /* ── Draft → API ─────────────────────────────────────────────────────────── */
 
-function convertScalar(attr: string, op: CondOp, text: string): { value?: unknown; error?: string } {
+function convertScalar(attr: string, op: CondOp, text: string, tr: PolicyText): { value?: unknown; error?: string } {
     const t = text.trim();
     if (op === 'exists') return { value: t !== 'false' };
     if (op === 'in' || op === 'nin') {
         const parts = t.split(',').map((s) => s.trim()).filter(Boolean);
-        if (parts.length === 0) return { error: 'enter at least one value' };
+        if (parts.length === 0) return { error: tr('enterValue') };
         if (NUMERIC_ATTRS.has(attr)) {
-            if (parts.some((p) => !/^\d+$/.test(p))) return { error: 'values must be whole numbers' };
+            if (parts.some((p) => !/^\d+$/.test(p))) return { error: tr('wholeNumbers') };
             return { value: parts.map((p) => Number(p)) };
         }
-        if (attr === 'resource.amount' && parts.some((p) => !isDecimalString(p))) return { error: 'amounts must be decimals' };
+        if (attr === 'resource.amount' && parts.some((p) => !isDecimalString(p))) return { error: tr('decimals') };
         return { value: parts };
     }
-    if (!t) return { error: 'value required' };
+    if (!t) return { error: tr('valueRequired') };
     if (NUMERIC_ATTRS.has(attr)) {
-        if (!/^\d+$/.test(t)) return { error: 'must be a whole number' };
+        if (!/^\d+$/.test(t)) return { error: tr('wholeNumber') };
         return { value: Number(t) };
     }
     if (attr === 'resource.amount') {
-        if (!isDecimalString(t)) return { error: 'must be a decimal, e.g. 10000.00' };
+        if (!isDecimalString(t)) return { error: tr('decimal') };
         return { value: t }; // money stays a decimal string
     }
     return { value: t };
 }
 
-export function compToCondition(c: CompDraft): { cond?: Condition; error?: string } {
-    const { value, error } = convertScalar(c.attr, c.op, c.value);
+export function compToCondition(c: CompDraft, tr: PolicyText): { cond?: Condition; error?: string } {
+    const { value, error } = convertScalar(c.attr, c.op, c.value, tr);
     if (error) return { error: `${c.attr}: ${error}` };
     const comp: Comparison = { attr: c.attr, op: c.op, value };
     return { cond: c.not ? { not: comp } : comp };
 }
 
-export function draftToRule(d: RuleDraft): { rule?: PolicyRule; errors: string[] } {
+export function draftToRule(d: RuleDraft, tr: PolicyText): { rule?: PolicyRule; errors: string[] } {
     const errors: string[] = [];
-    const label = d.id || '(unnamed rule)';
-    if (!RULE_ID_RE.test(d.id)) errors.push(`${label}: id must be 2–40 chars of a-z, 0-9, _ or -`);
-    if (d.actions.length === 0) errors.push(`${label}: choose at least one action`);
-    if (d.message.trim().length < 3) errors.push(`${label}: message must be at least 3 characters`);
+    const label = d.id || tr('unnamedRule');
+    if (!RULE_ID_RE.test(d.id)) errors.push(tr('badId', { label }));
+    if (d.actions.length === 0) errors.push(tr('noAction', { label }));
+    if (d.message.trim().length < 3) errors.push(tr('shortMessage', { label }));
     let condition: Condition | undefined = d.raw;
     if (!condition) {
-        if (d.comparisons.length === 0) errors.push(`${label}: add at least one condition`);
+        if (d.comparisons.length === 0) errors.push(tr('noCondition', { label }));
         const parts: Condition[] = [];
         for (const c of d.comparisons) {
-            const r = compToCondition(c);
+            const r = compToCondition(c, tr);
             if (r.error) errors.push(`${label}: ${r.error}`);
             else if (r.cond) parts.push(r.cond);
         }
@@ -112,7 +115,7 @@ export function draftToRule(d: RuleDraft): { rule?: PolicyRule; errors: string[]
 
 /** Best-effort preview (includes invalid rows so the JSON reflects what's on screen). */
 export function draftPreview(d: RuleDraft): unknown {
-    const parts = d.comparisons.map((c) => compToCondition(c).cond ?? { attr: c.attr, op: c.op, value: c.value });
+    const parts = d.comparisons.map((c) => compToCondition(c, (k) => k).cond ?? { attr: c.attr, op: c.op, value: c.value });
     return {
         id: d.id, effect: d.effect, actions: d.actions,
         condition: d.raw ?? (d.combinator === 'any' ? { any: parts } : { all: parts }),

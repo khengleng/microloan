@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -72,7 +73,7 @@ const quotaValue = (raw: string): number | null => {
     return trimmed === '' ? null : Number(trimmed);
 };
 
-const showQuota = (n: number | null) => (n === null ? 'Unlimited' : n.toLocaleString());
+const showQuota = (n: number | null, unlimited: string) => (n === null ? unlimited : n.toLocaleString());
 
 const inputClass =
     'w-full px-2.5 py-1.5 text-sm bg-secondary border border-border rounded text-foreground focus:outline-none focus:border-primary';
@@ -86,6 +87,8 @@ const labelClass = 'block text-[11px] font-semibold text-muted-foreground mb-1';
  * all read from what is set here.
  */
 export default function PlanTiersPage() {
+    const t = useTranslations('PlanTiers');
+    const tc = useTranslations('Common');
     const { showToast } = useToast();
     const confirm = useConfirm();
 
@@ -146,7 +149,7 @@ export default function PlanTiersPage() {
                 currency: form.currency,
                 ...quotaPayload(),
             });
-            showToast(`Plan ${form.name.toUpperCase()} created.`, 'success');
+            showToast(t('toastCreated', { name: form.name.toUpperCase() }), 'success');
             cancel();
             await load();
         } finally {
@@ -166,7 +169,7 @@ export default function PlanTiersPage() {
                 currency: form.currency,
                 ...quotaPayload(),
             });
-            showToast('Plan updated.', 'success');
+            showToast(t('toastUpdated'), 'success');
             cancel();
             await load();
         } finally {
@@ -177,12 +180,12 @@ export default function PlanTiersPage() {
     const toggleActive = async (tier: Tier) => {
         if (tier.isActive) {
             const ok = await confirm({
-                title: `Retire ${tier.displayName}?`,
+                title: t('retireTitle', { name: tier.displayName }),
                 message:
                     tier.organizations > 0
-                        ? `${tier.organizations} organization${tier.organizations === 1 ? '' : 's'} will keep this plan and its limits. It just stops being offered to new signups.`
-                        : 'It stops being offered to new signups. You can re-enable it at any time.',
-                confirmLabel: 'Retire',
+                        ? t('retireMessageInUse', { count: tier.organizations })
+                        : t('retireMessage'),
+                confirmLabel: t('retire'),
                 variant: 'warning',
             });
             if (!ok) return;
@@ -190,7 +193,7 @@ export default function PlanTiersPage() {
         setBusy(true);
         try {
             await api.patch(`/platform/plan-tiers/${tier.id}`, { isActive: !tier.isActive });
-            showToast(tier.isActive ? 'Plan retired.' : 'Plan re-enabled.', 'success');
+            showToast(tier.isActive ? t('toastRetired') : t('toastReenabled'), 'success');
             await load();
         } finally {
             setBusy(false);
@@ -199,16 +202,16 @@ export default function PlanTiersPage() {
 
     const remove = async (tier: Tier) => {
         const ok = await confirm({
-            title: `Delete ${tier.displayName}?`,
-            message: 'This cannot be undone. Retiring keeps the plan valid for existing customers — deleting does not.',
-            confirmLabel: 'Delete',
+            title: t('deleteTitle', { name: tier.displayName }),
+            message: t('deleteMessage'),
+            confirmLabel: tc('delete'),
             variant: 'danger',
         });
         if (!ok) return;
         setBusy(true);
         try {
             await api.delete(`/platform/plan-tiers/${tier.id}`);
-            showToast('Plan deleted.', 'success');
+            showToast(t('toastDeleted'), 'success');
             await load();
         } finally {
             setBusy(false);
@@ -236,18 +239,18 @@ export default function PlanTiersPage() {
     const quotaFields = (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {([
-                ['maxUsers', 'Users'],
-                ['maxBorrowers', 'Borrowers'],
-                ['maxLoanProducts', 'Loan products'],
-                ['maxLoans', 'Loans'],
-            ] as const).map(([key, label]) => (
+                ['maxUsers', 'quota.maxUsers'],
+                ['maxBorrowers', 'quota.maxBorrowers'],
+                ['maxLoanProducts', 'quota.maxLoanProducts'],
+                ['maxLoans', 'quota.maxLoans'],
+            ] as const).map(([key, labelKey]) => (
                 <div key={key}>
-                    <label className={labelClass}>{label}</label>
+                    <label className={labelClass}>{t(labelKey)}</label>
                     <input
                         type="number"
                         min={1}
                         value={form[key]}
-                        placeholder="Unlimited"
+                        placeholder={t('unlimited')}
                         onChange={e => set(key)(e.target.value)}
                         className={inputClass}
                     />
@@ -260,17 +263,17 @@ export default function PlanTiersPage() {
         <>
             <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label className={labelClass}>Display name</label>
+                    <label className={labelClass}>{t('displayName')}</label>
                     <input
                         value={form.displayName}
                         onChange={e => set('displayName')(e.target.value)}
-                        placeholder="Professional"
+                        placeholder={t('displayNamePlaceholder')}
                         className={inputClass}
                     />
                 </div>
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                     <div>
-                        <label className={labelClass}>Price / month</label>
+                        <label className={labelClass}>{t('pricePerMonth')}</label>
                         <input
                             type="number"
                             min={0}
@@ -281,7 +284,7 @@ export default function PlanTiersPage() {
                         />
                     </div>
                     <div>
-                        <label className={labelClass}>Currency</label>
+                        <label className={labelClass}>{t('currency')}</label>
                         <select
                             value={form.currency}
                             onChange={e => set('currency')(e.target.value)}
@@ -294,18 +297,17 @@ export default function PlanTiersPage() {
                 </div>
             </div>
             <div>
-                <label className={labelClass}>Description</label>
+                <label className={labelClass}>{t('description')}</label>
                 <input
                     value={form.description}
                     onChange={e => set('description')(e.target.value)}
-                    placeholder="Shown on the signup page"
+                    placeholder={t('descriptionPlaceholder')}
                     className={inputClass}
                 />
             </div>
             {quotaFields}
             <p className="text-[11px] text-muted-foreground">
-                Leave a quota blank for unlimited. A price of 0 activates the workspace immediately;
-                anything above 0 puts it behind the KHQR payment gate.
+                {t('formHint')}
             </p>
         </>
     );
@@ -314,18 +316,17 @@ export default function PlanTiersPage() {
         <div className="space-y-6 p-6 max-w-5xl">
             <div className="flex items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-xl font-bold text-foreground">Subscription plans</h1>
+                    <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        The tiers offered at signup. Prices here set the amount on each KHQR payment
-                        code, and the quotas here are what every organization on that plan is held to.
+                        {t('subtitle')}
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                     <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-                        <RefreshCcw size={13} className="mr-1.5" /> Refresh
+                        <RefreshCcw size={13} className="mr-1.5" /> {t('refresh')}
                     </Button>
                     <Button size="sm" onClick={startCreate} disabled={busy}>
-                        <Plus size={13} className="mr-1.5" /> New plan
+                        <Plus size={13} className="mr-1.5" /> {t('newPlan')}
                     </Button>
                 </div>
             </div>
@@ -333,11 +334,11 @@ export default function PlanTiersPage() {
             {creating && (
                 <div className={cardClass}>
                     <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
-                        <Plus size={16} /> New plan
+                        <Plus size={16} /> {t('newPlan')}
                     </h2>
                     <div className="space-y-3">
                         <div>
-                            <label className={labelClass}>Plan key</label>
+                            <label className={labelClass}>{t('planKey')}</label>
                             <input
                                 value={form.name}
                                 onChange={e => set('name')(e.target.value)}
@@ -345,8 +346,7 @@ export default function PlanTiersPage() {
                                 className={inputClass}
                             />
                             <p className="text-[11px] text-muted-foreground mt-1">
-                                Letters, numbers and underscores. Stored on every organization on this
-                                plan and <strong>cannot be changed later</strong> — the display name can.
+                                {t.rich('planKeyHint', { strong: chunks => <strong>{chunks}</strong> })}
                             </p>
                         </div>
                         {commonFields}
@@ -357,10 +357,10 @@ export default function PlanTiersPage() {
                                 disabled={busy || !form.name.trim() || !form.displayName.trim()}
                             >
                                 {busy ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Save size={13} className="mr-1.5" />}
-                                Create plan
+                                {t('createPlan')}
                             </Button>
                             <Button variant="outline" size="sm" onClick={cancel} disabled={busy}>
-                                <X size={13} className="mr-1.5" /> Cancel
+                                <X size={13} className="mr-1.5" /> {tc('cancel')}
                             </Button>
                         </div>
                     </div>
@@ -369,19 +369,18 @@ export default function PlanTiersPage() {
 
             <div className={cardClass}>
                 <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
-                    <Layers size={16} /> Plans
+                    <Layers size={16} /> {t('plans')}
                 </h2>
 
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                        <Loader2 size={14} className="animate-spin" /> Loading...
+                        <Loader2 size={14} className="animate-spin" /> {tc('loading')}
                     </div>
                 ) : tiers.length === 0 ? (
                     <div className="flex items-start gap-3 p-3 rounded border border-amber-500/20 bg-amber-500/5">
                         <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
                         <div className="text-sm text-foreground">
-                            No plans are defined, so nobody can sign up. Create at least one — a plan
-                            priced at 0 gives you a free tier.
+                            {t('empty')}
                         </div>
                     </div>
                 ) : (
@@ -397,7 +396,7 @@ export default function PlanTiersPage() {
                                             onClick={() => void move(index, -1)}
                                             disabled={busy || index === 0}
                                             className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                            aria-label="Move up"
+                                            aria-label={t('moveUp')}
                                         >
                                             <ChevronUp size={14} />
                                         </button>
@@ -405,7 +404,7 @@ export default function PlanTiersPage() {
                                             onClick={() => void move(index, 1)}
                                             disabled={busy || index === tiers.length - 1}
                                             className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                            aria-label="Move down"
+                                            aria-label={t('moveDown')}
                                         >
                                             <ChevronDown size={14} />
                                         </button>
@@ -421,33 +420,37 @@ export default function PlanTiersPage() {
                                             </code>
                                             {!tier.isActive && (
                                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">
-                                                    Retired
+                                                    {t('retired')}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                                            {showQuota(tier.limits.maxUsers)} users · {showQuota(tier.limits.maxBorrowers)} borrowers ·{' '}
-                                            {showQuota(tier.limits.maxLoanProducts)} products · {showQuota(tier.limits.maxLoans)} loans
+                                            {t('quotaSummary', {
+                                                users: showQuota(tier.limits.maxUsers, t('unlimited')),
+                                                borrowers: showQuota(tier.limits.maxBorrowers, t('unlimited')),
+                                                products: showQuota(tier.limits.maxLoanProducts, t('unlimited')),
+                                                loans: showQuota(tier.limits.maxLoans, t('unlimited')),
+                                            })}
                                         </div>
                                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                                            {tier.organizations} organization{tier.organizations === 1 ? '' : 's'}
+                                            {t('organizations', { count: tier.organizations })}
                                         </div>
                                     </div>
 
                                     <div className="text-sm font-semibold text-foreground whitespace-nowrap">
-                                        {tier.requiresPayment ? `${tier.currency} ${tier.amount}/mo` : 'Free'}
+                                        {tier.requiresPayment ? t('pricePerMonthValue', { currency: tier.currency, amount: tier.amount }) : t('free')}
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0">
                                         <Button variant="outline" size="sm" onClick={() => startEdit(tier)} disabled={busy}>
-                                            Edit
+                                            {tc('edit')}
                                         </Button>
                                         <button
                                             onClick={() => void toggleActive(tier)}
                                             disabled={busy}
                                             className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                                            aria-label={tier.isActive ? 'Retire plan' : 'Re-enable plan'}
-                                            title={tier.isActive ? 'Retire' : 'Re-enable'}
+                                            aria-label={tier.isActive ? t('retirePlan') : t('reenablePlan')}
+                                            title={tier.isActive ? t('retire') : t('reenable')}
                                         >
                                             {tier.isActive ? <EyeOff size={14} /> : <Eye size={14} />}
                                         </button>
@@ -455,11 +458,11 @@ export default function PlanTiersPage() {
                                             onClick={() => void remove(tier)}
                                             disabled={busy || tier.organizations > 0}
                                             className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-30"
-                                            aria-label="Delete plan"
+                                            aria-label={t('deletePlan')}
                                             title={
                                                 tier.organizations > 0
-                                                    ? 'Organizations are on this plan — retire it instead'
-                                                    : 'Delete'
+                                                    ? t('deleteBlocked')
+                                                    : tc('delete')
                                             }
                                         >
                                             <Trash2 size={14} />
@@ -473,10 +476,10 @@ export default function PlanTiersPage() {
                                         <div className="flex gap-2">
                                             <Button size="sm" onClick={() => void submitUpdate(tier.id)} disabled={busy}>
                                                 {busy ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Save size={13} className="mr-1.5" />}
-                                                Save
+                                                {tc('save')}
                                             </Button>
                                             <Button variant="outline" size="sm" onClick={cancel} disabled={busy}>
-                                                <X size={13} className="mr-1.5" /> Cancel
+                                                <X size={13} className="mr-1.5" /> {tc('cancel')}
                                             </Button>
                                         </div>
                                     </div>

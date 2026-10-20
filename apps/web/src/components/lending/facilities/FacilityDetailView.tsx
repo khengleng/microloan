@@ -58,11 +58,12 @@ export function FacilityDetailView({ id }: { id: string }) {
     const tf = useTranslations('Servicing.facility');
     const tl = useTranslations('LendingFacilities.detail');
     const ts = useTranslations('Status');
+    const tw = useTranslations('Workspace.nav');
     const statusLabel = (s: string) => (ts.has(s) ? ts(s) : s.toLowerCase().replace(/_/g, ' '));
 
     if (!d) {
         return (
-            <LendingShell title={tl('loadingTitle')} back={{ href: '/lending/facilities', label: 'Facilities' }}>
+            <LendingShell title={tl('loadingTitle')} back={{ href: '/lending/facilities', label: tw('facilities') }}>
                 {res.error ? <ErrorBox error={res.error} /> : <Spinner />}
             </LendingShell>
         );
@@ -105,7 +106,7 @@ export function FacilityDetailView({ id }: { id: string }) {
         <LendingShell
             title={<span className="flex items-center gap-2">{f.reference} <StatusBadge status={status} /></span>}
             subtitle={<span className="flex flex-wrap items-center gap-1.5">{tl.rich('subtitle', { type: () => <FacilityTypeLabel type={f.facilityType} />, currency: cur, rate: fmtRate(t.annualRate), created: f.createdAt?.slice(0, 10) ?? '' })}</span>}
-            back={{ href: '/lending/facilities', label: 'Facilities' }}
+            back={{ href: '/lending/facilities', label: tw('facilities') }}
             actions={
                 <>
                     <Link href={href(`/lending/loans/${d.loanAccountId}`)} className="inline-flex items-center gap-1.5 rounded font-semibold shadow-sm text-[13px] px-3.5 py-1.5 bg-white hover:bg-slate-50 text-[#3C4257] border border-[#E3E8EE]">

@@ -6,7 +6,8 @@ your own pace: short lessons, animated explainers, guided tours over the
 real screens and quizzes. Your progress is saved for you, on any device.
 
 The lessons are in English for now; menus, buttons and quiz controls are
-also in Khmer.
+also in Khmer. In Khmer, a note at the top of the Learning centre, of each
+lesson and of each guided-tour step says that the lesson text is in English.
 
 ## 1. Opening the Learning centre
 
