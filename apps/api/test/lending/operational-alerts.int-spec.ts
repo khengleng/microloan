@@ -60,7 +60,7 @@ d('Operational alerts (integration)', () => {
       disbursementDate: businessDate,
     });
     // End of day is measured against the calendar in the tenant's zone.
-    today = require('../../src/loans/legacy-money').localDate(new Date());
+    today = require('../../src/lending/common/util').localDateIn(new Date());
     fetchSpy = jest
       .spyOn(global, 'fetch')
       .mockImplementation(async (url: any, init?: any) => {
