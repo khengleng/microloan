@@ -189,7 +189,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
                             <span>MicroLoan</span>
                             <ChevronRight size={14} />
                             <span className="text-foreground font-medium capitalize">
-                                {pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ')}
+                                {/* The last segment that is not a record id (a UUID squeezed the header and read as words). */}
+                                {pathname.split('/').filter((x) => x && !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(x)).pop()?.replace(/-/g, ' ')}
                             </span>
                         </nav>
                     </div>

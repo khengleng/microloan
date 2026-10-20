@@ -444,6 +444,13 @@ export function createTenantGuardMiddleware(
    * models require one indexed lookup on the parent. Runs as system so the
    * lookup does not re-enter this middleware and recurse.
    */
+  /** The column tenantIdOfRow reads to find a row's owner. */
+  function ownershipColumn(model: string): string | undefined {
+    if (model === TENANT_MODEL) return 'id';
+    if (DIRECT_TENANT_MODELS.has(model)) return 'tenantId';
+    return RELATION_SCOPED_MODELS[model]?.fk;
+  }
+
   async function tenantIdOfRow(
     model: string,
     row: Record<string, unknown> | null,
@@ -692,6 +699,18 @@ export function createTenantGuardMiddleware(
     // lookups (`where: { tenantId_code: {...} }`), so the row is fetched and
     // then checked. It is never returned to a foreign tenant.
     if (UNIQUE_READ_ACTIONS.has(action)) {
+      // The check reads the ownership column from the row, so a `select`
+      // that leaves it out (`select: { twoFactorEnabled: true }`) would make
+      // every row look foreign and the caller's own row read as null. Ask
+      // for the column and hand back only what the caller selected.
+      const ownerColumn = ownershipColumn(model) ?? '';
+      const select = params.args.select as Record<string, unknown> | undefined;
+      const added =
+        ownerColumn !== '' &&
+        !!select &&
+        typeof select === 'object' &&
+        !select[ownerColumn];
+      if (added) params.args.select = { ...select, [ownerColumn]: true };
       const result = await next(params);
       if (!result) return result;
       const owner = await tenantIdOfRow(
@@ -703,6 +722,13 @@ export function createTenantGuardMiddleware(
           deny(model, action, `row belongs to tenant ${String(owner)}`);
         }
         return null;
+      }
+      if (added) {
+        const { [ownerColumn]: _owner, ...rest } = result as Record<
+          string,
+          unknown
+        >;
+        return rest;
       }
       return result;
     }

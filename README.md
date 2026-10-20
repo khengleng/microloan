@@ -494,6 +494,13 @@ actually exercised. The tenant-wall suite replays every registered route as
 another tenant and fails if any row of another tenant changes or leaks — see
 [TENANT_ISOLATION.md](docs/security/TENANT_ISOLATION.md).
 
+Browser tests (Playwright, Chromium) against a full local stack on ports
+3030/3031 — see [DEPLOYMENT.md › Browser tests](DEPLOYMENT.md#browser-tests):
+
+```bash
+node scripts/e2e-stack.mjs up && pnpm --filter e2e test
+```
+
 Security and production-readiness checks (also run in CI):
 
 ```bash

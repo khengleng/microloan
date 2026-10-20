@@ -258,7 +258,7 @@ export default function LoginPage() {
                 </p>
 
                 <div className="flex items-center justify-center gap-5 mt-6 pt-6 border-t border-border">
-                    <span className="text-[11px] text-muted-foreground">{t('copyright')}</span>
+                    <span className="text-[11px] text-muted-foreground">{t('copyright', { year: String(new Date().getFullYear()) })}</span>
                     <Link href="/terms-and-conditions" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{t('terms')}</Link>
                     <Link href="/privacy-policy" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">{t('privacy')}</Link>
                 </div>

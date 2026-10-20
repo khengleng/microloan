@@ -88,6 +88,8 @@ export function ApplicationDetailView({ id }: { id: string }) {
     const [panel, setPanel] = useState<Panel | null>(null);
     const [sim, setSim] = useState<SimulationResult | null>(null);
     const action = useAction();
+    // The application carries the borrower id only; the title line names them.
+    const nameOf = useBorrowerNames(app.data && !app.data.borrower ? [app.data.borrowerId] : []);
 
     const a = app.data;
     if (!a) {
@@ -138,7 +140,7 @@ export function ApplicationDetailView({ id }: { id: string }) {
     return (
         <LendingShell
             title={<span className="flex items-center gap-2">{a.reference} <StatusBadge status={a.status} /></span>}
-            subtitle={`${fullName(a.borrower)} · ${a.product ? `${a.product.name} (${a.product.code})` : a.productId}${a.productVersion ? ` · v${a.productVersion.version}` : ''}`}
+            subtitle={`${a.borrower ? fullName(a.borrower) : nameOf(a.borrowerId)} · ${a.product ? `${a.product.name} (${a.product.code})` : a.productId}${a.productVersion ? ` · v${a.productVersion.version}` : ''}`}
             back={{ href: '/lending/applications', label: tw('applications') }}
             actions={<Btn variant="ghost" onClick={() => { app.reload(); caps.reload(); }}>{tr('common.refresh')}</Btn>}
         >

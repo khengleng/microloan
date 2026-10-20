@@ -123,6 +123,37 @@ describe('Prisma tenant guard — the database-level Chinese wall', () => {
       ).resolves.toBe(row);
     });
 
+    it('checks ownership when the select leaves the tenant column out, and returns only what was selected', async () => {
+      // Regression: GET /auth/mfa/status selects { twoFactorEnabled } only;
+      // the guard read the missing tenantId as "foreign" and answered null,
+      // which the API turned into a 401 and the web into a sign-out.
+      const next = jest.fn(async (p: any) => ({
+        twoFactorEnabled: false,
+        ...(p.args.select.tenantId ? { tenantId: TENANT_A } : {}),
+      }));
+      const params: any = {
+        model: 'User',
+        action: 'findUnique',
+        args: { where: { id: 'user-1' }, select: { twoFactorEnabled: true } },
+      };
+
+      const result = await asTenant(TENANT_A, () => guard()(params, next));
+
+      expect(next.mock.calls[0][0].args.select).toEqual({ twoFactorEnabled: true, tenantId: true });
+      expect(result).toEqual({ twoFactorEnabled: false });
+    });
+
+    it('still refuses a foreign row when the select leaves the tenant column out', async () => {
+      const next = jest.fn(async () => ({ twoFactorEnabled: true, tenantId: TENANT_B }));
+      const params: any = {
+        model: 'User',
+        action: 'findUnique',
+        args: { where: { id: 'user-1' }, select: { twoFactorEnabled: true } },
+      };
+
+      await expect(asTenant(TENANT_A, () => guard()(params, next))).resolves.toBeNull();
+    });
+
     it('throws on findUniqueOrThrow for a foreign row instead of returning null', async () => {
       const next = jest.fn(async () => ({ id: 'loan-1', tenantId: TENANT_B }));
       const params: any = {
