@@ -3,12 +3,7 @@ import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
 import { LendingPrisma, Tx } from '../common/lending-prisma';
 import { BusinessDateService } from '../common/business-date.service';
-import {
-  D,
-  LendingActor,
-  fromLocalDate,
-  requireTenant,
-} from '../common/util';
+import { D, LendingActor, fromLocalDate, requireTenant } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
 
 type Dec = ReturnType<typeof D>;
@@ -332,7 +327,11 @@ export class LendingOverviewService {
       },
       byCurrency: [] as CurrencyFigures[],
       unconverted: [] as string[],
-      trend: [] as { month: string; collections: string; disbursements: string }[],
+      trend: [] as {
+        month: string;
+        collections: string;
+        disbursements: string;
+      }[],
     };
   }
 }

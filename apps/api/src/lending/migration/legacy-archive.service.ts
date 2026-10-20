@@ -358,12 +358,17 @@ export class LegacyArchiveService {
     const accounts = await tx.loanAccount.findMany({
       where: {
         tenantId,
-        id: { in: rows.map((r) => r.loanAccountId).filter(Boolean) as string[] },
+        id: {
+          in: rows.map((r) => r.loanAccountId).filter(Boolean) as string[],
+        },
       },
       select: { id: true, reference: true },
     });
     const ref = new Map(accounts.map((a) => [a.id, a.reference]));
-    const out = new Map<string, { loanAccountId: string; reference: string | null }>();
+    const out = new Map<
+      string,
+      { loanAccountId: string; reference: string | null }
+    >();
     for (const r of rows)
       if (r.loanAccountId)
         out.set(r.externalLoanId.slice('LEGACY-'.length), {
@@ -431,7 +436,8 @@ export function toRow(
     if (s.dueDate > cut) future += 1;
     else if (open && owed.gt(0)) {
       overdue = overdue.plus(owed);
-      if (!oldestOverdue || s.dueDate < oldestOverdue) oldestOverdue = s.dueDate;
+      if (!oldestOverdue || s.dueDate < oldestOverdue)
+        oldestOverdue = s.dueDate;
     }
   }
   const moved = migrated.get(l.id) ?? null;

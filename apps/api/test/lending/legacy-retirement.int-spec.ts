@@ -10,7 +10,14 @@
  *    legacy book is empty.
  */
 import { JwtService } from '@nestjs/jwt';
-import { Fixture, TEST_DB, bootstrap, borrower, expectOk, key } from './harness';
+import {
+  Fixture,
+  TEST_DB,
+  bootstrap,
+  borrower,
+  expectOk,
+  key,
+} from './harness';
 import { activeProduct, originateAndDisburse, standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;
@@ -24,7 +31,9 @@ d('Legacy loan module retirement (integration)', () => {
 
   const moveTo = async (businessDate: string) => {
     expectOk(
-      await f.as('finance').post('/lending/ops/business-date', { businessDate }),
+      await f
+        .as('finance')
+        .post('/lending/ops/business-date', { businessDate }),
     );
     expect(
       expectOk(await f.as('finance').post('/lending/loans/batch/run')).failed,
@@ -148,7 +157,9 @@ d('Legacy loan module retirement (integration)', () => {
   });
 
   it('the archive counts, lists and shows legacy loans read-only, and says which can be migrated', async () => {
-    const s = expectOk(await f.as('finance').get('/lending/legacy-archive/summary'));
+    const s = expectOk(
+      await f.as('finance').get('/lending/legacy-archive/summary'),
+    );
     expect(s.total).toBe(4);
     expect(s.open).toBe(2);
     expect(s.unfunded).toBe(1);
@@ -177,7 +188,9 @@ d('Legacy loan module retirement (integration)', () => {
     });
 
     const one = expectOk(
-      await f.as('finance').get(`/lending/legacy-archive/loans/${legacy.running}`),
+      await f
+        .as('finance')
+        .get(`/lending/legacy-archive/loans/${legacy.running}`),
     );
     expect(one.schedule.map((x: any) => x.dueDate)).toEqual([
       '2026-02-10',
@@ -193,15 +206,23 @@ d('Legacy loan module retirement (integration)', () => {
     );
     expect(b2.data.map((r: any) => r.id)).toEqual([legacy.matured]);
     expect(
-      (await f.as('financeB2').get(`/lending/legacy-archive/loans/${legacy.running}`))
-        .status,
+      (
+        await f
+          .as('financeB2')
+          .get(`/lending/legacy-archive/loans/${legacy.running}`)
+      ).status,
     ).toBe(404);
     // No archive permission.
-    expect((await f.as('ro').get('/lending/legacy-archive/summary')).status).toBe(403);
+    expect(
+      (await f.as('ro').get('/lending/legacy-archive/summary')).status,
+    ).toBe(403);
     // Another tenant's administrator.
     expect(
-      (await f.as('t2admin').get(`/lending/legacy-archive/loans/${legacy.running}`))
-        .status,
+      (
+        await f
+          .as('t2admin')
+          .get(`/lending/legacy-archive/loans/${legacy.running}`)
+      ).status,
     ).toBeGreaterThanOrEqual(403);
   });
 
@@ -251,7 +272,9 @@ d('Legacy loan module retirement (integration)', () => {
       ).total,
     ).toBe(0);
 
-    const perf = expectOk(await f.as('finance').get('/lending/reports/performance'));
+    const perf = expectOk(
+      await f.as('finance').get('/lending/reports/performance'),
+    );
     expect(perf.totals.activeLoans).toBe(1);
     expect(perf.totals.disbursed).toBe('2400.00');
     expect(Number(perf.totals.collected)).toBeCloseTo(paid, 2);
@@ -271,13 +294,18 @@ d('Legacy loan module retirement (integration)', () => {
     expect(ro.totals.activeLoans).toBe(1);
     expect(ro.income).toBeNull();
     expect(
-      expectOk(await f.as('ro2').get('/lending/reports/portfolio')).totals.loans,
+      expectOk(await f.as('ro2').get('/lending/reports/portfolio')).totals
+        .loans,
     ).toBe(0);
   });
 
   it('report exports need loan_data.export, are formula-safe and audited', async () => {
-    expect((await f.as('ro').get('/lending/reports/portfolio.csv')).status).toBe(403);
-    const res = await f.as('finance').get('/lending/reports/receipts.csv?from=2026-02-01');
+    expect(
+      (await f.as('ro').get('/lending/reports/portfolio.csv')).status,
+    ).toBe(403);
+    const res = await f
+      .as('finance')
+      .get('/lending/reports/receipts.csv?from=2026-02-01');
     expect(res.status).toBe(200);
     const [header, row] = res.text.trim().split('\n');
     expect(header.split(',')[0]).toBe('value_date');
@@ -309,7 +337,9 @@ d('Legacy loan module retirement (integration)', () => {
     expect(pdf.headers['content-type']).toBe('application/pdf');
     // Another customer's loan is not theirs; the legacy key-facts route is gone.
     expect((await get(`/borrower/loans/${legacy.running}`)).status).toBe(404);
-    expect((await get(`/borrower/loans/${lendingLoan.loanId}/key-facts`)).status).toBe(404);
+    expect(
+      (await get(`/borrower/loans/${lendingLoan.loanId}/key-facts`)).status,
+    ).toBe(404);
   });
 
   it('the regulatory return reads the legacy ledger only while the legacy book is not empty', async () => {
@@ -334,10 +364,14 @@ d('Legacy loan module retirement (integration)', () => {
     const legacyRow = (p: any) =>
       p.content.tables
         .find((t: any) => t.code === 'PORTFOLIO')
-        .rows.find((r: any) => r.currency === 'USD' && r.stack === 'Legacy loans');
+        .rows.find(
+          (r: any) => r.currency === 'USD' && r.stack === 'Legacy loans',
+        );
     const preview = async () =>
       expectOk(
-        await f.as('finance').get('/lending/regulatory/preview?year=2026&month=2'),
+        await f
+          .as('finance')
+          .get('/lending/regulatory/preview?year=2026&month=2'),
       );
     expect(legacyRow(await preview()).loans).toBe(1);
     // The legacy book empties before the month (as the migration closes a
@@ -352,7 +386,9 @@ d('Legacy loan module retirement (integration)', () => {
     const after = await preview();
     expect(legacyRow(after).loans).toBe(0);
     expect(
-      after.content.reconciliation.filter((r: any) => r.stack === 'LEGACY' && Number(r.ledger) !== 0),
+      after.content.reconciliation.filter(
+        (r: any) => r.stack === 'LEGACY' && Number(r.ledger) !== 0,
+      ),
     ).toEqual([]);
     expect(after.content.warnings.join(' ')).not.toMatch(/legacy/i);
   });

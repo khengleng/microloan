@@ -17,7 +17,12 @@ import { rateTo, reportingRates } from './overview.service';
 type Dec = ReturnType<typeof D>;
 
 /** Money in from the customer (reversed events are excluded by status). */
-export const RECEIPT_EVENTS = ['REPAYMENT', 'PREPAYMENT', 'SETTLEMENT', 'RECOVERY'];
+export const RECEIPT_EVENTS = [
+  'REPAYMENT',
+  'PREPAYMENT',
+  'SETTLEMENT',
+  'RECOVERY',
+];
 /** Days-past-due bands of the arrears ageing, as the original Performance page showed them. */
 export const AGEING_BANDS = [
   { code: 'CURRENT', min: 0, max: 0 },
@@ -29,7 +34,13 @@ export const AGEING_BANDS = [
 
 const LOAN_STATUSES = ['BOOKED', 'ACTIVE', 'CLOSED', 'WRITTEN_OFF'];
 const PAGE_MAX = 200;
-const ALLOCATION_COMPONENTS = ['PRINCIPAL', 'INTEREST', 'FEE', 'TAX', 'PENALTY'];
+const ALLOCATION_COMPONENTS = [
+  'PRINCIPAL',
+  'INTEREST',
+  'FEE',
+  'TAX',
+  'PENALTY',
+];
 
 const money = (d: Dec) => d.toFixed(2);
 const pct = (num: Dec, den: Dec) =>
@@ -137,7 +148,14 @@ export class LendingReportsService {
       const names = await this.names(tx, tenantId, rows);
       const per = new Map<
         string,
-        { loans: number; principal: Dec; interest: Dec; overdue: Dec; par30: Dec; allowance: Dec }
+        {
+          loans: number;
+          principal: Dec;
+          interest: Dec;
+          overdue: Dec;
+          par30: Dec;
+          allowance: Dec;
+        }
       >();
       for (const g of groups) {
         const r = per.get(g.currency) ?? {
@@ -271,9 +289,14 @@ export class LendingReportsService {
       const borrowers = await this.borrowerNames(
         tx,
         tenantId,
-        events.map((e) => e.loanAccount?.borrowerId).filter(Boolean) as string[],
+        events
+          .map((e) => e.loanAccount?.borrowerId)
+          .filter(Boolean) as string[],
       );
-      const per = new Map<string, { count: number; amount: Dec; byType: Record<string, string> }>();
+      const per = new Map<
+        string,
+        { count: number; amount: Dec; byType: Record<string, string> }
+      >();
       for (const g of groups) {
         const r = per.get(g.currency) ?? { count: 0, amount: D(0), byType: {} };
         r.count += g._count._all;
@@ -291,7 +314,12 @@ export class LendingReportsService {
           totalCount += r.count;
           if (rate) totalAmount = totalAmount.plus(r.amount.times(rate));
           else unconverted.add(currency);
-          return { currency, count: r.count, amount: money(r.amount), byType: r.byType };
+          return {
+            currency,
+            count: r.count,
+            amount: money(r.amount),
+            byType: r.byType,
+          };
         });
       return {
         businessDate: ctx.businessDate,
@@ -350,7 +378,10 @@ export class LendingReportsService {
           unconverted: [],
           income: null,
         };
-      const loanWhere = { tenantId, ...scope } satisfies Prisma.LoanAccountWhereInput;
+      const loanWhere = {
+        tenantId,
+        ...scope,
+      } satisfies Prisma.LoanAccountWhereInput;
       const active = { ...loanWhere, status: 'ACTIVE' };
       const cut = fromLocalDate(ctx.businessDate);
       const [book, borrowers, events, dueLines] = await Promise.all([
@@ -529,7 +560,10 @@ export class LendingReportsService {
       by: ['currency'],
       where: {
         tenantId,
-        entryDate: { gte: fromLocalDate(from), lte: fromLocalDate(businessDate) },
+        entryDate: {
+          gte: fromLocalDate(from),
+          lte: fromLocalDate(businessDate),
+        },
       },
     });
     const accounts = await tx.ledgerAccount.findMany({
@@ -683,7 +717,11 @@ export class LendingReportsService {
 
   private async mayExport(actor: LendingActor) {
     const tenantId = requireTenant(actor);
-    await this.policy.enforce(actor, 'loan_data.export', tenantResource(tenantId));
+    await this.policy.enforce(
+      actor,
+      'loan_data.export',
+      tenantResource(tenantId),
+    );
   }
 
   private async exported(actor: LendingActor, report: string, rows: number) {
@@ -743,7 +781,10 @@ export class LendingReportsService {
         rows.map((r) => r.borrowerId),
       ),
       tx.branch.findMany({
-        where: { tenantId, id: { in: [...new Set(rows.map((r) => r.branchId))] } },
+        where: {
+          tenantId,
+          id: { in: [...new Set(rows.map((r) => r.branchId))] },
+        },
         select: { id: true, name: true },
       }),
       tx.lendingProduct.findMany({
@@ -827,7 +868,9 @@ function portfolioWhere(
   if (band)
     and.push({
       daysPastDue:
-        band.max === null ? { gte: band.min } : { gte: band.min, lte: band.max },
+        band.max === null
+          ? { gte: band.min }
+          : { gte: band.min, lte: band.max },
     });
   const text = typeof q.q === 'string' ? q.q.trim().slice(0, 80) : '';
   if (text) and.push({ reference: { contains: text, mode: 'insensitive' } });
@@ -855,8 +898,12 @@ function receiptsWhere(
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The report's dates: given ones when valid, else the business month to date. */
-export function dateRange(q: { from?: string; to?: string }, businessDate: string) {
-  const to = typeof q.to === 'string' && ISO_DAY.test(q.to) ? q.to : businessDate;
+export function dateRange(
+  q: { from?: string; to?: string },
+  businessDate: string,
+) {
+  const to =
+    typeof q.to === 'string' && ISO_DAY.test(q.to) ? q.to : businessDate;
   const from =
     typeof q.from === 'string' && ISO_DAY.test(q.from)
       ? q.from
@@ -881,7 +928,10 @@ function figures(r: {
     activeLoans: r.activeLoans,
     principalOutstanding: money(r.principal),
     allowance: money(r.allowance),
-    ageing: AGEING_BANDS.map((b) => ({ band: b.code, amount: money(r.bands[b.code]) })),
+    ageing: AGEING_BANDS.map((b) => ({
+      band: b.code,
+      amount: money(r.bands[b.code]),
+    })),
     par30Pct: pct(r.par30, r.principal),
     par90Pct: pct(r.par90, r.principal),
     allowanceCoveragePct: pct(r.allowance, r.principal),
@@ -898,6 +948,8 @@ function csv(header: string[], rows: string[][]): string {
     const safe = /^[=+\-@]/.test(v) ? `'${v}` : v;
     return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
-  return [header.join(','), ...rows.map((r) => r.map(cell).join(','))].join('\n') + '\n';
+  return (
+    [header.join(','), ...rows.map((r) => r.map(cell).join(','))].join('\n') +
+    '\n'
+  );
 }
-

@@ -41,7 +41,7 @@ interface Tenant {
     plan: string;
     deletedAt?: string;
     createdAt: string;
-    _count: { users: number; borrowers: number; loans: number; repayments: number; };
+    _count: { users: number; borrowers: number; };
     performance: { disbursed: number; collected: number; };
 }
 

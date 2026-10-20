@@ -3,13 +3,7 @@
  * The lender's own operating parameters (TenantLendingSettings, DECISIONS
  * D-071) and the durable job claims that replaced in-process guards (D-072).
  */
-import {
-  Fixture,
-  TEST_DB,
-  bootstrap,
-  expectOk,
-  grant,
-} from './harness';
+import { Fixture, TEST_DB, bootstrap, expectOk, grant } from './harness';
 import { standardRoles } from './setup';
 
 const d = TEST_DB ? describe : describe.skip;

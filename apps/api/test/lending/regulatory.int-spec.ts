@@ -21,7 +21,6 @@ const d = TEST_DB ? describe : describe.skip;
 
 d('Regulatory returns and legacy consolidation (integration)', () => {
   let f: Fixture;
-  let legacyLoanId: string;
   let v1: string;
 
   const total = (content: any, code: string, currency = 'USD') =>
@@ -58,7 +57,7 @@ d('Regulatory returns and legacy consolidation (integration)', () => {
     // December and was never paid: 42 days past due at 31 January.
     const { LedgerService } = require('../../src/ledger/ledger.service');
     const ledger = f.app.get(LedgerService);
-    legacyLoanId = await f.system(async () => {
+    await f.system(async () => {
       const b = await borrower(f, f.t1, f.b1, {
         firstName: 'Legacy',
         lastName: 'Borrower',
