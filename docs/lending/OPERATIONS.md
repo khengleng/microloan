@@ -23,6 +23,11 @@ templates, permissions, feature-flag definitions) from code. Set
 pnpm demo:lending        # requires the API to have booted once (catalogue sync)
 ```
 
+Run it, like `pnpm db:seed`, with the table owner's database URL
+(`DATABASE_URL="$MIGRATION_DATABASE_URL" pnpm demo:lending`): connected as
+the runtime role `lending_app`, a script that declares no tenant sees no rows
+and cannot write them (row-level security, docs/security/RLS.md).
+
 Creates **Demo Lending Co** with a user per role (`<role>@demo-lending.test`,
 password `$DEMO_PASSWORD`, or a random one the run prints when it is unset —
 users created by an earlier run keep theirs), branch-scoped relationship
