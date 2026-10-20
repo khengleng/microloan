@@ -344,7 +344,8 @@ async function up() {
 /**
  * The four qa.* accounts back to "no authenticator", as on the hosted demo,
  * and to a first sign-in (no Learning centre progress); every demo account
- * unlocked.
+ * unlocked; and the demo organisation back to requiring an authenticator for
+ * its admins, as real organisations do (the demo seed turns that off).
  * The browser tests' global setup calls it, so every run enrols them afresh.
  */
 function resetQaMfa() {
@@ -353,7 +354,12 @@ function resetQaMfa() {
     `UPDATE "User" SET "twoFactorEnabled" = false, "twoFactorSecret" = NULL, "totpLastStep" = NULL WHERE email LIKE 'qa.%@demo-lending.test';\n` +
       // The wrong-password test counts towards the lockout; start every run unlocked.
       `UPDATE "User" SET "loginAttempts" = 0, "lockedUntil" = NULL WHERE email LIKE '%@demo-lending.test';\n` +
-      `DELETE FROM "LearningProgress" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE 'qa.%@demo-lending.test');\n`,
+      `DELETE FROM "LearningProgress" WHERE "userId" IN (SELECT id FROM "User" WHERE email LIKE 'qa.%@demo-lending.test');\n` +
+      // The hosted demo lets its admins sign in with a password only; the
+      // browser tests exercise what every real organisation gets: tenant
+      // admins must enrol an authenticator (D-128) and step up for approvals.
+      `UPDATE "TenantLendingSettings" SET settings = jsonb_set(settings::jsonb, '{security,requireMfaForAdmins}', 'true'::jsonb, true) ` +
+      `WHERE status = 'ACTIVE' AND "tenantId" IN (SELECT "tenantId" FROM "User" WHERE email = 'qa.maker@demo-lending.test');\n`,
   );
 }
 
