@@ -184,6 +184,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'AuditEvent',
   // Operational alerts (D-150): null tenantId for platform-wide alerts, likewise.
   'OperationalAlert',
+  // Go-live setup: items a tenant administrator marked not applicable (D-172).
+  'GoLiveSetupWaiver',
   'AffordabilityPolicy',
   'RestructureCase',
   'RestructureEvidence',

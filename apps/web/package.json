@@ -10,7 +10,7 @@
     "lint": "eslint",
     "lint:check": "eslint",
     "typecheck": "node scripts/generate-user-guide.mjs && tsc --noEmit",
-    "test": "node --experimental-strip-types --no-warnings --test src/lib/session-refresh.test.mjs src/lib/upstream-headers.test.mjs src/messages.test.mjs src/i18n-namespaces.test.mjs"
+    "test": "node --experimental-strip-types --no-warnings --test src/lib/session-refresh.test.mjs src/lib/upstream-headers.test.mjs src/lib/setup-import.test.mjs src/messages.test.mjs src/i18n-namespaces.test.mjs"
   },
   "dependencies": {
     "@microloan/shared": "workspace:^",

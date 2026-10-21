@@ -746,7 +746,8 @@
       "platformCatalogue": "Product catalogue",
       "platformFlags": "Platform flags",
       "aml": "AML & compliance",
-      "legacyArchive": "Legacy loan archive"
+      "legacyArchive": "Legacy loan archive",
+      "goLiveSetup": "Go-live setup"
     },
     "shell": {
       "platformScope": "Platform · all organisations",
@@ -787,7 +788,8 @@
       "youPrepare": "You prepare",
       "youApprove": "You approve",
       "forInformation": "For information",
-      "money": "Money"
+      "money": "Money",
+      "goLiveSetup": "Go-live setup"
     },
     "queues": {
       "APPLICATIONS_DRAFT": "Applications in progress",
@@ -2521,7 +2523,8 @@
     "auditTrail": "Every lending action and policy decision, with the configuration versions in force at the time.",
     "access": "Roles, scoped assignments, delegations, approval limits, ABAC policies and feature flags. Every change is maker-checker controlled.",
     "aml": "Watch-list screening, customer risk, enhanced due diligence, cash transaction reports and suspicious transaction referrals.",
-    "legacyArchive": "Loans of the original loan module, read-only: look them up, export them, and move running loans to the lending platform with the loan-book migration."
+    "legacyArchive": "Loans of the original loan module, read-only: look them up, export them, and move running loans to the lending platform with the loan-book migration.",
+    "goLiveSetup": "What is still to configure before your first loan: each item is checked against what is really set up and links to the screen where it is done."
   },
   "Overview": {
     "asOf": "As of business date {date} · amounts in {currency}",
@@ -9735,5 +9738,215 @@
     "date": "Date",
     "amount": "Amount",
     "reversed": "Reversed"
+  },
+  "GoLiveSetup": {
+    "progress": {
+      "title": "Go-live progress",
+      "completeTitle": "Ready to go live",
+      "subtitle": "Worked out from what is set up now, not from ticks. Each item links to the screen where it is done.",
+      "counts": "{done} of {total} done · {todo} to do · {blocked} blocked",
+      "asOf": "Checked {at}"
+    },
+    "refresh": "Refresh",
+    "open": "Open",
+    "markNotApplicable": "Not applicable…",
+    "clear": "Count it again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "reasonLabel": "Why does this not apply?",
+    "reasonPlaceholder": "Why this does not apply (at least 5 characters)",
+    "markedToast": "Marked not applicable.",
+    "clearedToast": "The item counts again.",
+    "waiver": "Not applicable: {reason} ({at})",
+    "eodFacts": "End of day runs on the schedule {schedule} in the {timeZone} time zone.",
+    "status": {
+      "DONE": "Done",
+      "TODO": "To do",
+      "BLOCKED": "Blocked",
+      "NOT_APPLICABLE": "Not applicable",
+      "NOT_CHECKED": "Not checked",
+      "INFO": "For information"
+    },
+    "sections": {
+      "organisation": "Organisation",
+      "people": "People and access",
+      "operations": "Business date and exchange rates",
+      "accounting": "Accounting",
+      "products": "Products and credit",
+      "compliance": "AML / CFT",
+      "channels": "Payments, alerts and switches",
+      "training": "Training"
+    },
+    "items": {
+      "consumer_protection": {
+        "title": "Organisation details for disclosures",
+        "help": "Legal name, NBC licence number, complaint phone, e-mail and address, and the regulator contact printed on every key facts statement (lending settings › consumer protection)."
+      },
+      "branches": {
+        "title": "Branches",
+        "help": "At least one branch: staff, customers and loans belong to branches. You can import a branches file below."
+      },
+      "staff_roles": {
+        "title": "Staff and roles",
+        "help": "Two tenant administrators (one approves the other’s access changes), a credit analyst and an approver, a loan operations maker and checker, finance and risk / compliance — different people on each side of maker-checker."
+      },
+      "admin_mfa": {
+        "title": "Two-factor sign-in for administrators",
+        "help": "Every tenant administrator signs in with an authenticator app."
+      },
+      "approval_authorities": {
+        "title": "Approval limits",
+        "help": "A credit approval limit in every currency you lend in, so approvers can approve loans."
+      },
+      "business_date": {
+        "title": "Business date and end of day",
+        "help": "The business date is set and end of day keeps it up to date, in the end-of-day time zone."
+      },
+      "fx_rates": {
+        "title": "Exchange rates (KHR / USD)",
+        "help": "When you lend in more than one currency, publish the rate to your base currency."
+      },
+      "chart_of_accounts": {
+        "title": "Chart of accounts and account mapping",
+        "help": "The chart is opened and every account the lending settings and your active products post to is in it."
+      },
+      "opening_balances": {
+        "title": "Opening balances (existing loan book)",
+        "help": "Bring the loans from your previous system over with a loan-book migration file."
+      },
+      "products": {
+        "title": "An active product within the rate cap",
+        "help": "Create a product from a catalogue template; a product checker approves and activates it. Its rates must fit under the interest-rate cap."
+      },
+      "impairment_policy": {
+        "title": "Impairment policy",
+        "help": "An approved impairment policy. Without one no loss allowance is posted and month-end close is blocked."
+      },
+      "scorecards": {
+        "title": "Credit scorecards",
+        "help": "An approved scorecard of your own for each product family you lend in, or accept the default template."
+      },
+      "aml_watch_list": {
+        "title": "AML watch list",
+        "help": "A sanctions / PEP watch list uploaded and activated, so customers are screened."
+      },
+      "aml_settings": {
+        "title": "AML thresholds and risk weights",
+        "help": "The cash transaction reporting threshold and the customer risk weights reviewed and approved in the lending settings."
+      },
+      "payment_khqr": {
+        "title": "Payment method: static KHQR",
+        "help": "Customers repay by scanning your organisation’s static KHQR code."
+      },
+      "alert_emails": {
+        "title": "Operations alert e-mails",
+        "help": "Who at your organisation is e-mailed when end of day, month end or payments need attention."
+      },
+      "feature_flags": {
+        "title": "Feature switches for your products",
+        "help": "New business is switched on for every product family and capability your active products use."
+      },
+      "learning": {
+        "title": "Staff training (Learning centre)",
+        "help": "How far your staff are through the lessons for their roles. For information only: it does not hold up go-live."
+      }
+    },
+    "reasons": {
+      "settingsInvalid": "The lending settings in force no longer validate: propose a corrected version.",
+      "settingsAwaitingApproval": "The details are in a lending settings proposal waiting for a second person to approve it.",
+      "disclosureMissing": "The key facts statement prints “not configured” for: {fields}.",
+      "noBranches": "There is no active branch yet.",
+      "roleMissing": "{role}: {have} of {need} people needed.",
+      "samePerson": "{maker} and {checker} are held by the same one person; maker-checker needs two.",
+      "roleAwaitingApproval": "{role}: an assignment is waiting for a second administrator to approve it.",
+      "noAdmins": "There is no active tenant administrator.",
+      "adminsWithoutMfa": "{count} administrator(s) without an authenticator: {emails}. Each sets it up under My account.",
+      "noApprovalLimit": "No credit approval limit in {currencies}: nobody can approve a loan in that currency.",
+      "limitAwaitingApproval": "Approval limits in {currencies} are waiting for a second administrator.",
+      "businessDateNotSet": "The business date has not been set yet: open End of day & operations to confirm it.",
+      "businessDateBehind": "The business date {businessDate} is {days} day(s) behind the calendar ({timeZone}): run end of day to catch up.",
+      "singleCurrency": "Only {currency} is in use: no exchange rate is needed.",
+      "fxMissing": "No exchange rate to {base} for {currencies}.",
+      "chartNotProvisioned": "The chart of accounts has not been opened yet: open the ledger to set it up and review it.",
+      "unknownAccounts": "The account mapping names accounts that are not in the chart: {codes}.",
+      "migrationAwaitingApproval": "A migration file is loaded and waiting for a second person to approve posting it.",
+      "noMigration": "No loan book has been migrated. Mark this not applicable if you are a new lender with no existing loans.",
+      "productAwaitingActivation": "Approved but not active yet: {products}.",
+      "productAwaitingApproval": "Waiting for a product checker: {products}.",
+      "noActiveProduct": "No product is active yet.",
+      "rateCapExceeded": "Rates above the interest-rate cap in: {products}.",
+      "impairmentAwaitingApproval": "An impairment policy is waiting for a second person to approve it.",
+      "noImpairmentPolicy": "No impairment policy is approved: month-end close is blocked while loans are outstanding.",
+      "needsActiveProduct": "Activate a product first.",
+      "scorecardOnTemplate": "Scored with the default template, not an approved scorecard of yours: {scorecards}.",
+      "watchListAwaitingApproval": "An uploaded watch list is waiting for a second compliance officer to activate it.",
+      "noWatchList": "No watch list is active: customers cannot be screened.",
+      "ctrCurrencyMissing": "No cash transaction reporting threshold for {currencies}.",
+      "amlDefaultsNotConfirmed": "The threshold and risk weights are still the defaults: review them and approve a version of the lending settings.",
+      "khqrNotChecked": "This cannot be checked automatically yet. Set the KHQR up under Payment channels, then mark it not applicable here or wait for the check.",
+      "noKhqr": "No active static KHQR: customers cannot pay by scanning your code.",
+      "noAlertEmails": "Nobody at your organisation is e-mailed about operational problems yet.",
+      "flagsOff": "New business is switched off by: {flags}.",
+      "learningProgress": "{completed} of {required} lessons on staff role paths completed ({percent}%) by {members} staff."
+    },
+    "banner": {
+      "title": "Go-live setup:",
+      "body": "{percent}% done ({done} of {total} items).",
+      "open": "Continue setup",
+      "later": "Later"
+    },
+    "platform": {
+      "label": "Go-live setup",
+      "percent": "{percent}% · {open} open",
+      "complete": "Complete"
+    },
+    "imports": {
+      "title": "Import staff and branches",
+      "subtitle": "Fill in a CSV file, check it here, then create the records one by one with the same rules as the Team and Access pages.",
+      "staffTab": "Staff",
+      "branchesTab": "Branches",
+      "staffHelp": "Columns: email, name, roles (lending role codes separated by ;), branch (code or name; empty for all branches). Each person gets an account with a temporary password and their lending roles are requested as on the Access page: sensitive roles wait for a second administrator to approve them.",
+      "branchesHelp": "Columns: name, code (optional: 2–12 of A–Z, 0–9, - or _).",
+      "template": "Download template",
+      "chooseFile": "Choose CSV file",
+      "colLine": "Line",
+      "colEmail": "E-mail",
+      "colName": "Name",
+      "colRoles": "Roles",
+      "colBranch": "Branch",
+      "colStaffRole": "Staff role",
+      "colCheck": "Check",
+      "colResult": "Result",
+      "colBranchName": "Branch name",
+      "colBranchCode": "Code",
+      "allBranches": "All branches",
+      "ok": "OK",
+      "staffNotice": "Only rows marked OK are created. Names go on your sign-in sheet only: the portal identifies staff by e-mail.",
+      "invite": "Create {count} account(s)",
+      "createBranches": "Create {count} branch(es)",
+      "assignmentReason": "Go-live staff import",
+      "created": "Account created; {count} role request(s) sent.",
+      "rolesFailed": "Not requested: {roles}.",
+      "failed": "Failed: {error}",
+      "branchCreated": "Created",
+      "credentialsTitle": "Temporary passwords",
+      "credentialsBody": "Download the sign-in sheet now: the passwords are not shown again. Give each person theirs privately and ask them to change it under My account and set up their authenticator.",
+      "credentialsDownload": "Download sign-in sheet (CSV)",
+      "issues": {
+        "missingColumns": "The file needs the columns: {columns}.",
+        "empty": "The file has no rows.",
+        "tooManyRows": "At most {max} rows per file.",
+        "badEmail": "Not a valid e-mail address.",
+        "emailExists": "Already has an account.",
+        "duplicateEmail": "Same e-mail as line {line}.",
+        "badName": "Name missing or too long.",
+        "noRoles": "No role given.",
+        "unknownRole": "Unknown role {role}.",
+        "unknownBranch": "Unknown or closed branch {branch}.",
+        "badBranchName": "The name must be 2–80 characters.",
+        "branchExists": "{branch} already exists.",
+        "badBranchCode": "The code must be 2–12 of A–Z, 0–9, - or _."
+      }
+    }
   }
 }
