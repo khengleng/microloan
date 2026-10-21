@@ -1,12 +1,17 @@
-import { Controller, Post, Get, Delete, Body, Req, Headers, Res, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Req, Headers, BadRequestException, HttpCode, Param, Query, UseGuards } from '@nestjs/common';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { BillingService } from './billing.service';
 import { PlanChangeService } from './plan-change.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
-import type { Request, Response } from 'express';
 import { Public } from '../auth/auth-scope.decorator';
+import { PlatformGuard } from '../auth/platform.guard';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
+import { Permission } from '../authz/permission.enum';
+import { PlanQuotaService } from '../plan-tiers/plan-quota.service';
+import { StripeWebhookService } from './stripe-webhook.service';
+import type { RawBodyRequest } from './raw-body';
 export class RequestPlanChangeDto {
     /** Tier name, checked against the live catalogue by the service. */
     @IsNotEmpty()
@@ -20,6 +25,8 @@ export class BillingController {
     constructor(
         private readonly billingService: BillingService,
         private readonly planChange: PlanChangeService,
+        private readonly webhooks: StripeWebhookService,
+        private readonly quotas: PlanQuotaService,
     ) { }
 
     /**
@@ -65,12 +72,54 @@ export class BillingController {
         return this.billingService.createBillingPortal(user.tenantId, user.sub);
     }
 
-    // Authenticated by Stripe signature verification inside the service,
-    // not by a JWT — there is no user principal on a webhook.
+    /**
+     * The tenant's use of its plan's quotas (D-167), for the usage meter on
+     * the subscription screen.
+     */
+    @Roles('TENANT_ADMIN')
+    @Get('usage')
+    async usage(@CurrentUser() user: JwtPayload) {
+        if (!user.tenantId) throw new BadRequestException('Tenant scope is required.');
+        return this.quotas.usage(user.tenantId);
+    }
+
+    // Authenticated by Stripe signature verification over the raw body
+    // (req.rawBody, kept for this route only — raw-body.ts), not by a JWT:
+    // there is no user principal on a webhook (D-166).
     @Public()
     @Post('webhook')
-    async stripeWebhook(@Headers('stripe-signature') signature: string, @Req() req: Request, @Res() res: Response) {
-        await this.billingService.handleStripeWebhook(signature, req.body);
-        return res.status(200).send('Webhook received');
+    @HttpCode(200)
+    async stripeWebhook(@Headers('stripe-signature') signature: string | undefined, @Req() req: RawBodyRequest) {
+        const result = await this.webhooks.handle(signature, req.rawBody);
+        return result
+            ? { received: true, duplicate: result.duplicate, outcome: result.outcome }
+            : { received: true };
+    }
+}
+
+/**
+ * The platform operator's view of Stripe deliveries the platform did not
+ * apply on its own (a payment for a suspended or erasure-pending
+ * organisation, an unknown plan or customer). Each stays an operational
+ * alert until marked reviewed.
+ */
+@UseGuards(PlatformGuard)
+@Controller('billing/webhook-events')
+export class BillingWebhookReviewController {
+    constructor(private readonly webhooks: StripeWebhookService) { }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
+    @Get()
+    list(@Query('all') all?: string, @Query('outcome') outcome?: string) {
+        return this.webhooks.list({ all: all === 'true', outcome });
+    }
+
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_UPDATE)
+    @Post(':eventId/review')
+    @HttpCode(200)
+    review(@CurrentUser() user: JwtPayload, @Param('eventId') eventId: string) {
+        return this.webhooks.markReviewed(eventId, user.sub);
     }
 }

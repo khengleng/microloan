@@ -105,6 +105,7 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'payoff-quotes/:quoteId': 'payoffQuote',
       'tasks/:taskId': 'collectionTask',
       'guarantor-demands/:demandId': 'guarantorDemand',
+      'promises/:promiseId': 'collectionPromise',
       'covenants/:covenantId': 'loanCovenant',
       'migrations/:batchId': 'migrationBatch',
       'webhooks/:endpointId': 'webhookEndpoint',
@@ -198,6 +199,8 @@ const PLATFORM_ROWS: Record<string, string> = {
   'plan-tiers/:id': 'planTier',
   // Platform-only second-super-administrator requests (D-130, D-131).
   'purge-requests/:approvalId': 'platformApproval',
+  // Stripe deliveries awaiting the operator's review (D-166): platform-only.
+  'webhook-events/:eventId': 'stripeWebhookEvent',
 };
 
 /** Routes outside the wall's subject matter: sign-in flows and health. */

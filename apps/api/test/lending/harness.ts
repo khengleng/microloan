@@ -101,7 +101,9 @@ export async function bootstrap(): Promise<Fixture> {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
-  app.useBodyParser('json', { limit: '5mb' });
+  // As main.ts: the raw body is kept for the signed Stripe webhook only.
+  const { jsonBodyParserOptions } = require('../../src/billing/raw-body');
+  app.useBodyParser('json', jsonBodyParserOptions('5mb'));
   await app.init();
   // Bind one port for the whole suite. Left unbound, supertest opens a fresh
   // ephemeral port per request, and another local process can take it between
@@ -115,12 +117,22 @@ export async function bootstrap(): Promise<Fixture> {
   const { t1, t2, b1, b2, b3, users } = await system(async () => {
     const t1 = (
       await prisma.tenant.create({
-        data: { name: `Test Lender ${suffix}`, status: 'ACTIVE' },
+        // Unlimited plan: suites create many products and loans; the plan
+        // quotas have their own suite (plan-quotas.int-spec).
+        data: {
+          name: `Test Lender ${suffix}`,
+          status: 'ACTIVE',
+          plan: 'ENTERPRISE',
+        },
       })
     ).id;
     const t2 = (
       await prisma.tenant.create({
-        data: { name: `Other Lender ${suffix}`, status: 'ACTIVE' },
+        data: {
+          name: `Other Lender ${suffix}`,
+          status: 'ACTIVE',
+          plan: 'ENTERPRISE',
+        },
       })
     ).id;
     const b1 = (
