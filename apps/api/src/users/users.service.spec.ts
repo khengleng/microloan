@@ -2,6 +2,7 @@ import { ForbiddenException, BadRequestException, ConflictException, NotFoundExc
 import { Role } from '@microloan/db';
 import { UsersService } from './users.service';
 import { AuthzService } from '../authz/authz.service';
+import { PlanQuotaService } from '../plan-tiers/plan-quota.service';
 
 describe('UsersService security', () => {
   const prisma: any = {
@@ -15,6 +16,7 @@ describe('UsersService security', () => {
       count: jest.fn(),
     },
     refreshToken: { updateMany: jest.fn() },
+    tenant: { findUnique: jest.fn(async () => ({ plan: 'BASIC' })) },
     // Array-form transaction: the operations were already built; resolve them.
     $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
   };
@@ -23,9 +25,10 @@ describe('UsersService security', () => {
     logAction: jest.fn(),
   };
   const authz = new AuthzService(audit);
-  const planTiers: any = { ceilingsFor: jest.fn() };
+  const planTiers: any = { ceilingsFor: jest.fn(), byName: jest.fn(async () => null) };
   const grants: any = { requestForNewAccount: jest.fn() };
-  const service = new UsersService(prisma, audit, authz, planTiers, grants);
+  const quotas = new PlanQuotaService(prisma, planTiers);
+  const service = new UsersService(prisma, audit, authz, quotas, grants);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -210,7 +213,9 @@ describe('UsersService security', () => {
       prisma.user.findFirst.mockResolvedValue(suspended);
       planTiers.ceilingsFor.mockResolvedValue({ maxUsers: 3 });
       prisma.user.count.mockResolvedValue(3);
-      await expect(service.reactivate(admin, 'u2')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.reactivate(admin, 'u2')).rejects.toMatchObject({
+        response: { code: 'PLAN_LIMIT_REACHED', resource: 'users', limit: 3, used: 3 },
+      });
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 

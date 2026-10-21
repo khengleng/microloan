@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { PlanTierService } from './plan-tier.service';
+import { PlanQuotaService } from './plan-quota.service';
 import { PlanTierController } from './plan-tier.controller';
 
 /**
@@ -11,8 +12,8 @@ import { PlanTierController } from './plan-tier.controller';
  */
 @Global()
 @Module({
-  providers: [PlanTierService],
+  providers: [PlanTierService, PlanQuotaService],
   controllers: [PlanTierController],
-  exports: [PlanTierService],
+  exports: [PlanTierService, PlanQuotaService],
 })
 export class PlanTiersModule {}
