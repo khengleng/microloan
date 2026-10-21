@@ -7,7 +7,7 @@ This chapter covers loans on the lending platform (**Loans › Loan accounts**).
 What is covered:
 
 1. How days past due, buckets and collection stages are worked out
-2. The **Collections** page: business date, collector work queues, borrower notices, past-due list
+2. The **Collections** page: business date, collector work queues, borrower notices, past-due list, promises to pay
 3. Calling the guarantor (guarantor demands)
 4. Set-off from the borrower's deposit
 5. The **Recovery** desk and the recovery card on the loan: repossession, pawn, credit insurance, debt sale, surplus payouts
@@ -107,8 +107,9 @@ To work a task:
 3. Make the call or visit.
 4. Click **Record outcome**.
 5. Pick the outcome: **contacted**, **no answer**, **promise to pay**, **visited**, **not found**, **refused**, **notice sent** or **refer legal**.
-6. Type a **Note** (for example the date and amount promised).
-7. Click **Save**. The task moves to **DONE** and shows the outcome and note.
+6. For **promise to pay**, fill in **Promised amount** (it starts at the amount overdue) and **Pay by** (the date the borrower promised). Both are required.
+7. Type a **Note** if you like.
+8. Click **Save**. The task moves to **DONE** and shows the outcome and note; a promise is now tracked (section 2.5).
 
 You can record an outcome without claiming first, unless another collector has claimed the task.
 
@@ -116,7 +117,11 @@ If it is blocked:
 - "This task is closed or already claimed by someone else." Someone else claimed it first, or it was closed. Click **Refresh**.
 - "Another collector holds this task." Only the collector who claimed it can complete it.
 
-Note on **promises to pay**: the lending platform records a promise only as a task outcome with a note. It does not track the promised date or amount, and it does not mark a promise kept or broken. The next end-of-day batch after the borrower pays will show the loan as cured.
+If it is blocked:
+- "A promise to pay needs the amount and the date the customer promised" — fill in **Promised amount** and **Pay by**.
+- "The promised date must be between … and … (at most N days ahead)." Your organisation's lending settings limit how far ahead a promise may run (**Promises to pay: furthest a customer may promise ahead**, default 30 days).
+
+A task with **promise broken** next to the action was raised by the system because a promise was not kept (section 2.5). Its note says what was promised and what was received.
 
 ### 2.3 Borrower notices
 
@@ -131,6 +136,23 @@ Card title: **Borrower notices**. It lists the messages that should go to borrow
 Card title: **Past-due loans**. Every loan with DPD above 0, worst first. Columns: **Reference**, **DPD**, **Bucket**, **Stage**, **Principal o/s**, **Interest + fees + penalty**, **Total outstanding**, **Status**. A **Restructured** badge marks restructured loans. Click the reference to open the loan and act on it.
 
 Note: the list reads at most 2,000 loans. If there are more, a warning says "Only the first N of M loans were scanned."
+
+### 2.5 Promises to pay
+
+A promise is the borrower's word that they will pay an amount by a date. You record it with the **promise to pay** outcome in the work queue (section 2.2), or on the loan itself: open the loan, click **Guarantor / set-off** (shown while the loan is in arrears), and under **Promises to pay** fill in **Amount**, **Pay by** and an optional **Note**, then click **Record promise**. A new promise on a loan replaces one that is still pending.
+
+Every day, after end of day, the system reviews each pending promise:
+
+| Status | When |
+|---|---|
+| **Pending** | Waiting: the promised date (plus the grace days) has not passed and the money has not come in. |
+| **Kept** | Money received on the loan from the day of the promise (repayments, prepayments, settlements, recoveries) covers the promised amount — as soon as it does. |
+| **Broken** | The promised date plus the grace days has passed without enough money. A new task (**promise broken**) goes to the work queue of the **next** collections stage — for example from the phone queue to field visits — for a collector to follow up. If the borrower has caught up by then, no task is raised. |
+| **Cancelled** | Withdrawn by a collector, replaced by a newer promise, or the loan closed or was written off first. |
+
+The list on the loan shows the amount, the date the promise was made, **Pay by (counts until)** — the last day a payment still counts, which is the promised date plus your organisation's **grace days** (lending setting **Promises to pay: days after the promised date that payments still count**, default 0) — what was received, and the status. **Withdraw** cancels a pending promise.
+
+Who can do it: recording and withdrawing promises needs the same permission as working collection tasks. Finance can run the review at once (for example after a manual end of day) with the batch permission; normally it runs by itself.
 
 ---
 

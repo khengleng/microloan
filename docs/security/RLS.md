@@ -46,7 +46,7 @@ Variants of the same rule:
   `EXISTS (SELECT 1 FROM parent p WHERE p.id = fk AND p."tenantId" = app.tenant_id)`,
   or system — so a child row cannot be read through, or hung under, another
   tenant's parent.
-- **Platform-only tables** (`PlatformApproval`, `TenantArchive`,
+- **Platform-only tables** (`PlatformApproval`, `TenantArchive`, `StripeWebhookEvent` (D-166),
   `PlatformPaymentQr`): system only (`<table>_platform_only`).
 - **Left open**: the platform catalogue (`PlanTier`, `LoanFamily`,
   `ProductTemplate`, `AccessPermission`, `FeatureFlag`, `PlatformFlagRule`) —
