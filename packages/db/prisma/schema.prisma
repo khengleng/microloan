@@ -5189,6 +5189,7 @@ model CreditReport {
   @@unique([tenantId, reference])
   @@index([tenantId, borrowerId, createdAt])
   @@index([tenantId, applicationId, createdAt])
+}
 
 // ── Go-live setup (DECISIONS D-171…D-175) ───────────────────────────────────
 
