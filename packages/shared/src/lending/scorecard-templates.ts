@@ -321,6 +321,196 @@ const THIN_FILE: ScorecardDefinitionInput = {
   ],
 };
 
+/**
+ * The in-house bureau score (DECISIONS D-177): a CBC-style 300–850 score of
+ * the borrower's credit report, built from this lender's own records only
+ * (CBC is on hold). It reads the report's characteristics — delinquency in
+ * the last 12 and 24 months, how recently and how often the borrower was 30+
+ * days late, write-offs and restructures, revolving utilisation, length of
+ * history, recent credit applications and the number of open facilities.
+ * A borrower without enough history gets no score (NO_HISTORY), never a low
+ * one: that rule sits before the scorecard (bureauScoreEligibility). The
+ * score then feeds the application scorecards' bureauScore input.
+ */
+const BUREAU_GRADES = [
+  { grade: 'A', label: 'Very low risk', minScore: 720 },
+  { grade: 'B', label: 'Low risk', minScore: 660 },
+  { grade: 'C', label: 'Moderate risk', minScore: 600 },
+  { grade: 'D', label: 'Elevated risk', minScore: 540 },
+  { grade: 'E', label: 'High risk', minScore: 300 },
+];
+
+const INTERNAL_BUREAU: ScorecardDefinitionInput = {
+  schemaVersion: 1,
+  baseScore: 575,
+  minScore: 300,
+  maxScore: 850,
+  adverseReasonCount: 4,
+  grades: BUREAU_GRADES,
+  characteristics: [
+    {
+      code: 'WORST_DPD_12M',
+      label: 'Worst days past due, last 12 months',
+      group: 'DELINQUENCY',
+      variable: 'bureauWorstDpd12m',
+      type: 'BINS',
+      bins: [
+        { upTo: '0', points: 80, reason: 'Never past due in the last 12 months.' },
+        { upTo: '29', points: 40, reason: 'At most {value} days past due in the last 12 months.' },
+        { upTo: '59', points: -20, reason: 'Up to {value} days past due in the last 12 months.' },
+        { upTo: '89', points: -60, reason: 'Up to {value} days past due in the last 12 months.' },
+        { upTo: null, points: -120, reason: '{value} days past due in the last 12 months.' },
+      ],
+      missing: { points: 0, reason: 'No facility in the last 12 months.' },
+      adverseReason: { code: 'RECENT_ARREARS', text: 'Little or late repayment history in the last 12 months.' },
+    },
+    {
+      code: 'WORST_DPD_24M',
+      label: 'Worst days past due, last 24 months',
+      group: 'DELINQUENCY',
+      variable: 'bureauWorstDpd24m',
+      type: 'BINS',
+      bins: [
+        { upTo: '0', points: 30, reason: 'Never past due in the last 24 months.' },
+        { upTo: '29', points: 15, reason: 'At most {value} days past due in the last 24 months.' },
+        { upTo: '89', points: -10, reason: 'Up to {value} days past due in the last 24 months.' },
+        { upTo: null, points: -40, reason: '{value} days past due in the last 24 months.' },
+      ],
+      missing: { points: 0, reason: 'No facility in the last 24 months.' },
+      adverseReason: { code: 'PAST_ARREARS', text: 'Little or late repayment history in the last two years.' },
+    },
+    {
+      code: 'SINCE_DELINQUENCY',
+      label: 'Months since last 30+ days past due',
+      group: 'DELINQUENCY',
+      variable: 'bureauMonthsSinceDelinquency',
+      type: 'BINS',
+      bins: [
+        { upTo: '5', points: -40, reason: '30+ days past due {value} month(s) ago.' },
+        { upTo: '11', points: -15, reason: '30+ days past due {value} months ago.' },
+        { upTo: '23', points: 10, reason: '30+ days past due {value} months ago.' },
+        { upTo: null, points: 30, reason: 'Last 30+ days past due {value} months ago.' },
+      ],
+      missing: { points: 40, reason: 'Never 30+ days past due.' },
+      adverseReason: { code: 'RECENT_DELINQUENCY', text: 'A repayment was 30 days or more late recently.' },
+    },
+    {
+      code: 'TIMES_30_PLUS',
+      label: 'Times 30+ days past due, last 12 months',
+      group: 'DELINQUENCY',
+      variable: 'bureauTimes30Dpd12m',
+      type: 'BINS',
+      bins: [
+        { upTo: '0', points: 20, reason: 'Never 30+ days past due at a month end in the last 12 months.' },
+        { upTo: '1', points: -20, reason: '30+ days past due at {value} month end in the last 12 months.' },
+        { upTo: '3', points: -50, reason: '30+ days past due at {value} month ends in the last 12 months.' },
+        { upTo: null, points: -90, reason: '30+ days past due at {value} month ends in the last 12 months.' },
+      ],
+      missing: { points: 0, reason: 'No facility in the last 12 months.' },
+      adverseReason: { code: 'REPEATED_ARREARS', text: 'Repayments were 30 days or more late more than once.' },
+    },
+    {
+      code: 'WRITE_OFF',
+      label: 'Write-off on record',
+      group: 'DEROGATORY',
+      variable: 'bureauWriteOff',
+      type: 'CATEGORIES',
+      categories: [
+        { values: ['true'], points: -200, reason: 'A facility was written off.' },
+        { values: ['false'], ...omit },
+      ],
+      missing: omit,
+      adverseReason: { code: 'WRITE_OFF', text: 'A previous loan was written off.' },
+    },
+    {
+      code: 'RESTRUCTURED',
+      label: 'Restructured in the last 24 months',
+      group: 'DEROGATORY',
+      variable: 'bureauRestructured',
+      type: 'CATEGORIES',
+      categories: [
+        { values: ['true'], points: -60, reason: 'A facility was restructured in the last 24 months.' },
+        { values: ['false'], ...omit },
+      ],
+      missing: omit,
+      adverseReason: { code: 'RESTRUCTURED', text: 'A loan was restructured in the last two years.' },
+    },
+    {
+      code: 'UTILISATION',
+      label: 'Utilisation of revolving limits',
+      variable: 'bureauRevolvingUtilisation',
+      type: 'BINS',
+      // Best outcome 0, so a borrower without a credit line or card is neither rewarded nor given this reason.
+      bins: [
+        { upTo: '0.3', points: 0, reason: '{percent}% of revolving limits used.' },
+        { upTo: '0.6', points: -20, reason: '{percent}% of revolving limits used.' },
+        { upTo: '0.9', points: -40, reason: '{percent}% of revolving limits used.' },
+        { upTo: null, points: -70, reason: '{percent}% of revolving limits used.' },
+      ],
+      missing: omit,
+      adverseReason: { code: 'HIGH_UTILISATION', text: 'Credit lines and cards are used close to their limits.' },
+    },
+    {
+      code: 'HISTORY_LENGTH',
+      label: 'Age of oldest facility',
+      variable: 'bureauOldestFacilityMonths',
+      type: 'BINS',
+      bins: [
+        { upTo: '11', points: 0, reason: 'Oldest facility opened {value} month(s) ago.' },
+        { upTo: '35', points: 20, reason: 'Oldest facility opened {value} months ago.' },
+        { upTo: '59', points: 35, reason: 'Oldest facility opened {value} months ago.' },
+        { upTo: null, points: 50, reason: 'Oldest facility opened {value} months ago.' },
+      ],
+      missing: { points: 0, reason: 'No facility on record.' },
+      adverseReason: { code: 'SHORT_HISTORY', text: 'The credit history is short.' },
+    },
+    {
+      code: 'ENQUIRIES_6M',
+      label: 'Credit applications, last 6 months',
+      group: 'ENQUIRIES',
+      variable: 'bureauEnquiries6m',
+      type: 'BINS',
+      bins: [
+        { upTo: '0', points: 10, reason: 'No other credit application in the last 6 months.' },
+        { upTo: '1', points: 0, reason: '{value} other credit application in the last 6 months.' },
+        { upTo: '3', points: -20, reason: '{value} other credit applications in the last 6 months.' },
+        { upTo: null, points: -45, reason: '{value} other credit applications in the last 6 months.' },
+      ],
+      missing: { points: 0, reason: 'No enquiries.' },
+      adverseReason: { code: 'MANY_ENQUIRIES', text: 'Several recent applications for credit.' },
+    },
+    {
+      code: 'ENQUIRIES_12M',
+      label: 'Credit applications, last 12 months',
+      group: 'ENQUIRIES',
+      variable: 'bureauEnquiries12m',
+      type: 'BINS',
+      bins: [
+        { upTo: '2', ...omit },
+        { upTo: '5', points: -10, reason: '{value} other credit applications in the last 12 months.' },
+        { upTo: null, points: -30, reason: '{value} other credit applications in the last 12 months.' },
+      ],
+      missing: omit,
+      adverseReason: { code: 'MANY_ENQUIRIES', text: 'Several recent applications for credit.' },
+    },
+    {
+      code: 'ACTIVE_FACILITIES',
+      label: 'Open facilities',
+      variable: 'bureauActiveFacilities',
+      type: 'BINS',
+      // Best outcome 0: having no open facility is neither rewarded nor given this reason.
+      bins: [
+        { upTo: '0', points: 0, reason: 'No open facility.' },
+        { upTo: '2', points: 0, reason: '{value} open facility(ies).' },
+        { upTo: '4', points: -15, reason: '{value} open facilities.' },
+        { upTo: null, points: -40, reason: '{value} open facilities.' },
+      ],
+      missing: { points: 0, reason: 'No open facility.' },
+      adverseReason: { code: 'MANY_FACILITIES', text: 'Many facilities are open at the same time.' },
+    },
+  ],
+};
+
 function build(code: string, name: string, description: string, input: ScorecardDefinitionInput): ScorecardTemplate {
   const v = validateScorecardDefinition(input);
   if (!v.ok) throw new Error(`Scorecard template ${code} is invalid: ${v.issues.map((i) => `${i.path} ${i.message}`).join('; ')}`);
@@ -340,6 +530,15 @@ export const SCORECARD_TEMPLATES: ScorecardTemplate[] = [
     'For borrowers with little or no credit history: affordability plus verified utility, rent, mobile and cash-flow data and early behaviour with us. Missing or unconsented data scores nothing.',
     THIN_FILE,
   ),
+  build(
+    'INTERNAL_BUREAU',
+    'In-house bureau score (credit report)',
+    'Scores the borrower’s credit report built from this lender’s own records (CBC on hold): delinquency in 12 and 24 months, recency and frequency of 30+ days past due, write-offs, restructures, revolving utilisation, length of history, recent applications and open facilities. 300–850; no score without enough history.',
+    INTERNAL_BUREAU,
+  ),
 ];
+
+/** The scorecard code a credit report is scored on unless the tenant's settings name another. */
+export const INTERNAL_BUREAU_SCORECARD = 'INTERNAL_BUREAU';
 
 export const SCORECARD_TEMPLATE_BY_CODE: Record<string, ScorecardTemplate> = Object.fromEntries(SCORECARD_TEMPLATES.map((t) => [t.code, t]));

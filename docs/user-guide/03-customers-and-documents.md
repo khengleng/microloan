@@ -170,7 +170,7 @@ The result shows loans found in your own organisation only. It never shows other
 
 Results (date, provider, status, score, grade, summary) are listed in the table. Check statuses: **PENDING**, **PROCESSING**, **COMPLETED**, **FAILED**.
 
-Note: The CBC check needs a live connection to the Credit Bureau Cambodia, set up by your IT team. Until it is set up, you see "CBC integration is not ready." No score is invented. The bureau result is not yet used in the origination credit score (see [Applications and credit decisions](05-applications-and-credit-decisions.md)).
+Note: The CBC check needs a live connection to the Credit Bureau Cambodia, set up by your IT team. The CBC integration is on hold: until it is set up, you see "CBC integration is not ready." No score is invented. The origination credit score uses your organisation's own **in-house credit report** instead (customer profile › **Credit report**; see [Scorecards and alternative data](24-scorecards-and-alternative-data.md), section 9).
 
 ---
 

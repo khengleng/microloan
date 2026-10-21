@@ -48,3 +48,4 @@ export * from './key-facts.js';
 export * from './aml.js';
 export * from './khqr.js';
 export * from './qr-receipts.js';
+export * from './credit-report.js';

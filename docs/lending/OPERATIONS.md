@@ -1321,6 +1321,78 @@ To score thin-file borrowers: enable `scoring.thinFile` on the product (and
 optionally install and adjust `THIN_FILE`), collect consents, capture and
 verify the customer's documents' data, then submit the application.
 
+### Credit reports and the in-house bureau score (D-176…D-181)
+
+Credit Bureau Cambodia is on hold. Each organisation has an **in-house
+credit bureau**: a CBC-style credit report per borrower built only from its
+own records — lending loans, credit lines and cards (their loan accounts)
+and the read-only legacy loan archive. Nothing is shared between tenants
+(the report's "lenders reporting" is 1). User guide: chapter 24, section 9.
+
+* **Settings** (`scoring.creditReport`, tenant lending settings,
+  maker-checker): `provider` `INTERNAL` (default) or `CBC` (an adapter shell
+  that reports "not configured / on hold" — capability
+  `bureau.cbc_provider`, REQUIRES_INTEGRATION; choosing it means no reports
+  and no bureau score), `pullOnScoring` (true), `reuseDays` (30),
+  `scorecardCode` (`INTERNAL_BUREAU`), `minHistoryMonths` (6) and
+  `derogatoryDpd` (90).
+* **Consent.** A pull needs the borrower's `CREDIT_REPORT` consent (an
+  alternative-data consent source) in force; without it a staff pull is
+  refused (`400 CONSENT_REQUIRED`) and scoring leaves the bureau input
+  missing, as before.
+* **Enquiries.** Every pull is a `CreditReport` row: who (`requestedBy`),
+  when, purpose (`NEW_APPLICATION`, `ACCOUNT_REVIEW`, `COLLECTIONS`,
+  `CUSTOMER_REQUEST`), trigger (`SCORING` / `STAFF`), consent and provider,
+  audited as `credit_report.pull`. Scoring an application pulls once and
+  re-uses the application's report for `reuseDays`.
+* **Report.** Facilities with product, dates, limit or principal, balance,
+  instalment, current and worst days past due (ever, 12 and 24 months),
+  write-off / restructure / negotiated-settlement flags and a 24-month
+  payment-status grid (`0`, `1`–`6` in 30-day buckets, `W`, `R`, `C`,
+  blank); guarantees the borrower gave (`Guarantee.guarantorBorrowerId`);
+  enquiries (applications and pulls in 12 months); totals per currency.
+  There is no daily delinquency history, so month-end days past due are
+  derived from instalment due dates and the value dates of the payments
+  that cleared them (restructured lines are cleared on the amendment's
+  effective date; legacy loans' clearing dates are rebuilt by applying
+  their repayments oldest first). The current month uses the higher of the
+  servicing figure (`LoanAccount.daysPastDue`) and the derived one.
+* **Bureau score.** `INTERNAL_BUREAU` (a scorecard template, 300–850,
+  grades A–E) on the report's characteristics (`bureauWorstDpd12m`,
+  `bureauWorstDpd24m`, `bureauMonthsSinceDelinquency`,
+  `bureauTimes30Dpd12m`, `bureauWriteOff`, `bureauRestructured`,
+  `bureauRevolvingUtilisation`, `bureauOldestFacilityMonths`,
+  `bureauEnquiries6m`, `bureauEnquiries12m`, `bureauActiveFacilities` —
+  also usable in any scorecard). No facility, under `minHistoryMonths` of
+  history without derogatory history, or no instalment fallen due → **no
+  score** (`noScoreReason = NO_HISTORY`), never a low one. Versioned like
+  any scorecard (install `INTERNAL_BUREAU`, maker-checker).
+* **Into the score.** The application score snapshot's `bureauScore`
+  carries the value, `source: INTERNAL_BUREAU`, the consent and the
+  `reportId`; `STANDARD_RETAIL`'s bureau characteristic (linear, centre
+  575, weight 0.4) scores it; a null keeps the old behaviour (0 points,
+  thin-file rule unchanged).
+* **Storage.** `CreditReport` is append-only (trigger; only `documentId`
+  may be set, once), strict RLS, with the stored inputs, their SHA-256
+  (`inputsHash`) and the content hash. `GET /lending/credit-reports/:id`
+  returns `integrity: { inputsHashValid, reproduced }` — the report rebuilt
+  from its inputs with the scorecard version it used.
+* **Document.** The printable PDF (English and Khmer headings, Battambang
+  font under the SIL Open Font License in `apps/api/assets/fonts`) is filed
+  in the customer's documents as `GENERATED` / `CREDIT_REPORT`, not
+  customer-visible: right after a staff pull, or on first print for a
+  report pulled during scoring. Filing never undoes the pull.
+* **Routes** (`credit_report.read` / `credit_report.pull`, scoped to the
+  customer's branch like customer documents):
+  `GET|POST /lending/customers/:borrowerId/credit-reports`,
+  `GET /lending/credit-reports/:reportId`,
+  `GET /lending/credit-reports/:reportId/pdf`,
+  `GET /lending/applications/:id/credit-report`.
+* **Slotting in CBC later.** Implement `CreditBureauProvider`
+  (`apps/api/src/lending/scoring/credit-bureau.ts`) for CBC returning the
+  same `CreditReportInput`; the report, grid, score, storage and documents
+  work unchanged. Lenders reporting then counts CBC's members.
+
 ## Authenticator step-up, platform approvals and tenant purge
 
 - **Step-up (D-129).** Every lending action with `minAssurance: 'MFA'` needs an

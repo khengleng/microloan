@@ -546,7 +546,7 @@ export const CONFIGURATION_MODULE: LearningModule = {
         ],
       },
       tourId: 'scorecard-monitoring',
-      guide: { chapter: '24-scorecards-and-alternative-data', anchor: '9-scorecard-monitoring-products--scorecard-monitoring' },
+      guide: { chapter: '24-scorecards-and-alternative-data', anchor: '10-scorecard-monitoring-products--scorecard-monitoring' },
       quiz: {
         passMark: 3,
         questions: [
