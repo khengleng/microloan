@@ -882,6 +882,10 @@ export const ACTIONS: ActionDefinition[] = [
   // Alternative data (D-078): the resource is the customer, like documents.
   // Consent is recorded by front-line staff; officer-captured data counts
   // only once someone else has verified it.
+  // Credit reports (D-176…D-181): the resource is the customer, like
+  // alternative data. A pull is an enquiry under the customer's consent.
+  A('credit_report.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
+  A('credit_report.pull', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
   A('alt_data.read', 'CUSTOMER_DOCUMENT', 'DOCUMENT', { scoped: true }),
   A('alt_data.consent.manage', 'CUSTOMER_DOCUMENT', 'DOCUMENT', {
     scoped: true,

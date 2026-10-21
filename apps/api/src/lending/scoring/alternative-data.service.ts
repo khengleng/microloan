@@ -48,7 +48,8 @@ export class AlternativeDataService {
 
   // ── Resources ─────────────────────────────────────────────────────────────
 
-  private async customer(
+  /** The customer as a policy resource (branch-scoped); also used by credit reports. */
+  async customer(
     tx: Tx,
     tenantId: string,
     borrowerId: string,

@@ -174,6 +174,11 @@ export default function BorrowerProfilePage() {
                             {t('alternativeData')}
                         </Button>
                     </Link>
+                    <Link href={`/${locale}/lending/customers/${id}/credit-report`}>
+                        <Button variant="secondary" className="rounded-2xl font-bold px-6 h-12 shadow-sm">
+                            {t('creditReport')}
+                        </Button>
+                    </Link>
                 {legacyCan('CUSTOMER_UPDATE') && (
                 <Button
                         onClick={() => setIsEditOpen(true)}

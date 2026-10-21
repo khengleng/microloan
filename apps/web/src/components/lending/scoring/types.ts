@@ -277,6 +277,7 @@ export const SOURCE_LABELS: Record<string, string> = {
     SMARTPHONE_DATA: 'Smartphone data',
     TELCO_DATA: 'Telco data (provider)',
     EWALLET_DATA: 'E-wallet data (provider)',
+    CREDIT_REPORT: 'Credit report (pulling the customer’s credit report)',
 };
 
 export const OUTCOME_LABELS: Record<ScoreOutcome, string> = {
@@ -387,4 +388,53 @@ export function displayValue(v: unknown): string {
     if (v === null || v === undefined || v === '') return '—';
     if (typeof v === 'object') return JSON.stringify(v);
     return String(v);
+}
+
+/* ── Credit reports (in-house bureau, D-176…D-181) ─────────────────────────── */
+
+export interface CreditReportFacility {
+    id: string; source: 'LENDING' | 'LEGACY'; reference: string; product: string; kind: string; revolving: boolean; currency: string;
+    openedOn: string | null; closedOn: string | null; status: string; limit: string | null; principal: string; balance: string; instalment: string | null;
+    currentDpd: number; worstDpd: number; worstDpd12m: number; worstDpd24m: number;
+    writtenOff: boolean; restructured: boolean; settled: boolean; transferredTo: string | null;
+    history: { month: string; code: string; dpd: number | null }[];
+}
+
+export interface CreditReportContent {
+    formatVersion: number; asOf: string; months: string[]; provider: string;
+    subject: { borrowerId: string; name: string; dateOfBirth: string | null; idType: string | null; idNumberMasked: string | null; phoneMasked: string | null; occupation: string | null; branch: string | null; customerSince: string };
+    facilities: CreditReportFacility[];
+    guarantees: { id: string; applicationReference: string; principalBorrower: string; type: string; amount: string; currency: string; givenOn: string; applicationStatus: string; loan: { reference: string; status: string; balance: string; daysPastDue: number } | null }[];
+    enquiries: { id: string; type: 'APPLICATION' | 'REPORT'; date: string; purpose: string; reference: string; by: string | null; current?: boolean }[];
+    totals: { exposure: { currency: string; amount: string }[]; monthlyObligation: { currency: string; amount: string }[]; activeFacilities: number; closedFacilities: number; writtenOffFacilities: number; lenders: number; instalmentsFallenDue: number };
+    characteristics: Record<string, string | number | boolean | null>;
+    score: {
+        score: number | null; grade: string | null; gradeLabel: string | null; noScoreReason: string | null; message: string;
+        factors: { factor: string; points: number; reason: string }[];
+        adverseReasons: { code: string; text: string; characteristic: string; shortfall: number }[];
+        scorecard: { code: string; version: number; source: string };
+    };
+}
+
+export interface CreditReportSummary {
+    id: string; reference: string; provider: string; purpose: string; trigger: 'SCORING' | 'STAFF'; applicationId: string | null; requestedBy: string;
+    createdAt: string; asOf: string; score: number | null; grade: string | null; noScoreReason: string | null; documentId: string | null;
+    activeFacilities: number; exposure: { currency: string; amount: string }[];
+}
+
+export interface CreditReportView extends CreditReportSummary {
+    consentId: string; scorecardCode: string; scorecardVersion: number; inputsHash: string; contentHash: string; engineVersion: string;
+    content: CreditReportContent;
+}
+
+export interface CreditReportList {
+    borrowerId: string;
+    provider: 'INTERNAL' | 'CBC';
+    availability: { usable: boolean; reason?: string; capability?: string; message?: string };
+    consent: { grantId: string; expiresAt: string | null } | null;
+    purposes: string[];
+    reports: CreditReportSummary[];
+    latest: CreditReportView | null;
+    applicationId?: string;
+    forThisApplication?: boolean;
 }

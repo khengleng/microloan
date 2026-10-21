@@ -16,7 +16,8 @@ import { Dec, dec, EngineError } from './decimal.js';
 // ── Data sources and the variable catalogue ────────────────────────────────
 
 /** Where a scoring input comes from. */
-export const SCORING_SOURCES = ['APPLICATION', 'INTERNAL', 'BUREAU', 'OFFICER_VERIFIED', 'PROVIDER'] as const;
+/** INTERNAL_BUREAU: a bureau input that came from the lender's in-house credit report (D-176). */
+export const SCORING_SOURCES = ['APPLICATION', 'INTERNAL', 'BUREAU', 'INTERNAL_BUREAU', 'OFFICER_VERIFIED', 'PROVIDER'] as const;
 export type ScoringSource = (typeof SCORING_SOURCES)[number];
 
 /**
@@ -33,6 +34,8 @@ export const ALT_DATA_SOURCES = [
   'SMARTPHONE_DATA',
   'TELCO_DATA',
   'EWALLET_DATA',
+  // Pulling the borrower's credit report (the lender's in-house bureau, or CBC once integrated) — D-178.
+  'CREDIT_REPORT',
 ] as const;
 export type AltDataSource = (typeof ALT_DATA_SOURCES)[number];
 
@@ -83,7 +86,19 @@ export const SCORING_VARIABLES: ScoringVariable[] = [
   v('instalmentsObserved', 'Instalments observed', 'NUMBER', 'INTERNAL', 'INTERNAL_BEHAVIOUR', 'COUNT', 'Instalments fallen due on the borrower’s loans with us.', { min: '0' }),
   v('digitalRepaymentShare', 'Digital repayment share', 'NUMBER', 'INTERNAL', 'INTERNAL_BEHAVIOUR', 'RATIO', 'Share of repayments received through digital channels (KHQR / wallet / mobile) in imported channel files.', { min: '0', max: '1' }),
   v('groupContributionMonths', 'Months contributing to a group', 'NUMBER', 'INTERNAL', 'INTERNAL_BEHAVIOUR', 'MONTHS', 'Distinct months with a recorded contribution to a solidarity-group loan.', { min: '0' }),
-  v('bureauScore', 'Bureau score', 'NUMBER', 'BUREAU', null, 'SCORE', 'External credit bureau score; none until a bureau is integrated.', { min: '1' }),
+  v('bureauScore', 'Bureau score', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'SCORE', 'Credit bureau score from the borrower’s credit report (the lender’s in-house bureau until CBC is integrated); none when the report cannot be scored.', { min: '1' }),
+  // Characteristics of the borrower's credit report (D-177): the in-house bureau reads only this lender's records.
+  v('bureauWorstDpd12m', 'Worst days past due, 12 months', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'DAYS', 'Most days any facility was past due in the last 12 months.', { min: '0' }),
+  v('bureauWorstDpd24m', 'Worst days past due, 24 months', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'DAYS', 'Most days any facility was past due in the last 24 months.', { min: '0' }),
+  v('bureauMonthsSinceDelinquency', 'Months since last 30+ days past due', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'MONTHS', 'Whole months since a facility was last 30 or more days past due; missing when never.', { min: '0' }),
+  v('bureauTimes30Dpd12m', 'Times 30+ days past due, 12 months', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'COUNT', 'Facility month-ends in the last 12 months at 30 or more days past due.', { min: '0' }),
+  v('bureauWriteOff', 'Write-off on the credit report', 'BOOLEAN', 'BUREAU', 'CREDIT_REPORT', 'FLAG', 'Any facility on the report (including the legacy archive) written off.'),
+  v('bureauRestructured', 'Restructured in 24 months', 'BOOLEAN', 'BUREAU', 'CREDIT_REPORT', 'FLAG', 'Any facility restructured in the last 24 months.'),
+  v('bureauRevolvingUtilisation', 'Utilisation of revolving limits', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'RATIO', 'Balance over limit of open credit lines, overdrafts and cards (the highest currency); missing without one.', { min: '0' }),
+  v('bureauOldestFacilityMonths', 'Age of oldest facility (months)', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'MONTHS', 'Whole months since the oldest facility on the report opened.', { min: '0' }),
+  v('bureauEnquiries6m', 'Credit applications, 6 months', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'COUNT', 'Other applications for credit in the last 6 months (the one being decided is not counted).', { min: '0' }),
+  v('bureauEnquiries12m', 'Credit applications, 12 months', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'COUNT', 'Other applications for credit in the last 12 months (the one being decided is not counted).', { min: '0' }),
+  v('bureauActiveFacilities', 'Active facilities', 'NUMBER', 'BUREAU', 'CREDIT_REPORT', 'COUNT', 'Open facilities on the report.', { min: '0' }),
   v('utilityOnTimeRatio', 'Utility bills paid on time', 'NUMBER', 'OFFICER_VERIFIED', 'UTILITY_BILLS', 'RATIO', 'Verified electricity / water bills: months paid on time over months observed.', { min: '0', max: '1' }),
   v('utilityMonthsObserved', 'Utility months observed', 'NUMBER', 'OFFICER_VERIFIED', 'UTILITY_BILLS', 'MONTHS', 'Months of verified utility bills.', { min: '0' }),
   v('mobileTopUpMonthsActive', 'Months with mobile top-ups', 'NUMBER', 'OFFICER_VERIFIED', 'TELCO_STATEMENT', 'MONTHS', 'Months with top-ups on a verified telco statement.', { min: '0' }),

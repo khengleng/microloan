@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 67 · 🧪 Simulation only: 0 · 🔌 Requires integration: 8 · ⛔ Not implemented: 2
+✅ Fully implemented: 69 · 🧪 Simulation only: 0 · 🔌 Requires integration: 9 · ⛔ Not implemented: 2
 
 ## Capabilities
 
@@ -120,7 +120,7 @@ A product version can be activated only when every capability it requires is **F
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
 | `integration.kyc` | 🔌 Requires integration | 2 | External identity / KYC verification | Manual KYC status only. |
-| `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | The existing CBC provider is used when configured; products requiring a bureau cannot activate without it. |
+| `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | CBC is on hold (D-180). Products requiring a live external bureau cannot activate; the in-house credit report (bureau.internal_report) needs no integration. |
 | `integration.notifications` | 🔌 Requires integration | 2 | Borrower notifications (SMS / Telegram) |  |
 
 ### Scoring
@@ -142,6 +142,14 @@ A product version can be activated only when every capability it requires is **F
 | `altdata.provider_smartphone` | 🔌 Requires integration | 3 | Smartphone-data scoring provider (CredoLab-style) | Adapter interface and encrypted tenant configuration only; no provider adapter ships, so the source reports "not configured" and its inputs are missing. |
 | `altdata.provider_telco` | 🔌 Requires integration | 3 | Mobile-operator data (Smart / Cellcard / Metfone-style) | Adapter interface and encrypted tenant configuration only; no operator adapter ships. |
 | `altdata.provider_ewallet` | 🔌 Requires integration | 3 | E-wallet transaction data | Adapter interface and encrypted tenant configuration only; no wallet adapter ships. |
+
+### Credit bureau
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `bureau.internal_report` | ✅ Fully implemented | 2 | In-house CBC-style credit report per lender from its own records only (lending loans, credit lines, cards, the legacy archive): facilities, 24-month payment-status grid (0, 1–6, W, R, C), guarantees given, enquiries and totals; stored append-only with its inputs hash; printable PDF (English and Khmer headings) in the customer documents | Tests: `packages/shared/test/credit-report.test.ts, apps/api/test/lending/credit-report.int-spec.ts` |
+| `bureau.internal_score` | ✅ Fully implemented | 2 | In-house bureau score (INTERNAL_BUREAU scorecard, 300–850, versioned under maker-checker like any scorecard); no score (NO_HISTORY) without enough history; feeds the application scorecards’ bureau input under the CREDIT_REPORT consent | Tests: `packages/shared/test/credit-report.test.ts, apps/api/test/lending/credit-report.int-spec.ts` |
+| `bureau.cbc_provider` | 🔌 Requires integration | 3 | Credit Bureau Cambodia as the credit-report provider | CBC is on hold: the CBC provider is an adapter shell that reports "not configured / on hold"; a tenant that selects it gets no report and no bureau score until the integration is built. |
 
 ### Specialized
 

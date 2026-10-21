@@ -132,6 +132,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'AltDataConsent',
   'AltDataRecord',
   'AltDataProviderConfig',
+  // Credit reports (in-house bureau), append-only per tenant (D-176…D-181)
+  'CreditReport',
   // Learning centre progress, per person and lesson (D-094)
   'LearningProgress',
   // AML/CFT: watch lists, screening cases, re-screens, EDD, STR (D-118…D-122)

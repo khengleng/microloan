@@ -20,6 +20,7 @@ import { WhyBlocked } from './WhyBlocked';
 import { KeyFactsCard } from './KeyFactsCard';
 import { SimulationResultView } from '../SimulationResultView';
 import { ApplicationScoreCard } from '../scoring/ApplicationScoreCard';
+import { ApplicationCreditReportCard } from '../scoring/CreditReportView';
 import {
     BookForm, CollateralForm, ConditionForm, DecisionForm, DocumentUploadForm, EditTermsForm, GuaranteeForm,
     type DecisionMode, type RequiredDocument,
@@ -236,6 +237,8 @@ export function ApplicationDetailView({ id }: { id: string }) {
             )}
 
             <ApplicationScoreCard applicationId={id} status={a.status} currency={a.currency} />
+
+            <ApplicationCreditReportCard applicationId={id} borrowerId={a.borrowerId} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Card title={tr('detail.documents')} subtitle={requiredDocs ? tr('detail.mandatoryCount', { count: requiredDocs.filter((d) => d.mandatory).length }) : undefined} bodyClass="p-0">

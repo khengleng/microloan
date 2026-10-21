@@ -90,6 +90,9 @@ import { ScoringService } from './scoring/scoring.service';
 import { FeatureStoreService } from './scoring/feature-store.service';
 import { AlternativeDataService } from './scoring/alternative-data.service';
 import { AltDataProvidersService } from './scoring/providers';
+import { CreditReportService } from './scoring/credit-report.service';
+import { CreditReportController } from './scoring/credit-report.controller';
+import { InternalCreditBureau } from './scoring/credit-bureau';
 import { ScoreMonitoringService } from './scoring/score-monitoring.service';
 import { RestructuringService } from './restructuring/restructuring.service';
 import { PaymentHolidayService } from './restructuring/payment-holiday.service';
@@ -195,6 +198,7 @@ import {
     WorkspaceSearchController,
     WorkspacePortalController,
     ScoringController,
+    CreditReportController,
     LearningMeController,
     LearningTeamController,
     AmlController,
@@ -272,6 +276,8 @@ import {
     FeatureStoreService,
     AlternativeDataService,
     AltDataProvidersService,
+    CreditReportService,
+    InternalCreditBureau,
     ScoreMonitoringService,
     LearningService,
     AmlGateService,
