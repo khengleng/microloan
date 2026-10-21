@@ -27,6 +27,7 @@ import {
   OpenAlertState,
   alertRecipients,
   checkBacklog,
+  checkBillingWebhooks,
   checkDatabase,
   checkEndOfDay,
   checkFailedJobs,
@@ -314,7 +315,7 @@ export class OperationalAlertService {
     });
   }
 
-  /** The platform checks' findings: the database, as the readiness probe sees it. */
+  /** The platform checks' findings: the database, as the readiness probe sees it, and Stripe events awaiting review (D-166). */
   async platformFindings(): Promise<AlertFinding[]> {
     const cfg = operationalConfig();
     const reachable = await this.db.ping(cfg.readinessDbTimeoutMs);
@@ -331,12 +332,30 @@ export class OperationalAlertService {
       connections = Number(row.n);
       maxConnections = Number(row.max);
     }
-    return checkDatabase({
+    const findings = checkDatabase({
       reachable,
       connections,
       maxConnections,
       maxPct: cfg.alerts.dbConnectionsPct,
     });
+    if (reachable) {
+      const pending = await runAsSystem(
+        'operational alert monitor: Stripe events awaiting review',
+        () =>
+          this.prisma.stripeWebhookEvent.aggregate({
+            where: { outcome: 'NEEDS_REVIEW', reviewedAt: null },
+            _count: { _all: true },
+            _min: { receivedAt: true },
+          }),
+      );
+      findings.push(
+        ...checkBillingWebhooks({
+          count: pending._count._all,
+          oldest: pending._min.receivedAt ?? null,
+        }),
+      );
+    }
+    return findings;
   }
 
   private async checkTenant(tenantId: string, now: Date, reminderMs: number) {

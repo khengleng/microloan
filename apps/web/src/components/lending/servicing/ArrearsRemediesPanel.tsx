@@ -12,6 +12,7 @@ import type { ApprovalTask } from '../types';
 
 interface Demand { id: string; reference: string; guarantorName: string; amount: string; paid: string; currency: string; issuedOn: string; payBy: string; status: string; letter: string }
 interface Guarantee { id: string; guarantorName: string; type: string; amount: string; currency: string }
+interface Promise_ { id: string; amount: string; currency: string; promisedOn: string; payBy: string; countsUntil: string; received: string; status: string; note: string }
 
 /** Calling the guarantor (UC-60) and set-off of the borrower's deposit (UC-61). */
 export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onClose }: {
@@ -24,6 +25,8 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
     const [payment, setPayment] = useState<{ id: string; amount: string; ref: string } | null>(null);
     const [setOff, setSetOff] = useState({ amount: '', sourceAccount: '', reason: '' });
     const [letter, setLetter] = useState<string | null>(null);
+    const promises = useApi<Promise_[]>(`/lending/loans/${loanId}/promises`);
+    const [promise, setPromise] = useState({ amount: '', payBy: '', note: '' });
     const { busy, error, run, clearError } = useAction();
     const payKey = useIdempotencyKey();
     const decideKey = useIdempotencyKey();
@@ -47,6 +50,14 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
     const withdraw = async (d: Demand) => {
         if (!(await confirm({ title: tl('withdrawTitle'), message: tl('withdrawMessage', { reference: d.reference }), confirmLabel: tl('withdraw'), variant: 'danger' }))) return;
         if (await run(`wd-${d.id}`, () => api.post(`/lending/loans/${loanId}/guarantor-demands/${d.id}/withdraw`))) data.reload();
+    };
+    // Promises to pay (UC-59): working them is collection.task.work, held with loan.repayment.post.
+    const recordPromise = async () => {
+        const body = { amount: promise.amount.trim(), payBy: promise.payBy, ...(promise.note.trim() ? { note: promise.note.trim() } : {}) };
+        if (await run('promise', () => api.post(`/lending/loans/${loanId}/promises`, body))) { setPromise({ amount: '', payBy: '', note: '' }); promises.reload(); }
+    };
+    const withdrawPromise = async (p: Promise_) => {
+        if (await run(`pw-${p.id}`, () => api.post(`/lending/collections/promises/${p.id}/cancel`, { reason: tl('promiseWithdrawReason') }))) promises.reload();
     };
     const propose = async () => {
         const res = await run('setoff', () => api.post(`/lending/loans/${loanId}/set-offs`, { amount: setOff.amount.trim(), sourceAccount: setOff.sourceAccount.trim(), reason: setOff.reason.trim() }));
@@ -107,6 +118,33 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
             </div>
 
             <div className="space-y-2 border-t border-[#E3E8EE] pt-3">
+                <div className="text-[13px] font-medium text-[#1A1F36]">{tl('promisesTitle')}</div>
+                <p className="text-[12px] text-[#697386]">{tl('promisesBody')}</p>
+                <div className="flex flex-wrap items-end gap-2">
+                    <Field label={tl('promiseAmount')}><TextInput value={promise.amount} onChange={(v) => setPromise({ ...promise, amount: v })} inputMode="decimal" className="w-32" /></Field>
+                    <Field label={tl('promiseDate')}><TextInput type="date" value={promise.payBy} onChange={(v) => setPromise({ ...promise, payBy: v })} className="w-40" /></Field>
+                    <Field label={tl('promiseNote')}><TextInput value={promise.note} onChange={(v) => setPromise({ ...promise, note: v })} maxLength={1000} className="w-56" /></Field>
+                    <Btn onClick={recordPromise} busy={busy === 'promise'} disabled={!post.allowed || !promise.amount.trim() || !promise.payBy} reason={post.reason}>{tl('recordPromise')}</Btn>
+                </div>
+                {promises.data && promises.data.length === 0 ? <Empty>{tl('noPromises')}</Empty> : !!promises.data?.length && (
+                    <Table>
+                        <thead><tr><th className={th}>{tl('promiseColumns.promised')}</th><th className={th}>{tl('promiseColumns.payBy')}</th><th className={th}>{tl('promiseColumns.received')}</th><th className={th}>{tl('promiseColumns.status')}</th><th className={th} /></tr></thead>
+                        <tbody className="divide-y divide-[#F0F2F5]">
+                            {promises.data.map((p) => (
+                                <tr key={p.id}>
+                                    <td className={td}>{p.currency} {p.amount}<div className="text-[11px] text-[#8792A2]">{p.promisedOn}{p.note ? ` — ${p.note}` : ''}</div></td>
+                                    <td className={td}>{p.payBy} ({p.countsUntil})</td>
+                                    <td className={td}>{p.status === 'PENDING' ? '—' : `${p.currency} ${p.received}`}</td>
+                                    <td className={td}><StatusBadge status={p.status} /></td>
+                                    <td className={td}>{p.status === 'PENDING' && post.allowed && <Btn size="sm" variant="ghost" onClick={() => withdrawPromise(p)} busy={busy === `pw-${p.id}`}>{tl('promiseWithdraw')}</Btn>}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </Table>
+                )}
+            </div>
+
+            <div className="space-y-2 border-t border-[#E3E8EE] pt-3">
                 <div className="text-[13px] font-medium text-[#1A1F36]">{tl('setOffTitle')}</div>
                 <p className="text-[12px] text-[#697386]">{tl('setOffBody')}</p>
                 <div className="flex flex-wrap items-end gap-2">
@@ -124,7 +162,7 @@ export function ArrearsRemediesPanel({ loanId, currency, tasks, can, onDone, onC
                     </div>
                 ))}
             </div>
-            <ErrorBox error={error ?? data.error} onDismiss={clearError} />
+            <ErrorBox error={error ?? data.error ?? promises.error} onDismiss={clearError} />
         </ActionPanel>
     );
 }

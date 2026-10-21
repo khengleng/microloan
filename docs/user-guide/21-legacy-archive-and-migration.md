@@ -70,7 +70,7 @@ After the move, service the loan in **Loans › Loan accounts** like any other.
 ## 4. Loans that cannot be moved by file
 
 - **Past maturity** — a running loan whose last instalment is already due has nothing left to schedule, so the migration file leaves it out. It stays in the archive and in the monthly regulatory return. Ask your finance lead: your organisation decides how to close these loans (for example by booking a replacement loan or writing them off).
-- **Never paid out** — applications that were pending or approved in the original module can no longer be paid out or rejected. If the customer still wants the loan, create a new application in **Origination › Applications**.
+- **Never paid out** — applications that were pending or approved in the original module can no longer be paid out or rejected. If the customer still wants the loan, create a new application in **Origination › Applications**. When the platform operator closes them (after telling you), they show as **REJECTED** with the reason "Original loan module retired"; each closure is in the audit log.
 
 ---
 

@@ -33,6 +33,7 @@ import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { WebhooksService } from './integrations/webhooks.service';
 import { CollectionsService } from './collections/collections.service';
+import { PromisesService } from './collections/promises.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
@@ -211,6 +212,7 @@ import {
     LoanMigrationService,
     WebhooksService,
     CollectionsService,
+    PromisesService,
     CovenantsService,
     LendingPrisma,
     AuditEventService,

@@ -144,6 +144,28 @@ model PlatformPaymentQr {
   @@index([isActive, createdAt])
 }
 
+/// Stripe webhook deliveries already handled, keyed by Stripe's event id, so
+/// a redelivered event is never applied twice (DECISIONS D-166). Platform-only:
+/// no tenant can read it. Events the platform does not apply automatically
+/// (a payment for a suspended or erasure-pending organisation, an unknown
+/// plan) stay NEEDS_REVIEW until the operator marks them reviewed.
+model StripeWebhookEvent {
+  /// Stripe's event id (evt_…).
+  id         String    @id
+  type       String
+  livemode   Boolean   @default(false)
+  /// The organisation the event named, if any (no foreign key: the history outlives a purge).
+  tenantRef  String?
+  /// PROCESSED, IGNORED, NEEDS_REVIEW
+  outcome    String
+  detail     String    @default("")
+  receivedAt DateTime  @default(now())
+  reviewedAt DateTime?
+  reviewedBy String?
+
+  @@index([outcome, reviewedAt])
+}
+
 /// A subscription tier, defined by the platform owner.
 ///
 /// Tiers were previously a hardcoded union (FREE/BASIC/PROFESSIONAL/ENTERPRISE)
@@ -2124,6 +2146,7 @@ model LoanAccount {
   marginCalls            MarginCall[]
   payoffQuotes           PayoffQuote[]
   collectionTasks        CollectionTask[]
+  collectionPromises     CollectionPromise[]
   guarantorDemands       GuarantorDemand[]
   repossessions          Repossession[]
   pawnItems              PawnItem[]
@@ -2965,6 +2988,42 @@ model CollectionTask {
   @@unique([tenantId, id])
   @@unique([loanAccountId, stage, episodeFrom])
   @@index([tenantId, status, queue])
+}
+
+/// A borrower's promise to pay, recorded by a collector (UC-59). Reviewed
+/// every day after end of day: KEPT once the money received on the loan from
+/// the day of the promise covers the amount, BROKEN once the promised date
+/// plus the grace days has passed without it (DECISIONS D-168).
+model CollectionPromise {
+  id             String      @id @default(uuid())
+  tenantId       String
+  loanAccountId  String
+  loanAccount    LoanAccount @relation(fields: [tenantId, loanAccountId], references: [tenantId, id], onDelete: Cascade)
+  /// The collection task the promise was taken on, when there was one.
+  taskId         String?
+  amount         Decimal     @db.Decimal(24, 4)
+  currency       String
+  /// The business date the promise was made: payments count from this day.
+  promisedOn     DateTime    @db.Date
+  /// The date the customer promised to pay by.
+  payBy          DateTime    @db.Date
+  /// Grace days of the lender's settings when the promise was recorded.
+  graceDays      Int
+  /// PENDING, KEPT, BROKEN, CANCELLED
+  status         String      @default("PENDING")
+  /// Money received in the window, as of the review that closed the promise.
+  received       Decimal     @default(0) @db.Decimal(24, 4)
+  reviewedOn     DateTime?   @db.Date
+  /// The work-queue task a broken promise raised.
+  followUpTaskId String?
+  note           String      @default("")
+  createdBy      String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, payBy])
+  @@index([tenantId, loanAccountId])
 }
 
 /// A demand on a guarantor to pay what the borrower has not (UC-60).

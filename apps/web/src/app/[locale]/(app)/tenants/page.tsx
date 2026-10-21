@@ -19,6 +19,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { PurgeRequestsPanel, TenantPurgeDialog } from '@/components/platform/TenantPurge';
 import { PlatformOperationalAlerts } from '@/components/platform/OperationalAlerts';
 import { SetupProgressBadge, usePlatformSetupProgress } from '@/components/platform/SetupProgress';
+import { PlatformPlanUsage, StripeEventsToReview } from '@/components/platform/PlanUsage';
 
 // Plans come from the platform's plan tiers (GET /platform/plan-tiers).
 interface PlanTierOption { name: string; displayName: string; isActive: boolean }
@@ -253,6 +254,8 @@ export default function TenantsPage() {
 
             {/* Operational alerts from the health monitor (D-150) */}
             <PlatformOperationalAlerts />
+            <StripeEventsToReview />
+            <PlatformPlanUsage />
 
             {/* Platform KPI Cards */}
             {stats && (

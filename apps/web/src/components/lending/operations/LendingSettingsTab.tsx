@@ -101,7 +101,9 @@ const LABELS: Record<string, string> = {
     'aml.ctr.thresholds.KHR': 'Cash transaction report threshold (KHR)',
     'aml.ctr.cashChannels': 'Cash transaction report: payment channels that are cash',
     'aml.retentionYearsAfterRelationship': 'AML records kept for this many years after the relationship ends',
-    'operations.alertEmails': 'Operational alerts: e-mail addresses of the lender’s operations contacts (besides the platform operator)',
+    'collections.promiseToPay.graceDays': 'Promises to pay: days after the promised date that payments still count',
+    'collections.promiseToPay.maxDaysAhead': 'Promises to pay: furthest a customer may promise ahead (days)',
+    'operations.alertEmails':'Operational alerts: e-mail addresses of the lender’s operations contacts (besides the platform operator)',
 };
 
 /** On/off settings worth seeing at a glance, with the value used when none is set. */

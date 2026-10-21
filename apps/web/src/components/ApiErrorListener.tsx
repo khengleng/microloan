@@ -18,17 +18,21 @@ import type { ApiErrorEventDetail } from '@/lib/api';
 export function ApiErrorListener() {
     const { showToast } = useToast();
     const t = useTranslations('Errors.api');
+    const tl = useTranslations('LendingUi');
 
     useEffect(() => {
         const handler = (e: Event) => {
-            const { message, messageKey } = (e as CustomEvent<ApiErrorEventDetail>).detail;
-            const text = message ?? (messageKey ? t(messageKey) : null);
+            const { message, messageKey, planLimit } = (e as CustomEvent<ApiErrorEventDetail>).detail;
+            const quota = planLimit && tl.has(`planResources.${planLimit.resource}`)
+                ? tl('planLimit', { ...planLimit, resource: tl(`planResources.${planLimit.resource}`) })
+                : null;
+            const text = quota ?? message ?? (messageKey ? t(messageKey) : null);
             if (text) showToast(text, 'error');
         };
 
         window.addEventListener('api:error', handler);
         return () => window.removeEventListener('api:error', handler);
-    }, [showToast, t]);
+    }, [showToast, t, tl]);
 
     return null;
 }
