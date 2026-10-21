@@ -7,6 +7,7 @@ import { ShieldAlert, UserCheck } from 'lucide-react';
 import { useWorkspace } from '@/lib/workspace';
 import { signOut } from '@/lib/api';
 import { compareDecimal, fmtMoney } from '@/components/lending/format';
+import { SetupBanner } from './SetupBanner';
 
 const chip = 'inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap';
 
@@ -66,6 +67,7 @@ export function ShellBanners() {
     const delegated = access.delegations.received;
     return (
         <>
+            <SetupBanner />
             {access.assurance.stepUpNeeded && (
                 <div className="flex items-start gap-2 px-5 py-2 text-[13px] bg-amber-50 text-amber-900 border-b border-amber-200" role="status">
                     <ShieldAlert size={15} className="mt-0.5 flex-shrink-0" />

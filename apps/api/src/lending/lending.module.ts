@@ -138,6 +138,11 @@ import { AmlScreeningService } from './aml/aml-screening.service';
 import { AmlCustomersService } from './aml/aml-customers.service';
 import { AmlReportsService } from './aml/aml-reports.service';
 import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
+import { GoLiveSetupService } from './setup/setup.service';
+import {
+  GoLiveSetupController,
+  PlatformGoLiveSetupController,
+} from './setup/setup.controller';
 
 /**
  * Configurable lending platform (modular monolith). Shares tenants, users,
@@ -193,6 +198,8 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     LearningMeController,
     LearningTeamController,
     AmlController,
+    GoLiveSetupController,
+    PlatformGoLiveSetupController,
   ],
   providers: [
     ReportingService,
@@ -273,6 +280,7 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     AmlCustomersService,
     AmlReportsService,
     AmlRescreenScheduler,
+    GoLiveSetupService,
   ],
   exports: [
     AmlScreeningService,
