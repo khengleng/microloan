@@ -83,6 +83,7 @@ model Tenant {
   lendingAgreements LendingAgreement[]
   restructureCases  RestructureCase[]
   operationalAlerts OperationalAlert[]
+  goLiveWaivers     GoLiveSetupWaiver[]
 }
 
 /// Plan payment for a self-serve workspace signup.
@@ -5076,4 +5077,24 @@ model OperationalAlert {
 
   @@index([tenantId, status])
   @@index([status, openedAt])
+}
+
+// ── Go-live setup (DECISIONS D-171…D-175) ───────────────────────────────────
+
+/// A go-live setup checklist item a tenant administrator marked "not
+/// applicable", with the reason (D-172). The checklist itself is computed
+/// from real data on every read (GET /lending/setup/status); this is the
+/// only thing it stores. Clearing the mark deletes the row; both are audited.
+model GoLiveSetupWaiver {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// The checklist item's stable key, e.g. opening_balances.
+  itemKey   String
+  reason    String
+  markedBy  String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, itemKey])
+  @@unique([tenantId, id])
 }
