@@ -187,6 +187,27 @@ export const tenantLendingSettingsSchema = z
           })
           .strict()
           .default({}),
+        /**
+         * Credit reports and the bureau score (DECISIONS D-176…D-181). CBC is
+         * on hold: INTERNAL builds the report from this lender's own records
+         * only; CBC is an adapter shell that reports "not configured".
+         */
+        creditReport: z
+          .object({
+            provider: z.enum(['INTERNAL', 'CBC']).default('INTERNAL'),
+            /** Pull a report (an enquiry) when an application is scored, if the customer has consented. */
+            pullOnScoring: z.boolean().default(true),
+            /** Re-use the application's last report this many days instead of pulling again (0 = always pull). */
+            reuseDays: z.number().int().min(0).max(365).default(30),
+            /** The scorecard the report is scored on (a template or the tenant's own version of it). */
+            scorecardCode: z.string().regex(/^[A-Z0-9][A-Z0-9_.-]{1,47}$/).default('INTERNAL_BUREAU'),
+            /** Fewest months since the oldest facility opened for a score; less is NO_HISTORY (no score). */
+            minHistoryMonths: z.number().int().min(0).max(60).default(6),
+            /** Days past due in 24 months that count as derogatory — such a borrower is always scored. */
+            derogatoryDpd: z.number().int().min(1).max(720).default(90),
+          })
+          .strict()
+          .default({}),
       })
       .strict()
       .default({}),
