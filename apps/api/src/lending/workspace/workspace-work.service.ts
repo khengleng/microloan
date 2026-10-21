@@ -1119,7 +1119,9 @@ export class WorkspaceWorkService {
                 await tx.loanAccount.findMany({
                   where: {
                     tenantId,
-                    id: { in: [...new Set(pending.map((r) => r.loanAccountId))] },
+                    id: {
+                      in: [...new Set(pending.map((r) => r.loanAccountId))],
+                    },
                     ...(s as Prisma.LoanAccountWhereInput),
                   },
                   select: { id: true },

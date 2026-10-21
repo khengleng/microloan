@@ -17,7 +17,10 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { loadLoanState, resourceOf } from '../servicing/loan-state';
-import { KhqrCodesService, type PayableCode } from '../payments/khqr/khqr-codes.service';
+import {
+  KhqrCodesService,
+  type PayableCode,
+} from '../payments/khqr/khqr-codes.service';
 import { howToPayShort } from '../payments/khqr/how-to-pay';
 
 const D = (v: Prisma.Decimal | string | number | null | undefined) =>

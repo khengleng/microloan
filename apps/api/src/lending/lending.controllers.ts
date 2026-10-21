@@ -1307,8 +1307,12 @@ export class LendingSuspenseController {
 
   @LendingAction('payment.suspense.read')
   @Get()
-  list(@Req() req: Req_, @Query('status') status?: string) {
-    return this.suspense.list(actor(req), status);
+  list(
+    @Req() req: Req_,
+    @Query('status') status?: string,
+    @Query('channel') channel?: string,
+  ) {
+    return this.suspense.list(actor(req), status, channel);
   }
 
   @LendingAction('payment.suspense.receive')

@@ -68,7 +68,9 @@ export class KhqrReceiptsService {
   /** A pending claim on the borrower's own loan. No money is posted. */
   async claim(actor: LendingActor, loanId: string, body: ReceiptBody) {
     if (actor.type !== 'CUSTOMER')
-      throw new BadRequestException('Claims are made by the borrower in the portal.');
+      throw new BadRequestException(
+        'Claims are made by the borrower in the portal.',
+      );
     return this.create(actor, loanId, body, 'PORTAL_CLAIM');
   }
 

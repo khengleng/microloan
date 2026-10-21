@@ -13,6 +13,11 @@
 import { JwtService } from '@nestjs/jwt';
 import * as qrcode from 'qrcode';
 import { lending } from '@microloan/shared';
+import * as XLSX from 'xlsx';
+import { borrowerJwtSecret } from '../../src/borrower-portal/borrower-jwt';
+import { KhqrCodesService } from '../../src/lending/payments/khqr/khqr-codes.service';
+import { LendingPrisma } from '../../src/lending/common/lending-prisma';
+import { runAsTenant } from '../../src/prisma/tenant-context';
 import {
   Fixture,
   TEST_DB,
@@ -69,9 +74,11 @@ d('KHQR static repayments (integration)', () => {
   };
   const portal = (borrowerId: string, tenantId = f.t1) => {
     const token = new JwtService({
-      secret:
-        require('../../src/borrower-portal/borrower-jwt').borrowerJwtSecret(),
-    }).sign({ sub: borrowerId, typ: 'borrower', tenantId }, { expiresIn: '1h' });
+      secret: borrowerJwtSecret(),
+    }).sign(
+      { sub: borrowerId, typ: 'borrower', tenantId },
+      { expiresIn: '1h' },
+    );
     return {
       get: (url: string) =>
         f.http().get(`/v1${url}`).set('Authorization', `Bearer ${token}`),
@@ -199,8 +206,6 @@ d('KHQR static repayments (integration)', () => {
     expect(audit.map((a: any) => a.action).sort()).toEqual(
       expect.arrayContaining(['khqr.approve', 'khqr.propose']),
     );
-    const { KhqrCodesService } = require('../../src/lending/payments/khqr/khqr-codes.service');
-    const { LendingPrisma } = require('../../src/lending/common/lending-prisma');
     const active = await f.app
       .get(LendingPrisma)
       .tenantTx(f.t1, (tx: any) =>
@@ -274,7 +279,9 @@ d('KHQR static repayments (integration)', () => {
     expect(view.howToPay.code.image).toMatch(/^data:image\/png;base64,/);
     const codes = expectOk(await b.get('/borrower/payment-qr'));
     expect(codes.map((c: any) => c.currency).sort()).toEqual(['KHR', 'USD']);
-    const card = await b.get(`/borrower/loans/${loans.claim.id}/how-to-pay?lang=km`);
+    const card = await b.get(
+      `/borrower/loans/${loans.claim.id}/how-to-pay?lang=km`,
+    );
     expect(card.status).toBe(200);
     expect(card.headers['content-type']).toMatch(/application\/pdf/);
 
@@ -338,13 +345,15 @@ d('KHQR static repayments (integration)', () => {
   it('a staff receipt needs a second person: the recorder cannot verify it; the verifier posts it with channel KHQR', async () => {
     staffRef = ref('FT');
     const r = expectOk(
-      await f.as('opsMaker').post(`/lending/loans/${loans.staff.id}/khqr-receipts`, {
-        amount: '60.00',
-        currency: 'USD',
-        paidAt: '2026-01-20T08:00:00+07:00',
-        bankRef: staffRef,
-        payerName: 'Sok Dara',
-      }),
+      await f
+        .as('opsMaker')
+        .post(`/lending/loans/${loans.staff.id}/khqr-receipts`, {
+          amount: '60.00',
+          currency: 'USD',
+          paidAt: '2026-01-20T08:00:00+07:00',
+          bankRef: staffRef,
+          payerName: 'Sok Dara',
+        }),
     );
     expect(r).toMatchObject({ status: 'PENDING', source: 'STAFF' });
     expect((await repayments(loans.staff.id)).length).toBe(0);
@@ -374,12 +383,14 @@ d('KHQR static repayments (integration)', () => {
     // The same transfer cannot be recorded again, by staff or by the borrower.
     expect(
       (
-        await f.as('opsMaker').post(`/lending/loans/${loans.staff.id}/khqr-receipts`, {
-          amount: '60.00',
-          currency: 'USD',
-          paidAt: '2026-01-20T08:00:00+07:00',
-          bankRef: staffRef,
-        })
+        await f
+          .as('opsMaker')
+          .post(`/lending/loans/${loans.staff.id}/khqr-receipts`, {
+            amount: '60.00',
+            currency: 'USD',
+            paidAt: '2026-01-20T08:00:00+07:00',
+            bankRef: staffRef,
+          })
       ).status,
     ).toBe(409);
     expect(
@@ -493,7 +504,9 @@ d('KHQR static repayments (integration)', () => {
     const rec = expectOk(
       await f
         .as('opsMaker')
-        .get('/lending/payment-channels/reconciliation?date=2026-01-19&channel=KHQR'),
+        .get(
+          '/lending/payment-channels/reconciliation?date=2026-01-19&channel=KHQR',
+        ),
     );
     expect(rec.channels[0].channel).toBe('KHQR');
     expect(rec.channels[0].breaks).toHaveLength(1);
@@ -502,13 +515,15 @@ d('KHQR static repayments (integration)', () => {
 
   it('a receipt for a transfer held in suspense is linked to it: verifying applies the money from suspense', async () => {
     const r = expectOk(
-      await f.as('opsMaker').post(`/lending/loans/${loans.held.id}/khqr-receipts`, {
-        amount: '12.50',
-        currency: 'USD',
-        paidAt: '2026-01-19T12:00:00+07:00',
-        bankRef: unknownRef,
-        payerName: 'Nobody Known',
-      }),
+      await f
+        .as('opsMaker')
+        .post(`/lending/loans/${loans.held.id}/khqr-receipts`, {
+          amount: '12.50',
+          currency: 'USD',
+          paidAt: '2026-01-19T12:00:00+07:00',
+          bankRef: unknownRef,
+          payerName: 'Nobody Known',
+        }),
     );
     expect(r.unidentifiedPaymentId).toBeTruthy();
     expectOk(
@@ -576,11 +591,9 @@ d('KHQR static repayments (integration)', () => {
       }),
     );
     const rejected = expectOk(
-      await f
-        .as('opsChecker')
-        .post(`/lending/khqr/receipts/${c.id}/reject`, {
-          reason: 'not on the bank statement',
-        }),
+      await f.as('opsChecker').post(`/lending/khqr/receipts/${c.id}/reject`, {
+        reason: 'not on the bank statement',
+      }),
     );
     expect(rejected.status).toBe('REJECTED');
     const view = expectOk(await b.get(`/borrower/loans/${loans.phone.id}`));
@@ -597,7 +610,6 @@ d('KHQR static repayments (integration)', () => {
   });
 
   it('a spreadsheet (XLSX) statement is read like a CSV one, dates as spreadsheet dates', async () => {
-    const XLSX = require('xlsx');
     const xref = ref('XLS');
     const sheet = XLSX.utils.aoa_to_sheet([
       ['Trx Date', 'Amount', 'Ccy', 'Transaction ID', 'Remark'],
@@ -637,13 +649,11 @@ d('KHQR static repayments (integration)', () => {
       (
         await f
           .as('t2admin')
-          .post(
-            `/lending/khqr/receipts/${someReceipt.id}/reject`,
-            { reason: 'cross tenant' },
-          )
+          .post(`/lending/khqr/receipts/${someReceipt.id}/reject`, {
+            reason: 'cross tenant',
+          })
       ).status,
     ).toBe(404);
-    const { runAsTenant } = require('../../src/prisma/tenant-context');
     for (const table of ['KhqrCode', 'KhqrReceipt']) {
       const seen = await runAsTenant(f.t2, () =>
         f.prisma.$queryRawUnsafe(

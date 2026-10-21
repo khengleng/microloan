@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  HttpException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { lending } from '@microloan/shared';
 import type { Prisma } from '@microloan/db';
@@ -198,7 +194,16 @@ export class KhqrStatementsService {
           idByLineNo.set(line.lineNo, id);
           const d = await this.decide(tx, ctx, line, idByLineNo);
           results.push(
-            await this.apply(tx, actor, ctx, body.fileName, fileHash, id, line, d),
+            await this.apply(
+              tx,
+              actor,
+              ctx,
+              body.fileName,
+              fileHash,
+              id,
+              line,
+              d,
+            ),
           );
         }
         const count = (o: string) =>
@@ -431,7 +436,11 @@ export class KhqrStatementsService {
 
   private async candidates(
     tx: Tx,
-    ctx: { tenantId: string; businessDate: string; ignoredTitles: readonly string[] },
+    ctx: {
+      tenantId: string;
+      businessDate: string;
+      ignoredTitles: readonly string[];
+    },
     line: Line,
   ): Promise<lending.MatchCandidates> {
     const { tenantId } = ctx;
@@ -607,7 +616,11 @@ export class KhqrStatementsService {
         duplicateOfLineId: d.duplicateOfLineId,
         conflicting: d.conflicting,
       };
-    const hash = requestHash({ op: 'khqr-line', fileHash, lineNo: line.lineNo });
+    const hash = requestHash({
+      op: 'khqr-line',
+      fileHash,
+      lineNo: line.lineNo,
+    });
     const key = `sys:khqr-line:${id}`;
     const components = {
       khqr: {
@@ -692,7 +705,8 @@ export class KhqrStatementsService {
       `sys:khqr-suspense:${id}`,
       hash,
     );
-    const waiting = !ctx.autoPost && (d.kind === 'RECEIPT' || d.kind === 'LOAN');
+    const waiting =
+      !ctx.autoPost && (d.kind === 'RECEIPT' || d.kind === 'LOAN');
     if (waiting && d.kind === 'RECEIPT') {
       await tx.khqrReceipt.updateMany({
         where: { id: d.receipt.id, tenantId: ctx.tenantId, status: 'PENDING' },
@@ -749,7 +763,9 @@ export class KhqrStatementsService {
     loanId: string,
     line: Line,
   ) {
-    const state = await loadLoanState(tx, ctx.tenantId, loanId, { lock: false });
+    const state = await loadLoanState(tx, ctx.tenantId, loanId, {
+      lock: false,
+    });
     return lending.khqrPostingDate(
       line.valueDate,
       ctx.businessDate,

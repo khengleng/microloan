@@ -58,7 +58,7 @@ export class SuspenseService {
   ) {}
 
   /** Open and settled receipts, oldest first, with their age in days. */
-  async list(actor: LendingActor, status?: string) {
+  async list(actor: LendingActor, status?: string, channel?: string) {
     const tenantId = requireTenant(actor);
     await this.policy.enforce(
       actor,
@@ -68,7 +68,11 @@ export class SuspenseService {
     return this.lp.tenantTx(tenantId, async (tx) => {
       const today = await this.businessDate.get(tenantId, tx);
       const rows = await tx.unidentifiedPayment.findMany({
-        where: { tenantId, ...(status ? { status } : {}) },
+        where: {
+          tenantId,
+          ...(status ? { status } : {}),
+          ...(channel ? { channel } : {}),
+        },
         include: { matches: { orderBy: { createdAt: 'asc' } } },
         orderBy: { valueDate: 'asc' },
       });

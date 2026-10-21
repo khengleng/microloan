@@ -100,7 +100,11 @@ export class KhqrHowToPayService {
   }
 
   /** Everything a page needs to tell the borrower how to pay one loan. */
-  async forLoan(tx: Tx, tenantId: string, loanId: string): Promise<LoanPayInfo> {
+  async forLoan(
+    tx: Tx,
+    tenantId: string,
+    loanId: string,
+  ): Promise<LoanPayInfo> {
     const loan = await tx.loanAccount.findFirst({
       where: { id: loanId, tenantId },
       select: {

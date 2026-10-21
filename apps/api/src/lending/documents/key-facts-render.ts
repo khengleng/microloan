@@ -167,7 +167,8 @@ const T = {
       'Keep the receipt and tell the lender in the borrower portal ("I have paid") with the transaction reference, or show it to your loan officer. A payment is credited once the lender has checked it with its bank.',
       'Only pay to this code; staff will never ask you to pay into a personal account.',
     ],
-    repayNoCode: 'The lender will tell you how to repay before your first instalment is due.',
+    repayNoCode:
+      'The lender will tell you how to repay before your first instalment is due.',
     noPenalty: 'No late-payment charge.',
     penaltyFlat: (a: string, g: number) =>
       `A late fee of ${a} for each instalment paid late${g ? `, after ${g} days of grace` : ''}.`,
@@ -294,7 +295,8 @@ const T = {
       'រក្សាទុកបង្កាន់ដៃ ហើយប្រាប់អ្នកផ្តល់កម្ចីនៅក្នុងវិបផតថលអ្នកខ្ចី ("ខ្ញុំបានបង់ហើយ") ជាមួយលេខយោងប្រតិបត្តិការ ឬបង្ហាញវាទៅមន្ត្រីឥណទានរបស់អ្នក។ ការបង់ប្រាក់នឹងត្រូវបានកត់ត្រា បន្ទាប់ពីអ្នកផ្តល់កម្ចីបានផ្ទៀងផ្ទាត់ជាមួយធនាគាររបស់ខ្លួន។',
       'សូមបង់តែតាមកូដនេះប៉ុណ្ណោះ។ បុគ្គលិកនឹងមិនសុំឱ្យអ្នកបង់ចូលគណនីផ្ទាល់ខ្លួនឡើយ។',
     ],
-    repayNoCode: 'អ្នកផ្តល់កម្ចីនឹងប្រាប់អ្នកពីរបៀបសងប្រាក់ មុនពេលដល់កាលកំណត់បង់លើកដំបូង។',
+    repayNoCode:
+      'អ្នកផ្តល់កម្ចីនឹងប្រាប់អ្នកពីរបៀបសងប្រាក់ មុនពេលដល់កាលកំណត់បង់លើកដំបូង។',
     noPenalty: 'គ្មានការពិន័យលើការបង់យឺតទេ។',
     penaltyFlat: (a: string, g: number) =>
       `ប្រាក់ពិន័យ ${a} សម្រាប់ការបង់យឺតនីមួយៗ${g ? ` បន្ទាប់ពីរយៈពេលអនុគ្រោះ ${g} ថ្ងៃ` : ''}។`,

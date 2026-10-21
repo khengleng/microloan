@@ -179,7 +179,9 @@ export class KhqrCodesService {
         branchId: body.branchId ?? null,
         currency,
       };
-      if (await tx.khqrCode.findFirst({ where: { ...slot, status: 'PENDING' } }))
+      if (
+        await tx.khqrCode.findFirst({ where: { ...slot, status: 'PENDING' } })
+      )
         throw new ConflictException(
           `A ${currency} code for ${body.branchId ? 'this branch' : 'the lender'} is already waiting for approval; approve or reject it first.`,
         );
@@ -357,9 +359,7 @@ export class KhqrCodesService {
       bankName: r.bankName,
       accountNumber: r.accountNumber,
       payload: r.payload,
-      image: r.payload
-        ? await renderQrDataUrl(r.payload)
-        : (r.imageData ?? ''),
+      image: r.payload ? await renderQrDataUrl(r.payload) : (r.imageData ?? ''),
     };
   }
 
@@ -423,14 +423,16 @@ export class KhqrCodesService {
       }
       const type = imageType(buf);
       if (!type)
-        throw new BadRequestException(
-          'Upload the QR as a PNG or JPEG image.',
-        );
+        throw new BadRequestException('Upload the QR as a PNG or JPEG image.');
       dataUri = `data:${type};base64,${buf.toString('base64')}`;
       try {
         raw = readQrFromImage(buf);
       } catch (e) {
-        return { decoded: false, problem: (e as Error).message, image: dataUri };
+        return {
+          decoded: false,
+          problem: (e as Error).message,
+          image: dataUri,
+        };
       }
     }
     let parsed: lending.ParsedKhqr;
@@ -438,7 +440,11 @@ export class KhqrCodesService {
       parsed = lending.parseKhqrPayload(raw);
     } catch (e) {
       if (dataUri)
-        return { decoded: false, problem: (e as Error).message, image: dataUri };
+        return {
+          decoded: false,
+          problem: (e as Error).message,
+          image: dataUri,
+        };
       throw new BadRequestException((e as Error).message);
     }
     const problems = lending.staticKhqrProblems(parsed, currency);

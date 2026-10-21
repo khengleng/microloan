@@ -98,8 +98,10 @@ const ENTITY: Record<string, string> = {
 };
 function unescapeXml(s: string): string {
   return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (m, e: string) => {
-    if (e.startsWith('#x')) return String.fromCodePoint(parseInt(e.slice(2), 16));
-    if (e.startsWith('#')) return String.fromCodePoint(parseInt(e.slice(1), 10));
+    if (e.startsWith('#x'))
+      return String.fromCodePoint(parseInt(e.slice(2), 16));
+    if (e.startsWith('#'))
+      return String.fromCodePoint(parseInt(e.slice(1), 10));
     return ENTITY[e] ?? m;
   });
 }
@@ -139,7 +141,8 @@ export function readXlsxRows(buf: Buffer, limits: XlsxLimits): SheetRow[] {
   const shared: string[] = [];
   const sst = part(buf, all, 'xl/sharedStrings.xml', limits);
   if (sst)
-    for (const m of sst.matchAll(/<si>([\s\S]*?)<\/si>/g)) shared.push(texts(m[1]));
+    for (const m of sst.matchAll(/<si>([\s\S]*?)<\/si>/g))
+      shared.push(texts(m[1]));
   const sheetPath = firstSheetPath(
     part(buf, all, 'xl/workbook.xml', limits),
     part(buf, all, 'xl/_rels/workbook.xml.rels', limits),
@@ -152,9 +155,7 @@ export function readXlsxRows(buf: Buffer, limits: XlsxLimits): SheetRow[] {
     const r = /\br="(\d+)"/.exec(rm[1]);
     const lineNo = r ? Number(r[1]) : rows.length + 1;
     const cells: string[] = [];
-    for (const cm of rm[2].matchAll(
-      /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g,
-    )) {
+    for (const cm of rm[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs = cm[1];
       const body = cm[2] ?? '';
       const ref = /\br="([A-Z]+\d+)"/.exec(attrs)?.[1];

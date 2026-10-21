@@ -12,7 +12,12 @@ const bankRef = z.string().trim().min(1).max(120);
 const screenshot = z
   .object({
     fileName: z.string().min(1).max(200),
-    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'application/pdf']),
+    mimeType: z.enum([
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'application/pdf',
+    ]),
     contentBase64: z.string().min(1).max(7_000_000),
   })
   .strict();
@@ -89,14 +94,20 @@ export const KQ = {
       content: z.string().min(1).max(3_000_000).optional(),
       /** …or a spreadsheet (XLSX) as base64. */
       contentBase64: z.string().min(1).max(4_000_000).optional(),
-      mapping: z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/).default('GENERIC'),
+      mapping: z
+        .string()
+        .regex(/^[A-Z][A-Z0-9_]{1,31}$/)
+        .default('GENERIC'),
       /** The currency of rows without a currency column. */
       currency: currency.optional(),
       /** Parse and match only; nothing is saved or posted. */
       dryRun: z.boolean().optional(),
     })
     .strict()
-    .refine((b) => !!b.content !== !!b.contentBase64, 'send content (CSV) or contentBase64 (XLSX), not both'),
+    .refine(
+      (b) => !!b.content !== !!b.contentBase64,
+      'send content (CSV) or contentBase64 (XLSX), not both',
+    ),
 };
 
 export type ProposeCodeBody = z.infer<typeof KQ.proposeCode>;

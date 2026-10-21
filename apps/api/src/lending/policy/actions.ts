@@ -166,7 +166,9 @@ export const ACTIONS: ActionDefinition[] = [
   A('payment.claim.submit_own', 'LOAN_ACCOUNT', 'DOCUMENT', {
     permission: 'payment.claim_own',
   }),
-  A('payment.receipt.read', 'LOAN_ACCOUNT', 'READ', { permission: 'loan.read' }),
+  A('payment.receipt.read', 'LOAN_ACCOUNT', 'READ', {
+    permission: 'loan.read',
+  }),
   // A receipt seen in the lender's bank app: recorded by one person…
   A('payment.receipt.record', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',

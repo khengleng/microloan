@@ -8,6 +8,7 @@
  */
 import { createHmac } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
+import { lending } from '@microloan/shared';
 import {
   Fixture,
   TEST_DB,
@@ -121,7 +122,7 @@ d('Consumer disclosure and affordability (integration)', () => {
           bakongAccountId: 'kfs_lender@devb',
           merchantName: 'Test Lender',
           merchantCity: 'Phnom Penh',
-          payload: require('@microloan/shared').lending.buildStaticKhqrPayload(
+          payload: lending.buildStaticKhqrPayload(
             {
               bakongAccountId: 'kfs_lender@devb',
               merchantName: 'Test Lender',

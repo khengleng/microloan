@@ -74,7 +74,12 @@ const T = {
 /** The instructions as plain lines (statement, notices, chat). */
 export function howToPayText(
   lang: PayLanguage,
-  input: { lender: string; reference: string; currency: string; code: PayCode | null },
+  input: {
+    lender: string;
+    reference: string;
+    currency: string;
+    code: PayCode | null;
+  },
 ): string[] {
   const t = T[lang];
   if (!input.code) return [t.noCode(input.currency)];
@@ -135,7 +140,12 @@ function mixed(
     const avail = opts.width ?? doc.page.width - left - doc.page.margins.right;
     const widths = runs.map((r) => doc.font(fontOf(r)).widthOfString(r.text));
     const total = widths.reduce((a, b) => a + b, 0);
-    let x = left + Math.max(0, opts.align === 'center' ? (avail - total) / 2 : avail - total);
+    let x =
+      left +
+      Math.max(
+        0,
+        opts.align === 'center' ? (avail - total) / 2 : avail - total,
+      );
     const y = doc.y;
     runs.forEach((r, i) => {
       doc.font(fontOf(r)).text(r.text, x, y, { lineBreak: false });
@@ -146,7 +156,9 @@ function mixed(
     return;
   }
   runs.forEach((r, i) => {
-    doc.font(fontOf(r)).text(r.text, { ...opts, continued: i < runs.length - 1 });
+    doc
+      .font(fontOf(r))
+      .text(r.text, { ...opts, continued: i < runs.length - 1 });
   });
 }
 
@@ -162,15 +174,24 @@ export interface HowToPayCard {
 }
 
 /** The printable "How to pay" card for one loan: one A5 page per language. */
-export function howToPayPdf(card: HowToPayCard, langs: PayLanguage[]): Promise<Buffer> {
-  const doc = new PDFDocument({ size: 'A5', margin: 36, info: { Title: `How to pay — ${card.reference}` } });
+export function howToPayPdf(
+  card: HowToPayCard,
+  langs: PayLanguage[],
+): Promise<Buffer> {
+  const doc = new PDFDocument({
+    size: 'A5',
+    margin: 36,
+    info: { Title: `How to pay — ${card.reference}` },
+  });
   for (const w of [400, 700] as const) {
     doc.registerFont(`kh-${w}`, font('khmer', w));
     doc.registerFont(`lt-${w}`, font('latin', w));
   }
   const chunks: Buffer[] = [];
   doc.on('data', (c: Buffer) => chunks.push(c));
-  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  const done = new Promise<Buffer>((resolve) =>
+    doc.on('end', () => resolve(Buffer.concat(chunks))),
+  );
   const width = doc.page.width - 72;
   langs.forEach((lang, page) => {
     const t = T[lang];
@@ -191,13 +212,31 @@ export function howToPayPdf(card: HowToPayCard, langs: PayLanguage[]): Promise<B
     } else {
       const size = 150;
       const top = doc.y;
-      doc.image(card.qr, 36 + (width - size) / 2, top, { width: size, height: size });
+      doc.image(card.qr, 36 + (width - size) / 2, top, {
+        width: size,
+        height: size,
+      });
       doc.y = top + size + 6;
       const c = card.code;
-      mixed(doc, `${t.currency} ${c.currency} · ${t.merchant}: ${c.merchantName}`, true, 10, { width, align: 'center' });
-      mixed(doc, `${t.bakong}: ${c.bakongAccountId}`, false, 9, { width, align: 'center' });
+      mixed(
+        doc,
+        `${t.currency} ${c.currency} · ${t.merchant}: ${c.merchantName}`,
+        true,
+        10,
+        { width, align: 'center' },
+      );
+      mixed(doc, `${t.bakong}: ${c.bakongAccountId}`, false, 9, {
+        width,
+        align: 'center',
+      });
       if (c.bankName)
-        mixed(doc, `${t.bank}: ${c.bankName}${c.accountNumber ? ` · ${t.account}: ${c.accountNumber}` : ''}`, false, 9, { width, align: 'center' });
+        mixed(
+          doc,
+          `${t.bank}: ${c.bankName}${c.accountNumber ? ` · ${t.account}: ${c.accountNumber}` : ''}`,
+          false,
+          9,
+          { width, align: 'center' },
+        );
       doc.moveDown(0.6);
       t.steps(card.reference, c.currency).forEach((s, i) => {
         mixed(doc, `${i + 1}. ${s}`, false, 9.5, { width });
@@ -211,7 +250,10 @@ export function howToPayPdf(card: HowToPayCard, langs: PayLanguage[]): Promise<B
       mixed(doc, t.warning(card.lender), true, 8.5, { width });
     }
     doc.fillColor('#8792A2');
-    mixed(doc, `${t.printed} ${card.printedOn}`, false, 7, { width, align: 'right' });
+    mixed(doc, `${t.printed} ${card.printedOn}`, false, 7, {
+      width,
+      align: 'right',
+    });
   });
   doc.end();
   return done;
