@@ -4,7 +4,7 @@ _Generated from `packages/shared/src/lending/capabilities.ts` and the product ca
 
 A product version can be activated only when every capability it requires is **Fully implemented**.
 
-✅ Fully implemented: 67 · 🧪 Simulation only: 0 · 🔌 Requires integration: 8 · ⛔ Not implemented: 2
+✅ Fully implemented: 68 · 🧪 Simulation only: 0 · 🔌 Requires integration: 9 · ⛔ Not implemented: 3
 
 ## Capabilities
 
@@ -73,6 +73,8 @@ A product version can be activated only when every capability it requires is **F
 | Capability | Status | Phase | Description | Evidence / limitation |
 |---|---|---|---|---|
 | `servicing.repayment` | ✅ Fully implemented | 1 | Repayment posting with configurable allocation order and idempotency | Tests: `apps/api/test/lending/*.int-spec.ts` |
+| `servicing.khqr_static_repayment` | ✅ Fully implemented | 2 | Repayment to the lender's static KHQR code (one per currency, optionally per branch, maker-checker): borrower "I have paid" claims, staff receipts verified by a second person, and bank / Bakong statement imports matched by loan reference, payer and amount; one bank reference applied once | Tests: `packages/shared/test/khqr.test.ts, apps/api/test/lending/khqr-repayments.int-spec.ts`<br>No Bakong API: a payment is credited only after a second person or the imported bank statement confirms it (DECISIONS D-160…D-165). Bank export presets other than GENERIC are unverified. |
+| `servicing.auto_debit` | 🔌 Requires integration | 2 | Auto-debit of instalments under a direct-debit mandate | Not available: only a mock bank adapter exists and production refuses it; no bank payout or debit integration is planned (D-160). |
 | `servicing.repayment_reversal` | ✅ Fully implemented | 1 | Repayment reversal by contra entry (latest-first) | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.accrual` | ✅ Fully implemented | 1 | Daily interest accrual reconciled to scheduled interest | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.partial_prepayment` | ✅ Fully implemented | 1 | Partial prepayment with recast or shortened tenor (reducing-balance loans) | Tests: `packages/shared/test/*.test.ts` |
@@ -81,6 +83,15 @@ A product version can be activated only when every capability it requires is **F
 | `servicing.write_off` | ✅ Fully implemented | 1 | Write-off proposal and approval (maker-checker) | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.closure` | ✅ Fully implemented | 1 | Automatic closure on full repayment or settlement | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `servicing.recovery_after_write_off` | ✅ Fully implemented | 2 | Post-write-off recoveries: cash attributed against what was written off, principal first, posted to recovery income without reviving the loan | Tests: `packages/shared/test/settlement.test.ts, apps/api/test/lending/settlement.int-spec.ts` |
+
+### Integration
+
+| Capability | Status | Phase | Description | Evidence / limitation |
+|---|---|---|---|---|
+| `integration.bakong_payment_confirmation` | ⛔ Not implemented | 2 | Automatic confirmation of KHQR payments from Bakong / bank APIs | Not integrated by business decision (D-160): receipts are confirmed by people and statement imports. |
+| `integration.kyc` | 🔌 Requires integration | 2 | External identity / KYC verification | Manual KYC status only. |
+| `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | The existing CBC provider is used when configured; products requiring a bureau cannot activate without it. Credit Bureau Cambodia integration is on hold (product owner). |
+| `integration.notifications` | 🔌 Requires integration | 2 | Borrower notifications (SMS / Telegram) |  |
 
 ### Restructuring
 
@@ -114,14 +125,6 @@ A product version can be activated only when every capability it requires is **F
 | `accounting.double_entry` | ✅ Fully implemented | 1 | Immutable financial events with balanced double-entry postings and reversals | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `accounting.reconciliation` | ✅ Fully implemented | 1 | Sub-ledger to general-ledger reconciliation | Tests: `apps/api/test/lending/*.int-spec.ts` |
 | `accounting.external_export` | 🔌 Requires integration | 2 | Export to an external accounting system | Outbox messages are recorded; no external adapter ships. |
-
-### Integration
-
-| Capability | Status | Phase | Description | Evidence / limitation |
-|---|---|---|---|---|
-| `integration.kyc` | 🔌 Requires integration | 2 | External identity / KYC verification | Manual KYC status only. |
-| `integration.credit_bureau` | 🔌 Requires integration | 2 | Live credit bureau enquiry | The existing CBC provider is used when configured; products requiring a bureau cannot activate without it. |
-| `integration.notifications` | 🔌 Requires integration | 2 | Borrower notifications (SMS / Telegram) |  |
 
 ### Scoring
 
