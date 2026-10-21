@@ -23,6 +23,7 @@ import { productVersionResource, tenantResource } from '../policy/resources';
 import { DEFAULT_CHART_OF_ACCOUNTS } from '../../ledger/chart-of-accounts';
 import { LendingPoliciesService } from './lending-policies.service';
 import { RateCapService } from '../common/rate-cap.service';
+import { PlanQuotaService } from '../../plan-tiers/plan-quota.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -45,6 +46,7 @@ export class ProductsService {
     private readonly businessDate: BusinessDateService,
     private readonly policies: LendingPoliciesService,
     private readonly rateCap: RateCapService,
+    private readonly quotas: PlanQuotaService,
   ) {}
 
   // ── Catalogue ─────────────────────────────────────────────────────────────
@@ -241,6 +243,8 @@ export class ProductsService {
 
     try {
       return await this.lp.tenantTx(tenantId, async (tx) => {
+        // The plan's product quota (D-167).
+        await this.quotas.assertRoom(tenantId, 'loanProducts', tx);
         const product = await tx.lendingProduct.create({
           data: {
             tenantId,

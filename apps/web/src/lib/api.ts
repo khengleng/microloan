@@ -30,6 +30,8 @@ export interface ApiErrorEventDetail {
     message?: string;
     /** Otherwise a key under `Errors.api`. */
     messageKey?: ApiErrorKey;
+    /** A plan quota refusal (PLAN_LIMIT_REACHED, D-167), said in the reader's language. */
+    planLimit?: { plan: string; limit: string; used: string; resource: string };
     status: number;
 }
 
@@ -114,7 +116,7 @@ function signOutAndRedirect() {
 // ── Global response interceptor ───────────────────────────────────────────
 api.interceptors.response.use(
     (response) => response,
-    async (error: AxiosError<{ message?: string | string[]; code?: string }>) => {
+    async (error: AxiosError<{ message?: string | string[]; code?: string; resource?: string; limit?: number; used?: number; plan?: string; planName?: string }>) => {
         if (typeof window === 'undefined') return Promise.reject(error);
 
         const status: number | undefined = error.response?.status;
@@ -166,7 +168,11 @@ api.interceptors.response.use(
         const quiet = !!config?.quiet && !!status && status < 500;
         const friendly = status && !quiet ? friendlyMessage(status, apiMessage) : null;
         if (status && friendly) {
-            const detail: ApiErrorEventDetail = { ...friendly, status };
+            const d = error.response?.data;
+            const planLimit = code === 'PLAN_LIMIT_REACHED' && d?.resource
+                ? { plan: String(d.planName || d.plan || ''), limit: String(d.limit ?? ''), used: String(d.used ?? ''), resource: d.resource }
+                : undefined;
+            const detail: ApiErrorEventDetail = { ...friendly, status, ...(planLimit ? { planLimit } : {}) };
             window.dispatchEvent(new CustomEvent('api:error', { detail }));
         }
 

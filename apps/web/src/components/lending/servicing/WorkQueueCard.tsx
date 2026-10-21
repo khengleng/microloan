@@ -26,7 +26,7 @@ export function WorkQueueCard() {
     const [queue, setQueue] = useState('');
     const [status, setStatus] = useState('OPEN');
     const r = useApi<Task[]>(`/lending/collections/tasks${qs({ queue, status })}`);
-    const [working, setWorking] = useState<{ id: string; outcome: string; note: string } | null>(null);
+    const [working, setWorking] = useState<{ id: string; outcome: string; note: string; amount: string; payBy: string } | null>(null);
     const { busy, error, run, clearError } = useAction();
     // Working a task is collection.task.work, held through loan.repayment.post.
     const canWork = useWorkspace().can('loan.repayment.post');
@@ -35,7 +35,9 @@ export function WorkQueueCard() {
     const claim = async (t: Task) => { if (await run(`claim-${t.id}`, () => api.post(`/lending/collections/tasks/${t.id}/claim`))) r.reload(); };
     const complete = async () => {
         if (!working) return;
-        const ok = await run(`done-${working.id}`, () => api.post(`/lending/collections/tasks/${working.id}/complete`, { outcome: working.outcome, ...(working.note.trim() ? { note: working.note.trim() } : {}) }));
+        // A promise to pay carries its amount and date; it is reviewed after end of day (UC-59).
+        const promise = working.outcome === 'PROMISE_TO_PAY' ? { promise: { amount: working.amount.trim(), payBy: working.payBy } } : {};
+        const ok = await run(`done-${working.id}`, () => api.post(`/lending/collections/tasks/${working.id}/complete`, { outcome: working.outcome, ...(working.note.trim() ? { note: working.note.trim() } : {}), ...promise }));
         if (ok) { setWorking(null); r.reload(); }
     };
 
@@ -64,7 +66,7 @@ export function WorkQueueCard() {
                             <tr data-tour="coll-task-row" key={t.id} className="align-top">
                                 <td className={td}><Link href={href(`/lending/loans/${t.loanAccountId}`)} className="font-mono text-[12px] font-semibold text-[#635BFF] hover:underline">{t.reference}</Link></td>
                                 <td className={td}>{t.borrower}<div className="text-[11px] text-[#8792A2]">{t.phone ?? ''}</div></td>
-                                <td className={td}>{t.action.replace(/_/g, ' ').toLowerCase()} · {t.stage}<div className="text-[11px] text-[#8792A2]">{tl('queueOf', { queue: t.queue })}</div></td>
+                                <td className={td}>{t.action.replace(/_/g, ' ').toLowerCase()} · {t.stage === 'PROMISE_BROKEN' ? tl('stagePromiseBroken') : t.stage}<div className="text-[11px] text-[#8792A2]">{tl('queueOf', { queue: t.queue })}</div></td>
                                 <td className={`${tdR} text-red-600 font-semibold`}>{t.daysPastDue}</td>
                                 <td className={tdR}><MoneyCell value={t.amountOverdue} currency={t.currency} /></td>
                                 <td className={td}>
@@ -74,10 +76,16 @@ export function WorkQueueCard() {
                                 </td>
                                 <td className={`${td} whitespace-nowrap`}>
                                     {t.status === 'OPEN' && !t.assignedTo && canWork && <Btn data-tour="coll-task-claim" size="sm" onClick={() => claim(t)} busy={busy === `claim-${t.id}`}>{tl('claim')}</Btn>}
-                                    {t.status === 'OPEN' && working?.id !== t.id && canWork && <Btn data-tour="coll-task-outcome" size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '' })}>{tl('recordOutcome')}</Btn>}
+                                    {t.status === 'OPEN' && working?.id !== t.id && canWork && <Btn data-tour="coll-task-outcome" size="sm" variant="ghost" onClick={() => setWorking({ id: t.id, outcome: 'CONTACTED', note: '', amount: t.amountOverdue, payBy: '' })}>{tl('recordOutcome')}</Btn>}
                                     {working?.id === t.id && (
                                         <div data-tour="coll-outcome-form" className="space-y-1">
                                             <SelectInput value={working.outcome} onChange={(v) => setWorking({ ...working, outcome: v })} options={OUTCOMES.map((o) => ({ value: o, label: tl(`outcomes.${o}`) }))} />
+                                            {working.outcome === 'PROMISE_TO_PAY' && (
+                                                <div className="flex flex-wrap gap-1">
+                                                    <Field label={tl('promiseAmount')}><TextInput value={working.amount} onChange={(v) => setWorking({ ...working, amount: v })} inputMode="decimal" className="w-28" /></Field>
+                                                    <Field label={tl('promiseDate')}><TextInput type="date" value={working.payBy} onChange={(v) => setWorking({ ...working, payBy: v })} className="w-36" /></Field>
+                                                </div>
+                                            )}
                                             <TextInput value={working.note} onChange={(v) => setWorking({ ...working, note: v })} placeholder={tl('note')} maxLength={1000} />
                                             <div className="space-x-1">
                                                 <Btn size="sm" variant="primary" onClick={complete} busy={busy === `done-${t.id}`}>{tl('save')}</Btn>

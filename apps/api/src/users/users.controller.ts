@@ -53,7 +53,7 @@ export class UsersController {
     }
 
     // Undo a suspension. Seat ceilings are checked in the service against
-    // active seats (a suspended account already counts toward QuotaGuard).
+    // active seats, as QuotaGuard does on create (D-167).
     @Roles('ADMIN', 'SUPERADMIN')
     @RequirePermissions(Permission.USER_DISABLE)
     @Post(':id/reactivate')

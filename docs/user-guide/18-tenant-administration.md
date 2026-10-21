@@ -109,6 +109,17 @@ The page **Settings** — "Manage your organization configuration and integratio
 
 Only an organisation admin can change the plan. If you see **Plan changes are unavailable — this platform has no payment merchant configured yet. Contact platform support.**, the platform operator has not set up payments yet.
 
+**Plan usage** (organisation admins) shows how much of the plan you use:
+
+| Line | What counts |
+|---|---|
+| **Running loans (booked or active)** | Loan accounts booked or being repaid. Closed and written-off loans do not count, so closing loans frees room. |
+| **Loan products** | Lending products with a version that is not retired or rejected. |
+| **Active staff accounts** | Team members who are not suspended. |
+| **Customers** | Customers (borrowers) on record. |
+
+Each line reads "used of limit", or "unlimited". At the limit it says **Limit reached — upgrade to add more**: booking another loan, creating another product, adding or reactivating a team member, or adding a customer is refused with "Your … plan allows N … and N are in use. Upgrade the plan (Settings › Subscription) to add more." Nothing you already have is removed; if a lower plan leaves you over a limit (**Over the limit**), you keep working what you have but cannot add more until you upgrade or close some.
+
 ### 4.4 Security Verification
 
 Your own authenticator setup — see [01-getting-started.md](01-getting-started.md), section 4. As an administrator you **must** have one: until it is set up, every page sends you to **My account** ([01-getting-started.md](01-getting-started.md), section 3.1).

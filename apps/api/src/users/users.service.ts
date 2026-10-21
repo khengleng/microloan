@@ -13,7 +13,7 @@ import type { JwtPayload } from '../auth/jwt.strategy';
 import { AuthzService } from '../authz/authz.service';
 import { Permission } from '../authz/permission.enum';
 import { canonicalRole } from '../authz/role-permissions';
-import { PlanTierService } from '../plan-tiers/plan-tier.service';
+import { PlanQuotaService } from '../plan-tiers/plan-quota.service';
 import { SuperadminGrantService } from '../platform-approvals/superadmin-grant.service';
 import { mfaIsFresh, stepUpRequired } from '../auth/mfa-policy';
 
@@ -26,7 +26,7 @@ export class UsersService {
     private prisma: PrismaService,
     private audit: AuditService,
     private authz: AuthzService,
-    private planTiers: PlanTierService,
+    private quotas: PlanQuotaService,
     private superadminGrants: SuperadminGrantService,
   ) { }
 
@@ -246,10 +246,9 @@ export class UsersService {
 
   /**
    * Undo a suspension (DELETE /users/:id). Same permission and the same
-   * who-may-manage-whom rules as suspending. A suspended account still counts
-   * toward the plan's seat ceiling (QuotaGuard counts every user row), but its
-   * seat is not in use: reactivation is refused only when the active seats are
-   * already full, which can happen after a downgrade.
+   * who-may-manage-whom rules as suspending. The plan's seat ceiling counts
+   * active accounts only, so reactivation is refused when the active seats
+   * are already full, which can happen after a downgrade.
    */
   async reactivate(actor: UserActor, id: string) {
     this.authz.assertPermission(actor, Permission.USER_DISABLE);
@@ -265,19 +264,9 @@ export class UsersService {
     }
     if (user.isActive) throw new ConflictException('This account is already active.');
 
-    if (!this.authz.isPlatform(actor) && user.tenantId) {
-      const { maxUsers } = await this.planTiers.ceilingsFor(actor.tenantPlan);
-      if (maxUsers !== null) {
-        const active = await this.prisma.user.count({
-          where: { tenantId: user.tenantId, isActive: true },
-        });
-        if (active >= maxUsers) {
-          throw new ForbiddenException(
-            `Your organization already has ${active} active team members, the most the ${actor.tenantPlan || 'current'} plan allows. Suspend someone else or upgrade the plan first.`,
-          );
-        }
-      }
-    }
+    // A suspended account holds no seat; reactivating takes one (D-167).
+    if (!this.authz.isPlatform(actor) && user.tenantId)
+      await this.quotas.assertRoom(user.tenantId, 'users');
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.user.update({

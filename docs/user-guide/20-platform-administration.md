@@ -184,7 +184,17 @@ To create a plan:
 
 Other actions on the **Plans** list: **Edit** (then **Save**); the up and down arrows (**Move up** / **Move down**) set the order shown at sign-up; **Retire plan** stops offering it to new sign-ups — organisations already on it keep it and its limits; **Re-enable plan**; **Delete plan** ("This cannot be undone. Retiring keeps the plan valid for existing customers — deleting does not."). Prefer retiring to deleting.
 
-When an organisation reaches a quota (for example its user limit), creating more is refused until it upgrades.
+When an organisation reaches a quota, creating more is refused until it upgrades: booking a loan beyond **max loans** (counted as running loans — booked or active), creating a lending product beyond **max loan products**, adding or reactivating a team member beyond **max users** (active accounts), adding a customer beyond **max borrowers**. An empty limit means unlimited. A change to a plan's limits applies to every organisation on it at once. Branches are not limited by plan, and loans brought in by the loan-book migration are not checked.
+
+### 6.1 Plan usage by organisation
+
+On **Organisations**, the card **Plan usage by organisation** shows, for each organisation, its plan and "used / limit" for running loans, products, staff and customers (∞ = unlimited). A red row is over a limit — usually after a move to a smaller plan. Nothing is removed; the organisation simply cannot add more.
+
+### 6.2 Stripe events to review
+
+When online card billing (Stripe) is configured, Stripe tells the platform about payments. The platform applies a paid plan to an **active** organisation on its own, once per Stripe event. It never reactivates an organisation: a payment for an organisation that is **SUSPENDED**, **PENDING_PAYMENT** or marked for erasure, for a plan that does not exist, or from a Stripe customer that is not the organisation's, appears on **Organisations** under **Stripe events to review**, and the operational alert **Stripe billing events need review** stays open.
+
+For each event: read the explanation (the plan is recorded for a suspended organisation, but its status is not changed), settle it — refund or cancel in Stripe, or reactivate the organisation yourself (section 4.3) if that is right — then click **Mark reviewed**. The alert closes when none is left.
 
 ---
 

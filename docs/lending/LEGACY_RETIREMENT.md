@@ -165,19 +165,46 @@ the migration file of running loans.
   platform, or book a replacement loan. Until decided they stay in the archive
   and in the regulatory return. (D-158)
 * **Pending or approved legacy applications** can no longer be paid out or
-  rejected. Phase 2 marks them `REJECTED` with a reason; re-originate any
-  still wanted in Lending › Applications.
+  rejected. The operator closes them with the script in §4.1 (D-169) when
+  the organisations have been told; re-originate any still wanted in
+  Lending › Applications.
 * **Telegram chat applications** are paused. Rebuilding them on lending
   applications needs consent and affordability capture in the chat — a product
   and compliance decision (D-155).
-* **Promise-to-pay follow-up** (UC-59: kept / broken automatically) existed
-  only in the original module. Lending collections record `PROMISE_TO_PAY` as
-  a task outcome without the automatic review.
-* **Plan quota `maxLoans`** was enforced only on legacy loan creation. Decide
-  whether lending booking should enforce it.
+* ~~**Promise-to-pay follow-up**~~ — done (D-168): promises to pay on
+  lending loans are recorded with the work-queue outcome or on the loan and
+  reviewed every day after end of day (kept / broken; a broken promise puts a
+  task in the next collections queue).
+* ~~**Plan quota `maxLoans`**~~ — done (D-167): lending booking enforces it
+  on running loans (BOOKED or ACTIVE), with the product, staff and customer
+  quotas.
 * **Tenants that had opted out of the freeze** (rule switching
   `lending.legacy_loans.readonly` off) could still collect in the original
   module; they can no longer do so and must migrate (D-153).
+
+### 4.1 Closing open legacy applications (operator's step, D-169)
+
+Not a migration: nothing runs it automatically. With the API's
+`DATABASE_URL` (the runtime role is enough — the script declares a system
+path, so row-level security admits every organisation):
+
+```bash
+# 1. See what would close, per organisation and status. Changes nothing.
+pnpm legacy:close-applications --dry-run --operator=ops@example.com
+# 2. Tell the organisations; they re-originate what they still want.
+# 3. Close them (all organisations, or one with --tenant=<id>).
+pnpm legacy:close-applications --operator=ops@example.com [--tenant=<id>]
+```
+
+Each legacy loan still `PENDING`, or `APPROVED` and never disbursed, becomes
+`REJECTED` with `rejectionReason` "Original loan module retired",
+`rejectedBy` `system:legacy-retirement` and `rejectedAt` now. Every change is
+a conditional update, so running it again (or twice at once) closes nothing
+more, and each closed application gets an `AuditLog` row
+(`LEGACY_APPLICATION_CLOSED`, the status it had, the run id, the operator).
+No schedule, journal or lending row is written. Disbursed, defaulted, closed
+and written-off legacy loans are untouched. The output lists the run id and
+the counts; keep it with the cut-over records.
 
 ## 5. Phase 2 — dropping the legacy tables (not done)
 
@@ -187,7 +214,7 @@ the migration file of running loans.
    every running legacy loan migrated (or the human decision in §4 applied to
    matured ones).
 2. Pending/approved legacy applications closed (`REJECTED`, reason
-   "original module retired").
+   "Original loan module retired") with the script of §4.1.
 3. Each organisation has downloaded the archive CSV and the combined trial
    balance at the cut-over, and the archive export is stored with its
    records-retention evidence (NBC record keeping; at least the statutory

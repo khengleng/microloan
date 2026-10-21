@@ -28,7 +28,7 @@ describe('platform actions on tenant users are audited in the tenant', () => {
   const audit = new AuditService(prisma);
   const authz = new AuthzService(audit);
   const grants: any = { requestForNewAccount: jest.fn() };
-  const service = new UsersService(prisma, audit, authz, { ceilingsFor: jest.fn() } as any, grants);
+  const service = new UsersService(prisma, audit, authz, { assertRoom: jest.fn() } as any, grants);
   const platform: any = {
     sub: 'sa1', role: 'SUPERADMIN', tenantId: null, branchId: null, permissions: [],
     amr: 'mfa', mfaAt: Math.floor(Date.now() / 1000),
