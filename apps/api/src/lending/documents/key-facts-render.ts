@@ -44,6 +44,20 @@ export interface KeyFactsDocument {
     address: string | null;
     regulator: string;
   };
+  /**
+   * How the loan is repaid: the lender's static KHQR code for the loan's
+   * branch and currency (D-160). Absent on statements issued before codes
+   * existed; null when the lender has none in force.
+   */
+  repayment?: {
+    merchantName: string;
+    bakongAccountId: string;
+    bankName: string | null;
+    accountNumber: string | null;
+    currency: string;
+    /** The code as a data: URI image. */
+    qrImage: string;
+  } | null;
 }
 
 type Row = [string, string];
@@ -51,6 +65,8 @@ interface Section {
   heading: string;
   rows?: Row[];
   text?: string[];
+  /** A data: URI image (the KHQR code). */
+  image?: string;
 }
 
 /** Money at the currency's minor units, with the currency code. */
@@ -142,6 +158,16 @@ const T = {
     facilityNote:
       'This is a credit line: you pay interest only on what you draw, and the payments depend on how much you use. There is no fixed repayment schedule.',
     latePayment: 'If you pay late',
+    howToRepay: 'How to repay',
+    payTo: 'Pay to (KHQR)',
+    bakong: 'Bakong account',
+    bankAccount: 'Bank account',
+    repaySteps: [
+      'Scan the code with any bank or wallet app that pays KHQR, type the amount and write your loan reference in the payment remark. The loan reference is on your loan agreement and in the borrower portal.',
+      'Keep the receipt and tell the lender in the borrower portal ("I have paid") with the transaction reference, or show it to your loan officer. A payment is credited once the lender has checked it with its bank.',
+      'Only pay to this code; staff will never ask you to pay into a personal account.',
+    ],
+    repayNoCode: 'The lender will tell you how to repay before your first instalment is due.',
     noPenalty: 'No late-payment charge.',
     penaltyFlat: (a: string, g: number) =>
       `A late fee of ${a} for each instalment paid late${g ? `, after ${g} days of grace` : ''}.`,
@@ -259,6 +285,16 @@ const T = {
     facilityNote:
       'នេះជាខ្សែឥណទាន៖ អ្នកបង់ការប្រាក់តែលើចំនួនដែលអ្នកដកប្រើប៉ុណ្ណោះ ហើយចំនួនបង់អាស្រ័យលើការប្រើប្រាស់របស់អ្នក។ គ្មានកាលវិភាគសងប្រាក់ថេរទេ។',
     latePayment: 'ប្រសិនបើអ្នកបង់យឺត',
+    howToRepay: 'របៀបសងប្រាក់',
+    payTo: 'បង់ទៅ (KHQR)',
+    bakong: 'គណនីបាគង',
+    bankAccount: 'គណនីធនាគារ',
+    repaySteps: [
+      'ស្កេនកូដនេះដោយកម្មវិធីធនាគារ ឬកាបូបអេឡិចត្រូនិក ដែលអាចបង់តាម KHQR បញ្ចូលចំនួនទឹកប្រាក់ ហើយសរសេរលេខយោងកម្ចីរបស់អ្នកនៅក្នុងចំណាំនៃការបង់ប្រាក់។ លេខយោងកម្ចីមាននៅលើកិច្ចសន្យាកម្ចី និងនៅក្នុងវិបផតថលអ្នកខ្ចី។',
+      'រក្សាទុកបង្កាន់ដៃ ហើយប្រាប់អ្នកផ្តល់កម្ចីនៅក្នុងវិបផតថលអ្នកខ្ចី ("ខ្ញុំបានបង់ហើយ") ជាមួយលេខយោងប្រតិបត្តិការ ឬបង្ហាញវាទៅមន្ត្រីឥណទានរបស់អ្នក។ ការបង់ប្រាក់នឹងត្រូវបានកត់ត្រា បន្ទាប់ពីអ្នកផ្តល់កម្ចីបានផ្ទៀងផ្ទាត់ជាមួយធនាគាររបស់ខ្លួន។',
+      'សូមបង់តែតាមកូដនេះប៉ុណ្ណោះ។ បុគ្គលិកនឹងមិនសុំឱ្យអ្នកបង់ចូលគណនីផ្ទាល់ខ្លួនឡើយ។',
+    ],
+    repayNoCode: 'អ្នកផ្តល់កម្ចីនឹងប្រាប់អ្នកពីរបៀបសងប្រាក់ មុនពេលដល់កាលកំណត់បង់លើកដំបូង។',
     noPenalty: 'គ្មានការពិន័យលើការបង់យឺតទេ។',
     penaltyFlat: (a: string, g: number) =>
       `ប្រាក់ពិន័យ ${a} សម្រាប់ការបង់យឺតនីមួយៗ${g ? ` បន្ទាប់ពីរយៈពេលអនុគ្រោះ ${g} ថ្ងៃ` : ''}។`,
@@ -470,6 +506,32 @@ export function keyFactsSections(
   late.push(t.arrearsWarning);
   sections.push({ heading: t.latePayment, text: late });
 
+  // How to repay (D-160): only on statements issued since codes exist.
+  if (doc.repayment !== undefined) {
+    const r = doc.repayment;
+    sections.push(
+      r
+        ? {
+            heading: t.howToRepay,
+            rows: [
+              [t.payTo, `${r.merchantName} (${r.currency})`],
+              [t.bakong, r.bakongAccountId],
+              ...(r.bankName
+                ? ([
+                    [
+                      t.bankAccount,
+                      `${r.bankName}${r.accountNumber ? ` ${r.accountNumber}` : ''}`,
+                    ],
+                  ] as Row[])
+                : []),
+            ],
+            text: [...t.repaySteps],
+            image: r.qrImage,
+          }
+        : { heading: t.howToRepay, text: [t.repayNoCode] },
+    );
+  }
+
   const pp = f.prepayment;
   sections.push({
     heading: t.prepayment,
@@ -570,7 +632,12 @@ export function renderKeyFacts(
       const rows = s.rows?.length
         ? `<table>${s.rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>`
         : '';
-      return `<section><h2>${esc(s.heading)}</h2>${rows}${text}</section>`;
+      // Only a PNG data URI is embedded: the document stays self-contained.
+      const image =
+        s.image && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(s.image)
+          ? `<p><img src="${s.image}" alt="KHQR" width="200" height="200"></p>`
+          : '';
+      return `<section><h2>${esc(s.heading)}</h2>${image}${rows}${text}</section>`;
     })
     .join('\n');
   const font =

@@ -111,6 +111,31 @@ d('Consumer disclosure and affordability (integration)', () => {
     await standardRoles(f);
     await grant(f, f.t1, 'nobody', 'RISK_COMPLIANCE');
     ({ productId } = await activeProduct(f, 'PERSONAL_INSTALMENT', 'KFS-PL'));
+    // A repayment code in force, so the statement says how to repay (D-160).
+    await f.system(() =>
+      f.prisma.khqrCode.create({
+        data: {
+          tenantId: f.t1,
+          currency: 'USD',
+          source: 'GENERATED',
+          bakongAccountId: 'kfs_lender@devb',
+          merchantName: 'Test Lender',
+          merchantCity: 'Phnom Penh',
+          payload: require('@microloan/shared').lending.buildStaticKhqrPayload(
+            {
+              bakongAccountId: 'kfs_lender@devb',
+              merchantName: 'Test Lender',
+              merchantCity: 'Phnom Penh',
+            },
+            'USD',
+          ),
+          status: 'ACTIVE',
+          makerId: f.users.finance.id,
+          checkerId: f.users.approver.id,
+          decidedAt: new Date(),
+        },
+      }),
+    );
     await settings({
       consumerProtection: {
         lenderLegalName: 'Test Lender Plc.',
@@ -186,6 +211,10 @@ d('Consumer disclosure and affordability (integration)', () => {
     expect(html.text).toContain('lang="km"');
     expect(html.text).toContain('អត្រាការប្រាក់ប្រសិទ្ធភាពប្រចាំឆ្នាំ');
     expect(html.text).toContain(`${k.rates.effectiveAnnualRatePct}%`);
+    // How to repay: the lender's static KHQR code (D-160).
+    expect(html.text).toContain('របៀបសងប្រាក់');
+    expect(html.text).toContain('kfs_lender@devb');
+    expect(html.text).toContain('data:image/png;base64,');
 
     const accepted = await acceptKeyFacts(f, app.id);
     expect(accepted).toMatchObject({

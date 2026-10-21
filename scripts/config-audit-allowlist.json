@@ -29,7 +29,7 @@
   },
   {
     "rule": "rule-constant",
-    "file": "apps/api/src/billing/qr-image.ts",
+    "file": "apps/api/src/common/qr-image.ts",
     "match": "MAX_PIXELS",
     "reason": "Decompression-bomb guard on an uploaded QR image: a safety bound of the image decoder, not a lender or deployment choice.",
     "expires": "2027-06-30"

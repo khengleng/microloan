@@ -17,6 +17,8 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { tenantResource } from '../policy/resources';
 import { loadLoanState, resourceOf } from '../servicing/loan-state';
+import { KhqrCodesService, type PayableCode } from '../payments/khqr/khqr-codes.service';
+import { howToPayShort } from '../payments/khqr/how-to-pay';
 
 const D = (v: Prisma.Decimal | string | number | null | undefined) =>
   new lending.D(v === null || v === undefined ? 0 : v.toString());
@@ -65,6 +67,7 @@ export class ReportingService {
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
+    private readonly khqr: KhqrCodesService,
   ) {}
 
   private async names(tx: Tx, tenantId: string, borrowerId: string) {
@@ -325,6 +328,7 @@ export class ReportingService {
               reference: true,
               currency: true,
               borrowerId: true,
+              branchId: true,
               daysPastDue: true,
             },
           },
@@ -351,6 +355,13 @@ export class ReportingService {
         select: { id: true, firstName: true, lastName: true, phone: true },
       });
       const byId = new Map(borrowers.map((b) => [b.id, b]));
+      // How to pay (D-160): the KHQR code of each loan's branch and currency.
+      const codes = new Map<string, PayableCode | null>();
+      for (const l of lines) {
+        const k = `${l.loanAccount.branchId}:${l.loanAccount.currency}`;
+        if (!codes.has(k))
+          codes.set(k, await this.khqr.forLoan(tx, tenantId, l.loanAccount));
+      }
       const notices = lines
         .filter((l) => owed(l).gt(0))
         .map((l) => {
@@ -368,10 +379,19 @@ export class ReportingService {
             amount,
             currency: l.loanAccount.currency,
             daysPastDue: l.loanAccount.daysPastDue,
-            text:
+            text: [
               kind === 'OVERDUE'
                 ? `Dear ${name}, instalment ${l.number} of loan ${l.loanAccount.reference} (${l.loanAccount.currency} ${amount}) was due on ${due} and is unpaid. Please pay now to avoid further charges.`
                 : `Dear ${name}, a reminder that instalment ${l.number} of loan ${l.loanAccount.reference} (${l.loanAccount.currency} ${amount}) is due on ${due}.`,
+              howToPayShort(
+                l.loanAccount.reference,
+                codes.get(
+                  `${l.loanAccount.branchId}:${l.loanAccount.currency}`,
+                ) ?? null,
+              ),
+            ]
+              .filter(Boolean)
+              .join(' '),
           };
         });
       return { kind, days, businessDate, notices };

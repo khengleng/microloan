@@ -30,6 +30,7 @@ type Channel =
   | 'BRANCH_CASH'
   | 'BANK_TRANSFER'
   | 'MOBILE'
+  | 'KHQR'
   | 'AGENT'
   | 'PAYROLL'
   | 'OTHER';
@@ -250,13 +251,47 @@ export class SuspenseService {
   ) {
     const tenantId = requireTenant(actor);
     const hash = requestHash({ op: 'suspense-match', id, body });
-    return this.servicing.money(tenantId, idempotencyKey, hash, async (tx) => {
-      await this.policy.enforce(
-        actor,
-        'payment.suspense.receive',
-        tenantResource(tenantId),
-        tx,
-      );
+    return this.servicing.money(tenantId, idempotencyKey, hash, (tx) =>
+      this.matchInTx(tx, actor, id, body, idempotencyKey, hash),
+    );
+  }
+
+  /**
+   * The match itself, inside the caller's transaction. A verified KHQR
+   * receipt whose money a bank statement already put in suspense is applied
+   * this way (D-160): `authorizedByApproval` — the verification decision
+   * already authorised it — and `channel` / `components` are recorded on the
+   * repayment.
+   */
+  async matchInTx(
+    tx: Tx,
+    actor: LendingActor,
+    id: string,
+    body: {
+      loanId: string;
+      amount: string;
+      prepaymentStrategy?: 'RECAST' | 'SHORTEN';
+      applyExcessAs?: 'ADVANCE' | 'PREPAY';
+    },
+    idempotencyKey: string,
+    hash: string,
+    opts: {
+      authorizedByApproval?: boolean;
+      channel?: string;
+      components?: Record<string, unknown>;
+      /** Apply on this date instead of the receipt's own value date. */
+      valueDate?: string;
+    } = {},
+  ) {
+    const tenantId = requireTenant(actor);
+    {
+      if (!opts.authorizedByApproval)
+        await this.policy.enforce(
+          actor,
+          'payment.suspense.receive',
+          tenantResource(tenantId),
+          tx,
+        );
       const p = await this.lockOpen(tx, tenantId, id);
       const amount = D(lending.parseMoney(body.amount, p.currency, 'amount'));
       if (amount.lte(0) || amount.gt(D(p.remaining)))
@@ -278,19 +313,22 @@ export class SuspenseService {
         body.loanId,
         {
           amount: amount.toString(),
-          valueDate: toLocalDate(p.valueDate)!,
+          valueDate: opts.valueDate ?? toLocalDate(p.valueDate)!,
           externalReference: `${p.reference} ${p.externalReference}`.slice(
             0,
             120,
           ),
           prepaymentStrategy: body.prepaymentStrategy,
           applyExcessAs: body.applyExcessAs,
+          channel: opts.channel,
         },
         idempotencyKey,
         hash,
         {
           fundingAccount: (await this.settings.get(tenantId, tx)).accounting
             .unidentifiedSuspense,
+          authorizedByApproval: opts.authorizedByApproval,
+          components: opts.components,
         },
       );
       await this.settle(tx, p, amount, {
@@ -315,7 +353,7 @@ export class SuspenseService {
         tx,
       );
       return event;
-    });
+    }
   }
 
   /** Propose returning held money to the payer; a different person approves. */

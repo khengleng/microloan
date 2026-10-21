@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { lending } from '@microloan/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentInstrumentsService } from '../payment-instruments/payment-instruments.service';
+import { KhqrReceiptsService } from '../lending/payments/khqr/khqr-receipts.service';
+import { KhqrHowToPayService, payLanguages } from '../lending/payments/khqr/khqr-how-to-pay.service';
+import { howToPayText } from '../lending/payments/khqr/how-to-pay';
 import type { BorrowerSession } from './borrower-jwt';
 import { UploadKycDto } from './dto/borrower-auth.dto';
 import { encryptField } from '../common/field-crypto';
@@ -66,8 +68,9 @@ const RECEIPTS = ['REPAYMENT', 'PREPAYMENT', 'SETTLEMENT'];
 export class BorrowerPortalService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly paymentInstruments: PaymentInstrumentsService,
     private readonly library: CustomerDocumentsService,
+    private readonly khqr: KhqrReceiptsService,
+    private readonly howToPay: KhqrHowToPayService,
   ) {}
 
   async me(session: BorrowerSession) {
@@ -158,7 +161,11 @@ export class BorrowerPortalService {
 
   async getLoan(session: BorrowerSession, loanId: string) {
     const { loan, receipts } = await this.loadOwnedLoan(session, loanId);
+    // How to pay: the lender's static KHQR code and the reference to write in
+    // the remark, with the borrower's "I have paid" claims (D-160).
+    const howToPay = await this.khqr.portalLoan(session, loan.id);
     return {
+      howToPay,
       id: loan.id,
       reference: loan.reference,
       principal: D(loan.bookedPrincipal).toNumber(),
@@ -224,6 +231,12 @@ export class BorrowerPortalService {
       doc.text(`${day(r.valueDate)}   ${money(r.amount)}   Receipt ${r.id}`);
     });
 
+    // How to pay (D-160): the lender's static KHQR code and the loan reference.
+    const pay = await this.howToPay.loanInfo(session.tenantId, loan.id);
+    doc.moveDown(0.8).fillColor('#000').fontSize(11).text('How to Pay', { underline: true });
+    doc.moveDown(0.3).fontSize(9);
+    for (const line of howToPayText('en', pay)) doc.text(line);
+
     doc.moveDown(1).fontSize(8).fillColor('#888').text(
       `Generated ${new Date().toISOString().slice(0, 19).replace('T', ' ')} UTC. This statement is informational.`,
     );
@@ -275,7 +288,13 @@ export class BorrowerPortalService {
     return created;
   }
 
+  /** The lender's static KHQR codes in force, one per currency (D-160). */
   async paymentQr(session: BorrowerSession) {
-    return this.paymentInstruments.resolveForTenant(session.tenantId);
+    return this.khqr.portalCodes(session.tenantId);
+  }
+
+  /** The printable "How to pay" card of the borrower's own loan. */
+  howToPayCard(session: BorrowerSession, loanId: string, lang?: string) {
+    return this.howToPay.borrowerCard(session, loanId, payLanguages(lang));
   }
 }
