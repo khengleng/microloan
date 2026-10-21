@@ -4,6 +4,8 @@ Who this is for: your organisation's administrators (people with an ADMIN accoun
 
 An administrator manages people and access. By design, the Tenant administrator role **cannot approve credit or move money** — it governs who can.
 
+A new organisation starts with the **Go-live setup** checklist (**Administration › Go-live setup**): it shows what is still to configure before the first loan and links to each screen, and it can import staff and branches from CSV files. See [27-go-live-setup.md](27-go-live-setup.md).
+
 ---
 
 ## 1. Setting up a new staff member — checklist

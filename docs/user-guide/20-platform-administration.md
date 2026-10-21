@@ -133,6 +133,8 @@ An email address belonging to an organisation in the trash cannot be reused unti
 
 ---
 
+Each organisation's card also shows its **Go-live setup** progress: the percentage of the checklist done and how many items are still open (counts only — the platform operator does not see the organisation's data). The organisation's administrators work through the checklist themselves; see [27-go-live-setup.md](27-go-live-setup.md).
+
 ## 5. Plan payments
 
 The page **Platform payments** — "Configure the KHQR that signup payment codes are generated from, and approve transfers to activate new workspaces."

@@ -49,6 +49,7 @@ chapters for your role (see the table below). To practise safely, follow the
 
 - 17 [Webhooks and integrations](17-webhooks-and-integrations.md).
 - 18 [Tenant administration](18-tenant-administration.md) — team members, settings, access and policy, feature flags, lending settings.
+- 27 [Go-live setup](27-go-live-setup.md) — the checklist a new lender works through before its first loan: what is done, what is still to do or blocked and why, marking items not applicable, importing staff and branches from CSV files.
 - 20 [Platform administration](20-platform-administration.md) — for the platform operator (super-admin) only.
 
 **Help**
