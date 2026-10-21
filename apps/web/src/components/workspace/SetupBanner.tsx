@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,6 +9,10 @@ import { useWorkspace } from '@/lib/workspace';
 import { useApi } from '@/components/lending/useAsync';
 
 const DISMISS_KEY = 'goLiveSetupBannerDismissed';
+
+function readDismissed(): boolean {
+    try { return typeof window !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
+}
 
 /**
  * First-run banner for tenant administrators (D-171): until the go-live
@@ -22,10 +26,8 @@ export function SetupBanner() {
     const pathname = usePathname() || '';
     const { can, isPlatform } = useWorkspace();
     const show = !isPlatform && can('tenant_setup.manage');
-    const [dismissed, setDismissed] = useState(true);
-    useEffect(() => {
-        try { setDismissed(sessionStorage.getItem(DISMISS_KEY) === '1'); } catch { setDismissed(false); }
-    }, []);
+    // Read once; nothing renders before the status arrives, so server and browser agree.
+    const [dismissed, setDismissed] = useState(readDismissed);
     const onSetup = pathname.endsWith('/lending/setup');
     const { data } = useApi<{ progress: { percent: number; complete: boolean; done: number; total: number } }>(show && !dismissed && !onSetup ? '/lending/setup/status' : null);
     if (!show || dismissed || onSetup || !data || data.progress.complete) return null;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
@@ -462,12 +463,9 @@ function IntegrationsTab() {
 /** Lending operations: business date / end of day, benchmark rates, calendars, impairment, lending settings, integrations. */
 export function OperationsView() {
     const t = useTranslations('LendingOps');
-    const [tab, setTab] = useState<Tab>('date');
     // A link may open a tab directly (?tab=settings), e.g. from the go-live setup checklist.
-    useEffect(() => {
-        const wanted = new URLSearchParams(window.location.search).get('tab');
-        if (wanted && (OPS_TABS as readonly string[]).includes(wanted)) setTab(wanted as Tab);
-    }, []);
+    const wanted = useSearchParams().get('tab');
+    const [tab, setTab] = useState<Tab>(wanted && (OPS_TABS as readonly string[]).includes(wanted) ? (wanted as Tab) : 'date');
     return (
         <div className="space-y-5">
             <OperationalAlertsCard />

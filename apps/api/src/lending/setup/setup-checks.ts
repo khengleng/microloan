@@ -343,7 +343,10 @@ export function checkConsumerProtection(s: SetupSnapshot): Check {
   const missing = missingIn(cp);
   if (!missing.length) return done(facts);
   const fields = missing.join(', ');
-  if (s.settings.pending && missingIn(s.settings.pending.consumerProtection).length === 0)
+  if (
+    s.settings.pending &&
+    missingIn(s.settings.pending.consumerProtection).length === 0
+  )
     return blocked(
       [
         r(
@@ -390,11 +393,11 @@ export function checkStaffRoles(s: SetupSnapshot): Check {
   for (const role of short) {
     const need = REQUIRED_ROLES.find((x) => x.role === role)!.count;
     reasons.push(
-      r(
-        'roleMissing',
-        `${role}: ${counts[role]} of ${need} needed.`,
-        { role, have: counts[role], need },
-      ),
+      r('roleMissing', `${role}: ${counts[role]} of ${need} needed.`, {
+        role,
+        have: counts[role],
+        need,
+      }),
     );
   }
   // Maker-checker needs two people: one person holding both roles of a pair
@@ -824,7 +827,9 @@ export function checkFeatureFlags(s: SetupSnapshot): Check {
     for (const f of v.flags)
       if (!f.enabled) off.push(`${v.productCode}: ${f.key}`);
   const facts = {
-    checked: [...new Set(active.flatMap((v) => v.flags.map((f) => f.key)))].sort(),
+    checked: [
+      ...new Set(active.flatMap((v) => v.flags.map((f) => f.key))),
+    ].sort(),
   };
   if (!off.length) return done(facts);
   return todo(

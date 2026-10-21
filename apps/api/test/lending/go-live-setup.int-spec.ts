@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports -- integration fixtures: API responses are untyped. */
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-require-imports -- integration fixtures: API responses are untyped. */
 /**
  * The go-live setup checklist (D-171…D-175), end to end:
  *
@@ -112,7 +112,9 @@ d('Go-live setup checklist (integration)', () => {
     expectOk(
       await f
         .as('admin2')
-        .post(`/lending/aml/watch-lists/${list.id}/decision`, { approve: true }),
+        .post(`/lending/aml/watch-lists/${list.id}/decision`, {
+          approve: true,
+        }),
     );
   }, 180_000);
   afterAll(async () => f?.app.close());
@@ -177,7 +179,9 @@ d('Go-live setup checklist (integration)', () => {
       expect([key, by[key].status, by[key].reasons]).toEqual([
         key,
         'DONE',
-        key === 'fx_rates' ? [expect.objectContaining({ code: 'singleCurrency' })] : [],
+        key === 'fx_rates'
+          ? [expect.objectContaining({ code: 'singleCurrency' })]
+          : [],
       ]);
     expect(by.products.facts.products).toEqual(['PL-SETUP']);
     // The fixture's business date (2026-01-05) is far behind the calendar.
@@ -196,13 +200,17 @@ d('Go-live setup checklist (integration)', () => {
     const marked = expectOk(
       await f
         .as('admin1')
-        .put('/lending/setup/items/opening_balances/not-applicable', { reason }),
+        .put('/lending/setup/items/opening_balances/not-applicable', {
+          reason,
+        }),
     );
     expect(marked).toMatchObject({ key: 'opening_balances', reason });
     expectOk(
-      await f.as('admin1').put('/lending/setup/items/scorecards/not-applicable', {
-        reason: 'We accept the default retail scorecard for launch',
-      }),
+      await f
+        .as('admin1')
+        .put('/lending/setup/items/scorecards/not-applicable', {
+          reason: 'We accept the default retail scorecard for launch',
+        }),
     );
     const s = await status('admin1');
     expect(item(s, 'opening_balances')).toMatchObject({
@@ -234,7 +242,9 @@ d('Go-live setup checklist (integration)', () => {
       ).status,
     ).toBe(400);
     // Finance reads the checklist but cannot mark it.
-    expect((await f.as('finance').get('/lending/setup/status')).status).toBe(200);
+    expect((await f.as('finance').get('/lending/setup/status')).status).toBe(
+      200,
+    );
     expect(
       (
         await f
@@ -288,7 +298,11 @@ d('Go-live setup checklist (integration)', () => {
     });
     await f.system(() =>
       f.prisma.roleAssignment.updateMany({
-        where: { tenantId: f.t1, status: 'PENDING', role: { code: 'RISK_COMPLIANCE' } },
+        where: {
+          tenantId: f.t1,
+          status: 'PENDING',
+          role: { code: 'RISK_COMPLIANCE' },
+        },
         data: { status: 'ACTIVE' },
       }),
     );
@@ -309,15 +323,22 @@ d('Go-live setup checklist (integration)', () => {
   it('keeps each organisation to its own data', async () => {
     // Tenant 2 has none of tenant 1's configuration.
     const other = await status('t2admin');
-    for (const key of ['products', 'impairment_policy', 'aml_watch_list', 'consumer_protection'])
+    for (const key of [
+      'products',
+      'impairment_policy',
+      'aml_watch_list',
+      'consumer_protection',
+    ])
       expect([key, item(other, key).status]).toEqual([key, 'TODO']);
     expect(item(other, 'opening_balances').status).toBe('TODO');
     expect(item(other, 'opening_balances').waiver).toBeNull();
     // Tenant 2 marking an item touches only its own checklist.
     expectOk(
-      await f.as('t2admin').put('/lending/setup/items/alert_emails/not-applicable', {
-        reason: 'Alerts go to the platform operator only for now',
-      }),
+      await f
+        .as('t2admin')
+        .put('/lending/setup/items/alert_emails/not-applicable', {
+          reason: 'Alerts go to the platform operator only for now',
+        }),
     );
     expect(item(await status('admin1'), 'alert_emails').waiver).toBeNull();
     // Row-level security holds behind the guard: tenant 1's context cannot see tenant 2's mark.
@@ -332,17 +353,29 @@ d('Go-live setup checklist (integration)', () => {
     );
     expect(seen[0].n).toBe(0);
     // Platform administrators have no tenant checklist.
-    expect((await f.as('platform').get('/lending/setup/status')).status).toBe(403);
+    expect((await f.as('platform').get('/lending/setup/status')).status).toBe(
+      403,
+    );
   });
 
   it('shows the platform operator each organisation’s progress, counts only', async () => {
-    const res = expectOk(await f.as('platform').get('/platform/setup-progress'));
+    const res = expectOk(
+      await f.as('platform').get('/platform/setup-progress'),
+    );
     const one = res.tenants.find((t: any) => t.tenantId === f.t1);
     const fresh = res.tenants.find((t: any) => t.tenantId === t3);
     expect(one.progress.percent).toBeGreaterThan(fresh.progress.percent);
     expect(fresh.open.map((o: any) => o.key)).toContain('products');
-    expect(Object.keys(one)).toEqual(['tenantId', 'name', 'status', 'progress', 'open']);
+    expect(Object.keys(one)).toEqual([
+      'tenantId',
+      'name',
+      'status',
+      'progress',
+      'open',
+    ]);
     // Tenant staff cannot read it.
-    expect((await f.as('admin1').get('/platform/setup-progress')).status).toBe(403);
+    expect((await f.as('admin1').get('/platform/setup-progress')).status).toBe(
+      403,
+    );
   });
 });

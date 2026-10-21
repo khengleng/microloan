@@ -17,7 +17,11 @@ import {
   toLocalDate,
 } from '../common/util';
 import { PolicyService } from '../policy/policy.service';
-import { tenantResource, configFlags, facilityFlags } from '../policy/resources';
+import {
+  tenantResource,
+  configFlags,
+  facilityFlags,
+} from '../policy/resources';
 import { evaluateFlag } from '../policy/flags';
 import { familyFlagKey } from '../policy/catalogue';
 import {
@@ -255,7 +259,11 @@ export class GoLiveSetupService {
           revokedAt: null,
           OR: [{ status: 'ACTIVE', ...live }, { status: 'PENDING' }],
         },
-        select: { userId: true, status: true, role: { select: { code: true } } },
+        select: {
+          userId: true,
+          status: true,
+          role: { select: { code: true } },
+        },
       }),
       tx.approvalAuthority.findMany({
         where: {
@@ -318,8 +326,7 @@ export class GoLiveSetupService {
     const activeRow = settingsRows.find((x) => x.status === 'ACTIVE');
     const pendingRow = settingsRows.find((x) => x.status === 'PENDING');
     const activeSettings = activeRow ? parse(activeRow.settings) : null;
-    const effective =
-      activeSettings ?? lending.defaultTenantLendingSettings();
+    const effective = activeSettings ?? lending.defaultTenantLendingSettings();
 
     const calendarToday = localDateIn(now);
     const asOf = businessDate

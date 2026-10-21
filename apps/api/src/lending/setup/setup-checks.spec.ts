@@ -45,7 +45,12 @@ function fresh(): SetupSnapshot {
     },
     branches: { active: 0 },
     users: [
-      { id: 'a1', email: 'admin@x.test', role: 'TENANT_ADMIN', twoFactorEnabled: false },
+      {
+        id: 'a1',
+        email: 'admin@x.test',
+        role: 'TENANT_ADMIN',
+        twoFactorEnabled: false,
+      },
     ],
     assignments: [],
     authorities: [],
@@ -111,7 +116,11 @@ function ready(): SetupSnapshot {
   ];
   return {
     ...s,
-    settings: { ...s.settings, approved: true, effective: configuredSettings() },
+    settings: {
+      ...s.settings,
+      approved: true,
+      effective: configuredSettings(),
+    },
     branches: { active: 2 },
     users: people.map(([id]) => ({
       id,
@@ -125,7 +134,11 @@ function ready(): SetupSnapshot {
       status: 'ACTIVE',
     })),
     authorities: [
-      { permission: 'credit_decision.approve', currency: 'USD', status: 'ACTIVE' },
+      {
+        permission: 'credit_decision.approve',
+        currency: 'USD',
+        status: 'ACTIVE',
+      },
     ],
     businessDate: '2026-10-21',
     ledgerCodes: ['1000', '1200', '3100'],
@@ -160,9 +173,7 @@ describe('go-live setup checks', () => {
 
   it('a configured organisation is complete, 100%', () => {
     const r = evaluateSetup(ready());
-    const notDone = r.items.filter(
-      (i) => !['DONE', 'INFO'].includes(i.status),
-    );
+    const notDone = r.items.filter((i) => !['DONE', 'INFO'].includes(i.status));
     expect(notDone).toEqual([]);
     expect(r.progress).toMatchObject({ percent: 100, complete: true, todo: 0 });
   });
@@ -206,8 +217,13 @@ describe('go-live setup checks', () => {
     it('names each role short of its count; the legacy admin counts as one administrator', () => {
       const c = checkStaffRoles(fresh());
       expect(c.status).toBe('TODO');
-      expect(c.facts!.counts).toMatchObject({ TENANT_ADMIN: 1, CREDIT_ANALYST: 0 });
-      expect(c.reasons.find((x) => x.params?.role === 'TENANT_ADMIN')).toMatchObject({
+      expect(c.facts!.counts).toMatchObject({
+        TENANT_ADMIN: 1,
+        CREDIT_ANALYST: 0,
+      });
+      expect(
+        c.reasons.find((x) => x.params?.role === 'TENANT_ADMIN'),
+      ).toMatchObject({
         code: 'roleMissing',
         params: { have: 1, need: 2 },
       });
@@ -220,7 +236,10 @@ describe('go-live setup checks', () => {
       const c = checkStaffRoles(s);
       expect(c.status).toBe('BLOCKED');
       expect(c.reasons).toEqual([
-        expect.objectContaining({ code: 'roleAwaitingApproval', params: { role: 'RISK_COMPLIANCE' } }),
+        expect.objectContaining({
+          code: 'roleAwaitingApproval',
+          params: { role: 'RISK_COMPLIANCE' },
+        }),
       ]);
     });
     it('needs two people for each maker-checker pair', () => {
@@ -242,7 +261,10 @@ describe('go-live setup checks', () => {
   it('admin 2FA: every tenant administrator has an authenticator', () => {
     const c = checkAdminMfa(fresh());
     expect(c.status).toBe('TODO');
-    expect(c.reasons[0].params).toMatchObject({ count: 1, emails: 'admin@x.test' });
+    expect(c.reasons[0].params).toMatchObject({
+      count: 1,
+      emails: 'admin@x.test',
+    });
     expect(checkAdminMfa(ready()).status).toBe('DONE');
     const none = fresh();
     none.users = [];
@@ -252,18 +274,31 @@ describe('go-live setup checks', () => {
   describe('approval authorities', () => {
     it('needs a credit approval limit in every currency in use', () => {
       const s = ready();
-      s.versions = [product(), product({ productCode: 'PL-KHR', currency: 'KHR' })];
+      s.versions = [
+        product(),
+        product({ productCode: 'PL-KHR', currency: 'KHR' }),
+      ];
       const c = checkApprovalAuthorities(s);
       expect(c.status).toBe('TODO');
       expect(c.reasons[0].params).toEqual({ currencies: 'KHR' });
-      s.authorities.push({ permission: 'credit_decision.approve', currency: 'KHR', status: 'PENDING' });
+      s.authorities.push({
+        permission: 'credit_decision.approve',
+        currency: 'KHR',
+        status: 'PENDING',
+      });
       expect(checkApprovalAuthorities(s).status).toBe('BLOCKED');
       s.authorities[1].status = 'ACTIVE';
       expect(checkApprovalAuthorities(s).status).toBe('DONE');
     });
     it('other permissions do not count', () => {
       const s = ready();
-      s.authorities = [{ permission: 'loan.disbursement.approve', currency: 'USD', status: 'ACTIVE' }];
+      s.authorities = [
+        {
+          permission: 'loan.disbursement.approve',
+          currency: 'USD',
+          status: 'ACTIVE',
+        },
+      ];
       expect(checkApprovalAuthorities(s).status).toBe('TODO');
     });
   });
@@ -272,10 +307,15 @@ describe('go-live setup checks', () => {
     expect(codes(checkBusinessDate(fresh()))).toEqual(['businessDateNotSet']);
     const s = ready();
     expect(checkBusinessDate(s).status).toBe('DONE');
-    expect(checkBusinessDate({ ...s, businessDate: '2026-10-20' }).status).toBe('DONE');
+    expect(checkBusinessDate({ ...s, businessDate: '2026-10-20' }).status).toBe(
+      'DONE',
+    );
     const behind = checkBusinessDate({ ...s, businessDate: '2026-10-18' });
     expect(behind.status).toBe('TODO');
-    expect(behind.reasons[0].params).toMatchObject({ days: 3, timeZone: 'Asia/Phnom_Penh' });
+    expect(behind.reasons[0].params).toMatchObject({
+      days: 3,
+      timeZone: 'Asia/Phnom_Penh',
+    });
     expect(behind.facts).toMatchObject({ schedule: '15 0 * * *' });
   });
 
@@ -294,7 +334,9 @@ describe('go-live setup checks', () => {
   });
 
   it('chart of accounts: opened, and every mapped account in it', () => {
-    expect(codes(checkChartOfAccounts(fresh()))).toEqual(['chartNotProvisioned']);
+    expect(codes(checkChartOfAccounts(fresh()))).toEqual([
+      'chartNotProvisioned',
+    ]);
     const s = ready();
     expect(checkChartOfAccounts(s).status).toBe('DONE');
     s.versions = [product({ accountCodes: ['1000', '9999'] })];
@@ -305,22 +347,53 @@ describe('go-live setup checks', () => {
 
   it('opening balances: a posted migration, or waiting for approval', () => {
     expect(checkOpeningBalances(fresh()).status).toBe('TODO');
-    expect(checkOpeningBalances({ ...fresh(), migrationStatuses: ['VALIDATED'] }).status).toBe('BLOCKED');
-    expect(checkOpeningBalances({ ...fresh(), migrationStatuses: ['REJECTED'] }).status).toBe('TODO');
-    expect(checkOpeningBalances({ ...fresh(), migrationStatuses: ['PARTIALLY_POSTED'] }).status).toBe('DONE');
+    expect(
+      checkOpeningBalances({ ...fresh(), migrationStatuses: ['VALIDATED'] })
+        .status,
+    ).toBe('BLOCKED');
+    expect(
+      checkOpeningBalances({ ...fresh(), migrationStatuses: ['REJECTED'] })
+        .status,
+    ).toBe('TODO');
+    expect(
+      checkOpeningBalances({
+        ...fresh(),
+        migrationStatuses: ['PARTIALLY_POSTED'],
+      }).status,
+    ).toBe('DONE');
   });
 
   describe('products', () => {
     it('needs an active version; approved or submitted ones block', () => {
       expect(codes(checkProducts(fresh()))).toEqual(['noActiveProduct']);
-      expect(codes(checkProducts({ ...fresh(), versions: [product({ status: 'SUBMITTED' })] }))).toEqual(['productAwaitingApproval']);
-      expect(codes(checkProducts({ ...fresh(), versions: [product({ status: 'APPROVED' })] }))).toEqual(['productAwaitingActivation']);
+      expect(
+        codes(
+          checkProducts({
+            ...fresh(),
+            versions: [product({ status: 'SUBMITTED' })],
+          }),
+        ),
+      ).toEqual(['productAwaitingApproval']);
+      expect(
+        codes(
+          checkProducts({
+            ...fresh(),
+            versions: [product({ status: 'APPROVED' })],
+          }),
+        ),
+      ).toEqual(['productAwaitingActivation']);
       expect(checkProducts(ready()).status).toBe('DONE');
     });
     it('blocks an active product priced above the interest-rate cap', () => {
       const c = checkProducts({
         ...ready(),
-        versions: [product({ rateCapFindings: ['The maximum annual rate 24.00% is above the cap 18.00%.'] })],
+        versions: [
+          product({
+            rateCapFindings: [
+              'The maximum annual rate 24.00% is above the cap 18.00%.',
+            ],
+          }),
+        ],
       });
       expect(c.status).toBe('BLOCKED');
       expect(codes(c)).toEqual(['rateCapExceeded']);
@@ -330,7 +403,10 @@ describe('go-live setup checks', () => {
 
   it('impairment policy: approved, or waiting for its checker', () => {
     expect(checkImpairmentPolicy(fresh()).status).toBe('TODO');
-    expect(checkImpairmentPolicy({ ...fresh(), impairmentStatuses: ['PENDING'] }).status).toBe('BLOCKED');
+    expect(
+      checkImpairmentPolicy({ ...fresh(), impairmentStatuses: ['PENDING'] })
+        .status,
+    ).toBe('BLOCKED');
     expect(checkImpairmentPolicy(ready()).status).toBe('DONE');
   });
 
@@ -338,7 +414,13 @@ describe('go-live setup checks', () => {
     expect(codes(checkScorecards(fresh()))).toEqual(['needsActiveProduct']);
     const s = ready();
     expect(checkScorecards(s).status).toBe('DONE');
-    s.versions.push(product({ productCode: 'MF-1', familyCode: 'MICROFINANCE', championScorecard: 'MICRO' }));
+    s.versions.push(
+      product({
+        productCode: 'MF-1',
+        familyCode: 'MICROFINANCE',
+        championScorecard: 'MICRO',
+      }),
+    );
     const c = checkScorecards(s);
     expect(c.status).toBe('TODO');
     expect(c.reasons[0].params).toEqual({ scorecards: 'MICROFINANCE: MICRO' });
@@ -346,13 +428,22 @@ describe('go-live setup checks', () => {
 
   it('AML watch list: active, or waiting for activation', () => {
     expect(checkAmlWatchList(fresh()).status).toBe('TODO');
-    expect(checkAmlWatchList({ ...fresh(), watchListStatuses: ['PENDING'] }).status).toBe('BLOCKED');
+    expect(
+      checkAmlWatchList({ ...fresh(), watchListStatuses: ['PENDING'] }).status,
+    ).toBe('BLOCKED');
     expect(checkAmlWatchList(ready()).status).toBe('DONE');
   });
 
   it('AML settings: an approved settings version, with a CTR threshold for every currency', () => {
-    expect(codes(checkAmlSettings(fresh()))).toEqual(['amlDefaultsNotConfirmed']);
-    expect(checkAmlSettings({ ...fresh(), settings: { ...fresh().settings, pending: configuredSettings() } }).status).toBe('BLOCKED');
+    expect(codes(checkAmlSettings(fresh()))).toEqual([
+      'amlDefaultsNotConfirmed',
+    ]);
+    expect(
+      checkAmlSettings({
+        ...fresh(),
+        settings: { ...fresh().settings, pending: configuredSettings() },
+      }).status,
+    ).toBe('BLOCKED');
     const s = ready();
     expect(checkAmlSettings(s).status).toBe('DONE');
     s.settings.effective.aml.ctr.thresholds = { USD: '10000' };
@@ -364,13 +455,20 @@ describe('go-live setup checks', () => {
 
   it('payment KHQR: not checked until the KHQR configuration can be read', () => {
     expect(checkPaymentKhqr(fresh()).status).toBe('NOT_CHECKED');
-    expect(checkPaymentKhqr({ ...fresh(), khqr: { active: false } }).status).toBe('TODO');
+    expect(
+      checkPaymentKhqr({ ...fresh(), khqr: { active: false } }).status,
+    ).toBe('TODO');
     expect(checkPaymentKhqr(ready()).status).toBe('DONE');
   });
 
   it('alert e-mails: set in the settings in force', () => {
     expect(checkAlertEmails(fresh()).status).toBe('TODO');
-    expect(checkAlertEmails({ ...fresh(), settings: { ...fresh().settings, pending: configuredSettings() } }).status).toBe('BLOCKED');
+    expect(
+      checkAlertEmails({
+        ...fresh(),
+        settings: { ...fresh().settings, pending: configuredSettings() },
+      }).status,
+    ).toBe('BLOCKED');
     expect(checkAlertEmails(ready()).status).toBe('DONE');
   });
 
@@ -378,10 +476,16 @@ describe('go-live setup checks', () => {
     expect(codes(checkFeatureFlags(fresh()))).toEqual(['needsActiveProduct']);
     const s = ready();
     expect(checkFeatureFlags(s).status).toBe('DONE');
-    s.versions = [product({ flags: [{ key: 'lending.family.personal.enabled', enabled: false }] })];
+    s.versions = [
+      product({
+        flags: [{ key: 'lending.family.personal.enabled', enabled: false }],
+      }),
+    ];
     const c = checkFeatureFlags(s);
     expect(c.status).toBe('TODO');
-    expect(c.reasons[0].params).toEqual({ flags: 'PL-1: lending.family.personal.enabled' });
+    expect(c.reasons[0].params).toEqual({
+      flags: 'PL-1: lending.family.personal.enabled',
+    });
   });
 
   it('learning: information only, with the team completion', () => {
@@ -392,7 +496,11 @@ describe('go-live setup checks', () => {
   });
 
   describe('not applicable', () => {
-    const waiver = { reason: 'New lender, no existing book', markedBy: 'a1', markedAt: '2026-10-21T00:00:00.000Z' };
+    const waiver = {
+      reason: 'New lender, no existing book',
+      markedBy: 'a1',
+      markedAt: '2026-10-21T00:00:00.000Z',
+    };
     it('counts a waived waivable item as done', () => {
       const s = fresh();
       s.waivers = { opening_balances: waiver, payment_khqr: waiver };
@@ -402,7 +510,9 @@ describe('go-live setup checks', () => {
       expect(ob.waiver).toEqual(waiver);
       // The reasons stay, so the page can still say what was not done.
       expect(codes(ob)).toEqual(['noMigration']);
-      expect(r.items.find((i) => i.key === 'payment_khqr')!.status).toBe('NOT_APPLICABLE');
+      expect(r.items.find((i) => i.key === 'payment_khqr')!.status).toBe(
+        'NOT_APPLICABLE',
+      );
       const before = evaluateSetup(fresh()).progress;
       expect(r.progress.done).toBe(before.done + 2);
       expect(r.progress.total).toBe(before.total + 1);
@@ -411,21 +521,43 @@ describe('go-live setup checks', () => {
       const s = fresh();
       s.waivers = { impairment_policy: waiver, consumer_protection: waiver };
       const r = evaluateSetup(s);
-      expect(r.items.find((i) => i.key === 'impairment_policy')!).toMatchObject({ status: 'TODO', waiver: null });
-      expect(r.items.find((i) => i.key === 'consumer_protection')!.status).toBe('TODO');
+      expect(r.items.find((i) => i.key === 'impairment_policy')!).toMatchObject(
+        { status: 'TODO', waiver: null },
+      );
+      expect(r.items.find((i) => i.key === 'consumer_protection')!.status).toBe(
+        'TODO',
+      );
     });
     it('a done item stays done', () => {
       const s = ready();
       s.waivers = { opening_balances: waiver };
-      expect(evaluateSetup(s).items.find((i) => i.key === 'opening_balances')!.status).toBe('DONE');
+      expect(
+        evaluateSetup(s).items.find((i) => i.key === 'opening_balances')!
+          .status,
+      ).toBe('DONE');
     });
   });
 
   it('progress leaves information-only and not-checked items out', () => {
     expect(
-      progressOf([{ status: 'DONE' }, { status: 'TODO' }, { status: 'INFO' }, { status: 'NOT_CHECKED' }, { status: 'BLOCKED' }]),
-    ).toEqual({ total: 3, done: 1, todo: 1, blocked: 1, percent: 33, complete: false });
-    expect(progressOf([{ status: 'NOT_APPLICABLE' }, { status: 'INFO' }])).toMatchObject({ percent: 100, complete: true });
+      progressOf([
+        { status: 'DONE' },
+        { status: 'TODO' },
+        { status: 'INFO' },
+        { status: 'NOT_CHECKED' },
+        { status: 'BLOCKED' },
+      ]),
+    ).toEqual({
+      total: 3,
+      done: 1,
+      todo: 1,
+      blocked: 1,
+      percent: 33,
+      complete: false,
+    });
+    expect(
+      progressOf([{ status: 'NOT_APPLICABLE' }, { status: 'INFO' }]),
+    ).toMatchObject({ percent: 100, complete: true });
   });
 
   it('only optional items are waivable', () => {
