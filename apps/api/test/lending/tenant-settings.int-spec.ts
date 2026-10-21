@@ -40,6 +40,14 @@ d('Tenant lending settings and job claims (integration)', () => {
     expect(s.effective.payments).toEqual({
       maxFileLines: 5000,
       maxBackdateDays: 30,
+      // Static KHQR repayments (D-160…D-165).
+      khqr: {
+        statementAutoPost: true,
+        claimMatchWindowDays: 3,
+        maxScreenshotKb: 2048,
+        maxPendingClaimsPerBorrower: 5,
+        statementMappings: [],
+      },
     });
     expect(s.effective.access.maxDelegationDays).toBe(30);
     expect(
