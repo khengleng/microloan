@@ -1,0 +1,7 @@
+Demo Lending Co - KHQR merchant transactions (DEMO DATA; the bank account is fictional)
+Transaction Date,Reference No,Description,Sender Name,From Account,Debit,Credit,Currency
+{{DATE}},DEMOKHQR000001,repayment,DEMO PAYER,,,25.00,USD
+{{DATE}},DEMOKHQR000002,repayment,DEMO PAYER,,,25.00,USD
+{{DATE}},DEMOKHQR000003,for my aunt,UNKNOWN SENDER,,,12.50,USD
+{{DATE}},DEMOKHQR000004,thank you,UNKNOWN SENDER,,,100000,KHR
+{{DATE}},DEMOFEE000001,bank charge,,,1.00,,USD

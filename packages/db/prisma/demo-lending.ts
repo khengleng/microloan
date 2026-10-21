@@ -16,6 +16,8 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { lending } from '../../shared/src/index';
 
 const prisma = new PrismaClient();
@@ -302,6 +304,7 @@ async function main() {
       data: { tenantId: t, scope: 'COUNTRY', countryCode: 'KH', currency: 'USD', amount: '80000000', reviewOn, status: 'ACTIVE', note: 'Demo country limit', proposedBy: users.analyst, decidedBy: users.approver2, decidedAt: new Date() },
     });
   await demoAml(t, users);
+  await demoKhqr(t, users);
   await demoAdminMfaOptional(t, users);
   await prisma.tenant.update({ where: { id: t }, data: { authzVersion: { increment: 1 } } });
 
@@ -310,6 +313,7 @@ async function main() {
   console.log('  An impairment policy (NBC classes, REGULATORY mode) is in force: end of day provisions and month-end close is allowed.');
   console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
   console.log('  Admin 2FA: this demo organisation does not require tenant admins to use an authenticator (lending settings), so the QA accounts sign in with a password. Real organisations keep the requirement.');
+  console.log('  KHQR: static repayment codes for USD and KHR are in force (demo Bakong account, not a real one); pending "I have paid" claims are added on the first two active loans (re-run the seed after booking loans); sample statement to import (dated the business date): packages/db/prisma/demo-files/out/khqr-statement-sample.csv.');
   console.log('  AML: every demo borrower is screened and cleared (LOW/MEDIUM risk); watch list DEMO_FICTIONAL holds two fictional names, and "Demo Exposed Official" has an open screening case (Risk & audit › AML & compliance).');
   if (created.size)
     console.log(`  ${created.size} user(s) created with password ${PASSWORD_FROM_ENV ? '$DEMO_PASSWORD' : PASSWORD}${PASSWORD_FROM_ENV ? '' : ' (generated for this run — note it now)'}.`);
@@ -592,6 +596,68 @@ async function demoAml(t: string, users: Record<string, string>) {
     const hit = { entryId: entry!.id, entryType: 'PEP', listCode: 'DEMO_FICTIONAL', versionId: version.id, listName: entry!.name, matchedName: entry!.name, normalizedListName: entry!.normalizedName, source: entry!.source, score: 1, method: 'TOKENS', dobMismatch: false };
     await prisma.amlScreeningCase.create({
       data: { tenantId: t, reference: 'AMLC-DEMO-0001', borrowerId: pep.id, trigger: 'CUSTOMER_CREATE', screenedName: lending.normalizeName('Demo Exposed Official', aml.screening.ignoredTitles), hits: [hit], topScore: '1.0000', topType: 'PEP', createdBy: users.analyst },
+    });
+  }
+}
+
+/**
+ * Static KHQR repayment codes (D-160) — a DEMO Bakong account that is not
+ * real, so no money can be sent to it — for USD and KHR, proposed by finance
+ * and approved by risk; and, on the first two active loans (once some are
+ * booked), a pending "I have paid" claim each, whose bank references are in
+ * the sample statement (demo-files/khqr-statement-template.csv, written dated to demo-files/out/).
+ */
+const DEMO_KHQR_ACCOUNT = 'demo_not_a_real_account@demo';
+async function demoKhqr(t: string, users: Record<string, string>) {
+  const merchant = { bakongAccountId: DEMO_KHQR_ACCOUNT, merchantName: 'DEMO Lending Co (TEST)', merchantCity: 'Phnom Penh' };
+  for (const currency of ['USD', 'KHR'] as const) {
+    if (await prisma.khqrCode.findFirst({ where: { tenantId: t, branchId: null, currency, status: 'ACTIVE' } })) continue;
+    await prisma.khqrCode.create({
+      data: {
+        tenantId: t,
+        currency,
+        source: 'GENERATED',
+        ...merchant,
+        merchantCategoryCode: '6012',
+        payload: lending.buildStaticKhqrPayload(merchant, currency),
+        bankName: 'Demo Bank (not real)',
+        status: 'ACTIVE',
+        makerId: users.finance,
+        checkerId: users.risk,
+        decidedAt: new Date(),
+        reason: 'Demo data: a fictional Bakong account',
+      },
+    });
+  }
+  const loans = await prisma.loanAccount.findMany({ where: { tenantId: t, status: 'ACTIVE' }, orderBy: { createdAt: 'asc' }, take: 2 });
+  const today = (await prisma.tenantBusinessDate.findUnique({ where: { tenantId: t } }))?.businessDate ?? new Date();
+  // The sample statement, dated the business date so it can be imported as is.
+  const day = today.toISOString().slice(0, 10);
+  const dir = path.join(__dirname, 'demo-files');
+  fs.mkdirSync(path.join(dir, 'out'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'out', 'khqr-statement-sample.csv'), fs.readFileSync(path.join(dir, 'khqr-statement-template.csv'), 'utf8').replaceAll('{{DATE}}', day));
+  for (const [i, loan] of loans.entries()) {
+    const bankRef = `DEMOKHQR00000${i + 1}`;
+    if (await prisma.khqrReceipt.findFirst({ where: { tenantId: t, bankRefKey: bankRef, status: { not: 'REJECTED' } } })) continue;
+    await prisma.khqrReceipt.create({
+      data: {
+        tenantId: t,
+        reference: `QRR-DEMO-${i + 1}`,
+        loanAccountId: loan.id,
+        borrowerId: loan.borrowerId,
+        branchId: loan.branchId,
+        source: 'PORTAL_CLAIM',
+        amount: loan.currency === 'KHR' ? '100000' : '25',
+        currency: loan.currency,
+        paidAt: today,
+        valueDate: today,
+        bankRef,
+        bankRefKey: bankRef,
+        payerName: 'Demo payer',
+        remark: loan.reference,
+        makerType: 'CUSTOMER',
+        makerId: loan.borrowerId,
+      },
     });
   }
 }
