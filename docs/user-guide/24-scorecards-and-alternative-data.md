@@ -138,7 +138,7 @@ so a customer is never rewarded for having no data — and never punished
 for refusing consent beyond losing those points.
 
 **`INTERNAL_BUREAU` — In-house bureau score (credit report).** Scores the
-customer's **credit report**, not the application (base 560, range
+customer's **credit report**, not the application (base 575, range
 300–850, grades **A** Very low risk 720+, **B** Low risk 660+, **C**
 Moderate risk 600+, **D** Elevated risk 540+, **E** High risk). Its result
 is the **Bureau score** the two scorecards above read. See section 9.
@@ -832,7 +832,7 @@ last 24 months is always scored, however short the history.
 | Age of oldest facility | 0 under 12 months; +20 under 36; +35 under 60; +50 longer |
 | Other credit applications, 6 months | +10 none; 0 one; −20 two or three; −45 more |
 | Other credit applications, 12 months | 0 up to two; −10 up to five; −30 more |
-| Open facilities | +15 one or two; 0 three or four; −25 five or more |
+| Open facilities | 0 up to two; −15 three or four; −40 five or more |
 
 Like any scorecard, `INTERNAL_BUREAU` can be installed and changed by your
 organisation under maker-checker (section 5): a credit analyst drafts a

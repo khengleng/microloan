@@ -342,7 +342,7 @@ const BUREAU_GRADES = [
 
 const INTERNAL_BUREAU: ScorecardDefinitionInput = {
   schemaVersion: 1,
-  baseScore: 560,
+  baseScore: 575,
   minScore: 300,
   maxScore: 850,
   adverseReasonCount: 4,
@@ -362,7 +362,7 @@ const INTERNAL_BUREAU: ScorecardDefinitionInput = {
         { upTo: null, points: -120, reason: '{value} days past due in the last 12 months.' },
       ],
       missing: { points: 0, reason: 'No facility in the last 12 months.' },
-      adverseReason: { code: 'RECENT_ARREARS', text: 'Repayments were late in the last 12 months.' },
+      adverseReason: { code: 'RECENT_ARREARS', text: 'Little or late repayment history in the last 12 months.' },
     },
     {
       code: 'WORST_DPD_24M',
@@ -377,7 +377,7 @@ const INTERNAL_BUREAU: ScorecardDefinitionInput = {
         { upTo: null, points: -40, reason: '{value} days past due in the last 24 months.' },
       ],
       missing: { points: 0, reason: 'No facility in the last 24 months.' },
-      adverseReason: { code: 'PAST_ARREARS', text: 'Repayments were seriously late in the last two years.' },
+      adverseReason: { code: 'PAST_ARREARS', text: 'Little or late repayment history in the last two years.' },
     },
     {
       code: 'SINCE_DELINQUENCY',
@@ -498,11 +498,12 @@ const INTERNAL_BUREAU: ScorecardDefinitionInput = {
       label: 'Open facilities',
       variable: 'bureauActiveFacilities',
       type: 'BINS',
+      // Best outcome 0: having no open facility is neither rewarded nor given this reason.
       bins: [
         { upTo: '0', points: 0, reason: 'No open facility.' },
-        { upTo: '2', points: 15, reason: '{value} open facility(ies).' },
-        { upTo: '4', points: 0, reason: '{value} open facilities.' },
-        { upTo: null, points: -25, reason: '{value} open facilities.' },
+        { upTo: '2', points: 0, reason: '{value} open facility(ies).' },
+        { upTo: '4', points: -15, reason: '{value} open facilities.' },
+        { upTo: null, points: -40, reason: '{value} open facilities.' },
       ],
       missing: { points: 0, reason: 'No open facility.' },
       adverseReason: { code: 'MANY_FACILITIES', text: 'Many facilities are open at the same time.' },

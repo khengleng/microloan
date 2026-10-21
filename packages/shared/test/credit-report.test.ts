@@ -294,7 +294,9 @@ describe('bureau score', () => {
     assert.ok(!L.evaluateScorecard(BUREAU, base).adverseReasons.some((a) => a.code === 'HIGH_UTILISATION'));
     assert.equal(pts({ ...base, bureauRestructured: true }, 'RESTRUCTURED'), -60);
     assert.equal(pts({ ...base, bureauEnquiries6m: 4 }, 'ENQUIRIES_6M'), -45);
-    assert.equal(L.evaluateScorecard(BUREAU, base).score, 560 + 80 + 30 + 40 + 20 + 35 + 10 + 15);
+    assert.equal(L.evaluateScorecard(BUREAU, base).score, 575 + 80 + 30 + 40 + 20 + 35 + 10);
+    // No adverse reason for what a clean file simply does not have.
+    assert.deepEqual(L.evaluateScorecard(BUREAU, base).adverseReasons.map((a) => a.code), ['SHORT_HISTORY']);
   });
 
   test('STANDARD_RETAIL reads the bureau score as before; null keeps the old behaviour', () => {
