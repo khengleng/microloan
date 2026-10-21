@@ -308,7 +308,7 @@ async function main() {
   console.log(`Demo tenant "${TENANT}" ready.`);
   console.log('  Scorecards STANDARD_RETAIL and THIN_FILE are in force; PL-STD runs THIN_FILE as a silent challenger, MF-IND scores thin-file borrowers on THIN_FILE.');
   console.log('  An impairment policy (NBC classes, REGULATORY mode) is in force: end of day provisions and month-end close is allowed.');
-  console.log('  Srey Mom and Sokha Chan have consents and verified alternative data (Lending › customer › Alternative data & consent).');
+  console.log('  Srey Mom and Sokha Chan have consents (including to their credit report) and verified alternative data (Lending › customer › Alternative data & consent; Credit report).');
   console.log('  Admin 2FA: this demo organisation does not require tenant admins to use an authenticator (lending settings), so the QA accounts sign in with a password. Real organisations keep the requirement.');
   console.log('  AML: every demo borrower is screened and cleared (LOW/MEDIUM risk); watch list DEMO_FICTIONAL holds two fictional names, and "Demo Exposed Official" has an open screening case (Risk & audit › AML & compliance).');
   if (created.size)
@@ -457,7 +457,7 @@ async function demoScoring(t: string, users: Record<string, string>) {
       firstName: 'Srey',
       lastName: 'Mom',
       officer: users['officer.rep'],
-      sources: ['INTERNAL_BEHAVIOUR', 'UTILITY_BILLS', 'TELCO_STATEMENT', 'BUSINESS_CASH_FLOW'],
+      sources: ['INTERNAL_BEHAVIOUR', 'UTILITY_BILLS', 'TELCO_STATEMENT', 'BUSINESS_CASH_FLOW', 'CREDIT_REPORT'],
       records: [
         { kind: 'UTILITY_BILLS', typeCode: 'EDC_BILLS', title: 'EDC electricity bills (12 months)', data: { utility: 'ELECTRICITY', issuer: 'EDC', accountReference: 'EDC-SR-0412', monthsObserved: 12, monthsOnTime: 11 } },
         { kind: 'TELCO_STATEMENT', typeCode: 'TELCO_STATEMENT', title: 'Mobile top-up statement', data: { operator: 'Mobile operator', monthsObserved: 12, monthsWithTopUp: 12 } },
@@ -468,7 +468,7 @@ async function demoScoring(t: string, users: Record<string, string>) {
       firstName: 'Sokha',
       lastName: 'Chan',
       officer: users['officer.pnh'],
-      sources: ['UTILITY_BILLS', 'RENT_HISTORY'],
+      sources: ['UTILITY_BILLS', 'RENT_HISTORY', 'CREDIT_REPORT'],
       records: [
         { kind: 'UTILITY_BILLS', typeCode: 'WATER_BILLS', title: 'Water bills (12 months)', data: { utility: 'WATER', issuer: 'Phnom Penh Water Supply Authority', accountReference: 'W-SC-2231', monthsObserved: 12, monthsOnTime: 12 } },
         { kind: 'RENT_HISTORY', typeCode: 'RENT_RECEIPTS', title: 'Rent receipts', data: { landlord: 'Landlord (receipts on file)', monthsObserved: 12, monthsOnTime: 10 } },
@@ -507,6 +507,35 @@ async function demoScoring(t: string, users: Record<string, string>) {
       });
       await prisma.altDataRecord.update({ where: { id: rec.id }, data: { status: 'VERIFIED', verifiedBy: users.analyst, verifiedAt: new Date() } });
     }
+  }
+  await demoCreditHistory(t);
+}
+
+/**
+ * Credit history for the in-house credit report (D-176): Sokha Chan repaid a
+ * six-month loan on the original book about a year and a half ago (it sits
+ * in the legacy loan archive), one instalment ten days late. Her credit
+ * report shows it with its payment grid and a bureau score. Dates follow the
+ * day the demo is seeded. Idempotent.
+ */
+async function demoCreditHistory(t: string) {
+  const b = await prisma.borrower.findFirst({ where: { tenantId: t, firstName: 'Sokha', lastName: 'Chan' } });
+  if (!b || (await prisma.loan.findFirst({ where: { tenantId: t, borrowerId: b.id } }))) return;
+  const monthStart = (back: number) => {
+    const d = new Date();
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - back, 10));
+  };
+  const start = monthStart(20);
+  const loan = await prisma.loan.create({
+    data: { tenantId: t, borrowerId: b.id, branchId: b.branchId, principal: '600', annualInterestRate: '18', termMonths: 6, interestMethod: 'FLAT', startDate: start, status: 'CLOSED' },
+  });
+  for (let i = 1; i <= 6; i++) {
+    const due = monthStart(20 - i);
+    const paidOn = i === 3 ? new Date(due.getTime() + 10 * 86_400_000) : due;
+    await prisma.repaymentSchedule.create({
+      data: { loanId: loan.id, installmentNumber: i, dueDate: due, principalAmount: '100', interestAmount: '9', totalAmount: '109', outstandingPrincipal: String(600 - 100 * i), paidPrincipal: '100', paidInterest: '9', isPaid: true },
+    });
+    await prisma.repayment.create({ data: { tenantId: t, loanId: loan.id, amount: '109', principalPaid: '100', interestPaid: '9', date: paidOn } });
   }
 }
 

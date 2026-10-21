@@ -30,6 +30,7 @@ to your approvers, within their approval limits (see
 | **Credit score** card | On each application (**Origination › Applications** › open the application) | Read the score, grade, outcome, reasons and the data used; re-run the score. |
 | **Scoring** step | Product editor (**Products › Products & versions**, see [chapter 04](04-products-and-policies.md)) | Choose the scorecard a product uses, a challenger, thin-file scoring and the decision strategy. |
 | **Alternative data & consent** | Customer profile › **Alternative data** button, or the customer's documents page › **Alternative data & consent** link | Record and withdraw consent, capture and verify alternative data. |
+| **Credit report** | Customer profile › **Credit report** button; and the **Credit report** card on each application | Read the customer's credit report and bureau score, pull a fresh report, print it (see section 9). |
 
 Note: The scoring screens are currently shown in English only, also when
 the portal is set to Khmer.
@@ -48,6 +49,8 @@ the portal is set to Khmer.
 | `alt_data.consent.manage` | Record and withdraw consent. | Relationship officer, credit analyst |
 | `alt_data.record` | Capture alternative data. | Relationship officer, credit analyst |
 | `alt_data.verify` | Verify or reject data captured by **someone else**. | Credit analyst, risk / compliance reviewer |
+| `credit_report.read` | Read a customer's credit reports (customer page and application card) and print them. | Relationship officer, credit analyst, credit approver, risk / compliance reviewer, auditor |
+| `credit_report.pull` | **Pull a fresh report** (a new enquiry). Needs the customer's credit-report consent. | Credit analyst, credit approver |
 | Access-policy permissions | Configure external data providers (one administrator proposes, a second approves). | Tenant administrator |
 
 Everyone who can open an application can read its **Credit score** card.
@@ -103,8 +106,8 @@ needs the customer's consent.
 
 ### The built-in scorecards (templates)
 
-Two scorecards come with the platform. Until your organisation activates its
-own version of one of these codes, the built-in template is used.
+Three scorecards come with the platform. Until your organisation activates
+its own version of one of these codes, the built-in template is used.
 
 **`STANDARD_RETAIL` — Standard retail scorecard.** The original
 origination score (base 450, range 300–850):
@@ -118,7 +121,7 @@ origination score (base 450, range 300–850):
 | Conduct of live loans | +60 if no live loan is past due; +10 up to 30 days past due; −80 if more |
 | Loan-to-value of security | +50 if 60% or less; +25 up to 80% |
 | Guarantors | +20 if there is at least one guarantor |
-| Bureau score | 0 today — no credit bureau is connected (see section 8) |
+| Bureau score | (score − 575) × 0.4 points, rounded — from the customer's credit report (section 9); 0 when there is no report or no bureau score |
 
 Grades: **A** Low risk (700+), **B** Moderate risk (620+), **C** Elevated
 risk (550+), **D** High risk.
@@ -133,6 +136,12 @@ mobile, and contributions to a solidarity group. **Each alternative
 characteristic gives 0 points when the data is missing or not consented**,
 so a customer is never rewarded for having no data — and never punished
 for refusing consent beyond losing those points.
+
+**`INTERNAL_BUREAU` — In-house bureau score (credit report).** Scores the
+customer's **credit report**, not the application (base 560, range
+300–850, grades **A** Very low risk 720+, **B** Low risk 660+, **C**
+Moderate risk 600+, **D** Elevated risk 540+, **E** High risk). Its result
+is the **Bureau score** the two scorecards above read. See section 9.
 
 ### Champion, challenger and thin-file
 
@@ -560,6 +569,7 @@ use of your own records and all alternative data do:
 | **Rent history** | Rent receipts captured by staff. |
 | **Business cash flow** | Cash flow observed by staff (site visit, bank statement, sales records). |
 | **Smartphone data**, **Telco data (provider)**, **E-wallet data (provider)** | Data from outside providers. Not connected yet — see section 8. |
+| **Credit report** | Pulling the customer's credit report (an enquiry) and using its bureau score — see section 9. |
 
 Consent must be in force when data is **captured**, when it is
 **verified**, and **every time** it is used in a score. If the customer
@@ -727,15 +737,135 @@ behaviour work without any provider.
 The tab needs administrator (access-policy) permissions. Other users may
 see an error on it.
 
-Note: **The Credit Bureau Cambodia (CBC) is not connected to scoring yet.**
-The **Bureau score** input is always empty ("No credit bureau is integrated
-yet."), so `STANDARD_RETAIL` gives it 0 points and every customer counts as
-having no bureau score for the thin-file rule. See
-[chapter 03](03-customers-and-documents.md) for the CBC check screen.
+Note: **The Credit Bureau Cambodia (CBC) is on hold.** The **Bureau score**
+input comes from your organisation's own **in-house credit report** instead
+(section 9). The old CBC check screen
+([chapter 03](03-customers-and-documents.md)) is not used in scoring.
 
 ---
 
-## 9. Scorecard monitoring (Products › Scorecard monitoring)
+## 9. Credit report and bureau score
+
+The Credit Bureau Cambodia (CBC) is on hold. Instead, the system builds a
+**CBC-style credit report** for each customer from **your organisation's
+own records only**: loans on the lending platform, credit lines and cards,
+and old loans in the **legacy loan archive**. No other lender's data is in
+it, and no other organisation can see yours — the report always says
+**Lenders reporting: 1**.
+
+The report gives a **bureau score** (300–850) on the `INTERNAL_BUREAU`
+scorecard. That score is what the **Bureau score** characteristic of
+`STANDARD_RETAIL` (and any scorecard of your own that uses it) reads.
+
+### 9.1 Consent first
+
+A report is pulled only when the customer has consented to it: record a
+consent with source **Credit report** on the customer's **Alternative data
+& consent** page (section 7.3), with its purpose (for example "Credit
+assessment of loan applications"). Without that consent:
+
+- **Pull a fresh report** is not offered, and a pull is refused with
+  "The customer has not consented to a credit report being pulled";
+- an application is still scored, but the **Bureau score** input is
+  missing (Note: "No consent in force for CREDIT_REPORT") and scores 0
+  points, exactly as before reports existed.
+
+### 9.2 When a report is pulled
+
+- **When an application is scored** (submission, recommendation, approval,
+  **Re-run score**), the system pulls the customer's report for that
+  application. Within 30 days (setting `scoring.creditReport.reuseDays`)
+  further scores of the same application re-use that report — one enquiry
+  per application, not one per click.
+- **By staff**: on the customer's **Credit report** page or the
+  application's **Credit report** card, choose a **Purpose** (New
+  application, Account review, Collections, Customer request) and click
+  **Pull a fresh report** (`credit_report.pull`).
+
+Each pull is an **enquiry**: who pulled it, when, why and under which
+consent are recorded and audited, and it appears in the report's
+**Enquiries** list.
+
+### 9.3 Read the report
+
+| Part | What it shows |
+|---|---|
+| **Bureau score**, **Grade** | 300–850 and A–E; or **No score** (see 9.4). |
+| **Main reasons** | What lowered the score most (for example "Repayments were late in the last 12 months"). |
+| **Summary** | Active, closed and written-off facilities, **Total exposure** and **Monthly obligation** per currency, **Lenders reporting** (always 1). |
+| **Credit facilities** | Each loan, credit line, card and legacy loan: product, status, opened / closed dates, limit or principal, balance, instalment, days past due now and the worst (ever, 12 and 24 months), and the flags **Written off**, **Restructured**, **Settled for less**; a legacy loan moved to the lending platform says **moved to** its new reference. |
+| **Payment history** | 24 boxes per facility, one per month, oldest first (see below). |
+| **Guarantees given** | Loans of other people this customer guaranteed, with the application and, once booked, the loan's days past due. |
+| **Enquiries (12 months)** | Applications for credit and report pulls. The application being decided is marked **this application** and is never counted against the customer. |
+
+**Payment history codes** (at each month end):
+
+| Code | Meaning |
+|---|---|
+| `0` | Current — nothing past due |
+| `1` … `6` | Past due: 1 = 1–29 days, 2 = 30–59, 3 = 60–89, 4 = 90–119, 5 = 120–149, 6 = 150 days or more |
+| `W` | Written off (from the month of the write-off) |
+| `R` | Restructured that month |
+| `C` | Closed that month |
+| `·` | No account that month (not yet opened, or closed earlier) |
+
+### 9.4 No score
+
+A customer with **no facility**, less than **6 months** of credit history
+(`scoring.creditReport.minHistoryMonths`), or no instalment fallen due yet
+gets **No score** with the reason **No credit history** — never a low
+score. The application scorecard then treats the bureau score as missing (0
+points). A customer with a **write-off** or **90+ days past due** in the
+last 24 months is always scored, however short the history.
+
+### 9.5 What the bureau score looks at
+
+| Characteristic | Points |
+|---|---|
+| Worst days past due, last 12 months | +80 never late; +40 up to 29 days; −20 up to 59; −60 up to 89; −120 more |
+| Worst days past due, last 24 months | +30 never late; +15 up to 29; −10 up to 89; −40 more |
+| Months since last 30+ days past due | +40 never; −40 under 6 months; −15 under 12; +10 under 24; +30 longer |
+| Times 30+ days past due at a month end, 12 months | +20 none; −20 once; −50 two or three times; −90 more |
+| Write-off on record | −200 |
+| Restructured in the last 24 months | −60 |
+| Utilisation of credit lines and cards | 0 up to 30%; −20 up to 60%; −40 up to 90%; −70 above (no points without one) |
+| Age of oldest facility | 0 under 12 months; +20 under 36; +35 under 60; +50 longer |
+| Other credit applications, 6 months | +10 none; 0 one; −20 two or three; −45 more |
+| Other credit applications, 12 months | 0 up to two; −10 up to five; −30 more |
+| Open facilities | +15 one or two; 0 three or four; −25 five or more |
+
+Like any scorecard, `INTERNAL_BUREAU` can be installed and changed by your
+organisation under maker-checker (section 5): a credit analyst drafts a
+version, a risk / compliance reviewer approves and activates it. The next
+report is scored on the new version; each report keeps the version it was
+scored on.
+
+### 9.6 Print the report
+
+**Print (PDF)** opens the printable report — every heading in English and
+Khmer. The PDF is filed in the customer's documents (category GENERATED,
+type `CREDIT_REPORT`, not shown in the borrower portal): at once when staff
+pull a report, and the first time it is printed for a report pulled during
+scoring.
+
+### 9.7 Reports never change
+
+A report is stored once and never changed or deleted. It keeps everything
+it was built from and a fingerprint (hash) of it, so the report and its
+score can be rebuilt exactly — for an auditor, a complaint or a dispute.
+To see a newer picture, pull a fresh report.
+
+### If it is blocked
+
+| Message | What to do |
+|---|---|
+| "The customer has not consented to a credit report being pulled …" | Record a **Credit report** consent (section 7.3), then pull again. |
+| "Credit Bureau Cambodia is not configured: the integration is on hold." | Your lending settings name CBC as the provider. Ask finance / risk to set `scoring.creditReport.provider` back to `INTERNAL`. |
+| **Pull a fresh report** is missing | You need `credit_report.pull`, the customer's consent, and a usable provider. |
+
+---
+
+## 10. Scorecard monitoring (Products › Scorecard monitoring)
 
 For risk / compliance reviewers and credit analysts. The report is worked
 out from your own applications and loans every time you open it. It shows
@@ -783,7 +913,7 @@ period (12 months by default). Until then, bad rate, Gini, AUC and KS show
 
 ---
 
-## 10. Tuning your scorecard — a short workflow
+## 11. Tuning your scorecard — a short workflow
 
 1. **Look** (risk / compliance, monthly): on **Scorecard monitoring**,
    check PSI first, then bad rate by grade, Gini and KS. Write down what
@@ -811,7 +941,7 @@ re-weight the scorecard on your own experience.
 
 ---
 
-## 11. In the demo organisation (Demo Lending Co)
+## 12. In the demo organisation (Demo Lending Co)
 
 The demo is set up so you can see every part of scoring
 ([demo walkthrough](demo-walkthrough.md)):
@@ -833,7 +963,12 @@ The demo is set up so you can see every part of scoring
   4,200,000 KHR a month), all covering last year.
 - **Sokha Chan** (Phnom Penh): recorded verbal consent for utility bills and
   rent history, and two verified records — water bills (12 of 12 months on
-  time) and rent receipts (10 of 12 months on time).
+  time) and rent receipts (10 of 12 months on time). She also repaid a
+  six-month loan on the original book about a year and a half ago (one
+  instalment ten days late); it is in the legacy archive and on her
+  **credit report**.
+- Both have consented to their **credit report**.
+- **Scorecards:** `INTERNAL_BUREAU` is installed with the other two.
 
 The demo consents last one year from the demo set-up.
 
@@ -855,16 +990,24 @@ Things to try:
 5. *As `analyst`:* on **Products › Scorecards**, open `STANDARD_RETAIL`,
    create a **New version**, change a band, test it; *as `risk`:* approve
    and activate it.
-6. *As `risk`:* open **Products › Scorecard monitoring**. With a fresh demo
+6. *As `analyst`:* open Sokha Chan's profile › **Credit report** and click
+   **Pull a fresh report**: her legacy loan shows with its payment history
+   (`0` each month — the late instalment was paid before the month ended —
+   and `C` when it closed), a worst lateness of 10 days and a bureau score. Submit a **PL-STD** application for her: its
+   **Credit report** card shows the report pulled for it, and the input
+   snapshot's **bureauScore** says **internal bureau** with the report.
+7. *As `risk`:* open **Products › Scorecard monitoring**. With a fresh demo
    there are few or no mature loans, so bad rate, Gini and KS show "—".
 
 ---
 
-## 12. Common questions
+## 13. Common questions
 
 | Question | Answer |
 |---|---|
 | The score says **Recommend approve**. Can I book the loan? | No. It still needs the recommendation and all approvals (see [chapter 05](05-applications-and-credit-decisions.md)). |
+| Is the bureau score from the Credit Bureau Cambodia? | No. CBC is on hold; the score comes from your organisation's own records only (section 9). |
+| A new customer shows **No score**. Is that bad? | No. It means there is not enough history to score; the application scorecard treats the bureau score as missing (section 9.4). |
 | Why is a factor marked **missing**? | Open **Input snapshot** and read the **Note**: no consent, no verified record, record too old, no exchange rate, or no provider / bureau connected. |
 | I verified a utility bill but the score did not change. | Scores are recorded at submission, recommendation and approval. Click **Re-run score**. Also check consent is in force and the bill period ended within 365 days. |
 | Can I delete a consent or a record entered by mistake? | No. Withdraw the consent with a reason, or reject the record (another person) and capture a correct one. |
