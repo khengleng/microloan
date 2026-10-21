@@ -191,6 +191,8 @@ const LITERALS: Record<string, string> = {
   'document-links/:token': 'not-a-signed-document-link',
   // Learning centre lessons are content ids, not rows: the caller's own progress.
   'lessons/:lessonId': 'portal-orientation',
+  // Go-live setup items are checklist keys, not rows: the caller's own checklist.
+  'items/:key': 'opening_balances',
 };
 
 /** Global (platform) rows: not tenant data, so no victim to name. */

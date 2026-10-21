@@ -205,7 +205,7 @@ export function facilityResource(
 }
 
 /** Facility behaviour is flag-gated on top of the product's own flags. */
-function facilityFlags(config: ProductConfig | null): string[] {
+export function facilityFlags(config: ProductConfig | null): string[] {
   switch (config?.facility.type) {
     case 'REVOLVING':
       return ['lending.revolving.drawdown'];
