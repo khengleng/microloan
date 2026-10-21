@@ -44,6 +44,7 @@ import {
   requireAcceptedKeyFacts,
 } from './key-facts-gate';
 import { AmlGateService } from '../aml/aml-gate.service';
+import { PlanQuotaService } from '../../plan-tiers/plan-quota.service';
 
 type Json = Prisma.InputJsonValue;
 
@@ -129,6 +130,7 @@ export class ApplicationsService {
     private readonly rateCap: RateCapService,
     private readonly obligations: BorrowerObligationsService,
     private readonly amlGate: AmlGateService,
+    private readonly quotas: PlanQuotaService,
   ) {}
 
   private assessmentChecks: AssessmentCheck[] = [];
@@ -1170,6 +1172,10 @@ export class ApplicationsService {
         await this.amlGate.applicationParties(tx, tenantId, app),
         'booked',
       );
+      // The plan's running-loan quota (D-167). A refinance replaces a running
+      // loan of the same borrower, so it adds nothing to the book.
+      if (!app.refinancesLoanId)
+        await this.quotas.assertRoom(tenantId, 'loans', tx);
       const businessDate = await this.businessDate.get(tenantId, tx);
       const planned = body.plannedDisbursementDate ?? businessDate;
       if (lending.compareDates(planned, businessDate) < 0)

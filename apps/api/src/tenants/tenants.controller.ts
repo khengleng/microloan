@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, BadRequestException, Query } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { TenantPurgeService } from './tenant-purge.service';
+import { PlanQuotaService } from '../plan-tiers/plan-quota.service';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -21,6 +22,7 @@ export class TenantsController {
     constructor(
         private readonly tenantsService: TenantsService,
         private readonly purges: TenantPurgeService,
+        private readonly quotas: PlanQuotaService,
     ) { }
 
     @Roles('SUPERADMIN')
@@ -28,6 +30,14 @@ export class TenantsController {
     @Get('stats/platform')
     platformStats(@CurrentUser() user: JwtPayload) {
         return this.tenantsService.platformStats(user);
+    }
+
+    /** Every organisation's use of its plan's quotas (D-167). */
+    @Roles('SUPERADMIN')
+    @RequirePermissions(Permission.TENANT_VIEW)
+    @Get('plan-usage/list')
+    planUsage() {
+        return this.quotas.usageForAll();
     }
 
     @Roles('SUPERADMIN')

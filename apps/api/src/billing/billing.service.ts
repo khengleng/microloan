@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import Stripe from 'stripe';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
-import { SystemContext } from '../prisma/tenant-context';
 import { webOrigin } from '../config/operational-config';
 
 @Injectable()
@@ -111,71 +110,4 @@ export class BillingService {
         return { url: session.url };
     }
 
-    // Stripe calls this with no user principal — authentication is the
-    // signature check inside, not a JWT — so it is an explicit system path.
-    @SystemContext('webhook: Stripe subscription events')
-    async handleStripeWebhook(signature: string, payload: Buffer) {
-        if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
-            this.logger.warn('Stripe Webhook hit without env variables configured');
-            return;
-        }
-
-        let event: Stripe.Event;
-        try {
-            event = this.stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET);
-        } catch (err: any) {
-            this.logger.error(`Webhook signature verification failed: ${err.message}`);
-            throw new BadRequestException('Invalid signature');
-        }
-
-        switch (event.type) {
-            case 'checkout.session.completed':
-                await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-                break;
-            case 'customer.subscription.deleted':
-                await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-                break;
-            case 'invoice.payment_failed':
-                await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
-                break;
-            default:
-                this.logger.log(`Unhandled event type ${event.type}`);
-        }
-    }
-
-    private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-        if (session.payment_status === 'paid' && session.metadata?.tenantId) {
-            await this.prisma.tenant.update({
-                where: { id: session.metadata.tenantId },
-                data: {
-                    plan: session.metadata.plan || 'PRO',
-                    stripeSubscriptionId: session.subscription as string,
-                    status: 'ACTIVE', // Ensure they are active if they were suspended
-                },
-            });
-            await this.audit.logAction(session.metadata.tenantId, session.metadata.actorId || 'webhook', 'UPDATE', 'Tenant', session.metadata.tenantId, { event: 'SUBSCRIPTION_ACTIVATED', plan: session.metadata.plan });
-        }
-    }
-
-    private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-        const tenant = await this.prisma.tenant.findFirst({ where: { stripeSubscriptionId: subscription.id } });
-        if (tenant) {
-            await this.prisma.tenant.update({
-                where: { id: tenant.id },
-                data: { plan: 'FREE', stripeSubscriptionId: null },
-            });
-            await this.audit.logAction(tenant.id, 'webhook', 'UPDATE', 'Tenant', tenant.id, { event: 'SUBSCRIPTION_CANCELED' });
-        }
-    }
-
-    private async handlePaymentFailed(invoice: Stripe.Invoice) {
-        const tenant = await this.prisma.tenant.findFirst({ where: { stripeCustomerId: invoice.customer as string } });
-        if (tenant) {
-            await this.prisma.tenant.update({
-                where: { id: tenant.id },
-                data: { status: 'SUSPENDED' },
-            });
-            await this.audit.logAction(tenant.id, 'webhook', 'UPDATE', 'Tenant', tenant.id, { event: 'SUBSCRIPTION_PAYMENT_FAILED_SUSPENDED' });
-        }
-    }
 }

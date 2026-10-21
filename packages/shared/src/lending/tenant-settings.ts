@@ -409,6 +409,24 @@ export const tenantLendingSettingsSchema = z
       })
       .strict()
       .default({}),
+    /** Collections (UC-59; D-168). */
+    collections: z
+      .object({
+        promiseToPay: z
+          .object({
+            /**
+             * Days after the promised date that payments still count toward
+             * the promise before it is reviewed as broken.
+             */
+            graceDays: z.number().int().min(0).max(30).default(0),
+            /** Furthest ahead of the business date a customer may promise to pay. */
+            maxDaysAhead: z.number().int().min(1).max(366).default(30),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .default({}),
     /** The original (legacy) loan book's daily jobs. */
     legacyServicing: z
       .object({

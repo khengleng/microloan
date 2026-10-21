@@ -118,6 +118,22 @@ the connection pool size minus two); each loan is still its own transaction
 with its row lock and compare-and-set. Sizing and measured throughput are in
 [PERFORMANCE.md](PERFORMANCE.md).
 
+**Promises to pay (UC-59, D-168).** After each day it processes, the
+scheduler reviews the tenant's pending promises to pay; `PROMISE_REVIEW_CRON`
+(default 01:30 in `LENDING_EOD_TZ`; `PROMISE_REVIEW_DISABLED=true` turns it
+off) reviews every tenant with a pending promise as of its business date, for
+days run by hand. Each tenant and day is reviewed once across instances
+(`ScheduledJobClaim` job `collections.promise-review`). A promise is **kept**
+when repayments, prepayments, settlements and recoveries value-dated from the
+day it was made to the promised date plus `collections.promiseToPay.graceDays`
+(lending settings, default 0) cover it; **broken** once the business date is
+past that window — an OPEN task (stage `PROMISE_BROKEN`) goes to the work
+queue of the next stage of the product's collections ladder; **cancelled** if
+the loan stops being active first. Run it now for a tenant:
+`POST /v1/lending/collections/promises/review` (`servicing.batch.run`). A
+failed review is audited (`collection.promise.review`, FAILURE), shows as the
+failed-jobs alert, and the next day's review covers the same promises.
+
 ## Monitoring
 
 ### Endpoints
@@ -1287,6 +1303,37 @@ and the read-only legacy loan archive. Nothing is shared between tenants
 - **Telegram applications (D-132).** Off unless `telegramBot.allowLoanApplications`
   is on; recorded by the "Telegram bot" system principal within the product's
   limits.
+
+## Subscription plans: quotas and Stripe billing (DECISIONS D-166, D-167, D-170)
+
+- **Quotas.** Each organisation's plan (`PlanTier`, Platform › Subscription
+  Plans) limits running loans (BOOKED or ACTIVE loan accounts, checked when a
+  loan is booked), lending products (with a version not retired or rejected,
+  checked at creation), active staff accounts (at user creation and
+  reactivation) and customers (at creation). Empty = unlimited. Past the
+  limit the API answers 403 `PLAN_LIMIT_REACHED` with the numbers; nothing
+  already there is removed. Loans and customers created by the loan-book
+  migration and loans from letter-of-credit conversions are not checked
+  (D-170). Branches are not limited.
+- **Usage.** The tenant administrator sees the meter under Settings ›
+  Subscription (`GET /v1/billing/usage`); the platform operator sees every
+  organisation under Platform › Organisations
+  (`GET /v1/tenants/plan-usage/list`), red where an organisation is over a
+  limit after a downgrade.
+- **Stripe webhook.** Point the Stripe endpoint at `POST /v1/billing/webhook`
+  and set `STRIPE_WEBHOOK_SECRET` to its signing secret (with
+  `STRIPE_SECRET_KEY` and the `STRIPE_PRICE_*` ids for checkout). The
+  signature is checked over the raw body; each event id is applied once
+  (`StripeWebhookEvent`). The webhook never reactivates an organisation: a
+  payment for a suspended, pending-payment or erasure-pending organisation, an
+  unknown plan or a Stripe customer that is not the organisation's is kept as
+  **needs review** and raises the platform alert `billing.webhook_review`.
+  Settle each (refund in Stripe, or reactivate the organisation by hand) and
+  press **Mark reviewed** on Platform › Organisations
+  (`POST /v1/billing/webhook-events/:id/review`); the alert resolves when none
+  is left. Test locally with `stripe listen --forward-to
+  localhost:<port>/v1/billing/webhook` and `stripe trigger
+  checkout.session.completed`.
 ## AML/CFT controls (DECISIONS D-118…D-122)
 
 Cambodia's 2020 Law on AML/CFT; CAFIU is the FIU. User guide: chapter 26.

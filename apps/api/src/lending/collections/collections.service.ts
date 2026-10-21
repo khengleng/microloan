@@ -20,6 +20,7 @@ import {
 import { PolicyService } from '../policy/policy.service';
 import { LoanState, loadLoanState, resourceOf } from '../servicing/loan-state';
 import { ServicingService, delinquency } from '../servicing/servicing.service';
+import { PromiseInput, PromisesService } from './promises.service';
 
 const D = (v: Prisma.Decimal | string | number | null | undefined) =>
   new lending.D(v === null || v === undefined ? 0 : v.toString());
@@ -65,6 +66,7 @@ export class CollectionsService {
     private readonly audit: AuditEventService,
     private readonly businessDate: BusinessDateService,
     private readonly servicing: ServicingService,
+    private readonly promises: PromisesService,
   ) {
     this.servicing.registerBatchHook(async (tx, state, businessDate) => {
       await this.escalate(tx, state, businessDate);
@@ -243,13 +245,37 @@ export class CollectionsService {
   async complete(
     actor: LendingActor,
     taskId: string,
-    body: { outcome: (typeof TASK_OUTCOMES)[number]; note?: string },
+    body: {
+      outcome: (typeof TASK_OUTCOMES)[number];
+      note?: string;
+      promise?: PromiseInput;
+    },
   ) {
     const tenantId = requireTenant(actor);
+    if (body.outcome === 'PROMISE_TO_PAY' && !body.promise)
+      throw new BadRequestException({
+        message:
+          'A promise to pay needs the amount and the date the customer promised (UC-59).',
+        code: 'PROMISE_DETAILS_REQUIRED',
+      });
     return this.lp.tenantTx(tenantId, async (tx) => {
       const task = await this.taskFor(tx, actor, taskId);
       if (task.assignedTo && task.assignedTo !== actor.id)
         throw new ConflictException('Another collector holds this task.');
+      // The promise is recorded with the outcome, reviewed after end of day.
+      const promise =
+        body.outcome === 'PROMISE_TO_PAY' && body.promise
+          ? await this.promises.recordInTx(
+              tx,
+              actor,
+              await loadLoanState(tx, tenantId, task.loanAccountId),
+              {
+                ...body.promise,
+                note: body.promise.note ?? body.note,
+              },
+              taskId,
+            )
+          : null;
       const res = await tx.collectionTask.updateMany({
         where: { id: taskId, tenantId, status: 'OPEN' },
         data: {
@@ -269,11 +295,19 @@ export class CollectionsService {
           resourceType: 'LoanAccount',
           resourceId: task.loanAccountId,
           outcome: 'SUCCESS',
-          details: { task: taskId, stage: task.stage, outcome: body.outcome },
+          details: {
+            task: taskId,
+            stage: task.stage,
+            outcome: body.outcome,
+            ...(promise ? { promise: promise.id } : {}),
+          },
         },
         tx,
       );
-      return tx.collectionTask.findFirst({ where: { id: taskId, tenantId } });
+      const done = await tx.collectionTask.findFirst({
+        where: { id: taskId, tenantId },
+      });
+      return promise ? { ...done, promise } : done;
     });
   }
 

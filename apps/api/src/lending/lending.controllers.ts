@@ -31,6 +31,7 @@ import { PeriodCloseService } from './accounting/period-close.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { WebhooksService } from './integrations/webhooks.service';
 import { CollectionsService } from './collections/collections.service';
+import { PromisesService } from './collections/promises.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { CollateralService } from './collateral/collateral.service';
 import { ImpairmentService } from './accounting/impairment.service';
@@ -519,7 +520,26 @@ export class LendingLoansController {
     private readonly generated: GeneratedDocumentsService,
     private readonly covenants: CovenantsService,
     private readonly coolingOffs: CoolingOffService,
+    private readonly promises: PromisesService,
   ) {}
+
+  /** Promises to pay on the loan (UC-59). */
+  @LendingAction('loan.read')
+  @Get(':id/promises')
+  promiseList(@Req() req: Req_, @Param('id', ID) id: string) {
+    return this.promises.forLoan(actor(req), id);
+  }
+
+  /** A promise taken outside a work-queue task (the customer called in). */
+  @LendingAction('collection.task.work')
+  @Post(':id/promises')
+  recordPromise(
+    @Req() req: Req_,
+    @Param('id', ID) id: string,
+    @Body(new ZodPipe(S.promiseToPay)) body: never,
+  ) {
+    return this.promises.record(actor(req), id, body);
+  }
 
   /** Covenants on the loan and their tests (LT-16). */
   @LendingAction('loan.read')
@@ -1271,7 +1291,34 @@ export class LendingMigrationController {
 /** Collector work queues fed by the escalation ladder (UC-58). */
 @Controller('lending/collections')
 export class LendingCollectionsController {
-  constructor(private readonly collections: CollectionsService) {}
+  constructor(
+    private readonly collections: CollectionsService,
+    private readonly promises: PromisesService,
+  ) {}
+
+  /** Promises to pay across the loans the reader may see (UC-59). */
+  @LendingAction('loan.read')
+  @Get('promises')
+  promiseList(@Req() req: Req_, @Query('status') status?: string) {
+    return this.promises.list(actor(req), { status });
+  }
+
+  /** Review the pending promises now, as of the business date. */
+  @LendingAction('servicing.batch.run')
+  @Post('promises/review')
+  reviewPromises(@Req() req: Req_) {
+    return this.promises.reviewNow(actor(req));
+  }
+
+  @LendingAction('collection.task.work')
+  @Post('promises/:promiseId/cancel')
+  cancelPromise(
+    @Req() req: Req_,
+    @Param('promiseId', ID) promiseId: string,
+    @Body(new ZodPipe(S.promiseWithdraw)) body: never,
+  ) {
+    return this.promises.cancel(actor(req), promiseId, body);
+  }
 
   @LendingAction('loan.read')
   @Get('tasks')

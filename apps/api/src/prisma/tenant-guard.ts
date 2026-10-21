@@ -72,6 +72,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'PayoffQuote',
   'CollectionTask',
   'GuarantorDemand',
+  'CollectionPromise',
   'LoanCovenant',
   'AccountingPeriod',
   'MigrationBatch',
@@ -275,6 +276,8 @@ const PLATFORM_ONLY_MODELS = new Set([
   // Second-super-administrator approvals and the archives a tenant purge needs (D-130, D-131).
   'PlatformApproval',
   'TenantArchive',
+  // Stripe deliveries already handled (D-166): written by the webhook as system.
+  'StripeWebhookEvent',
 ]);
 
 /**

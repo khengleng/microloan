@@ -551,7 +551,26 @@ export const S = {
         'REFER_LEGAL',
       ]),
       note: z.string().max(1000).optional(),
+      /** Required with PROMISE_TO_PAY (UC-59). */
+      promise: z
+        .object({
+          amount: money,
+          payBy: date,
+          note: z.string().max(1000).optional(),
+        })
+        .strict()
+        .optional(),
     })
+    .strict(),
+  promiseToPay: z
+    .object({
+      amount: money,
+      payBy: date,
+      note: z.string().max(1000).optional(),
+    })
+    .strict(),
+  promiseWithdraw: z
+    .object({ reason: z.string().trim().min(3).max(500) })
     .strict(),
   downPayment: z
     .object({
