@@ -9,6 +9,7 @@ import { ServicingService } from './servicing.service';
 import { PeriodCloseService } from '../accounting/period-close.service';
 import { operationalConfig } from '../../config/operational-config';
 import { AuditEventService } from '../common/audit-event.service';
+import { PromisesService } from '../collections/promises.service';
 
 /** Arbitrary, fixed key for the cross-instance advisory lock. */
 const EOD_LOCK_KEY = 7_264_190_311;
@@ -82,6 +83,7 @@ export class EodSchedulerService {
     private readonly servicing: ServicingService,
     private readonly periods: PeriodCloseService,
     private readonly audit: AuditEventService,
+    private readonly promises: PromisesService,
   ) {}
 
   @Cron(process.env.LENDING_EOD_CRON || '15 0 * * *', {
@@ -181,6 +183,9 @@ export class EodSchedulerService {
         // Month end is a stage of end of day: once the last day of a month
         // is processed, its close is prepared for a person to approve.
         if (!r.failed.length) await this.periods.autoPrepare(tenantId, day);
+        // Promises to pay are reviewed after each day (UC-59, D-168); the
+        // review never throws and runs once per tenant and day.
+        await this.promises.afterEndOfDay(tenantId, day);
         runs.push({
           businessDate: day,
           processed: r.processed,
