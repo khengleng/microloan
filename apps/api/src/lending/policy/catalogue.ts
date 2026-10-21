@@ -143,6 +143,19 @@ export const PERMISSIONS: PermissionDefinition[] = [
       'Approve, reject, activate and retire scorecard versions drafted by someone else',
     category: 'Credit',
   },
+  // Credit reports and the in-house bureau score (D-176…D-181)
+  {
+    code: 'credit_report.read',
+    description:
+      'View a customer’s credit reports (in-house bureau): facilities, payment history, enquiries and the bureau score',
+    category: 'Credit',
+  },
+  {
+    code: 'credit_report.pull',
+    description:
+      'Pull a fresh credit report for a customer (an enquiry; needs the customer’s credit-report consent)',
+    category: 'Credit',
+  },
   {
     code: 'alt_data.read',
     description:
@@ -740,6 +753,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'aml.read',
       'aml.str.raise',
       'alt_data.read',
+      'credit_report.read',
       'alt_data.consent.manage',
       'alt_data.record',
       'document.read',
@@ -770,7 +784,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'scorecard.read',
       'scorecard.manage',
       'credit_score.run',
+      'credit_report.pull',
       'alt_data.read',
+      'credit_report.read',
       'alt_data.consent.manage',
       'alt_data.record',
       'alt_data.verify',
@@ -797,7 +813,9 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'aml.str.raise',
       'scorecard.read',
       'credit_score.run',
+      'credit_report.pull',
       'alt_data.read',
+      'credit_report.read',
       'document.read',
       'loan_application.read',
       'credit_decision.approve',
@@ -939,6 +957,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'scorecard.read',
       'scorecard.approve',
       'alt_data.read',
+      'credit_report.read',
       'alt_data.verify',
       'document.manage',
       ...READ_ALL,
@@ -965,6 +984,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'aml.read',
       'scorecard.read',
       'alt_data.read',
+      'credit_report.read',
       ...READ_ALL,
       'audit.read',
       'accounting.read',

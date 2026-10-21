@@ -147,6 +147,8 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'consents/:consentId': 'altDataConsent',
       'alternative-data/:recordId': 'altDataRecord',
       'alternative-data-providers/:configId': 'altDataProviderConfig',
+      // Credit reports (credit-report.int-spec creates the victims).
+      'credit-reports/:reportId': 'creditReport',
       // AML/CFT (aml.int-spec creates the victims).
       'watch-lists/:versionId': 'amlWatchListVersion',
       'cases/:caseId': 'amlScreeningCase',

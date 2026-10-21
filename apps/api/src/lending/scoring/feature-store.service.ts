@@ -11,6 +11,13 @@ import {
   type ProviderSource,
 } from './providers';
 import { instalmentHistories } from './repayment-history';
+import { CreditReportService } from './credit-report.service';
+import type { StoredCreditReport } from './credit-report-pdf';
+
+/** Scorecard inputs read from the borrower's credit report (SCORING_VARIABLES of source BUREAU). */
+const REPORT_CHARACTERISTICS = lending.SCORING_VARIABLES.filter(
+  (v) => v.source === 'BUREAU' && v.code !== 'bureauScore',
+).map((v) => v.code);
 
 /** One input in the snapshot: its value, where it came from and under which consent. */
 export interface FeatureValue {
@@ -20,6 +27,8 @@ export interface FeatureValue {
   consentId?: string | null;
   /** Officer records or loans it was derived from. */
   evidence?: string[];
+  /** Bureau inputs: the stored credit report they came from (D-176). */
+  reportId?: string;
   /** Why it is missing, or how it was converted. */
   note?: string;
 }
@@ -32,8 +41,9 @@ export interface FeatureSnapshot {
 }
 
 /**
- * Assembles a scorecard's inputs (DECISIONS D-079): bureau (none until a
- * bureau is integrated), application, the lender's own data, verified
+ * Assembles a scorecard's inputs (DECISIONS D-079, D-176): bureau (the
+ * borrower's credit report, when one can be pulled under the customer's
+ * consent), application, the lender's own data, verified
  * officer records and provider data — each with its source and, for
  * alternative data, the consent it was used under. Nothing that needs a
  * consent is read unless one is in force now. The snapshot is stored with
@@ -45,6 +55,7 @@ export class FeatureStoreService {
     private readonly settings: TenantSettingsService,
     private readonly altData: AlternativeDataService,
     private readonly providers: AltDataProvidersService,
+    private readonly reports: CreditReportService,
   ) {}
 
   async assemble(
@@ -59,6 +70,8 @@ export class FeatureStoreService {
       /** Average monthly instalment, in the application's currency. */
       monthlyPayment: string;
       variables: string[];
+      /** Who is scoring: the requester of a credit report pulled for it. */
+      actorId: string;
     },
   ): Promise<FeatureSnapshot> {
     const { tenantId, borrowerId, asOf } = input;
@@ -122,11 +135,49 @@ export class FeatureStoreService {
       value: lending.historyMonths(first ?? null, asOf),
       source: 'INTERNAL',
     };
-    f.bureauScore = {
-      value: null,
-      source: 'BUREAU',
-      note: 'No credit bureau is integrated yet.',
-    };
+    // The borrower's credit report (D-176…D-181): pulled now — an enquiry,
+    // under the CREDIT_REPORT consent — or this application's recent one
+    // re-used. Without one the bureau inputs are missing, as before.
+    const bureau = await this.reports.forScoring(tx, {
+      tenantId,
+      borrowerId,
+      applicationId: input.applicationId,
+      actorId: input.actorId,
+      asOf,
+    });
+    const report = bureau.report;
+    const content = report?.content as unknown as
+      | StoredCreditReport
+      | undefined;
+    const bureauSource: lending.ScoringSource =
+      report?.provider === 'INTERNAL' ? 'INTERNAL_BUREAU' : 'BUREAU';
+    const fromReport = (value: FeatureValue['value'], note?: string) => ({
+      value,
+      source: bureauSource,
+      consentId: bureau.consentId,
+      ...(report ? { reportId: report.id, evidence: [report.reference] } : {}),
+      ...(note ? { note } : {}),
+    });
+    f.bureauScore = report
+      ? fromReport(
+          report.score,
+          report.score === null
+            ? `${report.noScoreReason}: ${content?.score.message ?? 'no score'} ${bureau.note}`
+            : bureau.note,
+        )
+      : fromReport(null, bureau.note);
+    for (const code of REPORT_CHARACTERISTICS)
+      if (need.has(code))
+        f[code] = report
+          ? fromReport(
+              (
+                content?.characteristics as unknown as Record<
+                  string,
+                  FeatureValue['value']
+                >
+              )?.[code] ?? null,
+            )
+          : fromReport(null, bureau.note);
 
     const settings = await this.settings.get(tenantId, tx);
     const events = await this.altData.consentEvents(tx, tenantId, borrowerId);

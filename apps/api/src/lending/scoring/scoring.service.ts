@@ -100,6 +100,7 @@ export class ScoringService {
       metrics: input.metrics,
       monthlyPayment: input.monthlyPayment,
       variables: [...variables],
+      actorId: input.actorId,
     });
     const inputs = FeatureStoreService.inputs(snapshot);
     const thin = lending.isThinFile(scoring.thinFile, inputs);

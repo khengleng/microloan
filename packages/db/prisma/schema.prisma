@@ -441,6 +441,7 @@ model Borrower {
   amlScreeningCases AmlScreeningCase[]
   amlEddRecords     AmlEddRecord[]
   amlStrCases       AmlStrCase[]
+  creditReports     CreditReport[]
 
   // Per-tenant uniqueness of national ID via blind index (fixes the former
   // GLOBAL @unique on idNumber, which leaked existence across tenants).
@@ -4782,6 +4783,7 @@ model AltDataConsent {
   recordedBy  String
   createdAt   DateTime        @default(now())
   records     AltDataRecord[]
+  creditReports CreditReport[]
 
   @@unique([tenantId, id])
   @@index([tenantId, borrowerId, source])
@@ -5076,4 +5078,55 @@ model OperationalAlert {
 
   @@index([tenantId, status])
   @@index([status, openedAt])
+}
+
+// ── Credit reports and the in-house bureau score (DECISIONS D-176…D-181) ───
+
+/// A credit report pulled for a borrower: the enquiry (who, when, why, under
+/// which consent) and the report itself, append-only. The in-house provider
+/// builds it from this lender's own records only — nothing is shared between
+/// tenants. `inputs` is everything the report was built from and `inputsHash`
+/// its SHA-256, so the report and its score can be rebuilt exactly. The only
+/// change ever made is filing the printable document once (`documentId`).
+model CreditReport {
+  id                      String         @id @default(uuid())
+  tenantId                String
+  borrowerId              String
+  borrower                Borrower       @relation(fields: [tenantId, borrowerId], references: [tenantId, id], onDelete: Cascade)
+  reference               String
+  /// INTERNAL (the lender's own records) or CBC
+  provider                String
+  /// NEW_APPLICATION, ACCOUNT_REVIEW, COLLECTIONS, CUSTOMER_REQUEST
+  purpose                 String
+  /// The application it was pulled for, if any.
+  applicationId           String?
+  /// SCORING (pulled when an application was scored) or STAFF (pulled by a person)
+  trigger                 String
+  /// The borrower's CREDIT_REPORT consent in force when it was pulled.
+  consentId               String
+  consent                 AltDataConsent @relation(fields: [tenantId, consentId], references: [tenantId, id], onDelete: Restrict)
+  requestedBy             String
+  /// The business date the report is as of.
+  asOf                    DateTime       @db.Date
+  inputs                  Json
+  inputsHash              String
+  content                 Json
+  contentHash             String
+  /// Null with a reason when the report cannot be scored (NO_HISTORY).
+  score                   Int?
+  grade                   String?
+  noScoreReason           String?
+  scorecardCode           String
+  /// 0 for the template.
+  scorecardVersion        Int
+  scorecardDefinitionHash String
+  engineVersion           String
+  /// The printable report filed in the customer's documents.
+  documentId              String?
+  createdAt               DateTime       @default(now())
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, reference])
+  @@index([tenantId, borrowerId, createdAt])
+  @@index([tenantId, applicationId, createdAt])
 }
