@@ -1,7 +1,7 @@
 import * as qrcode from 'qrcode';
 import { PNG } from 'pngjs';
 import { bufferFromUpload, decodeImage, readQrFromImage } from './qr-image';
-import { buildKhqrPayload, parseKhqrPayload } from './khqr';
+import { buildKhqrPayload, parseKhqrPayload } from '../billing/khqr';
 
 const MERCHANT = {
   bakongAccountId: 'acme_micro@devb',

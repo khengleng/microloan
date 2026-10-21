@@ -1,9 +1,14 @@
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import jpeg from 'jpeg-js';
+import * as qrcode from 'qrcode';
 
 /**
- * Decode a QR code out of an uploaded image.
+ * QR images: reading a code out of an uploaded screenshot, and drawing one.
+ * Shared by the platform's plan-payment KHQR (billing) and the lenders'
+ * static repayment codes (lending/payments/khqr).
+ *
+ * Decoding a QR code out of an uploaded image:
  *
  * Deliberately narrow: PNG and JPEG only, decoded in-process with pure-JS
  * libraries. No `sharp`/ImageMagick — a native image pipeline parsing operator
@@ -95,4 +100,28 @@ export function readQrFromImage(buffer: Buffer): string {
     'No QR code found in that image. Crop the screenshot tightly around the ' +
       'QR and try again, or paste the KHQR payload text instead.',
   );
+}
+
+/** A QR code as a PNG: medium error correction, a quiet zone of one module. */
+export function renderQrPng(payload: string, width = 320): Promise<Buffer> {
+  return qrcode.toBuffer(payload, {
+    type: 'png',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width,
+  });
+}
+
+/** A QR code as a `data:image/png;base64,…` URI, for HTML and JSON. */
+export function renderQrDataUrl(payload: string, width = 320): Promise<string> {
+  return qrcode.toDataURL(payload, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width,
+  });
+}
+
+/** PNG or JPEG bytes and their media type, or null for anything else. */
+export function imageType(buf: Buffer): 'image/png' | 'image/jpeg' | null {
+  return isPng(buf) ? 'image/png' : isJpeg(buf) ? 'image/jpeg' : null;
 }

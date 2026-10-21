@@ -10,11 +10,12 @@ import { parseCsv } from './channels.js';
  */
 
 /**
- * How money moved, as recorded on a repayment, disbursement or receipt. The
+ * How money moved, as recorded on a repayment, disbursement or receipt
+ * (KHQR: paid to the lender's static KHQR code, D-160). The
  * cash transaction report counts the channels the tenant lists as cash
  * (`aml.ctr.cashChannels`, default BRANCH_CASH).
  */
-export const PAYMENT_CHANNEL_CODES = ['BRANCH_CASH', 'AGENT', 'BANK_TRANSFER', 'MOBILE', 'QR', 'WALLET', 'PAYROLL', 'OTHER'] as const;
+export const PAYMENT_CHANNEL_CODES = ['BRANCH_CASH', 'AGENT', 'BANK_TRANSFER', 'MOBILE', 'QR', 'KHQR', 'WALLET', 'PAYROLL', 'OTHER'] as const;
 export type PaymentChannelCode = (typeof PAYMENT_CHANNEL_CODES)[number];
 
 /** Red flags a staff member can tick when raising a suspicious transaction referral. */
