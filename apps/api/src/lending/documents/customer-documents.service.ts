@@ -1465,6 +1465,71 @@ export class CustomerDocumentsService {
   }
 
   /**
+   * The screenshot of a KHQR payment attached to a receipt (D-160): filed in
+   * the customer's library against the loan, inside the caller's transaction,
+   * visible to the customer. Not reviewed as a document — the receipt itself
+   * is verified by a second person.
+   */
+  async filePaymentProofInTx(
+    tx: Tx,
+    input: {
+      tenantId: string;
+      borrowerId: string;
+      loanAccountId: string;
+      receiptReference: string;
+      file: FileInput;
+      maxBytes: number;
+      createdBy: string;
+      uploaderType: 'USER' | 'CUSTOMER';
+    },
+  ) {
+    const file = this.decode(input.file);
+    if (file.bytes.length > input.maxBytes)
+      throw new BadRequestException(
+        `The screenshot may be at most ${Math.floor(input.maxBytes / 1024)} KB.`,
+      );
+    const doc = await this.createWithFile(
+      tx,
+      {
+        tenantId: input.tenantId,
+        borrowerId: input.borrowerId,
+        category: 'LOAN',
+        typeCode: 'PAYMENT_PROOF',
+        title: `KHQR payment ${input.receiptReference}`,
+        loanAccountId: input.loanAccountId,
+        origin: input.uploaderType === 'CUSTOMER' ? 'PORTAL' : 'STAFF',
+        customerVisible: true,
+        reviewStatus: 'NOT_REQUIRED',
+        createdBy: input.createdBy,
+        uploaderType: input.uploaderType,
+      },
+      file,
+    );
+    await this.audit.write(
+      {
+        actor: {
+          id: input.createdBy,
+          type: input.uploaderType === 'CUSTOMER' ? 'CUSTOMER' : 'USER',
+          tenantId: input.tenantId,
+        },
+        action: 'document.upload',
+        resourceType: 'CustomerDocument',
+        resourceId: doc.id,
+        outcome: 'SUCCESS',
+        details: {
+          category: 'LOAN',
+          typeCode: 'PAYMENT_PROOF',
+          sizeBytes: file.bytes.length,
+          sha256: file.sha,
+          via: 'khqr-receipt',
+        },
+      },
+      tx,
+    );
+    return doc;
+  }
+
+  /**
    * Staff KYC review screen: a short-lived link for a library-held KYC file
    * (the `KycDocument` row only points at it). Audited like any download.
    */

@@ -6,6 +6,8 @@ import { PolicyService } from '../policy/policy.service';
 import { ServicingService } from '../servicing/servicing.service';
 import { CustomerDocumentsService } from './customer-documents.service';
 import { htmlLetter } from './document-rules';
+import { KhqrHowToPayService } from '../payments/khqr/khqr-how-to-pay.service';
+import { howToPayText } from '../payments/khqr/how-to-pay';
 
 /**
  * Generated documents filed in the customer library automatically (DOC-9):
@@ -27,6 +29,7 @@ export class GeneratedDocumentsService {
     private readonly audit: AuditEventService,
     private readonly library: CustomerDocumentsService,
     private readonly servicing: ServicingService,
+    private readonly howToPay: KhqrHowToPayService,
   ) {}
 
   private async loan(tenantId: string, loanAccountId: string) {
@@ -128,6 +131,13 @@ export class GeneratedDocumentsService {
           typeof quote.settlementFeeExplanation === 'string'
             ? quote.settlementFeeExplanation
             : '',
+      },
+      // How to pay: the lender's static KHQR code and the loan reference (D-160).
+      {
+        text: howToPayText(
+          'en',
+          await this.howToPay.loanInfo(tenantId, account.id),
+        ).join(' '),
       },
     ]);
     const doc = await this.library.fileGenerated({

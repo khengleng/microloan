@@ -99,6 +99,7 @@ export const NAV: NavSection[] = [
             { key: 'relief', href: '/lending/relief', icon: Umbrella, lending: ['payment_holiday.read'], queues: ['HOLIDAY_PROGRAMMES_TO_PUBLISH'] },
             { key: 'recovery', href: '/lending/recovery', icon: HandCoins, lending: ['loan.recovery.post', 'loan.writeoff.propose', 'loan.writeoff.approve'], queues: ['RECOVERY_TO_APPROVE', 'AGED_LOSS'] },
             { key: 'suspense', href: '/lending/suspense', icon: PiggyBank, lending: ['loan.repayment.post', 'loan.repayment.reverse'], queues: ['UNIDENTIFIED_PAYMENTS', 'REFUNDS_TO_APPROVE'] },
+            { key: 'qrRepayments', href: '/lending/qr-repayments', icon: QrCode, lending: ['loan.repayment.post', 'loan.repayment.reverse', 'khqr.manage', 'tenant_settings.approve'], queues: ['QR_RECEIPTS_TO_VERIFY'] },
             { key: 'paymentChannels', href: '/lending/payment-channels', icon: Banknote, lending: ['loan.repayment.post', 'rate_observation.manage'] },
         ],
     },

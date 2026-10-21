@@ -182,6 +182,7 @@ const QUEUE_HREF: Record<string, string> = {
   AGED_LOSS: '/lending/recovery',
   DOCUMENTS_TO_REVIEW: '/lending/documents',
   UNIDENTIFIED_PAYMENTS: '/lending/suspense',
+  QR_RECEIPTS_TO_VERIFY: '/lending/qr-repayments',
   PERIODS_TO_APPROVE: '/lending/close',
   MIGRATIONS_TO_APPROVE: '/lending/migration',
   RETURNS_TO_SUBMIT: '/lending/regulatory',
@@ -1103,6 +1104,48 @@ export class WorkspaceWorkService {
               since: day(r.valueDate),
             })),
           );
+        }
+        // KHQR receipts a second person must verify (D-160): never one's own.
+        if (has('payment.receipt.verify')) {
+          const s = scopeOf('payment.receipt.verify');
+          if (s) {
+            const pending = await tx.khqrReceipt.findMany({
+              where: { tenantId, status: 'PENDING', NOT: { makerId: me } },
+              orderBy: { createdAt: 'asc' },
+              take: 500,
+            });
+            const inScope = new Set(
+              (
+                await tx.loanAccount.findMany({
+                  where: {
+                    tenantId,
+                    id: {
+                      in: [...new Set(pending.map((r) => r.loanAccountId))],
+                    },
+                    ...(s as Prisma.LoanAccountWhereInput),
+                  },
+                  select: { id: true },
+                })
+              ).map((l) => l.id),
+            );
+            const mine = pending.filter((r) => inScope.has(r.loanAccountId));
+            add(
+              'QR_RECEIPTS_TO_VERIFY',
+              'KHQR payments to verify',
+              'payment.receipt.verify',
+              'CHECKER',
+              mine.length,
+              mine.slice(0, TOP).map((r) => ({
+                id: r.id,
+                reference: r.reference,
+                label: `${humanize(r.source)}${r.payerName ? ` · ${r.payerName}` : ''} · ${r.bankRef}`,
+                amount: decStr(r.amount),
+                currency: r.currency,
+                href: '/lending/qr-repayments',
+                since: r.createdAt.toISOString(),
+              })),
+            );
+          }
         }
         if (has('loan.covenant.manage')) {
           const s = scopeOf('loan.covenant.manage');

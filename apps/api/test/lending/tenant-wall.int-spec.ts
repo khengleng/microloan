@@ -119,6 +119,9 @@ function modelFor(path: string, prev: string, param: string): string | null {
       'recovery-refunds/:refundId': 'recoveryRefund',
       'mandates/:mandateId': 'directDebitMandate',
       'files/:fileId': 'channelFile',
+      // Static KHQR codes and receipts (khqr-repayments.int-spec creates the victims).
+      'codes/:codeId': 'khqrCode',
+      'receipts/:receiptId': 'khqrReceipt',
       'customers/:borrowerId': 'borrower',
       'documents/:documentId': 'customerDocument',
       'document-requests/:requestId': 'documentRequest',

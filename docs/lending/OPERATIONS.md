@@ -937,6 +937,8 @@ bank's code, a `lending.auto_debit.failed` outbox notice is queued, and the
 debit is retried per the settings (default 3 attempts a day apart). Only a
 mock bank exists: accounts ending in `000` fail for insufficient funds, in
 `999` as closed, anything else succeeds; production refuses the mock.
+**Auto-debit is not available to borrowers**: there is no bank debit or
+payout integration (D-160); borrowers repay by the static KHQR code below.
 
 **Settlement files (UC-18).** CSV with a header row, columns in any order:
 
@@ -989,6 +991,113 @@ differences account (4900) and shows on the preview (D-136).
 **Settings** (FINANCE_OFFICER, `rate_observation.manage`): FX spread in basis
 points, how many days old a rate may be, auto-debit attempts per due date and
 days between attempts.
+
+## Static KHQR repayments
+
+Collections & relief › KHQR repayments (`/lending/qr-repayments`); decisions
+D-160…D-165 in [docs/servicing/DECISIONS.md](../servicing/DECISIONS.md);
+user guide chapter 07 section 9.
+
+Borrowers repay by scanning the lender's **static KHQR code** (EMVCo point of
+initiation `11`, no amount; one per currency, optionally one per branch) and
+writing the loan reference in the payment remark. **There is no Bakong or
+bank API**: the platform never learns of a payment by itself. Money is
+credited only when a second person verifies a receipt or an imported bank
+statement confirms it.
+
+**Codes (maker-checker).** `POST /v1/lending/khqr/codes` (khqr.manage:
+Tenant administrator, Finance officer) proposes a code — `mode: GENERATE`
+from the Bakong account id (`name@bank`), merchant name (≤ 25 ASCII) and city
+(≤ 15), or `mode: UPLOAD` with the bank's QR image (PNG/JPEG, decoded
+in-process with jsQR) or payload text. Uploads must be static, carry no
+amount and match the currency; an image that cannot be decoded is kept with
+the typed details (`source: UPLOADED_IMAGE`). `POST …/codes/:codeId/decision`
+(tenant_settings.approve, never the proposer) approves — retiring the code in
+force for that branch and currency — or rejects. One ACTIVE and one PENDING
+code per lender/branch and currency (partial unique indexes); the database
+also checks a payload starts `000201010211`. Every step writes an audit
+event (`khqr.propose`, `khqr.approve`, `khqr.reject`). A loan uses its
+branch's code, else the lender's. For checks such as the go-live checklist:
+`KhqrCodesService.hasActiveStaticKhqr(tx, tenantId)` →
+`{ active, currencies }` (apps/api/src/lending/payments/khqr/khqr-codes.service.ts).
+
+**Where borrowers see it.** Portal loan page (code, reference, steps, "I have
+paid", claim statuses); `GET /v1/borrower/loans/:id/how-to-pay?lang=en|km|both`
+and the staff `GET /v1/lending/loans/:id/how-to-pay` — the printable A5 card
+(Kantumruy Pro font for Khmer, SIL OFL, from `@fontsource/kantumruy-pro`);
+statement PDF; key facts statement ("How to repay", with the QR, and a staff
+warning when no code is in force); OPS-7 notice texts; settlement quote
+letter; Telegram due-tomorrow reminder and late notice (text plus the code as
+a photo) and the balance answer.
+
+**Receipts (`KhqrReceipt`).** PENDING → POSTED (with its financial event) or
+REJECTED. Sources:
+
+- `PORTAL_CLAIM` — `POST /v1/lending/portal/loans/:loanId/khqr-claims` by the
+  borrower (customer permission `payment.claim_own`): amount (loan
+  currency), paid at, bank reference (≥ 6 letters/digits), optional payer,
+  remark and screenshot (filed as a `PAYMENT_PROOF` customer document). No
+  money moves. At most `payments.khqr.maxPendingClaimsPerBorrower` (5)
+  waiting per borrower.
+- `STAFF` — `POST /v1/lending/loans/:id/khqr-receipts`
+  (`payment.receipt.record` → loan.repayment.post).
+- `STATEMENT` — created by an import when auto-posting is off.
+
+`POST /v1/lending/khqr/receipts/:receiptId/verify` (Idempotency-Key;
+`payment.receipt.verify` → loan.repayment.reverse, maker-checker: never the
+recorder) posts an ordinary repayment with `channel: KHQR` (Dr cash, or Dr
+unidentified suspense when a statement already holds the money) and
+`components.khqr` (receipt, source, bank reference, day paid).
+`…/reject` records a reason the borrower sees. The value date is the day
+paid, clamped to the business date and to the product's
+`repayment.maxBackdateDays` (D-162). `GET /v1/lending/khqr/receipts?status&source&search`
+is the queue, confined to the reader's loan scope; Home shows the
+`QR_RECEIPTS_TO_VERIFY` queue to holders of the verify permission (never
+their own receipts).
+
+**Statement import.** `POST /v1/lending/khqr/statements`
+(payment.channel_file.import) with `content` (CSV) or `contentBase64` (XLSX,
+first sheet — read by a small bounded ZIP/XML reader, not the `xlsx`
+package's parser), `mapping` (`GENERIC` and the unverified bank presets, or
+the lender's own from `payments.khqr.statementMappings`), `currency` for
+files without one, and `dryRun` to preview. Stored as a channel file of
+kind `KHQR_STATEMENT`, channel `KHQR`: one transaction, imported once per
+content hash, each line once per bank reference (`dedupeKey = KHQR:<key>`);
+a file with any malformed line is refused whole; debits are skipped and
+listed. Per line: duplicate → a receipt with the same bank reference
+(confirm and post it, or hold it when the amounts differ) →
+`lending.matchStatementLine` (loan reference in the remark; a pending claim
+of the same payer and amount within `claimMatchWindowDays`; the payer's only
+live loan for exactly an amount due) → otherwise suspense (channel `KHQR`)
+with the reason and the likely loans. With `payments.khqr.statementAutoPost`
+off, matched lines go to suspense and a `STATEMENT` receipt waits for a
+second person. The KHQR channel shows on Payment channels › Daily
+reconciliation.
+
+**Duplicates.** A bank reference (letters and digits, upper case) is applied
+once: a partial unique index on `KhqrReceipt (tenantId, bankRefKey)` for
+receipts not rejected, the channel-line `dedupeKey`, and checks across both
+(a claim for a reference whose statement line is held in suspense is linked
+to the held money; one already posted is refused with 409
+`DUPLICATE_BANK_REFERENCE`).
+
+**Settings** (`payments.khqr` in the maker-checker lending settings):
+`statementAutoPost` (true), `claimMatchWindowDays` (3), `maxScreenshotKb`
+(2048), `maxPendingClaimsPerBorrower` (5), `statementMappings` (the lender's
+own layouts: header names per field, date formats, credit values, default
+currency).
+
+**Demo.** `pnpm --filter @microloan/db demo:lending` gives Demo Lending Co
+USD and KHR codes on the fictional account `demo_not_a_real_account@demo`,
+pending claims `DEMOKHQR000001` / `DEMOKHQR000002` on the first two active
+loans (re-run the seed after booking loans), and writes
+`packages/db/prisma/demo-files/out/khqr-statement-sample.csv` dated the
+business date (template: `demo-files/khqr-statement-template.csv`).
+
+**Tenant wall.** `KhqrCode` and `KhqrReceipt` carry `tenantId` with ENABLE +
+FORCE row-level security (`*_tenant_wall` policies), are classified in
+`tenant-guard.ts`, and their routes are mapped in the tenant-wall suite.
+
 
 ## Customer documents
 

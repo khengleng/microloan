@@ -31,6 +31,7 @@ export const LENDING_TABS: { href: string; label: string }[] = [
     { href: '/lending/collections', label: 'Collections' },
     { href: '/lending/recovery', label: 'Recovery' },
     { href: '/lending/suspense', label: 'Unidentified payments' },
+    { href: '/lending/qr-repayments', label: 'KHQR repayments' },
     { href: '/lending/payment-channels', label: 'Payment channels' },
     { href: '/lending/restructures', label: 'Restructures' },
     { href: '/lending/relief', label: 'Relief programmes' },

@@ -28,7 +28,12 @@ describe('tenant lending settings', () => {
         writeOffExpense: '5100',
       },
     });
-    assert.deepEqual(d.payments, { maxFileLines: L.MAX_FILE_LINES, maxBackdateDays: 30 });
+    assert.deepEqual(d.payments, {
+      maxFileLines: L.MAX_FILE_LINES,
+      maxBackdateDays: 30,
+      // Static KHQR repayments (D-160…D-165): new settings, defaults per D-162 / D-165.
+      khqr: { statementAutoPost: true, claimMatchWindowDays: 3, maxScreenshotKb: 2048, maxPendingClaimsPerBorrower: 5, statementMappings: [] },
+    });
     assert.equal(d.access.maxDelegationDays, 30);
     assert.equal(d.legacyServicing.defaultAfterDaysOverdue, 30);
     assert.equal(d.legacyServicing.penaltyCapRate, '0.25');

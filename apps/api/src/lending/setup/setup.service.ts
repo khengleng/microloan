@@ -24,6 +24,7 @@ import {
 } from '../policy/resources';
 import { evaluateFlag } from '../policy/flags';
 import { familyFlagKey } from '../policy/catalogue';
+import { KhqrCodesService } from '../payments/khqr/khqr-codes.service';
 import {
   CREDIT_APPROVAL_PERMISSION,
   SETUP_ITEM_BY_KEY,
@@ -51,6 +52,7 @@ export class GoLiveSetupService {
     private readonly lp: LendingPrisma,
     private readonly policy: PolicyService,
     private readonly audit: AuditEventService,
+    private readonly khqrCodes: KhqrCodesService,
   ) {}
 
   async status(
@@ -315,6 +317,8 @@ export class GoLiveSetupService {
       tx.goLiveSetupWaiver.findMany({ where: { tenantId } }),
       this.policy.context(tenantId, tx),
     ]);
+    // The lender's static KHQR repayment code (D-160), from its own service.
+    const khqr = await this.khqrCodes.hasActiveStaticKhqr(tx, tenantId);
     if (!tenant) throw new NotFoundException('Organisation not found');
 
     // Lending settings: the version in force (over the defaults) and the
@@ -473,11 +477,7 @@ export class GoLiveSetupService {
       impairmentStatuses: impairments.map((i) => i.status),
       activeScorecards: [...new Set(scorecards.map((s) => s.scorecard.code))],
       watchListStatuses: watchLists.map((w) => w.status),
-      // TODO(go-live/KHQR, D-174): another workstream is adding a lender's
-      // static KHQR configuration. When its API exists, read whether this
-      // tenant has an active static KHQR here ({ active: boolean }); until
-      // then the item shows "not checked" and is left out of the progress.
-      khqr: null,
+      khqr: { active: khqr.active },
       learning: { members, required, completed },
       waivers: Object.fromEntries(
         waivers.map((w) => [

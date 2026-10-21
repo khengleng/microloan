@@ -163,6 +163,11 @@
     },
     {
       "file": "apps/web/src/components/lending/LendingShell.tsx",
+      "text": "KHQR repayments",
+      "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
+    },
+    {
+      "file": "apps/web/src/components/lending/LendingShell.tsx",
       "text": "Payment channels",
       "reason": "English fallback for LENDING_TABS; every tab renders Workspace.nav.<key>, present in en and km."
     },

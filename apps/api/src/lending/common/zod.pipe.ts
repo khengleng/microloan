@@ -106,6 +106,7 @@ export const S = {
         'BRANCH_CASH',
         'BANK_TRANSFER',
         'MOBILE',
+        'KHQR',
         'AGENT',
         'PAYROLL',
         'OTHER',

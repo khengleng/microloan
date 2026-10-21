@@ -2,7 +2,7 @@
 
 Who this is for: loan operations makers and checkers, collections officers, finance officers and branch staff who take money in, settle loans, issue payoff letters and handle money that cannot be matched to a loan.
 
-This chapter covers everything that brings money onto a loan account (or returns it): posting repayments, paying in another currency, settling a loan early, payoff letters, unidentified payments (suspense) and refunds, payment-channel files, auto-debit mandates and the collection QR. Changes to the loan's terms (restructures, payment holidays, prepayment rescheduling, reversals) are in [08-servicing-changes.md](08-servicing-changes.md).
+This chapter covers everything that brings money onto a loan account (or returns it): posting repayments, paying in another currency, settling a loan early, payoff letters, unidentified payments (suspense) and refunds, payment-channel files, auto-debit mandates and repayments by the lender's static KHQR code (section 9) — the main way borrowers repay. Changes to the loan's terms (restructures, payment holidays, prepayment rescheduling, reversals) are in [08-servicing-changes.md](08-servicing-changes.md).
 
 ---
 
@@ -370,7 +370,7 @@ The **Payroll by employer** tab shows the same totals and breaks per employer an
 
 A mandate lets the system collect instalments from the borrower's bank account on each due date during the end-of-day run.
 
-Note: only a mock bank connection exists today. On the **Settings** tab, **Integrations** shows **Bank auto-debit** as **SIMULATION ONLY** with the warning "Auto-debit uses a mock bank — No money moves". In production the mock is refused, so no debit is attempted. Ask your IT team before relying on auto-debit.
+Note: **auto-debit is not available**: only a mock bank connection exists, and no bank debit integration is planned (borrowers repay by KHQR, section 9). On the **Settings** tab, **Integrations** shows **Bank auto-debit** as **SIMULATION ONLY** with the warning "Auto-debit uses a mock bank — No money moves". In production the mock is refused, so no debit is attempted. Ask your IT team before relying on auto-debit.
 
 To set up a mandate (on the loan screen, users with the repayment-posting permission):
 
@@ -408,18 +408,99 @@ Click **Save settings**. Changes apply from the next payment or end-of-day run.
 
 ---
 
-## 9. Collection QR (KHQR)
+## 9. Repayment by KHQR
 
-Your organisation can upload its static bank or Bakong KHQR code so staff can show it to borrowers. The QR carries no amount and no loan reference; when the money arrives, staff still post it by hand (section 2) or it arrives in a channel file (section 8).
+Borrowers repay by scanning your organisation's **static KHQR code** — one fixed code per currency (USD and/or KHR), optionally one per branch. The code carries **no amount**: the borrower types the amount and writes the **loan reference** (for example `LN-260105-ABC123`) in the payment remark.
 
-To set up the collection QR (administrators):
+Important: the platform has **no connection to Bakong or to a bank**. It never learns of a payment by itself, and nothing is credited automatically when a borrower pays. A KHQR payment counts only when:
 
-1. Open **Administration › Settings** and find **Collection QR**.
-2. Click **Add QR**. Enter a **Label** (for example "ABA Main"), **Bank**, **Currency**, **Account name**, **Account number**.
-3. Paste the **KHQR / QR payload** string from your bank, or use **…or upload a QR image** (max 1 MB).
-4. Tick **Use as the default collection QR** if it should appear in the borrower portal, then **Save**.
+- a **second person verifies** it (a borrower's claim or a receipt staff recorded), or
+- the **bank statement** you import confirms it.
 
-Where it appears: in the borrower portal (**Pay via QR**). It does not appear on the **Loans › Loan accounts** loan screen. See [21-legacy-archive-and-migration.md](21-legacy-archive-and-migration.md).
+Menu: **Collections & relief › KHQR repayments**. Tabs: **Payments to check**, **Statement import**, **Held in suspense**, **KHQR codes**. The Home page shows a **KHQR payments to verify** tile with the payments waiting for you.
+
+### 9.1 Set up the code (maker-checker)
+
+Who: someone with **khqr.manage** (Tenant administrator, Finance officer) proposes; a **different** person with **tenant_settings.approve** (Risk / compliance) approves.
+
+1. Open **KHQR repayments › KHQR codes** and click **Propose a code**.
+2. Under **How**, choose:
+   - **Generate from the Bakong account** — enter the **Bakong account ID** (`name@bank`), **Merchant name** (what the payer sees, at most 25 Latin characters) and **City**. The platform builds the static code (point of initiation 11, no amount); or
+   - **Upload the QR the bank gave** — pick the PNG or JPEG. The platform reads it and shows the Bakong account and merchant. A code with an amount, a dynamic (single-payment) code, or a code for the other currency is refused. If the image cannot be read, it is kept as it is and you type the account details shown with it.
+3. Choose the **Currency** and, under **For**, the whole lender or one branch. A branch's code is shown for that branch's loans; other loans use the lender's code.
+4. Optionally enter **Bank** and **Account number**, give a **Reason for the change**, and click **Submit for approval**.
+5. The approver opens the same tab, checks the code under **Waiting for approval** and clicks **Approve** (or **Reject**). The proposer cannot approve their own code. Approving replaces the code in force for that currency and branch.
+
+Every proposal and decision is in the audit trail. Until a code is approved, borrowers are told to ask how to pay, and the key facts statement carries a warning for staff.
+
+### 9.2 What borrowers see
+
+- **Borrower portal** — on each active loan, **How to pay**: the code, the loan reference in large print, the four steps (scan, type the amount, write the reference in the remark, press **I have paid**), and downloadable cards in Khmer and English. Their claims are listed with **Being checked**, **Received** or **Not accepted** (with the reason).
+- **How-to-pay card** — a printable PDF per loan, in English and Khmer, with the code, the loan reference and the steps. Staff download it from the loan screen (**KHQR repayments** card › **How-to-pay card (EN/KM)**) and hand it out at disbursement.
+- **Key facts statement** — a **How to repay** section with the code and the account details.
+- **Statement PDF**, **settlement quote letter** and **borrower notices** (Collections › Borrower notices) — a "How to pay" paragraph with the merchant, the Bakong account and the reference to write.
+- **Telegram bot** — the due-tomorrow reminder and the late-payment notice are followed by the code as a picture; the balance answer tells the customer where to pay and what to write in the remark.
+
+### 9.3 "I have paid" (borrower claims)
+
+In the portal the borrower presses **I have paid** and enters the **amount**, **when they paid**, the **transaction reference** (the hash or reference number on their receipt) and, optionally, a screenshot (filed in their documents). The claim is **pending**: no money is posted and the loan balance does not change.
+
+A claim is checked in one of two ways:
+
+- the imported bank statement has a line with the **same transaction reference** and amount — it is confirmed and posted automatically (section 9.5); or
+- a member of staff with the repayment-reversal permission (Loan operations checker) checks it in the bank app and clicks **Verify** on **Payments to check** — it is posted as a repayment with channel **KHQR**. **Reject** records why (the borrower sees the reason).
+
+A borrower may have at most five claims waiting (lending settings, `payments.khqr.maxPendingClaimsPerBorrower`).
+
+### 9.4 Record a payment seen in the bank app (maker-checker)
+
+When a payment shows in the lender's bank app or merchant notification:
+
+1. Open the loan and, on the **KHQR repayments** card, click **Record KHQR payment**.
+2. Enter the **Amount**, **Paid at**, the **Bank transaction reference**, and if known the payer, their account or phone, the remark and a screenshot. Click **Record payment**.
+3. Nothing is posted yet. A **different** person verifies it on **Payments to check** (or on the same card) with **Verify** — this posts the repayment — or rejects it.
+
+The person who recorded a payment cannot verify or reject it.
+
+### 9.5 Import the bank statement
+
+Who: users with the repayment-posting permission.
+
+1. Download the transaction export from your bank or Bakong merchant account (CSV or Excel `.xlsx`).
+2. Open **KHQR repayments › Statement import**. Choose the **Column layout** (**Generic** reads the usual header names: date, amount or credit, currency, reference, sender name, from account, description/remark) and, for files without a currency column, the **Currency**.
+3. Pick the file and click **Check first**. The table shows what each line would do — **Post to loan**, **Hold for a second person**, **Hold in suspense** or **Ignore (already received)** — and why. Nothing is saved.
+4. Click **Import statement**. Lines are posted, held or ignored as shown; the result and the earlier imports are listed below, and the KHQR channel appears on **Payment channels › Daily reconciliation**.
+
+A file with any malformed line (a date or amount that cannot be read, a reference used twice for different payments) is refused whole; correct it and import it again. Importing the same file again returns the first import and applies nothing. Debits and rows without an amount received are skipped and listed.
+
+Note: the bank layouts other than **Generic** have not been checked against real exports. Use **Check first** on a sample before relying on one, or ask your administrator to add your bank's exact column names to the lending settings (`payments.khqr.statementMappings`).
+
+### 9.6 How a statement line is matched
+
+In this order (only exact matches; anything doubtful is held):
+
+1. **Same transaction reference** as a payment already recorded (a claim or a staff receipt), for the same amount and currency — it confirms that payment.
+2. **The loan reference in the remark** — exactly one of your loans, active and in the line's currency.
+3. **A pending claim of the same payer** (identified by phone or name) for the same amount and currency, paid within three days (`payments.khqr.claimMatchWindowDays`).
+4. **The payer's only live loan** — the payer is identified by phone (or by a full name only one borrower has), has exactly one active loan in that currency, and the amount equals what is due on it (the next instalment, what is overdue, or both).
+
+Everything else — no reference, two possible loans, a different amount, a closed loan, a different currency, or a loan that refuses the payment — is held in **unidentified payments (suspense)** with the reason and the possible loans. Allocate it there (section 7.2) or, if you know the loan, record the payment on the loan with the same bank reference (section 9.4): it is linked to the held money, and verifying it applies the money from suspense.
+
+**Auto-posting.** By default an exact match is posted at import. When your lending settings turn `payments.khqr.statementAutoPost` off, matched lines are held in suspense as **Bank statement** payments on **Payments to check**, and a second person verifies each one. The importer cannot verify their own import's payments.
+
+A payment is applied with the day it was paid as its value date, but never further back than the product allows back-dating: a payment confirmed late is applied on the earliest day allowed, and the day it was paid is kept on the repayment.
+
+### 9.7 One transfer, applied once
+
+The bank transaction reference (letters and digits, upper case — `ft-2602 1512` and `FT26021512` are the same) is applied once across claims, staff receipts and statement lines:
+
+- recording or claiming a reference that is already recorded or posted is refused ("This bank transaction is already recorded" / "already applied to loan …");
+- a statement line with a reference already posted is shown as **Ignore (already received)**;
+- a rejected claim frees its reference, so the right payment can be recorded again.
+
+### 9.8 Auto-debit is not available
+
+There is no bank connection for direct debits: auto-debit (section 8.4) uses a mock bank that production refuses. Do not promise borrowers automatic debits.
 
 ---
 

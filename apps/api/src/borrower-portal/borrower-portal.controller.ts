@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -88,6 +89,24 @@ export class BorrowerPortalController {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="statement-${id}.pdf"`,
       'Content-Length': pdf.length,
+    });
+    res.send(pdf);
+  }
+
+  @UseGuards(BorrowerJwtGuard)
+  @Get('loans/:id/how-to-pay')
+  async howToPay(
+    @CurrentBorrower() b: BorrowerSession,
+    @Param('id') id: string,
+    @Res() res: Response,
+    @Query('lang') lang?: string,
+  ) {
+    const { pdf, reference } = await this.portal.howToPayCard(b, id, lang);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="how-to-pay-${reference.replace(/[^\w.-]/g, '_')}.pdf"`,
+      'Content-Length': pdf.length,
+      'Cache-Control': 'no-store',
     });
     res.send(pdf);
   }

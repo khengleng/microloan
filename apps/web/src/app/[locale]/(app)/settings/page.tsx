@@ -15,7 +15,6 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { MfaSetup } from '@/components/auth/mfa-setup';
-import { PaymentInstruments } from '@/components/PaymentInstruments';
 import { useToast } from '@/components/ui/toast';
 
 const fieldCls = "w-full h-9 px-3 bg-white border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors";
@@ -131,6 +130,7 @@ function PlatformSettings() {
 /** ── Tenant ADMIN: existing settings flow ──────────────────────────────── */
 function TenantSettings() {
     const t = useTranslations('Settings');
+    const { locale } = useParams();
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -234,8 +234,12 @@ function TenantSettings() {
                         </div>
                     </form>
 
-                    {/* Static-QR collection instruments (display-only payment rail) */}
-                    <PaymentInstruments />
+                    {/* Repayment QR codes moved to Lending › KHQR repayments (maker-checker, D-160). */}
+                    <section className="bg-white border border-border rounded-md p-5 space-y-2">
+                        <h2 className="text-sm font-bold text-foreground">{t('khqrMovedTitle')}</h2>
+                        <p className="text-sm text-muted-foreground">{t('khqrMovedBody')}</p>
+                        <Link href={`/${locale}/lending/qr-repayments?tab=codes`} className="text-sm font-semibold text-primary hover:underline">{t('khqrMovedLink')}</Link>
+                    </section>
 
                     {/* Subscription — KHQR plan change */}
                     <PlanChangeCard />

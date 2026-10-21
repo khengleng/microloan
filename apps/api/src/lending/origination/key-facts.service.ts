@@ -23,6 +23,7 @@ import type { Resource } from '../policy/decision';
 import { LendingPoliciesService } from '../products/lending-policies.service';
 import { TenantSettingsService } from '../../tenant-settings/tenant-settings.service';
 import { CustomerDocumentsService } from '../documents/customer-documents.service';
+import { KhqrCodesService } from '../payments/khqr/khqr-codes.service';
 import {
   KEY_FACTS_LANGUAGES,
   type KeyFactsDocument,
@@ -56,6 +57,7 @@ export class KeyFactsService {
     private readonly policies: LendingPoliciesService,
     private readonly settings: TenantSettingsService,
     private readonly library: CustomerDocumentsService,
+    private readonly khqr: KhqrCodesService,
   ) {}
 
   // ── Terms version ─────────────────────────────────────────────────────────
@@ -350,7 +352,21 @@ export class KeyFactsService {
       ],
     );
     const cp = settings.consumerProtection;
+    const code = await this.khqr.forLoan(tx, tenantId, {
+      branchId: app.branchId,
+      currency: facts.currency,
+    });
     return {
+      repayment: code
+        ? {
+            merchantName: code.merchantName,
+            bakongAccountId: code.bakongAccountId,
+            bankName: code.bankName,
+            accountNumber: code.accountNumber,
+            currency: code.currency,
+            qrImage: code.image,
+          }
+        : null,
       facts,
       issuedOn,
       lender: {
@@ -688,5 +704,9 @@ function warningsOf(content: KeyFactsDocument): string[] {
   const c = content.complaints;
   if (c && !c.phone && !c.email && !c.address)
     w.push('consumerProtection.complaints has no phone, email or address');
+  if (content.repayment === null)
+    w.push(
+      'no KHQR repayment code is in force for this currency (Payments › QR repayments › Codes)',
+    );
   return w;
 }

@@ -14,6 +14,7 @@ export const SETTLEMENT_CHANNELS: { value: SettlementChannel; label: string }[] 
 export const CHANNEL_LABEL: Record<string, string> = {
     ...Object.fromEntries(SETTLEMENT_CHANNELS.map((c) => [c.value, c.label])),
     PAYROLL: 'Payroll',
+    KHQR: 'KHQR statement',
 };
 
 export interface ChannelSettings {

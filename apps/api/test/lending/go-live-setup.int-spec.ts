@@ -145,7 +145,7 @@ d('Go-live setup checklist (integration)', () => {
     // Its one administrator is enrolled; single currency needs no FX rate.
     expect(by.admin_mfa.status).toBe('DONE');
     expect(by.fx_rates.reasons[0].code).toBe('singleCurrency');
-    expect(by.payment_khqr.status).toBe('NOT_CHECKED');
+    expect(by.payment_khqr.status).toBe('TODO');
     expect(by.learning.status).toBe('INFO');
     expect(by.staff_roles.facts.counts.TENANT_ADMIN).toBe(1);
     expect(by.consumer_protection.reasons[0]).toMatchObject({

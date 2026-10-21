@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { BotService } from './bot.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { BorrowersModule } from '../borrowers/borrowers.module';
+import { LendingModule } from '../lending/lending.module';
 
 @Module({
-    imports: [PrismaModule, BorrowersModule],
+    imports: [PrismaModule, BorrowersModule, LendingModule],
     providers: [BotService],
     exports: [BotService],
 })

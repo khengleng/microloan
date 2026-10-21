@@ -10,6 +10,9 @@ import { phoneCandidates, verifiedOwnPhone } from './telegram-link';
 import { JobClaimService } from '../prisma/job-claim.service';
 import { operationalConfig } from '../config/operational-config';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { KhqrHowToPayService } from '../lending/payments/khqr/khqr-how-to-pay.service';
+import { KhqrCodesService } from '../lending/payments/khqr/khqr-codes.service';
+import { howToPayShort } from '../lending/payments/khqr/how-to-pay';
 
 /** The tenant's local time zone for the daily customer notices (as the end-of-day jobs). */
 const JOB_TIME_ZONE = process.env.LENDING_EOD_TZ || 'Asia/Phnom_Penh';
@@ -28,7 +31,7 @@ const POLLING_LEASE_MS = 90_000;
 
 const systemPrompt = (platformName: string) => `You are a friendly loan assistant for ${platformName}.
 Your goals:
-1. Help customers check their loan balance, what they owe and when the next instalment is due, using \`check_loan_balance\`. Interpret the JSON it returns and explain it in plain words.
+1. Help customers check their loan balance, what they owe and when the next instalment is due, using \`check_loan_balance\`. Interpret the JSON it returns and explain it in plain words. When it includes \`howToPay\`, tell the customer to pay with the lender's KHQR code (merchant and Bakong account given) and to write the loan reference in the payment remark; a payment is credited once the lender has checked it.
 2. Tell customers which loan products the lender offers, using \`get_loan_products\`.
 3. If a customer wants to apply for a loan, explain that applications are made with a loan officer or at a branch; never collect application details in the chat.
 Never ask for or accept a phone number in chat — the customer's identity comes only from the phone number they share with the "Share my phone number" button.
@@ -62,7 +65,35 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         private readonly prisma: PrismaService,
         private readonly claims: JobClaimService,
         private readonly tenantSettings: TenantSettingsService,
+        // Optional only so the unit tests can build the service without them.
+        private readonly howToPay?: KhqrHowToPayService,
+        private readonly khqrCodes?: KhqrCodesService,
     ) { }
+
+    /**
+     * How to repay one loan (D-160): a line for the message and the lender's
+     * static KHQR code as a picture, or nothing when no code is in force.
+     */
+    private async payment(tenantId: string, loanId: string): Promise<{ line: string; qr: Buffer | null; howToPay: Record<string, string> | null }> {
+        if (!this.howToPay) return { line: '', qr: null, howToPay: null };
+        try {
+            const info = await this.howToPay.loanInfo(tenantId, loanId);
+            if (!info.code) return { line: '', qr: null, howToPay: null };
+            return {
+                line: howToPayShort(info.reference, info.code),
+                qr: this.khqrCodes ? await this.khqrCodes.png(info.code) : null,
+                howToPay: {
+                    payTo: info.code.merchantName,
+                    bakongAccountId: info.code.bakongAccountId,
+                    currency: info.code.currency,
+                    writeInRemark: info.reference,
+                },
+            };
+        } catch (e) {
+            this.logger.warn(`How-to-pay for loan ${loanId} unavailable: ${(e as Error).message}`);
+            return { line: '', qr: null, howToPay: null };
+        }
+    }
 
     /** Whether the tenant lets customers apply for loans from the chat (default off, D-132). */
     private async loanApplicationsAllowed(tenantId: string): Promise<boolean> {
@@ -375,6 +406,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             where: { tenantId, borrowerId: borrower.id, status: { in: ['BOOKED', 'ACTIVE'] } },
             orderBy: { createdAt: 'asc' },
             select: {
+                id: true,
                 reference: true,
                 status: true,
                 currency: true,
@@ -395,7 +427,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             return JSON.stringify({ error: 'Unable to find an active account or loan for you.' });
         }
         const businessDate = await this.businessDate(tenantId);
-        return JSON.stringify({ loans: loans.map((l) => loanSummary(l, businessDate)) });
+        const out: (ReturnType<typeof loanSummary> & { howToPay: Record<string, string> | null })[] = [];
+        for (const l of loans)
+            out.push({ ...loanSummary(l, businessDate), howToPay: (await this.payment(tenantId, l.id)).howToPay });
+        return JSON.stringify({ loans: out });
     }
 
     /** The tenant's business date (YYYY-MM-DD); its calendar date until finance has set one. */
@@ -428,6 +463,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
             const loans = await this.prisma.loanAccount.findMany({
                 where: { tenantId, status: 'ACTIVE', instalments: { some: due } },
                 select: {
+                    id: true,
                     reference: true,
                     currency: true,
                     borrowerId: true,
@@ -438,8 +474,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                 const open = l.instalments.filter((i) => owedOn(i).gt(0));
                 if (!open.length) continue;
                 const owed = open.reduce((t, i) => t.plus(owedOn(i)), lending.D(0));
+                const pay = await this.payment(tenantId, l.id);
                 await this.notify(tenantId, telegram, l.borrowerId, (name) =>
-                    `⚠️ **LATE PAYMENT NOTICE** ⚠️\n\nDear ${name},\n**${owed.toFixed(2)} ${l.currency}** on loan ${l.reference} is overdue (since ${toDay(open[0].dueDate)}).\n\nPlease pay as soon as possible.`,
+                    `⚠️ **LATE PAYMENT NOTICE** ⚠️\n\nDear ${name},\n**${owed.toFixed(2)} ${l.currency}** on loan ${l.reference} is overdue (since ${toDay(open[0].dueDate)}).\n\nPlease pay as soon as possible.${pay.line ? `\n\n${pay.line}` : ''}`,
+                    pay.qr,
                 );
             }
         });
@@ -462,13 +500,15 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
                     dueDate: dayStart(lending.addDays(businessDate, 1)),
                     loanAccount: { status: 'ACTIVE' },
                 },
-                select: { ...INSTALMENT_OWED, loanAccount: { select: { reference: true, currency: true, borrowerId: true } } },
+                select: { ...INSTALMENT_OWED, loanAccount: { select: { id: true, reference: true, currency: true, borrowerId: true } } },
             });
             for (const i of lines) {
                 const owed = owedOn(i);
                 if (owed.lte(0)) continue;
+                const pay = await this.payment(tenantId, i.loanAccount.id);
                 await this.notify(tenantId, telegram, i.loanAccount.borrowerId, (name) =>
-                    `🔔 **Payment Reminder**\n\nDear ${name},\nYour instalment of **${owed.toFixed(2)} ${i.loanAccount.currency}** on loan ${i.loanAccount.reference} is due tomorrow (${toDay(i.dueDate)}).\n\nPlease pay on time to avoid late charges. Thank you!`,
+                    `🔔 **Payment Reminder**\n\nDear ${name},\nYour instalment of **${owed.toFixed(2)} ${i.loanAccount.currency}** on loan ${i.loanAccount.reference} is due tomorrow (${toDay(i.dueDate)}).\n\nPlease pay on time to avoid late charges. Thank you!${pay.line ? `\n\n${pay.line}` : ''}`,
+                    pay.qr,
                 );
             }
         });
@@ -497,7 +537,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
 
     /** Message a borrower linked to a chat; a failure is logged, never thrown. */
-    private async notify(tenantId: string, telegram: Telegram, borrowerId: string, text: (firstName: string) => string) {
+    private async notify(tenantId: string, telegram: Telegram, borrowerId: string, text: (firstName: string) => string, qr: Buffer | null = null) {
         const borrower = await this.prisma.borrower.findFirst({
             where: { id: borrowerId, tenantId, telegramChatId: { not: null } },
             select: { id: true, firstName: true, telegramChatId: true },
@@ -505,6 +545,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         if (!borrower?.telegramChatId) return;
         try {
             await telegram.sendMessage(borrower.telegramChatId, text(borrower.firstName), { parse_mode: 'Markdown' });
+            // The lender's KHQR code to scan, right under the notice (D-160).
+            if (qr) await telegram.sendPhoto(borrower.telegramChatId, { source: qr }, { caption: 'KHQR' });
         } catch (e) {
             this.logger.error(`Failed to notify ${borrower.id} via bot ${tenantId}`, e);
         }

@@ -8,6 +8,7 @@ import {
 } from './impairment.js';
 import { MAX_FILE_LINES } from './channels.js';
 import { PAYMENT_CHANNEL_CODES } from './aml.js';
+import { STATEMENT_DATE_FORMATS, STATEMENT_PRESETS, type StatementMapping } from './qr-receipts.js';
 
 /**
  * A lender's own operating parameters (TenantLendingSettings).
@@ -141,6 +142,56 @@ export const tenantLendingSettingsSchema = z
         maxFileLines: z.number().int().min(1).max(100_000).default(MAX_FILE_LINES),
         /** How far before the business date an unidentified receipt or a payment file line may be value-dated. */
         maxBackdateDays: z.number().int().min(0).max(366).default(30),
+        /** Repayments to the lender's static KHQR code (DECISIONS D-160…D-165). */
+        khqr: z
+          .object({
+            /**
+             * A statement line that matches a loan exactly is posted at import
+             * (default, D-162). Off: it is held in suspense, linked to its
+             * loan, until a second person verifies it.
+             */
+            statementAutoPost: z.boolean().default(true),
+            /** A statement line confirms a pending claim of the same payer and amount paid this many days either side. */
+            claimMatchWindowDays: z.number().int().min(0).max(31).default(3),
+            /** Largest screenshot a borrower may attach to an "I have paid" claim, in kilobytes. */
+            maxScreenshotKb: z.number().int().min(50).max(5120).default(2048),
+            /** Most "I have paid" claims one borrower may have waiting at once. */
+            maxPendingClaimsPerBorrower: z.number().int().min(1).max(50).default(5),
+            /**
+             * The lender's own statement layouts, beside the built-in ones
+             * (GENERIC and the bank presets): the header names of each field.
+             */
+            statementMappings: z
+              .array(
+                z
+                  .object({
+                    code: z.string().regex(/^[A-Z][A-Z0-9_]{1,31}$/, 'codes are 2–32 of A-Z, 0-9 and _'),
+                    label: z.string().trim().min(2).max(80),
+                    columns: z
+                      .object({
+                        date: z.array(z.string().trim().min(1).max(60)).min(1).max(10),
+                        amount: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        credit: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        currency: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        reference: z.array(z.string().trim().min(1).max(60)).min(1).max(10),
+                        payerName: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        payerAccount: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        remark: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                        direction: z.array(z.string().trim().min(1).max(60)).max(10).optional(),
+                      })
+                      .strict()
+                      .refine((c) => !!(c.amount?.length || c.credit?.length), 'name an amount or a credit column'),
+                    creditValues: z.array(z.string().trim().min(1).max(20)).max(10).optional(),
+                    dateFormats: z.array(z.enum(STATEMENT_DATE_FORMATS)).min(1).max(7),
+                    defaultCurrency: z.enum(['USD', 'KHR']).nullable().default(null),
+                  })
+                  .strict(),
+              )
+              .max(20)
+              .default([]),
+          })
+          .strict()
+          .default({}),
       })
       .strict()
       .default({}),
@@ -181,9 +232,9 @@ export const tenantLendingSettingsSchema = z
             maxRecordAgeDays: z.number().int().min(1).max(3650).default(365),
             /** Payment channels counted as digital repayments (KHQR, wallets, mobile banking). */
             digitalChannels: z
-              .array(z.enum(['MOBILE', 'QR', 'WALLET', 'AGENT', 'PAYROLL']))
-              .max(5)
-              .default(['MOBILE', 'QR', 'WALLET']),
+              .array(z.enum(['MOBILE', 'QR', 'KHQR', 'WALLET', 'AGENT', 'PAYROLL']))
+              .max(6)
+              .default(['MOBILE', 'QR', 'KHQR', 'WALLET']),
           })
           .strict()
           .default({}),
@@ -482,7 +533,20 @@ export function validateTenantLendingSettings(s: TenantLendingSettings): string[
     issues.push('aml.risk.reviewMonths: a higher rating must be reviewed at least as often as a lower one.');
   for (const [currency, threshold] of Object.entries(aml.ctr.thresholds))
     if (dec(threshold).lte(0)) issues.push(`aml.ctr.thresholds.${currency} must be greater than zero.`);
+  const codes = s.payments.khqr.statementMappings.map((m) => m.code);
+  codes.forEach((c, i) => {
+    if (STATEMENT_PRESETS.some((p) => p.code === c)) issues.push(`payments.khqr.statementMappings: ${c} is a built-in mapping; choose another code.`);
+    if (codes.indexOf(c) !== i) issues.push(`payments.khqr.statementMappings: ${c} appears twice.`);
+  });
   return [...new Set(issues)];
+}
+
+/** The statement mappings a lender can import with: the built-in ones, then its own (DECISIONS D-163). */
+export function statementMappingsOf(s: TenantLendingSettings): StatementMapping[] {
+  return [
+    ...STATEMENT_PRESETS,
+    ...s.payments.khqr.statementMappings.map((m) => ({ ...m, verified: true, creditValues: m.creditValues ?? ['CR', 'CREDIT', 'IN'] })),
+  ];
 }
 
 /** The regulator's classification as these settings set it, for the impairment engine. */

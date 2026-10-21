@@ -7,7 +7,7 @@ import {
   KhqrMerchant,
   parseKhqrPayload,
 } from './khqr';
-import { readQrFromImage, bufferFromUpload } from './qr-image';
+import { readQrFromImage, bufferFromUpload } from '../common/qr-image';
 import { PlanTierService } from '../plan-tiers/plan-tier.service';
 import { runAsSystem } from '../prisma/tenant-context';
 

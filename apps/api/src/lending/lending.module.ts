@@ -39,6 +39,15 @@ import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
 import { PaymentChannelsService } from './payments/payment-channels.service';
 import { ChannelFilesService } from './payments/channel-files.service';
+import { KhqrCodesService } from './payments/khqr/khqr-codes.service';
+import { KhqrReceiptsService } from './payments/khqr/khqr-receipts.service';
+import { KhqrStatementsService } from './payments/khqr/khqr-statements.service';
+import { KhqrHowToPayService } from './payments/khqr/khqr-how-to-pay.service';
+import {
+  KhqrController,
+  KhqrPortalController,
+  LoanKhqrController,
+} from './payments/khqr/khqr.controller';
 import {
   ChannelIntegrationsController,
   LoanPaymentChannelsController,
@@ -187,6 +196,9 @@ import {
     PaymentChannelsController,
     LoanPaymentChannelsController,
     ChannelIntegrationsController,
+    KhqrController,
+    LoanKhqrController,
+    KhqrPortalController,
     LendingDocumentsController,
     DocumentLinksController,
     InvoiceFinanceController,
@@ -240,6 +252,10 @@ import {
     CollateralService,
     PaymentChannelsService,
     ChannelFilesService,
+    KhqrCodesService,
+    KhqrReceiptsService,
+    KhqrStatementsService,
+    KhqrHowToPayService,
     ImpairmentService,
     LendingSettingsService,
     FacilitiesService,
@@ -290,6 +306,9 @@ import {
   ],
   exports: [
     AmlScreeningService,
+    KhqrCodesService,
+    KhqrReceiptsService,
+    KhqrHowToPayService,
     CustomerDocumentsService,
     PolicyService,
     LendingActionGuard,

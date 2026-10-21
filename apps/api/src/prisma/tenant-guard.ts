@@ -203,6 +203,9 @@ const DIRECT_TENANT_MODELS = new Set([
   'InsuranceClaim',
   'DebtSale',
   'RecoveryRefund',
+  // Static KHQR repayment codes and receipts (D-160…D-165)
+  'KhqrCode',
+  'KhqrReceipt',
 ]);
 
 /**

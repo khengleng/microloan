@@ -97,9 +97,9 @@ The page **Settings** — "Manage your organization configuration and integratio
 
 "Changes here apply across all users in your organization. Ensure settings are correct before saving." (**Global Scope** box).
 
-### 4.2 Collection QR
+### 4.2 Repayment QR codes
 
-**Collection QR** — static Bakong/bank QR codes shown to borrowers so they can repay. See [07-repayments-and-payments.md](07-repayments-and-payments.md).
+Settings shows **Repayment QR codes** with a link: the static KHQR codes borrowers repay with are set up under **Collections & relief › KHQR repayments › KHQR codes**, proposed by one person and approved by another. See [07-repayments-and-payments.md](07-repayments-and-payments.md) section 9.
 
 ### 4.3 Subscription plan
 
@@ -137,7 +137,8 @@ When the platform operator (a platform super-administrator) acts on your organis
 | Task | Where | Who |
 |---|---|---|
 | Create, suspend, reset accounts | **Administration › Team members** | ADMIN account |
-| Organisation name, Telegram, collection QR, plan | **Administration › Settings** | ADMIN account |
+| Organisation name, Telegram, plan | **Administration › Settings** | ADMIN account |
+| Repayment KHQR codes | **Collections & relief › KHQR repayments** | khqr.manage, approved by tenant_settings.approve |
 | Roles, assignments, delegations, limits, access rules, switches, service accounts | **Risk & audit › Access & policy** | Tenant administrator (two needed for approvals); Risk / compliance and Auditors can read |
 | Lending settings | **Finance › End of day & operations**, tab **Lending settings** | Finance officer proposes, Risk / compliance approves |
 | Business date | **Finance › End of day & operations** | Finance officer or Tenant administrator ([14-accounting-and-period-close.md](14-accounting-and-period-close.md)) |

@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { test, expect, expectNoRawMessageKeys, msg } from '../support/fixtures';
 import { signedFormPdf } from '../support/files';
 import { lessonFor, skippedSteps, stepThroughTour } from '../support/tours';
+import { borrowerContext } from '../support/portal';
 
 /**
  * The lending journey end to end, as the QA accounts walk it on the demo:
@@ -259,6 +260,62 @@ test('cooling-off: the cancellation window and amount are shown for the new loan
   await expect(maker.getByText('To cancel today')).toBeVisible();
   await expect(maker.getByRole('button', { name: 'Record cancellation request' })).toBeVisible();
   await expectNoRawMessageKeys(maker);
+});
+
+test('KHQR: a payment seen in the bank app is recorded by one person and verified by another', async () => {
+  const bankRef = `E2EFT${stamp}`;
+  await maker.goto(loanUrl);
+  await expect(maker.getByText('KHQR repayments', { exact: true }).first()).toBeVisible();
+  // The demo lender's static code and the reference to write in the remark.
+  await expect(maker.getByAltText('KHQR code to repay this loan')).toBeVisible();
+  await expect(maker.getByText(`The borrower writes ${loanReference} in the payment remark.`)).toBeVisible();
+  await maker.getByRole('button', { name: 'Record KHQR payment' }).click();
+  await maker.getByLabel(/^Amount \(/).fill('20');
+  // An hour ago, as the browser's datetime-local field takes it (Phnom Penh time).
+  const paidAt = new Date(Date.now() + 6 * 3_600_000).toISOString().slice(0, 16);
+  await maker.getByLabel('Paid at').fill(paidAt);
+  await maker.getByLabel('Bank transaction reference').fill(bankRef);
+  await maker.getByLabel('Payer name').fill(fullName);
+  await maker.getByRole('button', { name: 'Record payment' }).click();
+  await expect(maker.getByText('Payment recorded — waiting for a second person')).toBeVisible();
+  const row = maker.getByTestId(`qr-receipt-${bankRef}`);
+  await expect(row).toBeVisible();
+  // The recorder cannot verify their own payment.
+  await expect(row.getByRole('button', { name: 'Verify' })).toBeDisabled();
+
+  await checker.goto(loanUrl);
+  const theirs = checker.getByTestId(`qr-receipt-${bankRef}`);
+  await theirs.getByRole('button', { name: 'Verify' }).click();
+  await checker.getByRole('button', { name: 'Verify and post' }).click();
+  await expect(checker.getByText('Payment verified and posted')).toBeVisible();
+  await expect(checker.getByTestId(`qr-receipt-${bankRef}`)).toContainText(msg('en', 'Status.POSTED'));
+  await expectNoRawMessageKeys(checker);
+});
+
+test('KHQR: the borrower portal shows the code, the loan reference and "I have paid" — in English and Khmer', async ({ browser, baseURL }) => {
+  const borrowerId = /[0-9a-f-]{36}/.exec(borrowerUrl)![0];
+  const ctx = await borrowerContext(browser, maker, borrowerId, baseURL!);
+  const page = await ctx.newPage();
+  try {
+    await page.goto('/en/portal');
+    const pay = page.getByTestId('portal-how-to-pay');
+    await expect(pay).toBeVisible();
+    await expect(page.getByTestId('portal-loan-reference')).toHaveText(loanReference);
+    await expect(pay.getByAltText('KHQR code to repay your loan')).toBeVisible();
+    await expect(pay.getByText(`In the remark / note, write your loan reference: ${loanReference}`)).toBeVisible();
+    await pay.getByRole('button', { name: 'I have paid' }).click();
+    await expect(page.getByTestId('portal-claim-form')).toBeVisible();
+    await expectNoRawMessageKeys(page);
+
+    await page.goto('/km/portal');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'km');
+    await expect(page.getByTestId('portal-how-to-pay')).toContainText(msg('km', 'PortalPay.title'));
+    await expect(page.getByTestId('portal-loan-reference')).toHaveText(loanReference);
+    await expect(page.getByRole('button', { name: msg('km', 'PortalPay.iHavePaid') })).toBeVisible();
+    await expectNoRawMessageKeys(page);
+  } finally {
+    await ctx.close();
+  }
 });
 
 test('in Khmer: the loan account and its application', async () => {

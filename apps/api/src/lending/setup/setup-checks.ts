@@ -128,8 +128,7 @@ export const SETUP_ITEMS: readonly SetupItemDefinition[] = [
   {
     key: 'payment_khqr',
     section: 'channels',
-    // TODO(go-live/KHQR): point at the static KHQR settings page once it exists.
-    href: '/lending/payment-channels',
+    href: '/lending/qr-repayments?tab=codes',
     waivable: true,
   },
   {

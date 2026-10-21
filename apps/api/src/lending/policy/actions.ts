@@ -153,6 +153,35 @@ export const ACTIONS: ActionDefinition[] = [
   A('payment.channel.configure', 'TENANT', 'CONFIG', {
     permission: 'rate_observation.manage',
   }),
+  // Static KHQR repayments (D-160…D-165). The code is where borrowers send
+  // their money: one person proposes it, a holder of tenant_settings.approve
+  // approves it.
+  A('khqr.read', 'TENANT', 'READ', { permission: 'loan.read' }),
+  A('khqr.propose', 'TENANT', 'CONFIG', { permission: 'khqr.manage' }),
+  A('khqr.approve', 'TENANT', 'CONFIG', {
+    permission: 'tenant_settings.approve',
+    makerChecker: true,
+  }),
+  // The borrower's "I have paid": a claim on their own loan; no money moves.
+  A('payment.claim.submit_own', 'LOAN_ACCOUNT', 'DOCUMENT', {
+    permission: 'payment.claim_own',
+  }),
+  A('payment.receipt.read', 'LOAN_ACCOUNT', 'READ', {
+    permission: 'loan.read',
+  }),
+  // A receipt seen in the lender's bank app: recorded by one person…
+  A('payment.receipt.record', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.post',
+  }),
+  // …and verified (posted) or rejected by another, never its maker.
+  A('payment.receipt.verify', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
+  A('payment.receipt.reject', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
+    permission: 'loan.repayment.reverse',
+    makerChecker: true,
+  }),
   // Revoking stays possible on a closed loan; the service allows new mandates on live loans only.
   A('loan.mandate.manage', 'LOAN_ACCOUNT', 'SERVICING_MONEY', {
     permission: 'loan.repayment.post',

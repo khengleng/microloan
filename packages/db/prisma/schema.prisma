@@ -5140,6 +5140,97 @@ model OperationalAlert {
   @@index([status, openedAt])
 }
 
+// ── Static KHQR repayments (DECISIONS D-160…D-165) ──────────────────────────
+
+/// A lender's static KHQR code for one currency, for the whole lender
+/// (branchId null) or one branch: point of initiation 11, no amount.
+/// Proposed by one person and approved by another; approving a code retires
+/// the one it replaces. Generated from the Bakong account details, or read
+/// from the image the bank gave (when the image cannot be read, the image is
+/// kept with the details the operator typed).
+model KhqrCode {
+  id                   String    @id @default(uuid())
+  tenantId             String
+  /// Null: the lender's code; set: one branch's code, preferred for its loans.
+  branchId             String?
+  /// USD, KHR
+  currency             String
+  /// GENERATED, UPLOADED_PAYLOAD (decoded from the upload), UPLOADED_IMAGE (image kept, not decodable)
+  source               String
+  bakongAccountId      String
+  merchantName         String
+  merchantCity         String
+  merchantCategoryCode String    @default("6012")
+  /// The EMVCo payload; null only for an undecodable uploaded image.
+  payload              String?
+  /// The uploaded image (data URI) when it could not be decoded.
+  imageData            String?
+  bankName             String?
+  accountNumber        String?
+  /// PENDING, ACTIVE, REJECTED, RETIRED
+  status               String    @default("PENDING")
+  makerId              String
+  checkerId            String?
+  decidedAt            DateTime?
+  reason               String    @default("")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+}
+
+/// A payment to the lender's static KHQR code that someone says was made:
+/// the borrower ("I have paid", PORTAL_CLAIM), staff who saw it in the bank
+/// app (STAFF), or a bank statement line awaiting verification (STATEMENT).
+/// Nothing is posted until it is verified by a second person or confirmed by
+/// the bank statement; one bank transaction reference is applied once.
+model KhqrReceipt {
+  id                    String    @id @default(uuid())
+  tenantId              String
+  reference             String
+  loanAccountId         String
+  borrowerId            String
+  branchId              String?
+  /// PORTAL_CLAIM, STAFF, STATEMENT
+  source                String
+  /// PENDING, POSTED, REJECTED
+  status                String    @default("PENDING")
+  amount                Decimal   @db.Decimal(24, 4)
+  currency              String
+  /// When the payer says the transfer was made.
+  paidAt                DateTime
+  /// The business date the payment is applied with.
+  valueDate             DateTime  @db.Date
+  bankRef               String
+  /// Letters and digits of the bank reference, upper case: the duplicate key.
+  bankRefKey            String
+  payerName             String?
+  payerAccount          String?
+  remark                String    @default("")
+  /// The screenshot the borrower attached (customer document library).
+  screenshotDocumentId  String?
+  /// The statement line that confirmed it, and the suspense receipt holding its money until verified.
+  statementLineId       String?
+  unidentifiedPaymentId String?
+  /// CUSTOMER (borrower id) or STAFF / SYSTEM (user or principal id).
+  makerType             String
+  makerId               String
+  decidedBy             String?
+  decidedAt             DateTime?
+  decisionNote          String    @default("")
+  financialEventId      String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, id])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, loanAccountId])
+  @@index([tenantId, borrowerId, status])
+  @@index([tenantId, bankRefKey])
+}
+
 // ── Credit reports and the in-house bureau score (DECISIONS D-176…D-181) ───
 
 /// A credit report pulled for a borrower: the enquiry (who, when, why, under

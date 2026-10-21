@@ -251,6 +251,15 @@ export const PERMISSIONS: PermissionDefinition[] = [
     financial: true,
   },
   {
+    // Where borrowers send their money: a second person approves every
+    // change (tenant_settings.approve), D-160.
+    code: 'khqr.manage',
+    description:
+      "Propose the lender's static KHQR repayment codes (approved by a holder of tenant_settings.approve)",
+    category: 'Servicing',
+    financial: true,
+  },
+  {
     code: 'loan.restructure.propose',
     description: 'Propose a restructure',
     category: 'Servicing',
@@ -687,6 +696,8 @@ export const CUSTOMER_PERMISSIONS = [
   'document.upload_own',
   'key_facts.read_own',
   'key_facts.accept_own',
+  // "I have paid": a claim of a KHQR payment, never posted by itself (D-160).
+  'payment.claim_own',
 ];
 
 /** Permissions a platform administrator holds. None touch tenant borrower data or money. */
@@ -727,6 +738,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'policy.simulate',
       'business_date.manage',
       'learning.report.read',
+      'khqr.manage',
       'tenant_setup.read',
       'tenant_setup.manage',
     ],
@@ -955,6 +967,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'loan.migration.manage',
       'legacy_loan.read',
       'regulatory.prepare',
+      'khqr.manage',
       'tenant_setup.read',
     ],
   },

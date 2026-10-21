@@ -24,7 +24,7 @@ export const ROUTE_NAMESPACES = {
     'forgot-password': ['Auth'],
     'reset-password': ['Auth'],
     signup: ['Auth', 'Register'],
-    portal: ['LendingDocuments', 'LendingPortal', 'LendingRestructure', 'LendingShared', 'LendingUi', 'Portal', 'Status'],
+    portal: ['LendingDocuments', 'LendingPortal', 'LendingRestructure', 'LendingShared', 'LendingUi', 'Portal', 'PortalPay', 'Status'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type PublicRoute = keyof typeof ROUTE_NAMESPACES;
