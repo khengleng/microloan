@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import api from '@/lib/api';
@@ -17,7 +17,8 @@ import { fmtDateTime, fmtRate, percentToFraction } from '../format';
 import type { BatchResult, BusinessDate, CalendarHoliday, HolidayCalendar, IntegrationsStatus, RateObservation } from './types';
 import { addDaysIso } from '../useBusinessDate';
 
-type Tab = 'date' | 'rates' | 'calendars' | 'impairment' | 'settings' | 'integrations';
+const OPS_TABS = ['date', 'rates', 'calendars', 'impairment', 'settings', 'integrations'] as const;
+type Tab = (typeof OPS_TABS)[number];
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CODE_RE = /^[A-Z0-9_]{2,20}$/;
@@ -462,6 +463,11 @@ function IntegrationsTab() {
 export function OperationsView() {
     const t = useTranslations('LendingOps');
     const [tab, setTab] = useState<Tab>('date');
+    // A link may open a tab directly (?tab=settings), e.g. from the go-live setup checklist.
+    useEffect(() => {
+        const wanted = new URLSearchParams(window.location.search).get('tab');
+        if (wanted && (OPS_TABS as readonly string[]).includes(wanted)) setTab(wanted as Tab);
+    }, []);
     return (
         <div className="space-y-5">
             <OperationalAlertsCard />

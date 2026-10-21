@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { PurgeRequestsPanel, TenantPurgeDialog } from '@/components/platform/TenantPurge';
 import { PlatformOperationalAlerts } from '@/components/platform/OperationalAlerts';
+import { SetupProgressBadge, usePlatformSetupProgress } from '@/components/platform/SetupProgress';
 
 // Plans come from the platform's plan tiers (GET /platform/plan-tiers).
 interface PlanTierOption { name: string; displayName: string; isActive: boolean }
@@ -85,6 +86,8 @@ export default function TenantsPage() {
     const { locale } = useParams();
     const o = useTranslations('Overview');
     const defaultPlan = planTiers.find((p) => p.isActive)?.name ?? '';
+    // Go-live setup progress per organisation (D-171).
+    const setupProgress = usePlatformSetupProgress();
     // Tiers on offer, plus the organisation's current tier if it has since been retired.
     const planOptions = planTiers.filter((p) => p.isActive || p.name === form.plan);
 
@@ -425,6 +428,8 @@ export default function TenantsPage() {
                                     <p className="font-black text-indigo-600 text-lg tracking-tight">${(tenant.performance?.disbursed || 0).toLocaleString()}</p>
                                 </div>
                             </div>
+
+                            <SetupProgressBadge entry={setupProgress.get(tenant.id)} />
 
                             <div className="flex items-center justify-between mt-6 px-1">
                                 <div className="flex items-center gap-2">
