@@ -456,6 +456,17 @@
     "tenantPage": {
       "saveFailed": "Failed to save: {message}",
       "botTokenConfigured": "•••••••• (configured — enter a new token to replace)"
+    },
+    "usageTitle": "Plan usage",
+    "usageUnlimited": "unlimited",
+    "usageOf": "{used} of {limit}",
+    "usageFull": "Limit reached — upgrade to add more",
+    "usageOver": "Over the limit — nothing is removed, but nothing more can be added",
+    "usageResources": {
+      "users": "Active staff accounts",
+      "borrowers": "Customers",
+      "loanProducts": "Loan products",
+      "loans": "Running loans (booked or active)"
     }
   },
   "Tenants": {
@@ -585,7 +596,24 @@
     "toastUserPurged": "User purged from environment",
     "purgeUserFailed": "Failed to purge user",
     "purgeOperator": "Purge Operator",
-    "statusAll": "All"
+    "statusAll": "All",
+    "usageTitle": "Plan usage by organisation",
+    "usageSubtitle": "Use of each organisation’s plan quotas: running loans, products, active staff and customers. Red: over the limit (after a downgrade).",
+    "usageOrg": "Organisation",
+    "usagePlan": "Plan",
+    "usageEmpty": "No organisations.",
+    "usageResources": {
+      "users": "Staff",
+      "borrowers": "Customers",
+      "loanProducts": "Products",
+      "loans": "Running loans"
+    },
+    "webhookTitle": "Stripe events to review",
+    "webhookSubtitle": "Payments the platform did not apply on its own: an organisation that is suspended or being erased, an unknown plan or customer. Settle each in Stripe or here, then mark it reviewed.",
+    "webhookReviewed": "Mark reviewed",
+    "webhookDone": "Marked reviewed",
+    "webhookReceived": "Received",
+    "webhookOrg": "Organisation"
   },
   "Users": {
     "platformTeam": "Platform Team",
@@ -1776,7 +1804,9 @@
         "affordability_maxLendersPerBorrower": "Affordability: most lenders a borrower may owe, counting this one (empty = no limit)",
         "affordability_includeOwnLoans": "Affordability: count the borrower’s other loans with this lender in the debt-service ratio",
         "affordability_includeFacilityMinimumPayments": "Affordability: count credit-line and card minimum payments in the debt-service ratio",
-        "operations_alertEmails": "Operational alerts: e-mail addresses of the lender’s operations contacts (besides the platform operator)"
+        "operations_alertEmails": "Operational alerts: e-mail addresses of the lender’s operations contacts (besides the platform operator)",
+        "collections_promiseToPay_graceDays": "Promises to pay: days after the promised date that payments still count",
+        "collections_promiseToPay_maxDaysAhead": "Promises to pay: furthest a customer may promise ahead (days)"
       },
       "switches": {
         "title": "Sign-in and Telegram",
@@ -1922,7 +1952,14 @@
     "prev": "Prev",
     "next": "Next",
     "loanSearch": "Type a loan reference…",
-    "noLoans": "No matching loans"
+    "noLoans": "No matching loans",
+    "planLimit": "Your {plan} plan allows {limit} {resource} and {used} are in use. Upgrade the plan (Settings › Subscription) to add more.",
+    "planResources": {
+      "users": "active staff accounts",
+      "borrowers": "customers",
+      "loanProducts": "loan products",
+      "loans": "running loans"
+    }
   },
   "LendingClose": {
     "subtitle": "Month-end and year-end close of the lending books: checks, a frozen snapshot, and a lock approved by a second person.",
@@ -3185,7 +3222,22 @@
       "depositAccount": "Deposit account",
       "reason": "Reason",
       "proposeSetOff": "Propose set-off",
-      "pendingSetOff": "Set-off {currency} {amount}"
+      "pendingSetOff": "Set-off {currency} {amount}",
+      "promisesTitle": "Promises to pay",
+      "promisesBody": "Reviewed every day after end of day: kept once the money received from the day of the promise covers it; broken when the promised date plus the grace days passes without it, which puts a task in the next collections queue.",
+      "promiseAmount": "Amount",
+      "promiseDate": "Pay by",
+      "promiseNote": "Note",
+      "recordPromise": "Record promise",
+      "noPromises": "No promises recorded.",
+      "promiseWithdraw": "Withdraw",
+      "promiseWithdrawReason": "Withdrawn by the collector",
+      "promiseColumns": {
+        "promised": "Promised",
+        "payBy": "Pay by (counts until)",
+        "received": "Received",
+        "status": "Status"
+      }
     },
     "events": {
       "columns": {
@@ -3414,7 +3466,10 @@
       },
       "note": "Note",
       "save": "Save",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "promiseAmount": "Promised amount",
+      "promiseDate": "Pay by",
+      "stagePromiseBroken": "promise broken"
     },
     "incomeReviews": {
       "pendingTitle": "Waiting for approval",
@@ -9436,7 +9491,8 @@
       "reconciliation_breaks": "Reconciliation breaks",
       "jobs_failed": "Scheduled jobs failed",
       "database_unreachable": "Database not answering",
-      "database_connections": "Database connections nearly exhausted"
+      "database_connections": "Database connections nearly exhausted",
+      "billing_webhook_review": "Stripe billing events need review"
     }
   },
   "LendingReports": {

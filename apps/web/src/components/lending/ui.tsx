@@ -64,11 +64,16 @@ export function Notice({ tone = 'info', title, children }: { tone?: 'info' | 'wa
 export function ErrorBox({ error, onDismiss }: { error: ApiErrorInfo | null | undefined; onDismiss?: () => void }) {
     const t = useTranslations('LendingUi');
     if (!error) return null;
+    // A plan quota refusal (D-167) is said in the reader's language from its numbers.
+    const b = error.body ?? {};
+    const quota = error.code === 'PLAN_LIMIT_REACHED' && typeof b.resource === 'string' && t.has(`planResources.${b.resource}`)
+        ? t('planLimit', { plan: String(b.planName || b.plan || ''), limit: String(b.limit ?? ''), used: String(b.used ?? ''), resource: t(`planResources.${b.resource}`) })
+        : null;
     return (
         <div className="border border-red-200 bg-red-50 rounded-md px-4 py-3 text-[13px] text-red-900 space-y-2" role="alert">
             <div className="flex items-start justify-between gap-3">
                 <p className="font-semibold flex items-center gap-1.5">
-                    <ShieldAlert size={14} /> {error.message}
+                    <ShieldAlert size={14} /> {quota ?? error.message}
                     {error.code && <span className="ml-1 font-mono text-[11px] px-1.5 py-0.5 rounded bg-red-100">{error.code}</span>}
                 </p>
                 {onDismiss && <button onClick={onDismiss} className="text-[12px] underline opacity-70 hover:opacity-100">{t('dismiss')}</button>}
