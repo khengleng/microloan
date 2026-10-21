@@ -10,7 +10,7 @@ import { useTranslations } from 'next-intl';
 const MONEY_RE = /^\d+(\.\d{1,4})?$/;
 const RELATIONSHIPS = ['GUARANTOR', 'FAMILY', 'EMPLOYER', 'GROUP_MEMBER', 'OTHER'];
 
-const PAYMENT_CHANNELS = ['BRANCH_CASH', 'AGENT', 'BANK_TRANSFER', 'MOBILE', 'QR', 'WALLET', 'PAYROLL', 'OTHER'];
+const PAYMENT_CHANNELS = ['BRANCH_CASH', 'AGENT', 'BANK_TRANSFER', 'MOBILE', 'KHQR', 'QR', 'WALLET', 'PAYROLL', 'OTHER'];
 
 export function RepaymentForm({ loanId, currency, can, onDone, onClose }: {
     loanId: string; currency: string; can: (code: string) => { allowed: boolean; reason?: string }; onDone: (msg: string) => void; onClose: () => void;

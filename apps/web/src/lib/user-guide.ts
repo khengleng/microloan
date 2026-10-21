@@ -63,6 +63,7 @@ export const HELP_BY_PATH: Readonly<Record<string, HelpTarget>> = {
     '/lending/recovery': { chapter: '11-collections-and-recovery', anchor: '5-recovery-repossession-pawn-credit-insurance-and-debt-sale' },
     '/lending/suspense': { chapter: '07-repayments-and-payments', anchor: '7-unidentified-payments-suspense' },
     '/lending/payment-channels': { chapter: '07-repayments-and-payments', anchor: '8-payment-channels' },
+    '/lending/qr-repayments': { chapter: '07-repayments-and-payments', anchor: '9-repayment-by-khqr' },
     '/lending/restructures': { chapter: '08-servicing-changes' },
     '/lending/relief': { chapter: '08-servicing-changes' },
     '/lending/accounting': { chapter: '14-accounting-and-period-close', anchor: 'ledger--reconciliation' },

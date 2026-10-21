@@ -1,7 +1,7 @@
 import type { LocalDate, Money } from '../types';
 
 export type SuspenseStatus = 'OPEN' | 'MATCHED' | 'REFUNDED';
-export type ReceiptChannel = 'BRANCH_CASH' | 'BANK_TRANSFER' | 'MOBILE' | 'AGENT' | 'PAYROLL' | 'OTHER';
+export type ReceiptChannel = 'BRANCH_CASH' | 'BANK_TRANSFER' | 'MOBILE' | 'KHQR' | 'AGENT' | 'PAYROLL' | 'OTHER';
 
 export const SUSPENSE_STATUSES: SuspenseStatus[] = ['OPEN', 'MATCHED', 'REFUNDED'];
 
@@ -9,6 +9,7 @@ export const CHANNELS: { value: ReceiptChannel; label: string }[] = [
     { value: 'BRANCH_CASH', label: 'Branch cash' },
     { value: 'BANK_TRANSFER', label: 'Bank transfer' },
     { value: 'MOBILE', label: 'Mobile money' },
+    { value: 'KHQR', label: 'KHQR' },
     { value: 'AGENT', label: 'Agent' },
     { value: 'PAYROLL', label: 'Payroll deduction' },
     { value: 'OTHER', label: 'Other' },

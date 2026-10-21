@@ -39,6 +39,7 @@ import { CovenantsCard } from './CovenantsCard';
 import { ProjectFinanceCard } from '../projects/ProjectFinanceCard';
 import { LoanRecoveryCard } from '../recovery/LoanRecoveryCard';
 import { LoanMandatesCard } from '../channels/LoanMandatesCard';
+import { LoanQrCard } from '../qr/LoanQrCard';
 import { PurchaseLinkedCard } from './PurchaseLinkedCard';
 
 const ACTIONS = [
@@ -241,6 +242,8 @@ export function LoanDetailView({ id }: { id: string }) {
 
             <LoanCollateralCard loanId={id} currency={cur} status={acc.status} can={c} />
             <LoanRecoveryCard loanId={id} currency={cur} can={c} onChanged={() => { loan.reload(); caps.reload(); }} />
+
+            {['ACTIVE', 'CLOSED', 'WRITTEN_OFF'].includes(acc.status) && <LoanQrCard loanId={id} active={isActive} can={c} onPosted={() => { loan.reload(); caps.reload(); }} />}
 
             <LoanMandatesCard loanId={id} status={acc.status} can={c} />
 
