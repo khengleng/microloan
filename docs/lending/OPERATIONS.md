@@ -118,6 +118,22 @@ the connection pool size minus two); each loan is still its own transaction
 with its row lock and compare-and-set. Sizing and measured throughput are in
 [PERFORMANCE.md](PERFORMANCE.md).
 
+**Promises to pay (UC-59, D-168).** After each day it processes, the
+scheduler reviews the tenant's pending promises to pay; `PROMISE_REVIEW_CRON`
+(default 01:30 in `LENDING_EOD_TZ`; `PROMISE_REVIEW_DISABLED=true` turns it
+off) reviews every tenant with a pending promise as of its business date, for
+days run by hand. Each tenant and day is reviewed once across instances
+(`ScheduledJobClaim` job `collections.promise-review`). A promise is **kept**
+when repayments, prepayments, settlements and recoveries value-dated from the
+day it was made to the promised date plus `collections.promiseToPay.graceDays`
+(lending settings, default 0) cover it; **broken** once the business date is
+past that window — an OPEN task (stage `PROMISE_BROKEN`) goes to the work
+queue of the next stage of the product's collections ladder; **cancelled** if
+the loan stops being active first. Run it now for a tenant:
+`POST /v1/lending/collections/promises/review` (`servicing.batch.run`). A
+failed review is audited (`collection.promise.review`, FAILURE), shows as the
+failed-jobs alert, and the next day's review covers the same promises.
+
 ## Monitoring
 
 ### Endpoints
@@ -1324,6 +1340,37 @@ verify the customer's documents' data, then submit the application.
 - **Telegram applications (D-132).** Off unless `telegramBot.allowLoanApplications`
   is on; recorded by the "Telegram bot" system principal within the product's
   limits.
+
+## Subscription plans: quotas and Stripe billing (DECISIONS D-166, D-167, D-170)
+
+- **Quotas.** Each organisation's plan (`PlanTier`, Platform › Subscription
+  Plans) limits running loans (BOOKED or ACTIVE loan accounts, checked when a
+  loan is booked), lending products (with a version not retired or rejected,
+  checked at creation), active staff accounts (at user creation and
+  reactivation) and customers (at creation). Empty = unlimited. Past the
+  limit the API answers 403 `PLAN_LIMIT_REACHED` with the numbers; nothing
+  already there is removed. Loans and customers created by the loan-book
+  migration and loans from letter-of-credit conversions are not checked
+  (D-170). Branches are not limited.
+- **Usage.** The tenant administrator sees the meter under Settings ›
+  Subscription (`GET /v1/billing/usage`); the platform operator sees every
+  organisation under Platform › Organisations
+  (`GET /v1/tenants/plan-usage/list`), red where an organisation is over a
+  limit after a downgrade.
+- **Stripe webhook.** Point the Stripe endpoint at `POST /v1/billing/webhook`
+  and set `STRIPE_WEBHOOK_SECRET` to its signing secret (with
+  `STRIPE_SECRET_KEY` and the `STRIPE_PRICE_*` ids for checkout). The
+  signature is checked over the raw body; each event id is applied once
+  (`StripeWebhookEvent`). The webhook never reactivates an organisation: a
+  payment for a suspended, pending-payment or erasure-pending organisation, an
+  unknown plan or a Stripe customer that is not the organisation's is kept as
+  **needs review** and raises the platform alert `billing.webhook_review`.
+  Settle each (refund in Stripe, or reactivate the organisation by hand) and
+  press **Mark reviewed** on Platform › Organisations
+  (`POST /v1/billing/webhook-events/:id/review`); the alert resolves when none
+  is left. Test locally with `stripe listen --forward-to
+  localhost:<port>/v1/billing/webhook` and `stripe trigger
+  checkout.session.completed`.
 ## AML/CFT controls (DECISIONS D-118…D-122)
 
 Cambodia's 2020 Law on AML/CFT; CAFIU is the FIU. User guide: chapter 26.
@@ -1438,6 +1485,121 @@ period; no purge job exists yet.
   Google at runtime, so the CSP stays `font-src 'self'`).
 - Server messages (API validation errors) are still English.
 
+## Onboarding a new lender (DECISIONS D-171…D-175)
+
+A real bank or MFI can be brought onto the platform without engineering
+help. The steps outside the software come first; inside the portal the
+lender's own administrators work through the **Go-live setup** checklist
+(user guide chapter 27).
+
+### Before any data is entered (outside the software)
+
+1. **Contract and data-processing agreement** signed with the lender; the
+   plan chosen. Confirm the lender's NBC licence (bank or MFI, licence
+   number) and its complaint-handling contacts — they go on every key facts
+   statement.
+2. **Decisions the lender's compliance owner signs off**: the interest-rate
+   cap it applies (never above the regulator's; `REGULATORY_MAX_ANNUAL_RATE_PCT`
+   and the organisation's own cap), the impairment policy, the AML risk
+   weights and cash transaction threshold, and every default marked
+   "Assumed — needs compliance sign-off" in DECISIONS.md.
+3. **People**: at least two tenant administrators, a credit analyst and an
+   approver, a loan-operations maker and checker, a finance officer and a
+   risk / compliance reviewer — different people on each side of every
+   maker-checker pair — and their approval limits per currency.
+4. **Data migration file** for an existing loan book, in the loan-book
+   migration format ("Taking over a loan book" above): one row per running
+   loan, with the cut-over date and control totals agreed with the lender's
+   finance team. Prepare it from the old system before go-live; it is
+   validated, approved by a second person and posted in the portal.
+5. **Training**: every member of staff follows the Learning centre path for
+   their role (chapter 25); the administrators watch progress on the team
+   report and on the checklist's training item.
+
+### In the portal
+
+1. The platform operator registers the organisation (**Organisations ›
+   Register New Org**) with its first administrator, and activates it.
+2. The administrator signs in, sets up their authenticator and opens
+   **Administration › Go-live setup**. A banner on every page shows the
+   progress to tenant administrators until it is complete.
+3. They work down the checklist: each item links to its screen. Branches
+   and staff can be imported from CSV files on the same page (below).
+4. Items that do not apply (a new lender with no book to migrate, one
+   currency, accepting the default scorecard, no KHQR yet, no alert
+   e-mails) are marked **not applicable** with a reason.
+5. The platform operator follows each organisation's progress on
+   **Organisations** (percentage and open item count only).
+
+### How the checklist is computed
+
+`GET /v1/lending/setup/status` (`tenant_setup.read`: tenant administrator,
+finance officer, risk / compliance) reads everything in one transaction under
+the caller's tenant (row-level security applies) and evaluates pure checks
+(`apps/api/src/lending/setup/setup-checks.ts`). Nothing about progress is
+stored; reading the checklist changes nothing (it does not even create the
+business-date row).
+
+| Item | Done when | Blocked when |
+|---|---|---|
+| `consumer_protection` | legal name, licence number, complaint phone / e-mail / address and regulator contact are set in the lending settings **in force** | the values are only in a settings proposal awaiting its checker, or the settings in force no longer validate |
+| `branches` | at least one active branch | — |
+| `staff_roles` | active staff hold TENANT_ADMIN ×2 (the legacy ADMIN / TENANT_ADMIN staff roles count), CREDIT_ANALYST, CREDIT_APPROVER, LOAN_OPS_MAKER, LOAN_OPS_CHECKER, FINANCE_OFFICER, RISK_COMPLIANCE (ACTIVE, valid assignments), and each maker-checker pair has two different people | the missing roles are in PENDING assignments |
+| `admin_mfa` | every active tenant administrator has an authenticator | — |
+| `approval_authorities` | an ACTIVE `credit_decision.approve` authority in every currency in use (base currency + active products') | the missing currencies have PENDING authorities |
+| `business_date` | the business date exists and is not behind the calendar date in `LENDING_EOD_TZ` by more than `ALERT_EOD_MAX_LAG_DAYS` | — |
+| `fx_rates` | one currency in use, or a rate in force between each other currency and the base currency (either direction) | — |
+| `chart_of_accounts` | the chart is provisioned | an account named by the settings or an active product is in neither the chart nor the default chart |
+| `opening_balances` | a migration batch POSTED or PARTIALLY_POSTED | a batch is VALIDATED / POSTING (awaiting approval) |
+| `products` | an ACTIVE product version with no rate-cap finding (`productRateCapReport`, D-110) | versions only SUBMITTED / APPROVED, or an active one breaches the cap |
+| `impairment_policy` | an ACTIVE impairment policy | a PENDING one |
+| `scorecards` | each active family's champion scorecard code has an ACTIVE version of the tenant's own | no active product yet |
+| `aml_watch_list` | an ACTIVE watch-list version | a PENDING one |
+| `aml_settings` | an approved lending-settings version is in force and has a CTR threshold for every currency in use | a proposal awaits its checker |
+| `payment_khqr` | — (**not checked**: see below) | — |
+| `alert_emails` | `operations.alertEmails` non-empty in the settings in force | only in a pending proposal |
+| `feature_flags` | every flag new business on each active version needs (`lending.origination`, the family flag, the configuration's capability flags) evaluates on | no active product yet |
+| `learning` | information only: lessons completed on role-holding staff's suggested paths | — |
+
+Progress counts every item except `learning` (information) and items not
+checked; an item marked not applicable counts as done.
+
+**Not applicable** (D-172): `PUT /v1/lending/setup/items/:key/not-applicable`
+`{ reason }` and `DELETE` the same path (`tenant_setup.manage`, tenant
+administrators). Only `fx_rates`, `opening_balances`, `scorecards`,
+`payment_khqr` and `alert_emails` may be marked; the rest are refused (400).
+The mark is a `GoLiveSetupWaiver` row (strict RLS) and each change writes an
+audit event (`tenant_setup.not_applicable`, `tenant_setup.applicable`). No
+second person: it moves no money and changes no access or configuration.
+
+**Static KHQR** (D-174): the lender's static KHQR configuration is being
+added separately. Until an API exposes whether a tenant has an active static
+KHQR, the item is **not checked** (left out of the progress) and links to
+Payment channels; `GoLiveSetupService.snapshot` has the TODO where the check
+goes.
+
+**Platform overview**: `GET /v1/platform/setup-progress` (SUPERADMIN,
+`TENANT_VIEW`, PlatformGuard) evaluates each organisation in its own tenant
+transaction and returns counts and open item keys only.
+
+### Staff and branch imports (D-175)
+
+On the checklist page, tenant administrators can download templates and
+import `email,name,roles,branch` (staff) and `name,code` (branches) CSV
+files. The browser checks every line first (e-mail format and uniqueness,
+known lending roles, an active branch; branch name / code rules and
+duplicates) and shows the problems per line; then it sends each valid line
+through the normal API calls, one after the other — `POST /v1/users` (with a
+generated 16-character temporary password and the staff role matching the
+lending roles: ADMIN for TENANT_ADMIN, FINANCE for FINANCE_OFFICER, else
+OPERATOR) followed by `POST /v1/lending/access/assignments` per lending role
+(sensitive roles stay PENDING until a second administrator approves), and
+`POST /v1/lending/access/branches`. There is no bulk endpoint: quotas, seat
+limits, validation, maker-checker and audit are exactly those of the single
+screens. The temporary passwords are offered once as a sign-in sheet CSV;
+the `name` column only appears there (staff accounts have no name field).
+At most 200 lines per file.
+
 ## Known limitations
 
 * Not implemented: connected-party (group) exposure checks
@@ -1499,6 +1661,7 @@ period; no purge job exists yet.
 | Scoring | `GET/POST scorecards`, `GET scorecards/:scorecardId`, `POST scorecards/:scorecardId/versions`, `PUT scorecard-versions/:versionId`, `POST scorecard-versions/:versionId/{submit,approve,reject,activate,retire}`, `POST scorecard-test`, `GET scorecard-monitoring`, `GET/POST applications/:id/scores` |
 | Alternative data | `GET customers/:borrowerId/alternative-data`, `POST customers/:borrowerId/consents`, `POST consents/:consentId/revoke`, `POST customers/:borrowerId/alternative-data`, `POST alternative-data/:recordId/decision`, `GET/POST alternative-data-providers`, `POST alternative-data-providers/:configId/decision` |
 | AML/CFT | `GET aml/customers/:borrowerId`, `POST aml/customers/:borrowerId/{screen,status,clearance/decision,risk-rating,edd}`, `POST aml/edd/:eddId/decision`, `GET aml/risk-ratings`, `GET/POST aml/watch-lists`, `GET aml/watch-lists/:versionId`, `POST aml/watch-lists/:versionId/decision`, `POST aml/rescreen-jobs/run`, `GET aml/cases`, `GET aml/cases/:caseId`, `POST aml/cases/:caseId/{disposition,disposition/decision}`, `GET aml/ctr`, `GET aml/ctr.csv`, `GET/POST aml/str`, `GET aml/str/:strId`, `POST aml/str/:strId/{review,reported}` |
+| Go-live setup | `GET setup/status`, `PUT/DELETE setup/items/:key/not-applicable`; platform: `GET /v1/platform/setup-progress` |
 | Operations | `GET/POST ops/business-date`, `GET/POST ops/calendars`, `GET/POST ops/rates`, `GET ops/journal`, `GET ops/trial-balance`, `GET ops/reconciliation`, `GET ops/audit`, `GET ops/integrations` |
 
 Money endpoints require an `Idempotency-Key` header.

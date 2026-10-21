@@ -308,6 +308,19 @@ export const PERMISSIONS: PermissionDefinition[] = [
     description: 'Approve lending settings proposed by someone else',
     category: 'Operations',
   },
+  // Go-live setup checklist (D-171…D-175)
+  {
+    code: 'tenant_setup.read',
+    description:
+      'See the go-live setup checklist: what is configured, what is still to do and why',
+    category: 'Administration',
+  },
+  {
+    code: 'tenant_setup.manage',
+    description:
+      'Mark a go-live setup item as not applicable, with a reason, or clear the mark',
+    category: 'Administration',
+  },
   {
     code: 'loan.migration.manage',
     description:
@@ -713,6 +726,8 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'business_date.manage',
       'learning.report.read',
       'khqr.manage',
+      'tenant_setup.read',
+      'tenant_setup.manage',
     ],
   },
   {
@@ -935,6 +950,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'legacy_loan.read',
       'regulatory.prepare',
       'khqr.manage',
+      'tenant_setup.read',
     ],
   },
   {
@@ -968,6 +984,7 @@ export const ROLE_DEFINITIONS: RoleDefinition[] = [
       'policy.simulate',
       'loan_data.export',
       'learning.report.read',
+      'tenant_setup.read',
     ],
   },
   {

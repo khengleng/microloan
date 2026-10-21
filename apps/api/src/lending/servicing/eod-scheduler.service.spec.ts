@@ -25,6 +25,7 @@ describe('EodSchedulerService.runAll', () => {
       {} as any,
       {} as any,
       audit as any,
+      {} as any,
     );
     jest.spyOn((scheduler as any).logger, 'error').mockImplementation(() => {});
     return { scheduler, audit };

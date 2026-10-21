@@ -4,6 +4,8 @@ Who this is for: your organisation's administrators (people with an ADMIN accoun
 
 An administrator manages people and access. By design, the Tenant administrator role **cannot approve credit or move money** — it governs who can.
 
+A new organisation starts with the **Go-live setup** checklist (**Administration › Go-live setup**): it shows what is still to configure before the first loan and links to each screen, and it can import staff and branches from CSV files. See [27-go-live-setup.md](27-go-live-setup.md).
+
 ---
 
 ## 1. Setting up a new staff member — checklist
@@ -108,6 +110,17 @@ Settings shows **Repayment QR codes** with a link: the static KHQR codes borrowe
 3. The card shows **Awaiting confirmation. Your new plan applies once the platform team confirms the transfer.** You can **Cancel request** until then.
 
 Only an organisation admin can change the plan. If you see **Plan changes are unavailable — this platform has no payment merchant configured yet. Contact platform support.**, the platform operator has not set up payments yet.
+
+**Plan usage** (organisation admins) shows how much of the plan you use:
+
+| Line | What counts |
+|---|---|
+| **Running loans (booked or active)** | Loan accounts booked or being repaid. Closed and written-off loans do not count, so closing loans frees room. |
+| **Loan products** | Lending products with a version that is not retired or rejected. |
+| **Active staff accounts** | Team members who are not suspended. |
+| **Customers** | Customers (borrowers) on record. |
+
+Each line reads "used of limit", or "unlimited". At the limit it says **Limit reached — upgrade to add more**: booking another loan, creating another product, adding or reactivating a team member, or adding a customer is refused with "Your … plan allows N … and N are in use. Upgrade the plan (Settings › Subscription) to add more." Nothing you already have is removed; if a lower plan leaves you over a limit (**Over the limit**), you keep working what you have but cannot add more until you upgrade or close some.
 
 ### 4.4 Security Verification
 

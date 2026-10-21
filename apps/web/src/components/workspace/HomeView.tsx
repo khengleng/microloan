@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowRight, LayoutDashboard, Lock, Plus, RefreshCw } from 'lucide-react';
+import { ArrowRight, LayoutDashboard, ListChecks, Lock, Plus, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useWorkspace, type WorkQueue } from '@/lib/workspace';
 import { itemVisible, NAV } from '@/lib/nav';
@@ -58,6 +58,11 @@ export function HomeView() {
                     {showKpi && (
                         <Link href={href('/dashboard')} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold rounded border border-[#E3E8EE] bg-white text-[#3C4257] hover:bg-slate-50">
                             <LayoutDashboard size={14} /> {t('kpiDashboard')}
+                        </Link>
+                    )}
+                    {!ws.isPlatform && ws.can('tenant_setup.read') && (
+                        <Link href={href('/lending/setup')} data-testid="home-go-live-setup" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-semibold rounded border border-[#E3E8EE] bg-white text-[#3C4257] hover:bg-slate-50">
+                            <ListChecks size={14} /> {t('goLiveSetup')}
                         </Link>
                     )}
                     {ws.can('loan_application.create') && (

@@ -8,6 +8,7 @@ import { loadRuntimeConfig } from './config/runtime-config';
 import { operationalConfig } from './config/operational-config';
 import { initSentry } from './observability/sentry';
 import { SentryExceptionFilter } from './observability/sentry-exception.filter';
+import { jsonBodyParserOptions } from './billing/raw-body';
 
 async function bootstrap() {
   // Initialise error tracking before anything else (no-op without SENTRY_DSN).
@@ -74,8 +75,10 @@ async function bootstrap() {
   // ── Body size limit (DoS protection — API_BODY_LIMIT, default 5 MB) ───────
   // NestExpressApplication exposes useBodyParser which uses
   // the already-bundled express parser — no separate require() needed.
+  // The Stripe webhook verifies its signature over the raw bytes, so the
+  // parser keeps them (req.rawBody) for that route only (D-166).
   const { bodyLimit } = operationalConfig();
-  app.useBodyParser('json', { limit: bodyLimit });
+  app.useBodyParser('json', jsonBodyParserOptions(bodyLimit));
   app.useBodyParser('urlencoded', { limit: bodyLimit, extended: true });
 
   // ── CORS ───────────────────────────────────────────────────────────────────

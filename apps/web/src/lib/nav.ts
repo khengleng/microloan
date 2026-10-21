@@ -4,7 +4,7 @@ import {
     CreditCard, FileStack, Gauge, Home, KeyRound, Landmark, Layers, LayoutDashboard, LibraryBig, LifeBuoy,
     Network, PiggyBank, QrCode, ScrollText, Settings, Shield, ShieldAlert, Ship, Siren, SlidersHorizontal,
     Umbrella, UserCog, Users, UsersRound, Wallet, Workflow, Wrench, Banknote, HandCoins, FileCheck2, Scale, DatabaseZap, Webhook,
-    Globe2, GraduationCap, LineChart, CircleHelp, School,
+    Globe2, GraduationCap, LineChart, CircleHelp, School, ListChecks,
 } from 'lucide-react';
 
 /**
@@ -153,6 +153,7 @@ export const NAV: NavSection[] = [
     {
         key: 'administration',
         items: [
+            { key: 'goLiveSetup', href: '/lending/setup', icon: ListChecks, lending: ['tenant_setup.read'] },
             { key: 'team', href: '/users', icon: UserCog, legacy: ['USER_CREATE'], legacyRoles: LEGACY_ADMIN },
             { key: 'settings', href: '/settings', icon: Settings, legacy: ['CONFIG_UPDATE'], legacyRoles: LEGACY_ADMIN },
         ],

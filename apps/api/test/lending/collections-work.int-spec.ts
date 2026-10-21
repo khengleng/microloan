@@ -145,15 +145,32 @@ d('Collections work, guarantor demands and set-off (integration)', () => {
           .post(`/lending/collections/tasks/${call.id}/claim`)
       ).status,
     ).toBe(409);
+    // A promise to pay needs its amount and date (UC-59, D-168).
+    const bare = await f
+      .as('opsMaker')
+      .post(`/lending/collections/tasks/${call.id}/complete`, {
+        outcome: 'PROMISE_TO_PAY',
+        note: 'Will pay Friday',
+      });
+    expect(bare.status).toBe(400);
+    expect(bare.body.code).toBe('PROMISE_DETAILS_REQUIRED');
     const done = expectOk(
       await f
         .as('opsMaker')
         .post(`/lending/collections/tasks/${call.id}/complete`, {
           outcome: 'PROMISE_TO_PAY',
           note: 'Will pay Friday',
+          promise: { amount: '100', payBy: '2026-02-13' },
         }),
     );
     expect(done.status).toBe('DONE');
+    expect(done.promise).toMatchObject({
+      status: 'PENDING',
+      amount: '100',
+      payBy: '2026-02-13',
+      taskId: call.id,
+      note: 'Will pay Friday',
+    });
   });
 
   it('UC-60: the guarantor is called up to the guarantee and pays under the demand', async () => {

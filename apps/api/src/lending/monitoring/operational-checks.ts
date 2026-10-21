@@ -30,6 +30,7 @@ export const ALERT_KEYS = {
   jobs: 'jobs.failed',
   databaseUnreachable: 'database.unreachable',
   databaseConnections: 'database.connections',
+  billingWebhookReview: 'billing.webhook_review',
 } as const;
 
 /**
@@ -307,4 +308,27 @@ export function alertRecipients(
     ),
   ];
   return { operator: op, tenant: ten };
+}
+
+/**
+ * Stripe deliveries the platform did not apply on its own (D-166): a payment
+ * for a suspended or erasure-pending organisation, an unknown plan or
+ * customer. Open until the operator marks each one reviewed.
+ */
+export function checkBillingWebhooks(input: {
+  count: number;
+  oldest: Date | null;
+}): AlertFinding[] {
+  if (!input.count) return [];
+  return [
+    {
+      key: ALERT_KEYS.billingWebhookReview,
+      severity: 'WARNING',
+      summary: `${input.count} Stripe billing event(s) need review (Platform › Organisations)`,
+      details: {
+        count: input.count,
+        oldestAt: input.oldest ? input.oldest.toISOString() : null,
+      },
+    },
+  ];
 }

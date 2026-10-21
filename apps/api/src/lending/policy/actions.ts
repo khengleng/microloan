@@ -380,6 +380,11 @@ export const ACTIONS: ActionDefinition[] = [
   // Learning centre (D-095): the team's progress report. Everyone reads and
   // writes their own progress without a permission.
   A('learning.report.read', 'TENANT', 'READ'),
+  // Go-live setup checklist (D-171…D-175): computed from real data; a tenant
+  // administrator may mark an item not applicable (no second person: it
+  // changes no money, access or configuration, and is audited).
+  A('tenant_setup.read', 'TENANT', 'READ'),
+  A('tenant_setup.manage', 'TENANT', 'CONFIG'),
   A('scorecard.manage', 'TENANT', 'CONFIG'),
   A('scorecard.approve', 'TENANT', 'CONFIG', { makerChecker: true }),
   // Solidarity groups

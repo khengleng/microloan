@@ -43,5 +43,23 @@
     "owner": "platform",
     "expiryDate": "2027-12-31",
     "productionImpact": "None; test-only value"
+  },
+  {
+    "mode": "hardcodes",
+    "file": "apps/web/src/lib/setup-import.ts",
+    "pattern": "sokha.admin@example.com",
+    "reason": "Sample row in the downloadable staff-import CSV template; example.com is reserved for documentation.",
+    "owner": "platform",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "None; template text only"
+  },
+  {
+    "mode": "memory",
+    "file": "apps/web/src/components/workspace/SetupBanner.tsx",
+    "pattern": "sessionStorage",
+    "reason": "Per-browser 'Later' on the go-live banner: a viewer convenience, not shared or business state; the checklist itself is computed server-side.",
+    "owner": "platform",
+    "expiryDate": "2027-12-31",
+    "productionImpact": "None; dismissal hides a banner for one browser session"
   }
 ]

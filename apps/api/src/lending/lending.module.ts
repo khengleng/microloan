@@ -33,6 +33,7 @@ import { RegulatoryReturnService } from './reporting/regulatory-return.service';
 import { LoanMigrationService } from './migration/loan-migration.service';
 import { WebhooksService } from './integrations/webhooks.service';
 import { CollectionsService } from './collections/collections.service';
+import { PromisesService } from './collections/promises.service';
 import { CovenantsService } from './covenants/covenants.service';
 import { SuspenseService } from './payments/suspense.service';
 import { CollateralService } from './collateral/collateral.service';
@@ -146,6 +147,11 @@ import { AmlScreeningService } from './aml/aml-screening.service';
 import { AmlCustomersService } from './aml/aml-customers.service';
 import { AmlReportsService } from './aml/aml-reports.service';
 import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
+import { GoLiveSetupService } from './setup/setup.service';
+import {
+  GoLiveSetupController,
+  PlatformGoLiveSetupController,
+} from './setup/setup.controller';
 
 /**
  * Configurable lending platform (modular monolith). Shares tenants, users,
@@ -204,6 +210,8 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     LearningMeController,
     LearningTeamController,
     AmlController,
+    GoLiveSetupController,
+    PlatformGoLiveSetupController,
   ],
   providers: [
     ReportingService,
@@ -216,6 +224,7 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     LoanMigrationService,
     WebhooksService,
     CollectionsService,
+    PromisesService,
     CovenantsService,
     LendingPrisma,
     AuditEventService,
@@ -287,6 +296,7 @@ import { AmlRescreenScheduler } from './aml/aml-rescreen.scheduler';
     AmlCustomersService,
     AmlReportsService,
     AmlRescreenScheduler,
+    GoLiveSetupService,
   ],
   exports: [
     AmlScreeningService,

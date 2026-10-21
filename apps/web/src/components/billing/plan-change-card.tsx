@@ -39,6 +39,13 @@ type Pending = {
     qrImage: string;
 };
 
+/** The tenant's use of its plan's quotas (GET /billing/usage, D-167). */
+type Usage = {
+    plan: string;
+    displayName: string;
+    items: { resource: 'users' | 'borrowers' | 'loanProducts' | 'loans'; used: number; limit: number | null }[];
+};
+
 type Options = {
     currentPlan: string;
     khqrConfigured: boolean;
@@ -55,6 +62,7 @@ export function PlanChangeCard() {
     // shown an upgrade button that answers 403.
     const canManage = user?.role === 'TENANT_ADMIN' || user?.role === 'ADMIN';
     const [data, setData] = useState<Options | null>(null);
+    const [usage, setUsage] = useState<Usage | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
@@ -66,6 +74,7 @@ export function PlanChangeCard() {
     useEffect(() => {
         if (!canManage) return;
         void load().catch(() => setData(null));
+        api.get<Usage>('/billing/usage', { quiet: true }).then((r) => setUsage(r.data), () => setUsage(null));
     }, [load, canManage]);
 
     const choose = async (plan: string) => {
@@ -111,6 +120,33 @@ export function PlanChangeCard() {
                 </p>
                 <p className="text-2xl font-bold">{data?.currentPlan ?? '—'}</p>
             </div>
+
+            {canManage && usage && (
+                <div className="px-5 pb-4 space-y-2">
+                    <p className="text-xs text-primary-foreground/60 uppercase tracking-wide">{t('usageTitle')}</p>
+                    {usage.items.map((i) => {
+                        const pct = i.limit === null ? 0 : i.limit === 0 ? 100 : Math.min(100, Math.round((i.used / i.limit) * 100));
+                        const full = i.limit !== null && i.used >= i.limit;
+                        const over = i.limit !== null && i.used > i.limit;
+                        return (
+                            <div key={i.resource} className="text-[12px]">
+                                <div className="flex justify-between gap-2">
+                                    <span>{t(`usageResources.${i.resource}`)}</span>
+                                    <span className="font-semibold tabular-nums">
+                                        {i.limit === null ? `${i.used.toLocaleString()} · ${t('usageUnlimited')}` : t('usageOf', { used: i.used.toLocaleString(), limit: i.limit.toLocaleString() })}
+                                    </span>
+                                </div>
+                                {i.limit !== null && (
+                                    <div className="mt-1 h-1.5 rounded bg-white/20 overflow-hidden" role="meter" aria-valuenow={i.used} aria-valuemin={0} aria-valuemax={i.limit}>
+                                        <div className={`h-full rounded ${full ? 'bg-amber-300' : 'bg-white'}`} style={{ width: `${pct}%` }} />
+                                    </div>
+                                )}
+                                {full && <p className="mt-0.5 text-[11px] text-amber-200">{over ? t('usageOver') : t('usageFull')}</p>}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {!canManage ? (
                 <div className="px-5 pb-5">

@@ -72,6 +72,7 @@ const DIRECT_TENANT_MODELS = new Set([
   'PayoffQuote',
   'CollectionTask',
   'GuarantorDemand',
+  'CollectionPromise',
   'LoanCovenant',
   'AccountingPeriod',
   'MigrationBatch',
@@ -181,6 +182,8 @@ const DIRECT_TENANT_MODELS = new Set([
   'AuditEvent',
   // Operational alerts (D-150): null tenantId for platform-wide alerts, likewise.
   'OperationalAlert',
+  // Go-live setup: items a tenant administrator marked not applicable (D-172).
+  'GoLiveSetupWaiver',
   'AffordabilityPolicy',
   'RestructureCase',
   'RestructureEvidence',
@@ -276,6 +279,8 @@ const PLATFORM_ONLY_MODELS = new Set([
   // Second-super-administrator approvals and the archives a tenant purge needs (D-130, D-131).
   'PlatformApproval',
   'TenantArchive',
+  // Stripe deliveries already handled (D-166): written by the webhook as system.
+  'StripeWebhookEvent',
 ]);
 
 /**
