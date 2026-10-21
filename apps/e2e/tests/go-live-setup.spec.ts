@@ -42,23 +42,23 @@ test('go-live setup: every item is checked and links to its screen; Home links t
 
 test('go-live setup: an optional item is marked not applicable with a reason, then counted again', async ({ page }) => {
   await page.goto('/en/lending/setup');
-  const row = page.getByTestId('setup-item-payment_khqr');
-  await expect(row).toHaveAttribute('data-status', /^(NOT_CHECKED|NOT_APPLICABLE)$/);
+  const row = page.getByTestId('setup-item-opening_balances');
+  await expect(row).toHaveAttribute('data-status', /^(TODO|NOT_APPLICABLE)$/);
   // Leave it as found if an earlier attempt marked it.
   if ((await row.getAttribute('data-status')) === 'NOT_APPLICABLE') {
     await row.getByRole('button', { name: msg('en', 'GoLiveSetup.clear') }).click();
-    await expect(row).toHaveAttribute('data-status', 'NOT_CHECKED');
+    await expect(row).toHaveAttribute('data-status', 'TODO');
   }
   await row.getByRole('button', { name: msg('en', 'GoLiveSetup.markNotApplicable') }).click();
   const save = row.getByRole('button', { name: msg('en', 'GoLiveSetup.save') });
   await expect(save).toBeDisabled();
-  await row.getByRole('textbox', { name: msg('en', 'GoLiveSetup.reasonLabel') }).fill('Collections by bank transfer only at launch');
+  await row.getByRole('textbox', { name: msg('en', 'GoLiveSetup.reasonLabel') }).fill('No existing loan book to migrate at launch');
   await save.click();
   await expect(row).toHaveAttribute('data-status', 'NOT_APPLICABLE');
-  await expect(row).toContainText('Collections by bank transfer only at launch');
+  await expect(row).toContainText('No existing loan book to migrate at launch');
 
   await row.getByRole('button', { name: msg('en', 'GoLiveSetup.clear') }).click();
-  await expect(row).toHaveAttribute('data-status', 'NOT_CHECKED');
+  await expect(row).toHaveAttribute('data-status', 'TODO');
 
   // Items every lender needs offer no such button.
   await expect(page.getByTestId('setup-item-impairment_policy').getByRole('button', { name: msg('en', 'GoLiveSetup.markNotApplicable') })).toHaveCount(0);
